@@ -187,7 +187,7 @@ class AccountMove(models.Model):
         adjusted = FechaEmi - timedelta(hours=6)
         invoice_info["fecEmi"] = adjusted.strftime('%Y-%m-%d')
 
-        invoice_info["codigoGeneracionR"] = None  # ó self.sit_codigoGeneracionR
+        #invoice_info["codigoGeneracionR"] = None  # ó self.sit_codigoGeneracionR
 
         # Datos del receptor
         dui = self.partner_id.dui or ''

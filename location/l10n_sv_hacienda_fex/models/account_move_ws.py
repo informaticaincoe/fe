@@ -74,20 +74,7 @@ class AccountMove(models.Model):
             ambiente = "01"        
         invoice_info["ambiente"] = ambiente
         invoice_info["tipoDte"] = self.journal_id.sit_tipo_documento.codigo
-        if self.name == "/":
-            tipo_dte = self.journal_id.sit_tipo_documento.codigo or '01'
-
-            # Obtener el código de establecimiento desde el diario
-            cod_estable = self.journal_id.cod_sit_estable or '0000M001'
-
-            # Obtener la secuencia desde ir.sequence con padding 15
-            correlativo = self.env['ir.sequence'].next_by_code('dte.secuencia') or '0'
-            correlativo = correlativo.zfill(15)
-
-            # Construir el número de control completo
-            invoice_info["numeroControl"] = f"DTE-{tipo_dte}-0000{cod_estable}-{correlativo}"
-        else:
-            invoice_info["numeroControl"] = self.name
+        invoice_info["numeroControl"] = self.name
         _logger.info("SIT sit_fex_base_map_invoice_info_identificacion0 = %s", invoice_info)
         invoice_info["codigoGeneracion"] = self.sit_generar_uuid()          #  company_id.sit_uuid.upper()
         invoice_info["tipoModelo"] = int(self.journal_id.sit_modelo_facturacion)

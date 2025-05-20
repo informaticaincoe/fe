@@ -34,7 +34,7 @@
                         <!-- Campos de account.move.invalidation relacionados -->
                         <field name="sit_fec_hor_Anula" options="{'no_open': True, 'no_create': True}"/>
                         <field name="hacienda_codigoGeneracion_anulacion" options="{'no_open': True, 'no_create': True}"/>
-                        <field name="sit_codigoGeneracionR" options="{'no_open': True, 'no_create': True}"/>
+                        <field name="sit_codigoGeneracionR"/>
                         <field name="sit_tipoAnulacion" options="{'no_open': True, 'no_create': True}"/>
                         <field name="sit_motivoAnulacion" options="{'no_open': True, 'no_create': True}"/>
                         <field name="hacienda_estado_anulacion"/>
