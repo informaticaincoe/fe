@@ -137,6 +137,7 @@ class AccountMove(models.Model):
         invoice_info["tipoItemExpor"] =  1
         invoice_info["recintoFiscal"] =  '99'
         invoice_info["regimen"] =  'EX1.1000.000'
+        #segun para lo que se utilizara el producto, agregar seleccion para la factura de exportacion
 
         return invoice_info
 
