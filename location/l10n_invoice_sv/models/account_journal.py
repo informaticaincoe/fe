@@ -15,6 +15,7 @@ class Journal(models.Model):
         ('compras', _('CCF Compras')),
         ('na', _('No Aplica')),
         ('anu_compras', _('Reintegro de CCF Compras')),
+        ('ndd', _('Nota de Debito')),
     ], default=False,string=_('Tipo de Documento Fiscal'),copy=False,
         help=_("El 'Tipo de Documento Fiscal' es usado en "\
         "las impresiones de los diferentes documentos"\
