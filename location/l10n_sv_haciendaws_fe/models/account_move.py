@@ -168,6 +168,9 @@ class AccountMove(models.Model):
         _logger.info("SIT vals list: %s", vals_list)
 
         for vals in vals_list:
+            move_type = vals.get('move_type')
+            _logger.info("SIT modulo detectado: %s", move_type)
+
             # --- extraer partner_id como antes ---
             partner_id = vals.get('partner_id')
             if not partner_id:
@@ -183,8 +186,11 @@ class AccountMove(models.Model):
 
             # --- Solo para diarios de venta: generar DTE/número de control ---
             journal_id = vals.get('journal_id')
+            if not journal_id:
+                journal_id= self.journal_id
+
             journal = self.env['account.journal'].browse(journal_id) if journal_id else None
-            if journal and journal.type == 'sale':
+            if (journal and journal.type == 'sale') or move_type == 'in_invoice':
                 name = vals.get('name')
                 # respetar si ya viene un DTE válido
                 if not (name and name != '/' and name.startswith('DTE-')):
@@ -338,8 +344,9 @@ class AccountMove(models.Model):
     def _generate_dte_name(self, journal=None, actualizar_secuencia=True):
         self.ensure_one()
         journal = journal or self.journal_id
+        _logger.info("SIT diario: %s, tipo. %s", journal, journal.type)
 
-        if journal.type != 'sale':
+        if journal.type != 'sale' and journal.type != 'purchase':
             return False
         if not journal.sit_tipo_documento or not journal.sit_tipo_documento.codigo:
             raise UserError(_("Configure Tipo de DTE en diario '%s'.") % journal.name)
