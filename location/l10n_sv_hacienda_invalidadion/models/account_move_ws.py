@@ -216,10 +216,14 @@ class AccountMove(models.Model):
         _logger.info("SIT [INICIO] Motivo anulación: self.id=%s", self.id)
 
         _logger.info("SIT Empresa-Receptor: self.id=%s", self.partner_id)
-        if self.journal_id.sit_tipo_documento.codigo == COD_FE:
-            dui = self.partner_id.dui
-        else:
-            dui = self.partner_id.fax
+        #if self.journal_id.sit_tipo_documento.codigo == COD_FE:
+        dui = None
+        if self.partner_id:
+            if self.partner_id.dui:
+                dui = self.partner_id.dui
+            else:
+                dui = self.partner_id.fax
+
         if not dui:
             raise UserError(
                 _("No se encontró el DUI del responsable en la empresa. Por favor verifique el campo DUI en el partner de la compañía."))

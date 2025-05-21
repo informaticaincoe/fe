@@ -98,6 +98,7 @@ class AccountMoveInvalidation(models.Model):
     # sit_codigoGeneracionR = fields.Char(string="codigoGeneracion que Reemplaza" , copy=False, )
     sit_codigoGeneracionR = fields.Char(related="sit_factura_a_reemplazar.hacienda_codigoGeneracion_identificacion",
                                         string="codigoGeneracion que Reemplaza", copy=False, required=True, default=None, )
+    sit_codigoGeneracion_reemplazo = fields.Char(string="Codigo de Generacion del documento que sustituye al dte invalidado", copy=False, )
     sit_tipoAnulacion = fields.Selection(
         selection='_get_tipo_Anulacion_selection', string="Tipo de invalidacion")
     sit_motivoAnulacion = fields.Char(string="Motivo de invalidacion", copy=False, )
