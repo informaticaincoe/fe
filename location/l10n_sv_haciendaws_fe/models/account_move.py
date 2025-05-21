@@ -144,6 +144,8 @@ class AccountMove(models.Model):
         string="Número de Control",
     )
 
+    error_log = fields.Text(string="Error técnico DTE", readonly=True)
+
     @api.onchange('move_type')
     def _onchange_move_type(self):
         # Si el tipo de movimiento es una reversión (out_refund), no se debe permitir modificar el nombre (número de control)
@@ -341,7 +343,7 @@ class AccountMove(models.Model):
 
         return result
 
-    def _generate_dte_name(self, journal=None, actualizar_secuencia=True):
+    def _generate_dte_name(self, journal=None, actualizar_secuencia=False):
         self.ensure_one()
         journal = journal or self.journal_id
         _logger.info("SIT diario: %s, tipo. %s", journal, journal.type)
@@ -400,7 +402,7 @@ class AccountMove(models.Model):
                     if sequence.number_next_actual < next_num:
                         sequence.number_next_actual = next_num
                         _logger.info("SIT Secuencia '%s' actualizada a %s", seq_code, next_num)
-
+        _logger.info("SIT Actualizar secuencia _generar_dte_name(): %s", actualizar_secuencia)
         return nuevo_name
 
     # ---------------------------------------------------------------------------------------------
@@ -563,6 +565,34 @@ class AccountMove(models.Model):
 #         _logger.info("SIT Terminando _post sin procesar ningún DTE (self=%s)", self)
 #         return super(AccountMove, self)._post(soft=soft)
 
+    def actualizar_secuencia(self):
+        _logger.info("SIT Actualizar secuencia: %s")
+        tipo = self.journal_id.sit_tipo_documento.codigo
+        estable = self.journal_id.sit_codestable
+        seq_code = f'dte.{tipo}'
+        numero_control = self.name
+        try:
+            secuencia_actual = int(numero_control.split("-")[-1])
+        except Exception:
+            secuencia_actual = 0
+        sequence = self.env['ir.sequence'].search([('code', '=', seq_code)], limit=1)
+        if sequence:
+            next_num = secuencia_actual + 1
+            if sequence.use_date_range:
+                today = fields.Date.context_today(self)
+                date_range = self.env['ir.sequence.date_range'].search([
+                    ('sequence_id', '=', sequence.id),
+                    ('date_from', '<=', today),
+                    ('date_to', '>=', today)
+                ], limit=1)
+                if date_range and date_range.number_next_actual < next_num:
+                    date_range.number_next_actual = next_num
+                    _logger.info("SIT Secuencia con date_range '%s' actualizada a %s", seq_code, next_num)
+            else:
+                if sequence.number_next_actual < next_num:
+                    sequence.number_next_actual = next_num
+                    _logger.info("SIT Secuencia '%s' actualizada a %s", seq_code, next_num)
+
     def _post(self, soft=True):
         """Override para:
         - Diarios sale: generar/validar DTE y enviar a Hacienda.
@@ -578,190 +608,204 @@ class AccountMove(models.Model):
 
         # 2) Procesar cada factura
         for invoice in invoices_to_post:
-            journal = invoice.journal_id
-            _logger.info("SIT Procesando invoice %s (journal=%s)", invoice.id, journal.name)
+            try:
+                journal = invoice.journal_id
+                _logger.info("SIT Procesando invoice %s (journal=%s)", invoice.id, journal.name)
 
-            # —————————————————————————————————————————————
-            # A) DIARIOS NO-VENTA: saltar lógica DTE
-            # —————————————————————————————————————————————
-            if journal.type != 'sale' or invoice.move_type not in ('out_invoice', 'out_refund'):
-                _logger.info("Diario '%s' no es venta, omito DTE en _post", journal.name)
-                # Dejar que Odoo asigne su name normal en el super al final
-                continue
+                # —————————————————————————————————————————————
+                # A) DIARIOS NO-VENTA/COMPRA: saltar lógica DTE
+                # —————————————————————————————————————————————
+                if journal.type not in ('sale',
+                                        'purchase'):  # or invoice.move_type not in ('out_invoice', 'out_refund'):
+                    _logger.info("Diario '%s' no aplica, omito DTE en _post", journal.name)
+                    # Dejar que Odoo asigne su name normal en el super al final
+                    continue
 
-            # —————————————————————————————————————————————
-            # B) DIARIOS VENTA: generación/validación de DTE
-            # —————————————————————————————————————————————
-            # 1) Número de control DTE
-            if not (invoice.name and invoice.name.startswith("DTE-")):
-                numero_control = invoice._generate_dte_name()
-                if not numero_control:
-                    raise UserError(_("No se pudo generar número de control DTE para la factura %s.") % invoice.id)
-                invoice.name = numero_control
-                _logger.info("SIT DTE generado en _post: %s", numero_control)
+                # —————————————————————————————————————————————
+                # B) DIARIOS VENTA: generación/validación de DTE
+                # —————————————————————————————————————————————
+                # 1) Número de control DTE
+                if not (invoice.name and invoice.name.startswith("DTE-")):
+                    numero_control = invoice._generate_dte_name()
+                    if not numero_control:
+                        raise UserError(_("No se pudo generar número de control DTE para la factura %s.") % invoice.id)
+                    invoice.name = numero_control
+                    _logger.info("SIT DTE generado en _post: %s", numero_control)
 
-            # Si el tipo de documento requiere validación adicional, hacerlo aquí
-            if invoice.journal_id.sit_tipo_documento:
-                type_report = invoice.journal_id.type_report
-                sit_tipo_documento = invoice.journal_id.sit_tipo_documento.codigo
+                # Si el tipo de documento requiere validación adicional, hacerlo aquí
+                if invoice.journal_id.sit_tipo_documento:
+                    type_report = invoice.journal_id.type_report
+                    sit_tipo_documento = invoice.journal_id.sit_tipo_documento.codigo
 
-                _logger.info("SIT action_post type_report = %s", type_report)
-                _logger.info("SIT action_post sit_tipo_documento = %s", sit_tipo_documento)
-                _logger.info("SIT Receptor = %s, info=%s", invoice.partner_id, invoice.partner_id.parent_id)
-                # Validación del partner y otros parámetros según el tipo de DTE
-                if type_report == 'ccf':
-                    # Validaciones específicas para CCF
-                    if not invoice.partner_id.parent_id:
-                        if not invoice.partner_id.nrc:
-                            invoice.msg_error("N.R.C.")
-                        if not invoice.partner_id.fax and not invoice.partner_id.dui:
-                            invoice.msg_error("N.I.T O D.U.I.")
-                        if not invoice.partner_id.codActividad:
-                            invoice.msg_error("Giro o Actividad Económica")
-                    else:
-                        if not invoice.partner_id.parent_id.nrc:
-                            invoice.msg_error("N.R.C.")
-                        if not invoice.partner_id.parent_id.fax and not invoice.partner_id.parent_id.dui:
-                            invoice.msg_error("N.I.T O D.U.I.")
-                        if not invoice.partner_id.parent_id.codActividad:
-                            invoice.msg_error("Giro o Actividad Económica")
-
-                elif type_report == 'ndc':
-                    # Asignar el partner_id relacionado con el crédito fiscal si no existe parent_id
-                    if not invoice.partner_id.parent_id:
-                        if not invoice.partner_id.nrc:
-                            invoice.msg_error("N.R.C.")
-                        if not invoice.partner_id.fax:
-                            invoice.msg_error("N.I.T.")
-                        if not invoice.partner_id.codActividad:
-                            invoice.msg_error("Giro o Actividad Económica")
-                    else:
-                        parent = invoice.partner_id.parent_id
-                        if not invoice.partner_id.parent_id.nrc:
-                            invoice.msg_error("N.R.C.")
-                        if not invoice.partner_id.parent_id.fax:
-                            invoice.msg_error("N.I.T.")
-                        if not invoice.partner_id.parent_id.codActividad:
-                            invoice.msg_error("Giro o Actividad Económica")
-
-                ambiente = "00"
-                if self._compute_validation_type_2() == 'production':
-                    ambiente = "01"
-                    _logger.info("SIT Factura de Producción")
-
-                # Firmar el documento y generar el DTE
-                payload = invoice.obtener_payload('production', sit_tipo_documento)
-                documento_firmado = invoice.firmar_documento('production', payload)
-
-                if documento_firmado:
-                    _logger.info("SIT Firmado de documento")
-                    payload_dte = invoice.sit_obtener_payload_dte_info(ambiente, documento_firmado)
-                    self.check_parametros_dte(payload_dte)
-
-                    # Intentar generar el DTE
-                    Resultado = invoice.generar_dte('production', payload_dte, payload)
-                    _logger.warning("SIT Resultado. =%s", Resultado)
-
-                    # Si el resp es un rechazo por número de control
-                    if isinstance(Resultado, dict) and Resultado.get('estado', '').strip().lower() == 'rechazado':
-                        error_text = json.dumps(Resultado).lower()
-                        if 'numero de control' in error_text or 'ya existe un registro con ese valor' in error_text:
-                            _logger.warning(
-                                "SIT DTE rechazado por número de control duplicado. Generando nuevo número.")
-
-                            # Generar nuevo número de control
-                            nuevo_nombre = invoice._generate_dte_name()
-                            invoice.write({'name': nuevo_nombre})
-                            invoice.sequence_number = int(nuevo_nombre.split("-")[-1])
-
-                            # Reemplazar numeroControl en el payload original
-                            payload['dteJson']['identificacion']['numeroControl'] = nuevo_nombre
-
-                            # Volver a firmar con el nuevo número
-                            documento_firmado = invoice.firmar_documento('production', payload)
-
-                            if not documento_firmado:
-                                raise UserError(
-                                    _('SIT Documento NO Firmado después de reintento con nuevo número de control'))
-
-                            # Intentar nuevamente generar el DTE
-                            payload_dte = invoice.sit_obtener_payload_dte_info(ambiente, documento_firmado)
-                            self.check_parametros_dte(payload_dte)
-                            Resultado = invoice.generar_dte('production', payload_dte, payload)
-
-                    if Resultado:
-                        _logger.info("SIT Resultado DTE")
-                        # Procesar la respuesta de Hacienda
-                        dat_time = Resultado['fhProcesamiento']
-                        fhProcesamiento = datetime.strptime(dat_time, '%d/%m/%Y %H:%M:%S')
-                        invoice.hacienda_estado = Resultado['estado']
-                        invoice.hacienda_codigoGeneracion_identificacion = Resultado['codigoGeneracion']
-                        invoice.hacienda_selloRecibido = Resultado['selloRecibido']
-                        invoice.fecha_facturacion_hacienda = fhProcesamiento + timedelta(hours=6)
-                        invoice.hacienda_clasificaMsg = Resultado['clasificaMsg']
-                        invoice.hacienda_codigoMsg = Resultado['codigoMsg']
-                        invoice.hacienda_descripcionMsg = Resultado['descripcionMsg']
-                        invoice.hacienda_observaciones = str(Resultado['observaciones'])
-                        codigo_qr = invoice._generar_qr(ambiente, Resultado['codigoGeneracion'],
-                                                        invoice.fecha_facturacion_hacienda)
-                        invoice.sit_qr_hacienda = codigo_qr
-                        # invoice.state = "draft"
-
-                        dte = payload['dteJson']
-                        _logger.info("Tipo de dteJson: %s", type(dte))
-                        _logger.info("SIT JSON=%s", dte)
-                        # Solo serializar si no es string
-                        if isinstance(dte, str):
-                            try:
-                                # Verifica si es un JSON string válido, y lo convierte a dict
-                                dte = json.loads(dte)
-                            except json.JSONDecodeError:
-                                # Ya era string, pero no era JSON válido -> guardar tal cual
-                                invoice.sit_json_respuesta = dte
-                            else:
-                                # Era un JSON string válido → ahora es dict
-                                invoice.sit_json_respuesta = json.dumps(dte, ensure_ascii=False)
-                        elif isinstance(dte, dict):
-                            invoice.sit_json_respuesta = json.dumps(dte, ensure_ascii=False)
+                    _logger.info("SIT action_post type_report = %s", type_report)
+                    _logger.info("SIT action_post sit_tipo_documento = %s", sit_tipo_documento)
+                    _logger.info("SIT Receptor = %s, info=%s", invoice.partner_id, invoice.partner_id.parent_id)
+                    # Validación del partner y otros parámetros según el tipo de DTE
+                    if type_report == 'ccf':
+                        # Validaciones específicas para CCF
+                        if not invoice.partner_id.parent_id:
+                            if not invoice.partner_id.nrc:
+                                invoice.msg_error("N.R.C.")
+                            if not invoice.partner_id.fax and not invoice.partner_id.dui:
+                                invoice.msg_error("N.I.T O D.U.I.")
+                            if not invoice.partner_id.codActividad:
+                                invoice.msg_error("Giro o Actividad Económica")
                         else:
-                            # Otro tipo de dato no esperado
-                            invoice.sit_json_respuesta = str(dte)
+                            if not invoice.partner_id.parent_id.nrc:
+                                invoice.msg_error("N.R.C.")
+                            if not invoice.partner_id.parent_id.fax and not invoice.partner_id.parent_id.dui:
+                                invoice.msg_error("N.I.T O D.U.I.")
+                            if not invoice.partner_id.parent_id.codActividad:
+                                invoice.msg_error("Giro o Actividad Económica")
 
-                        json_str = json.dumps(dte, ensure_ascii=False, default=str)
-                        json_base64 = base64.b64encode(json_str.encode('utf-8'))
-                        file_name = dte["identificacion"]["numeroControl"] + '.json'
-                        invoice.env['ir.attachment'].sudo().create({
-                            'name': file_name,
-                            'datas': json_base64,
-                            'res_model': self._name,
-                            'res_id': invoice.id,
-                            'mimetype': 'application/json'
-                        })
-                        _logger.info("SIT JSON creado y adjuntado.")
+                    elif type_report == 'ndc':
+                        # Asignar el partner_id relacionado con el crédito fiscal si no existe parent_id
+                        if not invoice.partner_id.parent_id:
+                            if not invoice.partner_id.nrc:
+                                invoice.msg_error("N.R.C.")
+                            if not invoice.partner_id.fax:
+                                invoice.msg_error("N.I.T.")
+                            if not invoice.partner_id.codActividad:
+                                invoice.msg_error("Giro o Actividad Económica")
+                        else:
+                            parent = invoice.partner_id.parent_id
+                            if not invoice.partner_id.parent_id.nrc:
+                                invoice.msg_error("N.R.C.")
+                            if not invoice.partner_id.parent_id.fax:
+                                invoice.msg_error("N.I.T.")
+                            if not invoice.partner_id.parent_id.codActividad:
+                                invoice.msg_error("Giro o Actividad Económica")
 
-            # 2) Validar formato
-            if not invoice.name.startswith("DTE-"):
-                raise UserError(_("Número de control DTE inválido para la factura %s.") % invoice.id)
+                    ambiente = "00"
+                    if self._compute_validation_type_2() == 'production':
+                        ambiente = "01"
+                        _logger.info("SIT Factura de Producción")
 
-            # —————————————————————————————————————————————
-            # C) Guardar DTE
-            # —————————————————————————————————————————————
-            if Resultado:
-                # Procesar respuesta de Hacienda
-                dat_time = Resultado['fhProcesamiento']
-                fh = datetime.strptime(dat_time, '%d/%m/%Y %H:%M:%S') + timedelta(hours=6)
+                    # Firmar el documento y generar el DTE
+                    payload = invoice.obtener_payload('production', sit_tipo_documento)
+                    documento_firmado = invoice.firmar_documento('production', payload)
+
+                    if documento_firmado:
+                        _logger.info("SIT Firmado de documento")
+                        payload_dte = invoice.sit_obtener_payload_dte_info(ambiente, documento_firmado)
+                        self.check_parametros_dte(payload_dte)
+
+                        # Intentar generar el DTE
+                        Resultado = invoice.generar_dte('production', payload_dte, payload)
+                        _logger.warning("SIT Resultado. =%s, estado=%s", Resultado, Resultado.get('estado', ''))
+
+                        # Si el resp es un rechazo por número de control
+                        if isinstance(Resultado, dict) and Resultado.get('estado', '').strip().lower() == 'rechazado':
+                            error_text = json.dumps(Resultado).lower()
+                            if 'numero de control' in error_text or 'ya existe un registro con ese valor' in error_text:
+                                _logger.warning(
+                                    "SIT DTE rechazado por número de control duplicado. Generando nuevo número.")
+
+                                # Generar nuevo número de control
+                                nuevo_nombre = invoice._generate_dte_name()
+                                invoice.write({'name': nuevo_nombre})
+                                invoice.sequence_number = int(nuevo_nombre.split("-")[-1])
+
+                                # Reemplazar numeroControl en el payload original
+                                payload['dteJson']['identificacion']['numeroControl'] = nuevo_nombre
+
+                                # Volver a firmar con el nuevo número
+                                documento_firmado = invoice.firmar_documento('production', payload)
+
+                                if not documento_firmado:
+                                    raise UserError(
+                                        _('SIT Documento NO Firmado después de reintento con nuevo número de control'))
+
+                                # Intentar nuevamente generar el DTE
+                                payload_dte = invoice.sit_obtener_payload_dte_info(ambiente, documento_firmado)
+                                self.check_parametros_dte(payload_dte)
+                                Resultado = invoice.generar_dte('production', payload_dte, payload)
+
+                        if Resultado:
+                            if isinstance(Resultado, dict) and Resultado.get('estado','').strip().lower() == 'procesado':
+                                invoice.actualizar_secuencia()
+
+                            _logger.info("SIT Resultado DTE")
+                            # Procesar la respuesta de Hacienda
+                            dat_time = Resultado['fhProcesamiento']
+                            fhProcesamiento = datetime.strptime(dat_time, '%d/%m/%Y %H:%M:%S')
+                            invoice.hacienda_estado = Resultado['estado']
+                            invoice.hacienda_codigoGeneracion_identificacion = Resultado['codigoGeneracion']
+                            invoice.hacienda_selloRecibido = Resultado['selloRecibido']
+                            # invoice.fecha_facturacion_hacienda = fhProcesamiento + timedelta(hours=6)
+                            if not invoice.fecha_facturacion_hacienda:
+                                invoice.fecha_facturacion_hacienda = fhProcesamiento + timedelta(hours=6)
+                            _logger.info("SIT Fecha facturacion=%s", invoice.fecha_facturacion_hacienda)
+                            invoice.hacienda_clasificaMsg = Resultado['clasificaMsg']
+                            invoice.hacienda_codigoMsg = Resultado['codigoMsg']
+                            invoice.hacienda_descripcionMsg = Resultado['descripcionMsg']
+                            invoice.hacienda_observaciones = str(Resultado['observaciones'])
+                            codigo_qr = invoice._generar_qr(ambiente, Resultado['codigoGeneracion'],
+                                                            invoice.fecha_facturacion_hacienda)
+                            invoice.sit_qr_hacienda = codigo_qr
+                            # invoice.state = "draft"
+
+                            dte = payload['dteJson']
+                            _logger.info("Tipo de dteJson: %s", type(dte))
+                            _logger.info("SIT JSON=%s", dte)
+                            # Solo serializar si no es string
+                            if isinstance(dte, str):
+                                try:
+                                    # Verifica si es un JSON string válido, y lo convierte a dict
+                                    dte = json.loads(dte)
+                                except json.JSONDecodeError:
+                                    # Ya era string, pero no era JSON válido -> guardar tal cual
+                                    invoice.sit_json_respuesta = dte
+                                else:
+                                    # Era un JSON string válido → ahora es dict
+                                    invoice.sit_json_respuesta = json.dumps(dte, ensure_ascii=False)
+                            elif isinstance(dte, dict):
+                                invoice.sit_json_respuesta = json.dumps(dte, ensure_ascii=False)
+                            else:
+                                # Otro tipo de dato no esperado
+                                invoice.sit_json_respuesta = str(dte)
+
+                            json_str = json.dumps(dte, ensure_ascii=False, default=str)
+                            json_base64 = base64.b64encode(json_str.encode('utf-8'))
+                            file_name = dte["identificacion"]["numeroControl"] + '.json'
+                            invoice.env['ir.attachment'].sudo().create({
+                                'name': file_name,
+                                'datas': json_base64,
+                                'res_model': self._name,
+                                'res_id': invoice.id,
+                                'mimetype': 'application/json'
+                            })
+                            _logger.info("SIT JSON creado y adjuntado.")
+
+                # 2) Validar formato
+                if not invoice.name.startswith("DTE-"):
+                    raise UserError(_("Número de control DTE inválido para la factura %s.") % invoice.id)
+
+                # —————————————————————————————————————————————
+                # C) Guardar DTE
+                # —————————————————————————————————————————————
+                if Resultado:
+                    # Procesar respuesta de Hacienda
+                    dat_time = Resultado['fhProcesamiento']
+                    fh = datetime.strptime(dat_time, '%d/%m/%Y %H:%M:%S') + timedelta(hours=6)
+                    invoice.write({
+                        'hacienda_estado': Resultado['estado'],
+                        'hacienda_codigoGeneracion_identificacion': Resultado['codigoGeneracion'],
+                        'hacienda_selloRecibido': Resultado['selloRecibido'],
+                        'hacienda_clasificaMsg': Resultado['clasificaMsg'],
+                        'hacienda_codigoMsg': Resultado['codigoMsg'],
+                        'hacienda_descripcionMsg': Resultado['descripcionMsg'],
+                        'hacienda_observaciones': str(Resultado.get('observaciones', '')),
+                        'state': 'draft',
+                    })
+
+            except Exception as e:
+                error_msg = traceback.format_exc()
+                _logger.exception("SIT Error durante el _post para invoice ID %s: %s", invoice.id, str(e))
                 invoice.write({
-                    'hacienda_estado': Resultado['estado'],
-                    'hacienda_codigoGeneracion_identificacion': Resultado['codigoGeneracion'],
-                    'hacienda_selloRecibido': Resultado['selloRecibido'],
-                    'fecha_facturacion_hacienda': fh,
-                    'hacienda_clasificaMsg': Resultado['clasificaMsg'],
-                    'hacienda_codigoMsg': Resultado['codigoMsg'],
-                    'hacienda_descripcionMsg': Resultado['descripcionMsg'],
-                    'hacienda_observaciones': str(Resultado.get('observaciones', '')),
+                    'error_log': error_msg,
                     'state': 'draft',
                 })
-        # 3) Finalmente delegar al flujo estándar de Odoo
         return super(AccountMove, self)._post(soft=soft)
 
     def _compute_validation_type_2(self):
@@ -946,6 +990,7 @@ class AccountMove(models.Model):
             data = {}
 
         _logger.info("SIT MH status=%s text=%s", resp.status_code, resp.text)
+        _logger.info("SIT MH fecha procesamiento=%s text=%s", resp.text)
 
         # ——— 6) Manejo especial de códigoMsg '004' ———
         if resp.status_code == 400 and data.get("clasificaMsg") == "11" and data.get("codigoMsg") == "004":
