@@ -19,7 +19,8 @@ class sit_account_move(models.Model):
     sit_tipo_transmision = fields.Selection(selection='_get_tipo_transmision_selection', string='Tipo de Transmisión - Hacienda', store=True)
     sit_referencia = fields.Text(string="Referencia", default="")
     sit_qr_hacienda = fields.Binary("QR Hacienda", default=False) 
-    sit_json_respuesta = fields.Text("Json de Respuesta", default="") 
+    sit_json_respuesta = fields.Text("Json de Respuesta", default="")
+    sit_regimen = fields.Many2one('account.move.regimen.field', string="Régimen de Exportación")
 
     def _get_condiciones_pago_selection(self):
         return [

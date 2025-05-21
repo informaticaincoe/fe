@@ -1132,7 +1132,7 @@ class AccountMove(models.Model):
         invoice_info['receptor']            = self.sit__ccf_base_map_invoice_info_receptor()
         invoice_info['ventaTercero']        = None
         # 5) Cuerpo del documento: reusa tu método de NDC
-        cuerpo, tributo, totalGravada, tax_ids, totalIva = self.sit_base_map_invoice_info_cuerpo_documento_ndc()
+        cuerpo, tributo, totalGravada, tax_ids, totalIva = self.sit_base_map_invoice_info_cuerpo_documento_ndd()
         invoice_info['cuerpoDocumento']     = cuerpo
         if cuerpo is None:
             raise UserError(_("La Nota de Débito no tiene líneas de productos válidas."))
@@ -1166,8 +1166,9 @@ class AccountMove(models.Model):
             _logger.debug(
                 f"Procesando línea de factura: {line.product_id.name}, tipoItem: {tipoItem}.")  # Log en cada línea.
 
-            if self.inv_refund_id:
-                line_temp["numeroDocumento"] = self.inv_refund_id.hacienda_codigoGeneracion_identificacion
+            _logger.info("Numero de documento:=%s ", self.debit_origin_id)
+            if self.debit_origin_id:
+                line_temp["numeroDocumento"] = self.debit_origin_id.hacienda_codigoGeneracion_identificacion
             else:
                 line_temp["numeroDocumento"] = None
 
@@ -1350,6 +1351,7 @@ class AccountMove(models.Model):
         if not self.debit_origin_id:
             raise UserError(_("La Nota de Débito debe referenciar una factura existente."))
         origin = self.debit_origin_id
+        _logger.info("SIT Debito: %s", origin)
         return [{
             'tipoDocumento':    origin.journal_id.sit_tipo_documento.codigo,
             'tipoGeneracion':   2,

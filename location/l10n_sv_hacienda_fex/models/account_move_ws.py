@@ -136,7 +136,8 @@ class AccountMove(models.Model):
         invoice_info["codPuntoVenta"] =  self.journal_id.sit_codpuntoventa
         invoice_info["tipoItemExpor"] =  1
         invoice_info["recintoFiscal"] =  '99'
-        invoice_info["regimen"] =  'EX1.1000.000'
+        _logger.info("SIT regimen de exportacion = %s", self.sit_regimen)
+        invoice_info["regimen"] = self.sit_regimen.codigo#'EX1.1000.000'
         #segun para lo que se utilizara el producto, agregar seleccion para la factura de exportacion
 
         return invoice_info

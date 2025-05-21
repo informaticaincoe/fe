@@ -79,7 +79,8 @@
         'data/account.move.tributos.field.csv',
         'data/account.move.tipo_item.field.csv',
         'data/account.journal.tipo_documento.field.csv',
-        'data/account.move.tipo_operacion.field.csv'
+        'data/account.move.tipo_operacion.field.csv',
+        'data/account.move.regimen.field.csv',
         
     ],
     'demo': [
