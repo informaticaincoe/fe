@@ -94,9 +94,14 @@ class sit_AccountContingencia(models.Model):
         invoice_info["nit"] = nit
         nrc= self.company_id.company_registry
         invoice_info["nombre"] = self.company_id.name
-        invoice_info["nombreResponsable"] = self.company_id.partner_id.user_id.partner_id.name
+        invoice_info["nombreResponsable"] = self.invoice_user_id.partner_id.user_id.partner_id.name
         invoice_info["tipoDocResponsable"] = "13"
-        invoice_info["numeroDocResponsable"] = self.company_id.partner_id.user_id.partner_id.dui
+
+        if self.invoice_user_id.partner_id.user_id.partner_id.dui:
+            numeroDocumento = self.invoice_user_id.partner_id.user_id.partner_id.dui
+        else:
+            numeroDocumento = self.invoice_user_id.partner_id.user_id.partner_id.fax
+        invoice_info["numeroDocResponsable"] = numeroDocumento
         invoice_info["tipoEstablecimiento"] =  self.company_id.tipoEstablecimiento.codigo
         invoice_info["codEstableMH"] =  None
         invoice_info["codPuntoVenta"] =  None

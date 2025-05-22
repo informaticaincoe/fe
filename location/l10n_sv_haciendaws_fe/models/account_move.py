@@ -805,6 +805,7 @@ class AccountMove(models.Model):
                 invoice.write({
                     'error_log': error_msg,
                     'state': 'draft',
+                    'sit_es_configencia': True,
                 })
         return super(AccountMove, self)._post(soft=soft)
 
@@ -929,7 +930,7 @@ class AccountMove(models.Model):
             if environment_type == "homologation"
             else "https://api.dtes.mh.gob.sv"
         )
-        url_receive = f"{host}/fesv/recepciondte"
+        url_receive = f"{host}/fesv/recepciondte1"
 
         # ——— 2) Refrescar token si hace falta ———
         today = fields.Date.context_today(self)
