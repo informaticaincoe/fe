@@ -4,8 +4,10 @@
     <template id="report_invoice_fcf">
       <t t-call="web.html_container">
         <t t-set="o" t-value="o.with_context({'lang':o.partner_id.lang})"/>
+        <link rel="stylesheet" href="/web/static/l10n_invoice_sv/src/css/custom.css"/>
+
         <div class="header">
-          
+
         </div>
         <div class="page article" t-att-data-oe-model="o and o._name" t-att-data-oe-id="o and o.id">
           <style>
@@ -50,7 +52,7 @@
           <div class="row">
             <table id="encabezado">
               <tr>
-                <td colspan="3">
+                <td colspan="3" class="table-styles">
                   Cliente: <span t-field="o.partner_id"/>
                 </td>
                 <td>
@@ -136,7 +138,7 @@
                       <span />
                   </td>
                   <td class="text-right">
-                      <span t-esc="l.price_subtotal * 1.13" 
+                      <span t-esc="l.price_subtotal * 1.13"
                           t-options='{"widget": "monetary", "display_currency": o.currency_id}'/>
                   </td>
                 </tr>
@@ -196,7 +198,7 @@
                   Yo <span t-field="o.partner_id"/> el comprador o adquiriente acepto por este PAGARE, sin protesto,
                   el dia <span t-esc="time.strftime('%A, %d de %B de %Y',time.strptime(str(o.invoice_date_due),'%Y-%m-%d'))"/>,
                   me(nos) obligo(amos)a pagar en San Salvador, a la orden de <span t-field="o.company_id"/>
-                  la suma de <span t-field="o.amount_text"/> 
+                  la suma de <span t-field="o.amount_text"/>
                   más intereses del 5% por ciento mensual, pagaderos en caso de mora
                   reconoceré(mos) intereses del 7% por ciento mensual.
                   Para los efectos de esta obligación mercantil, fijo (amos) como domicilio  especial la ciudad

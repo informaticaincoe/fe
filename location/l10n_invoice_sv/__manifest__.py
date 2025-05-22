@@ -24,7 +24,19 @@
     'license': 'GPL-3',
     'category': 'Contabilidad',
     'version': '17.1',
-    'depends': ['base', 'l10n_sv', 'account', 'product','mail'],
+    'depends': ['base', 'l10n_sv', 'account', 'product', 'mail'],
+    'assets': {
+        # Para el back-end (interfaz de usuario de Odoo):
+        'web.assets_backend': [
+            'https://cdn.jsdelivr.net/npm/bootstrap@5.4.0/dist/css/bootstrap.min.css',
+            'https://cdn.jsdelivr.net/npm/bootstrap@5.4.0/dist/js/bootstrap.bundle.min.js',
+        ],
+        # Si también quieres en la parte pública / website:
+        'web.assets_frontend': [
+            'https://cdn.jsdelivr.net/npm/bootstrap@5.4.0/dist/css/bootstrap.min.css',
+            'https://cdn.jsdelivr.net/npm/bootstrap@5.4.0/dist/js/bootstrap.bundle.min.js',
+        ],
+    },
     'data': [
         'views/account_journal.xml',
         'views/posicion_arancel_view.xml',
