@@ -91,7 +91,13 @@ class sit_account_contingencia(models.Model):
     sit_selloRecibido = fields.Text(string="sello Recibido - Hacienda", default="")
     sit_observaciones=fields.Text("observaciones - Hacienda", default="") 
     hacienda_estado=fields.Text("hacienda estado", default="") 
-    sit_json_respuesta = fields.Text("Json de Respuesta", default="") 
+    sit_json_respuesta = fields.Text("Json de Respuesta", default="")
+    hacienda_codigoGeneracion_identificacion = fields.Char(
+        copy=False,
+        string="Codigo de Generación de Identificación Contingencia",
+        readonly=True,
+        states={"draft": [("readonly", False)]},
+    )
 
     def _compute_company_id(self):
         _logger.info("SIT calculando company_id")
@@ -145,3 +151,22 @@ class sit_account_contingencia(models.Model):
                 return validation_type
             else:
                 return False
+
+    @api.model
+    def create(self, vals):
+        # Crear el registro de contingencia
+        record = super().create(vals)
+
+        # Buscar todas las facturas que están en contingencia y no están asignadas a ninguna contingencia aún
+        facturas_en_contingencia = self.env['account.move'].search([
+            ('sit_es_configencia', '=', True),
+            ('sit_factura_de_contingencia', '=', False),
+            '|', ('hacienda_selloRecibido', '=', None), ('hacienda_selloRecibido', '=', '')
+        ])
+
+        # Asignarlas al registro actual
+        facturas_en_contingencia.write({
+            'sit_factura_de_contingencia': record.id
+        })
+
+        return record
