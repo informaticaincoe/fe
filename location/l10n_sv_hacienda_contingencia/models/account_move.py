@@ -15,6 +15,7 @@ class sit_account_move(models.Model):
     sit_es_configencia = fields.Boolean('Es contingencia ?',  copy=False,)
     sit_factura_por_lote = fields.Boolean('Facturado por lote ?',  copy=False, default=False)
     sit_documento_firmado = fields.Text(string="Documento Firmado", copy=False, readonly=True)
+    sit_lote_contingencia = fields.Many2one('account.lote', string="Factura asignada en el lote", ondelete="set null")
 
     @api.onchange('sit_es_configencia')
     def check_sit_es_configencia(self):

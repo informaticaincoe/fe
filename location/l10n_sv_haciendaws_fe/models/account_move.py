@@ -599,6 +599,7 @@ class AccountMove(models.Model):
         - Resto: usar secuencia estándar y omitir DTE.
         """
         Resultado = None
+        payload = None
         invoices_to_post = self
         _logger.info("SIT _post override for invoices: %s", self.ids)
 
@@ -722,7 +723,8 @@ class AccountMove(models.Model):
                                 Resultado = invoice.generar_dte('production', payload_dte, payload)
 
                         if Resultado:
-                            if isinstance(Resultado, dict) and Resultado.get('estado','').strip().lower() == 'procesado':
+                            if isinstance(Resultado, dict) and Resultado.get('estado',
+                                                                             '').strip().lower() == 'procesado':
                                 invoice.actualizar_secuencia()
 
                             _logger.info("SIT Resultado DTE")
@@ -745,29 +747,9 @@ class AccountMove(models.Model):
                             invoice.sit_qr_hacienda = codigo_qr
                             # invoice.state = "draft"
 
-                            dte = payload['dteJson']
-                            _logger.info("Tipo de dteJson: %s", type(dte))
-                            _logger.info("SIT JSON=%s", dte)
-                            # Solo serializar si no es string
-                            if isinstance(dte, str):
-                                try:
-                                    # Verifica si es un JSON string válido, y lo convierte a dict
-                                    dte = json.loads(dte)
-                                except json.JSONDecodeError:
-                                    # Ya era string, pero no era JSON válido -> guardar tal cual
-                                    invoice.sit_json_respuesta = dte
-                                else:
-                                    # Era un JSON string válido → ahora es dict
-                                    invoice.sit_json_respuesta = json.dumps(dte, ensure_ascii=False)
-                            elif isinstance(dte, dict):
-                                invoice.sit_json_respuesta = json.dumps(dte, ensure_ascii=False)
-                            else:
-                                # Otro tipo de dato no esperado
-                                invoice.sit_json_respuesta = str(dte)
-
-                            json_str = json.dumps(dte, ensure_ascii=False, default=str)
+                            json_str = json.dumps(payload['dteJson'], ensure_ascii=False, default=str)
                             json_base64 = base64.b64encode(json_str.encode('utf-8'))
-                            file_name = dte["identificacion"]["numeroControl"] + '.json'
+                            file_name = payload['dteJson']["identificacion"]["numeroControl"] + '.json'
                             invoice.env['ir.attachment'].sudo().create({
                                 'name': file_name,
                                 'datas': json_base64,
@@ -775,6 +757,7 @@ class AccountMove(models.Model):
                                 'res_id': invoice.id,
                                 'mimetype': 'application/json'
                             })
+                            invoice.sit_documento_firmado = sit_documento_firmado
                             _logger.info("SIT JSON creado y adjuntado.")
 
                 # 2) Validar formato
@@ -784,6 +767,26 @@ class AccountMove(models.Model):
                 # —————————————————————————————————————————————
                 # C) Guardar DTE
                 # —————————————————————————————————————————————
+                dte = payload['dteJson']
+                _logger.info("Tipo de dteJson: %s", type(dte))
+                _logger.info("SIT JSON=%s", dte)
+                # Solo serializar si no es string
+                if isinstance(dte, str):
+                    try:
+                        # Verifica si es un JSON string válido, y lo convierte a dict
+                        dte = json.loads(dte)
+                    except json.JSONDecodeError:
+                        # Ya era string, pero no era JSON válido -> guardar tal cual
+                        invoice.sit_json_respuesta = dte
+                    else:
+                        # Era un JSON string válido → ahora es dict
+                        invoice.sit_json_respuesta = json.dumps(dte, ensure_ascii=False)
+                elif isinstance(dte, dict):
+                    invoice.sit_json_respuesta = json.dumps(dte, ensure_ascii=False)
+                else:
+                    # Otro tipo de dato no esperado
+                    invoice.sit_json_respuesta = str(dte)
+
                 if Resultado:
                     # Procesar respuesta de Hacienda
                     dat_time = Resultado['fhProcesamiento']
@@ -799,6 +802,16 @@ class AccountMove(models.Model):
                         'state': 'draft',
                     })
 
+                # Lanzar error al final si fue rechazado
+                if Resultado:
+                    estado = Resultado.get('estado', '').strip().lower()
+                    if estado == 'rechazado':
+                        mensaje = Resultado.get('descripcionMsg') or _('Documento rechazado por Hacienda.')
+                        raise UserError(_("DTE rechazado por MH:\n%s") % mensaje)
+                    elif estado not in ('procesado', ''):
+                        raise UserError(_("Respuesta inesperada de Hacienda. Estado: %s\nMensaje: %s") % (
+                            estado, Resultado.get('descripcionMsg', '')))
+
             except Exception as e:
                 error_msg = traceback.format_exc()
                 _logger.exception("SIT Error durante el _post para invoice ID %s: %s", invoice.id, str(e))
@@ -807,6 +820,7 @@ class AccountMove(models.Model):
                     'state': 'draft',
                     'sit_es_configencia': True,
                 })
+        _logger.info("SIT Fin _post")
         return super(AccountMove, self)._post(soft=soft)
 
     def _compute_validation_type_2(self):
@@ -930,7 +944,7 @@ class AccountMove(models.Model):
             if environment_type == "homologation"
             else "https://api.dtes.mh.gob.sv"
         )
-        url_receive = f"{host}/fesv/recepciondte"
+        url_receive = f"{host}/fesv/recepciondte1"
 
         # ——— 2) Refrescar token si hace falta ———
         today = fields.Date.context_today(self)
@@ -1015,18 +1029,22 @@ class AccountMove(models.Model):
 
         # ——— 7) Errores HTTP distintos de 200 ———
         if resp.status_code != 200:
-            raise UserError(_("Error MH (HTTP %s): %s") % (resp.status_code, data or resp.text))
+            _logger.warning("Error MH (HTTP %s): %s", resp.status_code, data or resp.text)
+            # raise UserError(_("Error MH (HTTP %s): %s") % (resp.status_code, data or resp.text))
+            return data
 
-        data = resp.json()
+        # data = resp.json()
         estado = data.get('estado')
         if estado == 'RECHAZADO':
-            raise UserError(_("Rechazado por MH: %s – %s") %
-                            (data.get('clasificaMsg'), data.get('descripcionMsg')))
+            _logger.warning("Rechazado por MH: %s – %s", data.get('clasificaMsg'), data.get('descripcionMsg'))
+            # raise UserError(_("Rechazado por MH: %s – %s") % (data.get('clasificaMsg'), data.get('descripcionMsg')))
+            return data
         if estado == 'PROCESADO':
             return data
 
         # ——— 9) Caso realmente inesperado ———
-        raise UserError(_("Respuesta inesperada de MH: %s") % data)
+        _logger.warning("Respuesta inesperada de MH: %s", data)
+        return data
 
     def _autenticar(self,user,pwd):
         _logger.info("SIT self = %s", self)
