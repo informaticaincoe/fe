@@ -930,7 +930,7 @@ class AccountMove(models.Model):
             if environment_type == "homologation"
             else "https://api.dtes.mh.gob.sv"
         )
-        url_receive = f"{host}/fesv/recepciondte1"
+        url_receive = f"{host}/fesv/recepciondte"
 
         # ——— 2) Refrescar token si hace falta ———
         today = fields.Date.context_today(self)
