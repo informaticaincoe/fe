@@ -28,7 +28,7 @@ from pytz import timezone, UTC
 
 _logger = logging.getLogger(__name__)
 
-EXTRA_ADDONS = r'C:\Users\INCOE\Documents\GitHub\fe\location\mnt\extra-addons\src'
+EXTRA_ADDONS = r'C:\Users\Admin\Documents\GitHub\fe\location\mnt\extra-addons\src'
 
 
 class AccountMove(models.Model):

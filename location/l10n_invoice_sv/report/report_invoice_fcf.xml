@@ -1,257 +1,355 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-  <data>
-    <template id="report_invoice_fcf">
-      <t t-call="web.html_container">
-        <t t-set="o" t-value="o.with_context({'lang':o.partner_id.lang})"/>
-        <div class="header">
-          
-        </div>
-        <div class="page article" t-att-data-oe-model="o and o._name" t-att-data-oe-id="o and o.id">
-          <style>
-            table{
-              width: 100%;
-              border-collapse: collapse;
-            }
-            table td, table th{
-              padding: 1px 2px;
-              vertical-align: middle;
-            }
-            #encabezado{
-              font-size: 11px;
-            }
-            #encabezado td{
-              border: 1px black;
-              border-style: solid;
-            }
-            #encabezado span{
-              font-weight: bold;
-            }
-            #giro, #dirrecion{
-              overflow:hidden;
-              white-space:nowrap;
-              text-overflow: ellipsis;
-            }
-            #detalle th{
-              font-size: x-small;
-              border-top: 1px solid black;
-              border-bottom: 1px solid black;
-            }
-            #detalle td{
-              border: 1px solid black;
-            }
-            #detalle span{
-              font-size: 11px;
-            }
-            span{
-              font-weight:bold;
-            }
-          </style>
-          <div class="row">
-            <table id="encabezado">
-              <tr>
-                <td colspan="3">
-                  Cliente: <span t-field="o.partner_id"/>
-                </td>
-                <td>
-                  Fecha: <span t-field="o.invoice_date"/>
-                </td>
-              </tr>
-              <tr>
-                <td id="dirrecion" colspan="4">
-                  Dirrecion:
-                      <span t-if="o.partner_id.street">
-                        <span t-field="o.partner_id.street"/>
-                      </span>
-                      <span t-if="o.partner_id.street2">
-                        , <span t-field="o.partner_id.street2"/>
-                      </span>
-                      <span t-if="o.partner_id.city">
-                        , <span t-field="o.partner_id.city"/>
-                      </span>
-                </td>
-              </tr>
-              <tr>
-                <td style="width: 25%;">
-                  Municipio: <span t-field="o.partner_id.munic_id"/>
-                </td>
-                <td style="width: 25%;">
-                  Departamento: <span t-field="o.partner_id.state_id"/>
-                </td>
-                <td style="width: 25%;">
-                  Pais: <span t-field="o.partner_id.country_id"/>
-                </td>
-                <td style="width: 25%;">
-                  Telefono: <span t-field="o.partner_id.phone"/>
-                </td>
-              </tr>
-              <!--<tr>
-                <td id="giro" colspan="4">
-                  Giro: <span t-field="o.partner_id.giro"/>
-                </td>
-              </tr>-->
-              <tr>
-                <!--<td>
-                  N.R.C: <span t-field="o.partner_id.nrc"/>
-                </td>-->
-                <td>
-                  N.I.T: <span t-field="o.partner_id.vat"/>
-                </td>
-                <td>
-                  Condiciones de pago: <span t-field="o.invoice_payment_term_id"/>
-                </td>
-                <td colspan="2">
-                  Fecha de Vencimiento: <span t-field="o.invoice_date_due"/>
-                </td>
-              </tr>
-            </table>
-          </div>
-          <br />
-          <div class="row">
-            <table id="detalle">
-              <thead>
-                <tr>
-                  <th class="text-center" style="width: 60%;">Descripcion</th>
-                  <th class="text-center" style="width: 10%;">Cantidad</th>
-                  <th class="text-center" style="width: 10%">Precio Unitario</th>
-                  <th class="text-center" style="width: 5%; font-size: 8px;">Ventas No Sujetas</th>
-                  <th class="text-center" style="width: 5%;">Ventas Exentas</th>
-                  <th class="text-center" style="width: 10%;">Ventas Afectas</th>
-                </tr>
-              </thead>
-              <tbody class="invoice_tbody">
-                <tr t-foreach="o.invoice_line_ids" t-as="l">
-                  <td><span t-field="l.name"/></td>
-                  <td class="text-right">
-                      <span t-field="l.quantity"/>
-                      <span t-field="l.uom_id"  groups="product.group_uom"/>
-                  </td>
-                  <td class="text-right">
-                      <span t-esc="l.price_unit * 1.13" t-options='{"widget": "monetary", "display_currency": o.currency_id}'/>
-                  </td>
-                  <td class="text-right">
-                      <span />
-                  </td>
-                  <td class="text-right">
-                      <span />
-                  </td>
-                  <td class="text-right">
-                      <span t-esc="l.price_subtotal * 1.13" 
-                          t-options='{"widget": "monetary", "display_currency": o.currency_id}'/>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-        <div class="footer">
-          <style>
-            #total{
-              border-collapse: collapse;
-              width: 100%;
-            }
-            #total td{
-              border: 1px solid black;
-              padding: 1px 2px;
-              vertical-align: middle;
-              font-size: 10px;
-            }
-            span{
-              font-weight:bold;
-            }
-          </style>
-          <div class="row">
-            <table id="total">
-              <tr>
-                <td style="width: 70%;">
-                  Cantidad en Letras:
-                    <span t-field="o.amount_text"/>
-                </td>
-                <td style="width: 10%;">
-                  Sumas:
-                </td>
-                <td style="width: 5%;" class="text-right">
-                  <span />
-                </td>
-                <td style="width: 5%;" class="text-right">
-                  <span />
-                </td>
-                <td style="width: 10%;" class="text-right">
-                  <span t-field="o.amount_total"/>
-                </td>
-              </tr>
-              <tr>
-                <td colspan="2" rowspan="5" class="text-center" style="font-size: 8px; text-align:justify;">
-                  <!--
-                  Yo el comprador o adquiriente acepto esta factura cambiante y me obligo a pagar el valor que ampara este documento,
-                  si no pago esta obligación en el plazo y forma aquí establecido, la cantidad adeudada genera un interés del 5% mensual
-                  el cual se calculará desde la fecha de emisión de este titulo valor y adicionalmente generará un interés penal por
-                  mora del 24% anual, en el que se calculará contado a partir del día siguiente del vencimiento, fuera de saldo total
-                  o de una o varias cuotas conforme queda establecido. Señalado como mi domicilio para el cumplimiento de esta obligación
-                  de la Ciudad de San Salvador, a la jurisdicción de cuyos tribunales me someto en caso de acción judicial, renuncio a
-                  derecho de apelar el decreto de embargo, sentencia demate y cualquier otra providencia alzable en el juicio que se
-                  promoviere como consecuencia del incumplimiento de esta obligación, siendo facultad de mi acreedor, proponer el
-                  nombramiento del depositario judicial de bienes que se me embarguen, a quien desde ya revelo la obligación de rendir fianza.
-                  -->
-                  Yo <span t-field="o.partner_id"/> el comprador o adquiriente acepto por este PAGARE, sin protesto,
-                  el dia <span t-esc="time.strftime('%A, %d de %B de %Y',time.strptime(str(o.invoice_date_due),'%Y-%m-%d'))"/>,
-                  me(nos) obligo(amos)a pagar en San Salvador, a la orden de <span t-field="o.company_id"/>
-                  la suma de <span t-field="o.amount_text"/> 
-                  más intereses del 5% por ciento mensual, pagaderos en caso de mora
-                  reconoceré(mos) intereses del 7% por ciento mensual.
-                  Para los efectos de esta obligación mercantil, fijo (amos) como domicilio  especial la ciudad
-                  de San Salvador, y en el caso de acción judicial, renuncio (amos) al derecho de apelar la
-                  sentencia de remate y toda otra providencia apelable que se dictare en el juicio ejecutivo o
-                  sus incidencias siendo a mi (nuestro) cargo, cualquier gasto que la sociedad hiciere en el
-                  cobro de este Pagaré. inclusive los llamados personales y aún cuando por regla general no
-                  hubiere condenación en costos y faculto (amos) a la sociedad para que designe a la persona
-                  depositaria de los bienes que se embarguen a quien relevo de la obligación de rendir fianza.
-                  San Salvador.
-                </td>
-                <td colspan="2">
-                  (-) Retenciones
-                </td>
-                <td class="text-right">
-                  <span />
-                </td>
-              </tr>
-              <tr>
-                <td colspan="2">
-                  SubTotal
-                </td>
-                <td class="text-right">
-                  <span t-field="o.amount_total"/>
-                </td>
-              </tr>
-              <tr>
-                <td colspan="2">
-                  <span style="font-size: 8px;font-weight:normal;">Ventas No Sujetas</span>
-                  <span style="color: white;">A</span>
-                </td>
-                <td class="text-right">
-                  <span />
-                </td>
-              </tr>
-              <tr>
-                <td colspan="2">
-                  Ventas Exentas
-                </td>
-                <td class="text-right">
-                  <span />
-                </td>
-              </tr>
-              <tr>
-                <td colspan="2">
-                  Total
-                </td>
-                <td class="text-right">
-                  <span t-field="o.amount_total"/>
-                </td>
-              </tr>
-            </table>
-          </div>
-        </div>
-      </t>
-    </template>
-  </data>
+    <data>
+        <template id="report_invoice_fcf">
+            <t t-name="l10n_invoice_sv.report_invoice_fcf">
+                <t t-call="web.html_container">
+                    <t t-set="o" t-value="o.with_context({'lang':o.partner_id.lang})"/>
+                    <!-- Tipografia -->
+                    <div class="page article" t-att-data-oe-model="o and o._name" t-att-data-oe-id="o and o.id">
+                        <style>
+                            .section-title {
+                            font-size: 12px;
+                            font-weight: bold;
+                            text-transform: uppercase;
+                            }
+
+                            p {
+                            margin: 2px 0;
+                            line-height: 1.5;
+                            }
+
+                            span {
+                            font-weight: normal;
+                            }
+
+                            @page {
+                            margin: 15px 5px 15px 5px; /* top right bottom left */
+                            }
+
+                            body {
+                            font-family: 'Inter', sans-serif;
+                            margin-top: 5mm;
+                            margin-bottom: 5mm;
+                            margin-left: 10mm;
+                            margin-right: 10mm;
+                            padding-top: 10px !important;
+                            padding-bottom: 10px !important;
+                            font-size: 12px;
+                            }
+
+                            @font-face {
+                            font-family: 'Inter';
+                            src: url('/l10n_invoice_sv/static/src/fonts/Inter-Regular.ttf') format('truetype');
+                            }
+
+
+                        </style>
+                        <!-- Header factura -->
+                        <t t-set="company" t-value="o.company_id"/>
+                        <t t-set="partner" t-value="o.company_id.partner_id"/>
+                        <div class="row align-items-center mb-4">
+                            <div class="col">
+                                <img t-att-src="'data:image/png;base64,%s' % company.logo_web.decode('utf-8')"
+                                     style="max-height:55px; max-width:120px;"/>
+                            </div>
+                            <div class="col-7 text-center" style="row-gap: 0;">
+                                <p>
+                                    <span t-field="company.name" class="text-uppercase fs-6 "/>
+                                </p>
+                                <p>
+                                    <span t-field="partner.contact_address_complete" class="fw-normal"/>
+                                </p>
+                                <p>Número de control:
+
+                                    <span t-field="o.name" class="fw-normal"/>
+                                </p>
+                                <p>Codigo de generación:
+
+                                    <span t-field="o.hacienda_codigoGeneracion_identificacion" class="fw-normal"/>
+                                </p>
+                                <p>sello:
+
+                                    <span t-field="o.hacienda_selloRecibido" class="fw-normal"/>
+                                </p>
+                                <p>Tipo modelo:
+
+                                    <span t-field="o.sit_modelo_facturacion" class="fw-normal"/>
+                                </p>
+                                <p>Tipo transmisión:
+
+                                    <span t-field="o.sit_tipo_transmision" class="fw-normal"/>
+                                </p>
+                            </div>
+                            <div class="col text-center border rounded-2 border-light-subtle">
+                                <p style="font-size: 11px;">Consumidor final</p>
+                                <img src="https://upload.wikimedia.org/wikipedia/commons/d/d7/Commons_QR_code.png"
+                                     style="width:50%; height:auto;"/>
+                                <p style="font-size: 11px;">Generado:
+
+                                    <span t-field="o.fecha_facturacion_hacienda" class="fw-normal"/>
+                                </p>
+                            </div>
+                        </div>
+                        <!--  Seccion receptor -->
+                        <div class="mb-4">
+                            <h1 class="section-title text-center mb-1">Receptor</h1>
+                            <div class="row rounded-2 border border-light-subtle px-2 py-2">
+                                <div class="d-grid col-md-auto">
+                                    <p>Nombre o razón social:</p>
+                                    <p>Documento identificación:</p>
+                                    <p>Correo electronico:</p>
+                                    <p>Telefono:</p>
+                                    <p>Dirección:</p>
+                                </div>
+                                <div class="d-grid col">
+                                    <p>
+                                        <span t-field="partner.complete_name" class="fw-normal"/>
+                                    </p>
+                                    <p>
+                                        <span t-field="partner.dui" class="fw-normal"/>
+                                        (DUI)
+
+                                    </p>
+                                    <p>
+                                        <span t-field="partner.email" class="fw-normal"/>
+                                    </p>
+                                    <p>
+                                        <span t-field="partner.phone" class="fw-normal"/>
+                                    </p>
+                                    <p>
+                                        <span t-field="partner.contact_address_complete" class="fw-normal"/>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        <!--  Seccion venta a cuenta de terceros -->
+                        <div class="mb-4">
+                            <h1 class="section-title text-center mb-1">Venta a cuenta de terceros</h1>
+                            <div class="row border border-light-subtle rounded-2 align-items-center">
+                                <p class="col border-end border-light-subtle">Tipo de documento:
+
+                                    <span/>
+                                </p>
+                                <p class="col py-1">Nombre, denomicación o razón social:
+
+                                    <span/>
+                                </p>
+                                <p class="col">
+                                    <span/>
+                                </p>
+                            </div>
+                        </div>
+                        <!--  Seccion documentos relacionados -->
+                        <div class="mb-4">
+                            <h1 class="section-title text-center mb-1">Documentos relacionados</h1>
+                            <div class="row border border-light-subtle rounded-2 align-items-center">
+                                <p class="col border-end border-light-subtle">Tipo de documento:
+
+                                    <span/>
+                                </p>
+                                <p class="col py-1">N° documento:
+
+                                    <span/>
+                                </p>
+                                <p class="col py-1">fecha del documento
+
+                                    <span/>
+                                </p>
+                            </div>
+                        </div>
+                        <!-- Seccion detalles compra -->
+                        <br/>
+                        <div class="row">
+                            <table id="detalle" class="border border-light-subtle rounded-2">
+                                <thead>
+                                    <tr>
+                                        <th class="text-center border border-light-subtle" style="width: auto;">N°</th>
+                                        <th class="text-center border border-light-subtle" style="width: auto;">
+                                            Cantidad
+                                        </th>
+                                        <th class="text-center border border-light-subtle" style="width: auto;">Codigo
+                                        </th>
+                                        <th class="text-center border border-light-subtle" style="width: auto;">
+                                            Descripcion
+                                        </th>
+                                        <th class="text-center border border-light-subtle" style="width: auto;">Precio
+                                            Unitario
+                                        </th>
+                                        <th class="text-center border border-light-subtle" style="width: auto;">Otros
+                                            montos no afectos
+                                        </th>
+                                        <th class="text-center border border-light-subtle" style="width: auto;">
+                                            Descuento por item
+                                        </th>
+                                        <th class="text-center border border-light-subtle" style="width: auto;">Ventas
+                                            sujetas
+                                        </th>
+                                        <th class="text-center border border-light-subtle" style="width: auto;">Ventas
+                                            exentas
+                                        </th>
+                                        <th class="text-center border border-light-subtle" style="width: auto;">Ventas
+                                            grabadas
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody class="invoice_tbody">
+                                    <tr t-foreach="o.invoice_line_ids" t-as="l">
+                                        <td class="border border-light-subtle">
+                                        </td>
+                                        <td class="border border-light-subtle text-right">
+                                            <span t-field="l.quantity"/>
+                                            <span t-field="l.uom_id" groups="product.group_uom"/>
+                                        </td>
+                                        <td class="border border-light-subtle text-right">
+                                            <span t-esc="l.price_unit * 1.13"
+                                                  t-options="{&quot;widget&quot;: &quot;monetary&quot;, &quot;display_currency&quot;: o.currency_id}"/>
+                                        </td>
+                                        <td class="border border-light-subtle text-right">
+                                            <span t-field="l.name"/>
+                                        </td>
+                                        <td class="border border-light-subtle text-right">
+                                            <span t-esc="l.price_unit * 1.13"/>
+                                        </td>
+                                        <td class="border border-light-subtle text-right">
+                                            <span t-esc="l.price_subtotal * 1.13"
+                                                  t-options="{&quot;widget&quot;: &quot;monetary&quot;, &quot;display_currency&quot;: o.currency_id}"/>
+                                        </td>
+                                        <td class="border border-light-subtle text-right">
+                                            <span t-field="l.discount"/>
+                                        </td>
+                                        <td class="border border-light-subtle text-right">
+                                            <span/>
+                                        </td>
+                                        <td class="border border-light-subtle text-right">
+                                            <span/>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="footer">
+                        <style/>
+                        <div class="row">
+                            <table id="total">
+                                <tr>
+                                    <td style="width: 70%;">
+                                        Cantidad en Letras:
+
+
+                                        <span t-field="o.amount_text"/>
+                                    </td>
+                                    <td style="width: 10%;">
+                                        Sumas:
+                                    </td>
+                                    <td style="width: 5%;" class="text-right">
+                                        <span/>
+                                    </td>
+                                    <td style="width: 5%;" class="text-right">
+                                        <span/>
+                                    </td>
+                                    <td style="width: 10%;" class="text-right">
+                                        <span t-field="o.amount_total"/>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td colspan="2" rowspan="5" class="text-center"
+                                        style="font-size: 8px; text-align:justify;">
+                                        <!--
+                              Yo el comprador o adquiriente acepto esta factura cambiante y me obligo a pagar el valor que ampara este documento,
+                              si no pago esta obligación en el plazo y forma aquí establecido, la cantidad adeudada genera un interés del 5% mensual
+                              el cual se calculará desde la fecha de emisión de este titulo valor y adicionalmente generará un interés penal por
+                              mora del 24% anual, en el que se calculará contado a partir del día siguiente del vencimiento, fuera de saldo total
+                              o de una o varias cuotas conforme queda establecido. Señalado como mi domicilio para el cumplimiento de esta obligación
+                              de la Ciudad de San Salvador, a la jurisdicción de cuyos tribunales me someto en caso de acción judicial, renuncio a
+                              derecho de apelar el decreto de embargo, sentencia demate y cualquier otra providencia alzable en el juicio que se
+                              promoviere como consecuencia del incumplimiento de esta obligación, siendo facultad de mi acreedor, proponer el
+                              nombramiento del depositario judicial de bienes que se me embarguen, a quien desde ya revelo la obligación de rendir fianza.
+                              -->
+                                        Yo
+
+
+                                        <span t-field="o.partner_id"/>
+                                        el comprador o adquiriente acepto por este PAGARE, sin protesto,
+                                        el dia
+
+
+                                        <span t-esc="time.strftime('%A, %d de %B de %Y',time.strptime(str(o.invoice_date_due),'%Y-%m-%d'))"/>
+                                        ,
+                                        me(nos) obligo(amos)a pagar en San Salvador, a la orden de
+
+
+                                        <span t-field="o.company_id"/>
+                                        la suma de
+
+
+                                        <span t-field="o.amount_text"/>
+                                        más intereses del 5% por ciento mensual, pagaderos en caso de mora
+                                        reconoceré(mos) intereses del 7% por ciento mensual.
+                                        Para los efectos de esta obligación mercantil, fijo (amos) como domicilio
+                                        especial la ciudad
+                                        de San Salvador, y en el caso de acción judicial, renuncio (amos) al derecho de
+                                        apelar la
+                                        sentencia de remate y toda otra providencia apelable que se dictare en el juicio
+                                        ejecutivo o
+                                        sus incidencias siendo a mi (nuestro) cargo, cualquier gasto que la sociedad
+                                        hiciere en el
+                                        cobro de este Pagaré. inclusive los llamados personales y aún cuando por regla
+                                        general no
+                                        hubiere condenación en costos y faculto (amos) a la sociedad para que designe a
+                                        la persona
+                                        depositaria de los bienes que se embarguen a quien relevo de la obligación de
+                                        rendir fianza.
+                                        San Salvador.
+
+
+                                    </td>
+                                    <td colspan="2">
+                                        (-) Retenciones
+                                    </td>
+                                    <td class="text-right">
+                                        <span/>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td colspan="2">
+                                        SubTotal
+                                    </td>
+                                    <td class="text-right">
+                                        <span t-field="o.amount_total"/>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td colspan="2">
+                                        <span style="font-size: 8px;font-weight:normal;">Ventas No Sujetas</span>
+                                        <span style="color: white;">A</span>
+                                    </td>
+                                    <td class="text-right">
+                                        <span/>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td colspan="2">
+                                        Ventas Exentas
+                                    </td>
+                                    <td class="text-right">
+                                        <span/>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td colspan="2">
+                                        Total
+                                    </td>
+                                    <td class="text-right">
+                                        <span t-field="o.amount_total"/>
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </t>
+            </t>
+        </template>
+    </data>
 </odoo>
