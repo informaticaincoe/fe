@@ -73,14 +73,14 @@ class AccountMove(models.Model):
         invoice_info["ambiente"] = ambiente
         invoice_info["tipoDte"] = self.journal_id.sit_tipo_documento.codigo
         invoice_info["numeroControl"] = self.name
-        _logger.info("SIT Número de control = %s (%s)", invoice_info["numeroControl"])
+        _logger.info("SIT Número de control = %s", invoice_info["numeroControl"])
         _logger.info("SIT sit_base_map_invoice_info_identificacion0 = %s", invoice_info)
-        invoice_info["codigoGeneracion"] = self.sit_generar_uuid()          #  company_id.sit_uuid.upper()
-        invoice_info["tipoModelo"] = int(self.sit_modelo_facturacion)
+        invoice_info["codigoGeneracion"] = self.hacienda_codigoGeneracion_identificacion# self.sit_generar_uuid()          #  company_id.sit_uuid.upper()
+        invoice_info["tipoModelo"] = int(self.journal_id.sit_modelo_facturacion)
         invoice_info["tipoOperacion"] = int(self.journal_id.sit_tipo_transmision)
         tipoContingencia = int(self.sit_tipo_contingencia)
         invoice_info["tipoContingencia"] = tipoContingencia
-        _logger.info("SIT tipo de contingencia= %s, tipo de operacion= %s", invoice_info["tipoContingencia"], invoice_info["tipoOperacion"])
+        _logger.info("SIT tipo de modelo= %s, tipo de operacion= %s", invoice_info["tipoModelo"], invoice_info["tipoOperacion"])
 
         motivoContin = str(self.sit_tipo_contingencia_otro)
         invoice_info["motivoContin"] = motivoContin

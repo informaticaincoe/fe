@@ -124,10 +124,11 @@ class AccountMove(models.Model):
                              if isinstance(self.fecha_facturacion_hacienda, str)
                              else self.fecha_facturacion_hacienda)
 
+
         if isinstance(fecha_facturacion, datetime):
             adjusted_fecha = fecha_facturacion - timedelta(hours=6)
         else:
-            _logger.error("fecha_facturacion no es datetime, es: %s", type(fecha_facturacion))
+            _logger.error("fecha_facturacion no es datetime, es: %s, %s", type(fecha_facturacion), fecha_facturacion)
             raise ValueError("fecha_facturacion no es un datetime válido")
         invoice_info["fecEmi"] = adjusted_fecha.strftime('%Y-%m-%d')
         _logger.info("SIT Codigo generacion R: self.id=%s", self.sit_codigoGeneracionR)

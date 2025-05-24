@@ -91,7 +91,18 @@ class sit_account_contingencia(models.Model):
     sit_selloRecibido = fields.Text(string="sello Recibido - Hacienda", default="")
     sit_observaciones=fields.Text("observaciones - Hacienda", default="") 
     hacienda_estado=fields.Text("hacienda estado", default="") 
-    sit_json_respuesta = fields.Text("Json de Respuesta", default="") 
+    sit_json_respuesta = fields.Text("Json de Respuesta", default="")
+    hacienda_codigoGeneracion_identificacion = fields.Char(
+        copy=False,
+        string="Codigo de Generación de Identificación Contingencia",
+        readonly=True,
+        states={"draft": [("readonly", False)]},
+    )
+    sit_documento_firmado_contingencia = fields.Text(
+        string="Documento Firmado Contingencia",
+        copy=False,
+        readonly=True,
+    )
 
     def _compute_company_id(self):
         _logger.info("SIT calculando company_id")
@@ -145,3 +156,57 @@ class sit_account_contingencia(models.Model):
                 return validation_type
             else:
                 return False
+
+    @api.model
+    def create(self, vals):
+        # Crear el registro de contingencia
+        record = super().create(vals)
+
+        # Buscar todas las facturas que están en contingencia y no están asignadas a ninguna contingencia aún
+        facturas_en_contingencia = self.env['account.move'].search([
+            ('sit_es_configencia', '=', True),
+            ('sit_factura_de_contingencia', '=', False),
+            '|', ('hacienda_selloRecibido', '=', None), ('hacienda_selloRecibido', '=', '')
+        ])
+
+        # Asignarlas al registro actual
+        if facturas_en_contingencia:
+            facturas_en_contingencia_count = len(facturas_en_contingencia)
+
+            # Verificar si las facturas no superan los 400 lotes de 100 facturas por lote
+            max_lotes = 400
+            facturas_por_lote = 100
+
+            total_lotes = ((facturas_en_contingencia_count // facturas_por_lote) +
+                           (1 if facturas_en_contingencia_count % facturas_por_lote != 0 else 0))
+
+            if total_lotes > max_lotes:
+                _logger.info(
+                    "La cantidad de facturas excede el límite de lotes permitidos. Solo se asignarán los primeros 400 lotes.")
+                facturas_a_incluir = facturas_en_contingencia[:max_lotes * facturas_por_lote]
+                facturas_en_contingencia = facturas_a_incluir  # Solo trabajar con las primeras 40,000 facturas
+
+            # Crear los lotes y asignar las facturas a cada lote
+            lote_count = 0
+            for i in range(0, facturas_en_contingencia_count, facturas_por_lote):
+                facturas_lote = facturas_en_contingencia[i:i + facturas_por_lote]
+
+                # Crear lote
+                lote_vals = {
+                    'facturas': [(6, 0, facturas_lote.ids)],  # Establece las facturas en el lote
+                    'sit_contingencia': record.id,  # Relaciona el lote con la contingencia
+                    'state': 'draft',  # El lote puede empezar en estado borrador
+                }
+                lote_record = self.env['account.lote'].create(lote_vals)
+                lote_count += 1
+                _logger.info(f"Lote creado con {len(facturas_lote)} facturas en contingencia.")
+
+                # Asignar cada lote a las facturas correspondientes
+                facturas_lote.write({
+                    'sit_lote_contingencia': lote_record.id
+                })
+            # Después de asignar todas las facturas a los lotes, las asociamos a la contingencia
+            facturas_en_contingencia.write({
+                'sit_factura_de_contingencia': record.id
+            })
+        return record

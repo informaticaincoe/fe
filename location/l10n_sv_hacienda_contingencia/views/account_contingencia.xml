@@ -20,7 +20,6 @@
                         <field name="fechaHoraTransmision" invisible="0"/>
                         <field name="sit_fInicio_hInicio" invisible="0"/>
                         <field name="sit_fFin_hFin" invisible="0"/>
-                        <field name="sit_facturas_relacionadas" invisible="0"/>
                   </list>
             </field>
         </record>
