@@ -202,7 +202,7 @@ class AccountMoveInvalidation(models.Model):
 
                     self.check_parametros_invalidacion()
 
-                    if invoice.sit_factura_a_reemplazar.hacienda_selloRecibido:
+                    if not invoice.sit_factura_a_reemplazar.hacienda_selloRecibido:
                         documento_firmado = invoice.firmar_documento_anu(validation_type, payload)
                         _logger.info("SIT Documento firmado exitosamente")
                     elif invoice.sit_factura_a_reemplazar.sit_documento_firmado:

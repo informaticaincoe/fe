@@ -46,7 +46,7 @@ class sit_account_lote(models.Model):
     )
     hacienda_fhProcesamiento_lote = fields.Datetime(
         copy=False,
-        string="Fecga de Procesamiento de Lote",
+        string="Fecha de Procesamiento de Lote",
         readonly=True,
         states={"draft": [("readonly", False)]},
     )
@@ -86,3 +86,20 @@ class sit_account_lote(models.Model):
     error_log = fields.Text(string="Error técnico Contingencia", readonly=True)
 
     sit_contingencia = fields.Many2one('account.contingencia1', string="Contingencia asociada al lote")
+
+    move_ids = fields.One2many(
+        comodel_name='account.move',
+        inverse_name='sit_lote_contingencia',
+        string='Facturas Relacionadas'
+    )
+
+    lote_recibido_mh = fields.Boolean(string="Lote recibido por MH", copy=False)
+    lote_activo = fields.Boolean(string="Contingencia Activa", copy=False, default=True)
+
+    sit_json_respuesta = fields.Text("Json de Respuesta", default="")
+
+    name = fields.Char(
+        readonly=True,  # Solo lectura
+        copy=False,
+        string="Identificacion del lote",
+    )
