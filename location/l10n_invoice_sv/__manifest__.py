@@ -26,15 +26,15 @@
     'version': '17.1',
     'depends': ['base', 'l10n_sv', 'account', 'product', 'mail'],
     'assets': {
-        # Para el back-end (interfaz de usuario de Odoo):
         'web.assets_backend': [
-            'https://cdn.jsdelivr.net/npm/bootstrap@5.4.0/dist/css/bootstrap.min.css',
-            'https://cdn.jsdelivr.net/npm/bootstrap@5.4.0/dist/js/bootstrap.bundle.min.js',
+
+            'l10n_invoice_sv/static/src/css/bootstrap.min.css',
         ],
-        # Si también quieres en la parte pública / website:
         'web.assets_frontend': [
-            'https://cdn.jsdelivr.net/npm/bootstrap@5.4.0/dist/css/bootstrap.min.css',
-            'https://cdn.jsdelivr.net/npm/bootstrap@5.4.0/dist/js/bootstrap.bundle.min.js',
+            'l10n_invoice_sv/static/src/css/bootstrap.min.css',
+        ],
+        'web.assets_pdf': [
+            'l10n_invoice_sv/static/src/css/bootstrap.min.css',
         ],
     },
     'data': [
