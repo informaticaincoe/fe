@@ -32,10 +32,11 @@
                         <!-- Post -->
                         <button name="action_post_contingencia" string="Validar Contingencia" class="oe_highlight"
                                 type="object" groups="account.group_account_invoice" data-hotkey="v"
-                                context="{'validate_analytic': True}"/>
+                                context="{'validate_analytic': True}" invisible="not boton_contingencia"/>
                         <button name="action_lote_generate" string="Generar DTE de Lote" class="oe_highlight"
                                 type="object" groups="account.group_account_invoice" data-hotkey="v"
-                                context="{'validate_analytic': True}"/>
+                                context="{'validate_analytic': True}"
+                                invisible="not boton_lote"/>
                         <field name="state" widget="statusbar" statusbar_visible="draft,posted,posted_lote"/>
                     </header>
                     <sheet>
@@ -59,6 +60,38 @@
                             </group>
                         </group>     
                         <notebook>
+                            <page id="lotes_contingencia" string="Lotes Relacionados">
+                                <field name="lote_ids">
+                                    <list editable="bottom">
+                                        <field name="id"/>
+                                        <field name="hacienda_estado_lote"/>
+                                        <field name="hacienda_codigoLote_lote"/>
+                                        <field name="hacienda_descripcionMsg_lote"/>
+                                        <field name="hacienda_fhProcesamiento_lote"/>
+                                    </list>
+                                    <form string="Detalle del Lote">
+                                        <group>
+                                            <field name="hacienda_estado_lote"/>
+                                            <field name="hacienda_codigoLote_lote"/>
+                                            <field name="hacienda_descripcionMsg_lote"/>
+                                            <field name="fechaHoraTransmision"/>
+                                        </group>
+                                        <notebook>
+                                            <page string="Facturas del Lote">
+                                                <field name="move_ids">
+                                                    <list>
+                                                        <field name="name" string="Número de Control" invisible="0"/>
+                                                        <field name="sit_lote_contingencia" string="Código de Generación" invisible="0"/>
+                                                        <field name="hacienda_selloRecibido" string="Sello Recibido" invisible="0"/>
+                                                        <field name="fecha_facturacion_hacienda" string="Fecha" invisible="0"/>
+                                                        <field name="hacienda_estado" string="Estado" invisible="0"/>
+                                                    </list>
+                                                </field>
+                                            </page>
+                                        </notebook>
+                                    </form>
+                                </field>
+                            </page>
                             <page id="facturas_relacionadas" string="Facturas Relacionadas" name="facturas_relacionadas">    
                                 <group id="other_tab_group">
                                     <field name="sit_facturas_relacionadas" invisible="0"/>
@@ -78,18 +111,18 @@
                                     </group>
                                 </group>
                             </page>
-                    <page id="sit_lote_haciendda" string="Certificado Lote Hacienda" name="certificado_lote_hacienda"  invisible="sit_selloRecibido == False">
-                        <group id="lote_group">
-                            <group name="lote_group_left">
-                                <field name='hacienda_estado_lote'/>
-                                <field name='hacienda_idEnvio_lote'/>
-                                <field name='hacienda_fhProcesamiento_lote'/>
-                                <field name='hacienda_codigoLote_lote'/>
-                                <field name='hacienda_codigoMsg_lote'/>
-                                <field name='hacienda_descripcionMsg_lote'/>
-                            </group>
-                        </group>
-                    </page>
+                            <page id="sit_lote_haciendda" string="Certificado Lote Hacienda" name="certificado_lote_hacienda"  invisible="sit_selloRecibido == False">
+                                <group id="lote_group">
+                                    <group name="lote_group_left">
+                                        <field name='hacienda_estado_lote'/>
+                                        <field name='hacienda_idEnvio_lote'/>
+                                        <field name='hacienda_fhProcesamiento_lote'/>
+                                        <field name='hacienda_codigoLote_lote'/>
+                                        <field name='hacienda_codigoMsg_lote'/>
+                                        <field name='hacienda_descripcionMsg_lote'/>
+                                    </group>
+                                </group>
+                            </page>
                         </notebook>
                     </sheet>
                 </form>

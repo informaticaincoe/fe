@@ -6,6 +6,12 @@ from odoo.tools import float_repr
 import logging
 _logger = logging.getLogger(__name__)
 
+from pytz import timezone
+from datetime import datetime
+
+def _default_fecha_hora_sv():
+    tz = pytz.timezone('America/El_Salvador')
+    return pytz.utc.localize(datetime.utcnow()).astimezone(tz)
 
 class sit_account_contingencia(models.Model):
     
@@ -70,7 +76,9 @@ class sit_account_contingencia(models.Model):
         # check_company=True,
         # domain="[('id', 'in', suitable_journal_ids)]",
     )
-    sit_fInicio_hInicio = fields.Datetime("Fecha de Inicio de Contingencia - Hacienda", required=True, help="Asignación de Fecha manual para registrarse en Hacienda", )
+    sit_fInicio_hInicio = fields.Datetime("Fecha de Inicio de Contingencia - Hacienda", required=True, help="Asignación de Fecha manual para registrarse en Hacienda", default=_default_fecha_hora_sv)
+    fecha_hora_creacion = fields.Datetime(string="Fecha y hora (El Salvador)", readonly=True)
+
     sit_fFin_hFin = fields.Datetime("Fecha de Fin de Contingencia - Hacienda",  help="Asignación de Fecha manual para registrarse en Hacienda", )
     sit_tipo_contingencia = fields.Many2one('account.move.tipo_contingencia.field', string="Tipo de Contingencia")
     sit_tipo_contingencia_otro = fields.Text(string="Especifique el Otro Tipo de Contingencia")
@@ -103,6 +111,41 @@ class sit_account_contingencia(models.Model):
         copy=False,
         readonly=True,
     )
+
+    lote_ids = fields.One2many(
+        'account.lote',
+        'sit_contingencia',
+        string='Lotes asociados'
+    )
+
+    contingencia_recibida_mh = fields.Boolean(string="Lote recibido por MH", copy=False)
+    contingencia_activa = fields.Boolean(string="Contingencia Activa", copy=False, default=True)
+
+    boton_contingencia = fields.Boolean(
+        string="Mostrar botón de lote",
+        compute='_compute_mostrar_boton_contingencia',
+        store=False
+    )
+
+    boton_lote = fields.Boolean(
+        string="Mostrar botón de lote",
+        compute='_compute_mostrar_boton_lote',
+        store=False
+    )
+
+    ultima_actualizacion_task = fields.Datetime(string="Última actualización del cron")
+
+    @api.depends('lote_ids.lote_recibido_mh')
+    def _compute_mostrar_boton_lote(self):
+        for rec in self:
+            # Lógica de ejemplo: mostrar solo si está en 'posted' y aún no tiene lote
+            rec.boton_lote = any(not lote.lote_recibido_mh for lote in rec.lote_ids)
+
+    @api.depends('contingencia_recibida_mh')
+    def _compute_mostrar_boton_contingencia(self):
+        for rec in self:
+            # Lógica de ejemplo: mostrar solo si está en 'posted' y aún no tiene lote
+            rec.boton_contingencia = not rec.contingencia_recibida_mh
 
     def _compute_company_id(self):
         _logger.info("SIT calculando company_id")
@@ -169,13 +212,13 @@ class sit_account_contingencia(models.Model):
             '|', ('hacienda_selloRecibido', '=', None), ('hacienda_selloRecibido', '=', '')
         ])
 
-        # Asignarlas al registro actual
+        # Asignar las facturas al registro actual
         if facturas_en_contingencia:
             facturas_en_contingencia_count = len(facturas_en_contingencia)
 
             # Verificar si las facturas no superan los 400 lotes de 100 facturas por lote
-            max_lotes = 400
-            facturas_por_lote = 100
+            max_lotes = 2#400
+            facturas_por_lote = 2#100
 
             total_lotes = ((facturas_en_contingencia_count // facturas_por_lote) +
                            (1 if facturas_en_contingencia_count % facturas_por_lote != 0 else 0))
@@ -193,7 +236,6 @@ class sit_account_contingencia(models.Model):
 
                 # Crear lote
                 lote_vals = {
-                    'facturas': [(6, 0, facturas_lote.ids)],  # Establece las facturas en el lote
                     'sit_contingencia': record.id,  # Relaciona el lote con la contingencia
                     'state': 'draft',  # El lote puede empezar en estado borrador
                 }
@@ -210,3 +252,27 @@ class sit_account_contingencia(models.Model):
                 'sit_factura_de_contingencia': record.id
             })
         return record
+
+    #@api.model
+    def actualizar_contingencias_expiradas(self):
+        """Desactiva contingencias que han pasado 24 horas desde su inicio."""
+        _logger.info("Desactivar contingencias que han pasado 24 horas desde su inicio=%s", self.id)
+        tz = pytz.timezone('America/El_Salvador')
+        hora_actual = pytz.utc.localize(datetime.utcnow()).astimezone(tz)
+
+        # Buscar contingencias activas con fecha de inicio válida
+        contingencias = self.search([
+            ('contingencia_activa', '=', True),
+            ('sit_fInicio_hInicio', '!=', False)
+        ])
+
+        for contingencia in contingencias:
+            inicio = contingencia.sit_fInicio_hInicio
+            if inicio:
+                # Convertir a zona horaria de El Salvador si está en UTC
+                if inicio.tzinfo is None:
+                    inicio = pytz.utc.localize(inicio).astimezone(tz)
+
+                if hora_actual - inicio >= timedelta(hours=24):
+                    contingencia.contingencia_activa = False
+                    _logger.info("Contingencia actualizada=%s", contingencia.id)
