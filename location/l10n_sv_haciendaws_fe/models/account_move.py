@@ -22,6 +22,7 @@ import logging
 import sys
 import traceback
 from datetime import datetime, timedelta
+import pytz
 
 _logger = logging.getLogger(__name__)
 
@@ -601,6 +602,10 @@ class AccountMove(models.Model):
         Resultado = None
         payload = None
         invoices_to_post = self
+        respuesta_mh = False
+        errores_dte = []
+        estado = None
+        json_dte = None
         _logger.info("SIT _post override for invoices: %s", self.ids)
 
         # 1) Cuando no hay registros (p.ej. reversión), delegar al super
@@ -616,8 +621,7 @@ class AccountMove(models.Model):
                 # —————————————————————————————————————————————
                 # A) DIARIOS NO-VENTA/COMPRA: saltar lógica DTE
                 # —————————————————————————————————————————————
-                if journal.type not in ('sale',
-                                        'purchase'):  # or invoice.move_type not in ('out_invoice', 'out_refund'):
+                if journal.type not in ('sale','purchase'):  # or invoice.move_type not in ('out_invoice', 'out_refund'):
                     _logger.info("Diario '%s' no aplica, omito DTE en _post", journal.name)
                     # Dejar que Odoo asigne su name normal en el super al final
                     continue
@@ -682,14 +686,43 @@ class AccountMove(models.Model):
                         ambiente = "01"
                         _logger.info("SIT Factura de Producción")
 
-                    # Firmar el documento y generar el DTE
+                    # Generar json del DTE
                     payload = invoice.obtener_payload('production', sit_tipo_documento)
+
+                    # Firmar el documento y generar el DTE
                     documento_firmado = invoice.firmar_documento('production', payload)
+
+                    if not documento_firmado:
+                        raise UserError("Error en firma del documento")
 
                     if documento_firmado:
                         _logger.info("SIT Firmado de documento")
                         payload_dte = invoice.sit_obtener_payload_dte_info(ambiente, documento_firmado)
                         self.check_parametros_dte(payload_dte)
+
+                        # Guardar json generado
+                        json_dte = payload['dteJson']
+                        _logger.info("Tipo de dteJson: %s", type(json_dte))
+                        _logger.info("SIT JSON=%s", json_dte)
+                        # Solo serializar si no es string
+                        try:
+                            if isinstance(json_dte, str):
+                                try:
+                                    # Verifica si es un JSON string válido, y lo convierte a dict
+                                    json_dte = json.loads(json_dte)
+                                except json.JSONDecodeError:
+                                    # Ya era string, pero no era JSON válido -> guardar tal cual
+                                    invoice.sit_json_respuesta = json_dte
+                                else:
+                                    # Era un JSON string válido → ahora es dict
+                                    invoice.sit_json_respuesta = json.dumps(json_dte, ensure_ascii=False)
+                            elif isinstance(json_dte, dict):
+                                invoice.sit_json_respuesta = json.dumps(json_dte, ensure_ascii=False)
+                            else:
+                                # Otro tipo de dato no esperado
+                                invoice.sit_json_respuesta = str(json_dte)
+                        except Exception as e:
+                            _logger.warning("No se pudo guardar el JSON del DTE: %s", e)
 
                         # Intentar generar el DTE
                         Resultado = invoice.generar_dte('production', payload_dte, payload)
@@ -722,31 +755,56 @@ class AccountMove(models.Model):
                                 self.check_parametros_dte(payload_dte)
                                 Resultado = invoice.generar_dte('production', payload_dte, payload)
 
-                        if Resultado:
-                            if isinstance(Resultado, dict) and Resultado.get('estado',
-                                                                             '').strip().lower() == 'procesado':
+                        if Resultado and Resultado.get('estado', '').lower() == 'procesado': #if Resultado:
+                            estado = Resultado['estado'].strip().lower()
+                            if estado == 'procesado':
                                 invoice.actualizar_secuencia()
 
+                            _logger.info("SIT Estado DTE: %s", Resultado['estado'])
                             _logger.info("SIT Resultado DTE")
-                            # Procesar la respuesta de Hacienda
-                            dat_time = Resultado['fhProcesamiento']
-                            fhProcesamiento = datetime.strptime(dat_time, '%d/%m/%Y %H:%M:%S')
-                            invoice.hacienda_estado = Resultado['estado']
-                            invoice.hacienda_codigoGeneracion_identificacion = Resultado['codigoGeneracion']
-                            invoice.hacienda_selloRecibido = Resultado['selloRecibido']
-                            # invoice.fecha_facturacion_hacienda = fhProcesamiento + timedelta(hours=6)
-                            if not invoice.fecha_facturacion_hacienda:
-                                invoice.fecha_facturacion_hacienda = fhProcesamiento + timedelta(hours=6)
+
+                            # Fecha de procesamiento
+                            fh_procesamiento = Resultado['fhProcesamiento']
+                            if fh_procesamiento:
+                                try:
+                                    fh_dt = datetime.strptime(fh_procesamiento, '%d/%m/%Y %H:%M:%S') + timedelta(
+                                        hours=6)
+                                    if not invoice.fecha_facturacion_hacienda:
+                                        invoice.fecha_facturacion_hacienda = fh_dt
+                                except Exception as e:
+                                    _logger.warning("Error al parsear fhProcesamiento: %s", e)
                             _logger.info("SIT Fecha facturacion=%s", invoice.fecha_facturacion_hacienda)
+
+                            # Procesar la respuesta de Hacienda
+                            invoice.hacienda_estado = Resultado['estado']
+                            invoice.hacienda_codigoGeneracion_identificacion = self.hacienda_codigoGeneracion_identificacion
+                            invoice.hacienda_selloRecibido = Resultado['selloRecibido']
                             invoice.hacienda_clasificaMsg = Resultado['clasificaMsg']
                             invoice.hacienda_codigoMsg = Resultado['codigoMsg']
                             invoice.hacienda_descripcionMsg = Resultado['descripcionMsg']
                             invoice.hacienda_observaciones = str(Resultado['observaciones'])
-                            codigo_qr = invoice._generar_qr(ambiente, Resultado['codigoGeneracion'],
+
+                            codigo_qr = invoice._generar_qr(ambiente,self.hacienda_codigoGeneracion_identificacion,
                                                             invoice.fecha_facturacion_hacienda)
                             invoice.sit_qr_hacienda = codigo_qr
-                            # invoice.state = "draft"
+                            invoice.sit_documento_firmado = documento_firmado
 
+                            # json_str = json.dumps(payload['dteJson'], ensure_ascii=False, default=str)
+                            # json_base64 = base64.b64encode(json_str.encode('utf-8'))
+                            # file_name = payload['dteJson']["identificacion"]["numeroControl"] + '.json'
+                            # invoice.env['ir.attachment'].sudo().create({
+                            #     'name': file_name,
+                            #     'datas': json_base64,
+                            #     'res_model': self._name,
+                            #     'res_id': invoice.id,
+                            #     'mimetype': 'application/json'
+                            # })
+
+                            # —————————————————————————————————————————————
+                            # C) Guardar DTE
+                            # —————————————————————————————————————————————
+
+                            # Guardar archivo .json
                             json_str = json.dumps(payload['dteJson'], ensure_ascii=False, default=str)
                             json_base64 = base64.b64encode(json_str.encode('utf-8'))
                             file_name = payload['dteJson']["identificacion"]["numeroControl"] + '.json'
@@ -757,70 +815,42 @@ class AccountMove(models.Model):
                                 'res_id': invoice.id,
                                 'mimetype': 'application/json'
                             })
-                            invoice.sit_documento_firmado = sit_documento_firmado
                             _logger.info("SIT JSON creado y adjuntado.")
 
-                # 2) Validar formato
-                if not invoice.name.startswith("DTE-"):
-                    raise UserError(_("Número de control DTE inválido para la factura %s.") % invoice.id)
+                            invoice.write({
+                                'hacienda_estado': Resultado['estado'],
+                                'hacienda_codigoGeneracion_identificacion': Resultado['codigoGeneracion'],
+                                'hacienda_selloRecibido': Resultado['selloRecibido'],
+                                'hacienda_clasificaMsg': Resultado['clasificaMsg'],
+                                'hacienda_codigoMsg': Resultado['codigoMsg'],
+                                'hacienda_descripcionMsg': Resultado['descripcionMsg'],
+                                'hacienda_observaciones': str(Resultado.get('observaciones', '')),
+                                'state': 'draft',
+                            })
 
-                # —————————————————————————————————————————————
-                # C) Guardar DTE
-                # —————————————————————————————————————————————
-                dte = payload['dteJson']
-                _logger.info("Tipo de dteJson: %s", type(dte))
-                _logger.info("SIT JSON=%s", dte)
-                # Solo serializar si no es string
-                if isinstance(dte, str):
-                    try:
-                        # Verifica si es un JSON string válido, y lo convierte a dict
-                        dte = json.loads(dte)
-                    except json.JSONDecodeError:
-                        # Ya era string, pero no era JSON válido -> guardar tal cual
-                        invoice.sit_json_respuesta = dte
-                    else:
-                        # Era un JSON string válido → ahora es dict
-                        invoice.sit_json_respuesta = json.dumps(dte, ensure_ascii=False)
-                elif isinstance(dte, dict):
-                    invoice.sit_json_respuesta = json.dumps(dte, ensure_ascii=False)
-                else:
-                    # Otro tipo de dato no esperado
-                    invoice.sit_json_respuesta = str(dte)
+                            # Lanzar error al final si fue rechazado
+                            if estado == 'rechazado':
+                                mensaje = Resultado['descripcionMsg'] or _('Documento rechazado por Hacienda.')
+                                raise UserError(_("DTE rechazado por MH:\n%s") % mensaje)
+                            elif estado not in ('procesado', ''):
+                                raise UserError(_("Respuesta inesperada de Hacienda. Estado: %s\nMensaje: %s") % (estado, Resultado['descripcionMsg']))
+                        else:
+                            raise UserError("DTE no procesado correctamente")
 
-                if Resultado:
-                    # Procesar respuesta de Hacienda
-                    dat_time = Resultado['fhProcesamiento']
-                    fh = datetime.strptime(dat_time, '%d/%m/%Y %H:%M:%S') + timedelta(hours=6)
-                    invoice.write({
-                        'hacienda_estado': Resultado['estado'],
-                        'hacienda_codigoGeneracion_identificacion': Resultado['codigoGeneracion'],
-                        'hacienda_selloRecibido': Resultado['selloRecibido'],
-                        'hacienda_clasificaMsg': Resultado['clasificaMsg'],
-                        'hacienda_codigoMsg': Resultado['codigoMsg'],
-                        'hacienda_descripcionMsg': Resultado['descripcionMsg'],
-                        'hacienda_observaciones': str(Resultado.get('observaciones', '')),
-                        'state': 'draft',
-                    })
-
-                # Lanzar error al final si fue rechazado
-                if Resultado:
-                    estado = Resultado.get('estado', '').strip().lower()
-                    if estado == 'rechazado':
-                        mensaje = Resultado.get('descripcionMsg') or _('Documento rechazado por Hacienda.')
-                        raise UserError(_("DTE rechazado por MH:\n%s") % mensaje)
-                    elif estado not in ('procesado', ''):
-                        raise UserError(_("Respuesta inesperada de Hacienda. Estado: %s\nMensaje: %s") % (
-                            estado, Resultado.get('descripcionMsg', '')))
-
+                        # 2) Validar formato
+                        if not invoice.name.startswith("DTE-"):
+                            raise UserError(
+                                _("Número de control DTE inválido para la factura %s.") % invoice.id)
             except Exception as e:
                 error_msg = traceback.format_exc()
                 _logger.exception("SIT Error durante el _post para invoice ID %s: %s", invoice.id, str(e))
                 invoice.write({
                     'error_log': error_msg,
                     'state': 'draft',
-                    'sit_es_configencia': True,
+                    'sit_es_configencia': False,
                 })
         _logger.info("SIT Fin _post")
+
         return super(AccountMove, self)._post(soft=soft)
 
     def _compute_validation_type_2(self):
@@ -834,66 +864,89 @@ class AccountMove(models.Model):
 
     # FIMAR FIMAR FIRMAR =======
     def firmar_documento(self, enviroment_type, payload):
-        _logger.info("SIT  Firmando de documento")
-        _logger.info("SIT Documento a FIRMAR =%s", payload)
+        _logger.info("SIT  Firmando documento")
+        _logger.info("SIT Documento a FIRMAR = %s", payload)
+
         if enviroment_type == 'homologation':
             ambiente = "01"
         else:
             ambiente = "01"
+        max_intentos = 3
         # host = self.company_id.sit_firmador
         url = "http://192.168.2.25:8113/firmardocumento/"  # host + '/firmardocumento/'
         headers = {
             'Content-Type': 'application/json'
         }
-        try:
-            payload = {
-                "nit": payload["nit"],  # <--- aquí estaba el error, decía 'liendre'
-                "activo": True,
-                "passwordPri": payload["passwordPri"],
-                "dteJson": payload["dteJson"],
-            }
-            response = requests.request("POST", url, headers=headers, data=json.dumps(payload, default=str))
-            _logger.info("SIT firmar_documento response =%s", response.text)
-            _logger.info("SIT dte json =%s", json.dumps(payload.get("dteJson", {}), indent=2, ensure_ascii=False, default=str))
-        except Exception as e:
-            error = str(e)
-            _logger.info('SIT error= %s, ', error)
-            if "error" in error or "" in error:
-                try:
-                    error_dict = json.loads(error) if isinstance(error, str) else error
-                    MENSAJE_ERROR = str(error_dict.get('status', '')) + ", " + str(error_dict.get('error', '')) + ", " + str(error_dict.get('message', ''))
-                except Exception:
-                    MENSAJE_ERROR = error
-                raise UserError(_(MENSAJE_ERROR))
-            else:
-                raise UserError(_(error))
-        resultado = []
-        json_response = response.json()
-        if json_response['status'] in [400, 401, 402]:
-            _logger.info("SIT Error 40X  =%s", json_response['status'])
-            status = json_response['status']
-            error = json_response['error']
-            message = json_response['message']
-            MENSAJE_ERROR = "Código de Error:" + str(status) + ", Error:" + str(error) + ", Detalle:" + str(message)
-            raise UserError(_(MENSAJE_ERROR))
-        if json_response['status'] in ['ERROR', 401, 402]:
-            _logger.info("SIT Error 40X  =%s", json_response['status'])
-            status = json_response['status']
-            body = json_response['body']
-            codigo = body['codigo']
-            message = body['mensaje']
-            resultado.append(status)
-            resultado.append(codigo)
-            resultado.append(message)
-            MENSAJE_ERROR = "Código de Error:" + str(status) + ", Codigo:" + str(codigo) + ", Detalle:" + str(
-                message)
-            raise UserError(_(MENSAJE_ERROR))
-        elif json_response['status'] == 'OK':
-            status = json_response['status']
-            body = json_response['body']
-            resultado.append(status)
-            resultado.append(body)
-            return body
+
+        payload = {
+            "nit": payload["nit"],  # <--- aquí estaba el error, decía 'liendre'
+            "activo": True,
+            "passwordPri": payload["passwordPri"],
+            "dteJson": payload["dteJson"],
+        }
+
+        for intento in range(1, max_intentos + 1):
+            _logger.info("Intento %s de %s para firmar el documento", intento, max_intentos)
+            try:
+                response = requests.request("POST", url, headers=headers, data=json.dumps(payload, default=str))
+                _logger.info("SIT firmar_documento response =%s", response.text)
+                _logger.info("SIT dte json =%s",
+                             json.dumps(payload.get("dteJson", {}), indent=2, ensure_ascii=False, default=str))
+
+                json_response = response.json()
+                # Manejo de errores 400–402
+                if json_response['status'] in [400, 401, 402]:
+                    _logger.info("SIT Error 40X  =%s", json_response['status'])
+                    status = json_response['status']
+                    error = json_response['error']
+                    message = json_response['message']
+                    MENSAJE_ERROR = "Código de Error:" + str(status) + ", Error:" + str(error) + ", Detalle:" + str(
+                        message)
+                    # raise UserError(_(MENSAJE_ERROR))
+                    _logger.warning("Error de firma intento %s: %s", intento, mensaje_error)
+
+                    if intento == max_intentos:
+                        raise UserError(_(MENSAJE_ERROR))
+                    continue
+
+                if json_response['status'] in ['ERROR', 401, 402]:
+                    _logger.info("SIT Error 40X  =%s", json_response['status'])
+                    status = json_response['status']
+                    body = json_response['body']
+                    codigo = body['codigo']
+                    message = body['mensaje']
+                    resultado.append(status)
+                    resultado.append(codigo)
+                    resultado.append(message)
+                    MENSAJE_ERROR = "Código de Error:" + str(status) + ", Codigo:" + str(codigo) + ", Detalle:" + str(
+                        message)
+                    if intento == max_intentos:
+                        raise UserError(_(MENSAJE_ERROR))
+                    continue
+                elif json_response['status'] == 'OK':
+                    status = json_response['status']
+                    body = json_response['body']
+                    resultado.append(status)
+                    resultado.append(body)
+                    return body
+            except Exception as e:
+                _logger.warning("Excepción en firma intento %s: %s", intento, str(e))
+                if intento == max_intentos:
+                    error = str(e)
+                    _logger.info('SIT error= %s, ', error)
+                    if "error" in error or "" in error:
+                        try:
+                            error_dict = json.loads(error) if isinstance(error, str) else error
+                            MENSAJE_ERROR = str(error_dict.get('status', '')) + ", " + str(
+                                error_dict.get('error', '')) + ", " + str(error_dict.get('message', ''))
+                        except Exception:
+                            MENSAJE_ERROR = error
+                        raise UserError(_(MENSAJE_ERROR))
+                    else:
+                        raise UserError(_(error))
+                    continue
+        # Si todos los intentos fallan sin lanzar excepciones
+        raise UserError(_("No se pudo firmar el documento. Inténtelo nuevamente más tarde."))
 
     def obtener_payload(self, enviroment_type, sit_tipo_documento):
         _logger.info("SIT  Obteniendo payload")
@@ -938,6 +991,8 @@ class AccountMove(models.Model):
         3) Envía el JWT firmado a Hacienda.
         4) Gestiona el caso 004 (YA EXISTE) para no dejar en borrador.
         """
+        data = None
+        max_intentos = 3
         # ——— 1) Selección de URL de Hacienda ———
         host = (
             "https://apitest.dtes.mh.gob.sv"
@@ -972,14 +1027,22 @@ class AccountMove(models.Model):
                                or payload_original["dteJson"].get("passwordPri"),
                 "dteJson": payload_original["dteJson"],
             }
-            resp_sign = requests.post(
-                firmador_url, headers={"Content-Type": "application/json"}, json=sign_payload, timeout=30
-            )
-            resp_sign.raise_for_status()
-            data_sign = resp_sign.json()
-            if data_sign.get("status") != "OK":
-                raise UserError(_("Firma rechazada: %s – %s") % (data_sign.get("status"), data_sign.get("message", "")))
-            jwt_token = data_sign["body"]
+            try:
+                resp_sign = requests.post(
+                    firmador_url, headers={"Content-Type": "application/json"}, json=sign_payload, timeout=30
+                )
+                resp_sign.raise_for_status()
+                data_sign = resp_sign.json()
+                if data_sign.get("status") != "OK":
+                    # raise UserError(_("Firma rechazada: %s – %s") % (data_sign.get("status"), data_sign.get("message", "")))
+                    return data_sign
+                jwt_token = data_sign["body"]
+            except Exception as e:
+                _logger.warning("Error al firmar el documento: %s", e)
+                return {
+                    "estado": "ERROR_FIRMA",
+                    "mensaje": str(e),
+                }
 
         # ——— 4) Construir el payload para Hacienda ———
         ident = payload_original["dteJson"]["identificacion"]
@@ -993,57 +1056,71 @@ class AccountMove(models.Model):
         }
 
         # ——— 5) Envío a Hacienda ———
-        try:
-            resp = requests.post(url_receive, headers=headers, json=send_payload, timeout=30)
-        except Exception as e:
-            raise UserError(_("Error de conexión con Hacienda: %s") % e)
+        # ——— Intentos para enviar a Hacienda ———
+        for intento in range(1, max_intentos + 1):
+            _logger.info("Intento %s de %s para enviar DTE a Hacienda", intento, max_intentos)
+            try:
+                resp = requests.post(url_receive, headers=headers, json=send_payload, timeout=30)
+            except Exception as e:
+                # raise UserError(_("Error de conexión con Hacienda: %s") % e)
+                if intento == max_intentos:
+                    raise UserError(_("Error de conexión con Hacienda tras %s intentos: %s") % (max_intentos, e))
+                _logger.warning("Error de conexión con Hacienda: %s", e)
+                continue  # intenta de nuevo
 
-        # Intentamos parsear JSON incluso si es 400
-        try:
-            data = resp.json()
-        except ValueError:
-            data = {}
+            # Intentamos parsear JSON incluso si es 400
+            try:
+                data = resp.json()
+            except ValueError:
+                data = {}
 
-        _logger.info("SIT MH status=%s text=%s", resp.status_code, resp.text)
-        _logger.info("SIT MH fecha procesamiento=%s text=%s", resp.text)
+            _logger.info("SIT MH status=%s text=%s", resp.status_code, resp.text)
+            _logger.info("SIT MH fecha procesamiento text=%s", resp.text)
 
-        # ——— 6) Manejo especial de códigoMsg '004' ———
-        if resp.status_code == 400 and data.get("clasificaMsg") == "11" and data.get("codigoMsg") == "004":
-            # Ya existe un registro con ese codigoGeneracion
-            _logger.warning("MH 004 → YA EXISTE, marcando como registrado en Odoo")
-            self.write({
-                "hacienda_estado": "PROCESADO",
-                "hacienda_codigoGeneracion_identificacion": data.get("codigoGeneracion"),
-                "hacienda_selloRecibido": data.get("selloRecibido"),
-                "hacienda_clasificaMsg": data.get("clasificaMsg"),
-                "hacienda_codigoMsg": data.get("codigoMsg"),
-                "hacienda_descripcionMsg": data.get("descripcionMsg"),
-                "hacienda_observaciones": ", ".join(data.get("observaciones") or []),
-                "state": "posted",
-            })
-            # Nota en el chatter
-            self.message_post(
-                body=_("Documento ya existente en Hacienda: %s") % data.get("descripcionMsg")
-            )
-            return data
+            # ——— 6) Manejo especial de códigoMsg '004' ———
+            if resp.status_code == 400 and data.get("clasificaMsg") == "11" and data.get("codigoMsg") == "004":
+                # Ya existe un registro con ese codigoGeneracion
+                _logger.warning("MH 004 → YA EXISTE, marcando como registrado en Odoo")
+                self.write({
+                    "hacienda_estado": "PROCESADO",
+                    "hacienda_codigoGeneracion_identificacion": data.get("codigoGeneracion"),
+                    "hacienda_selloRecibido": data.get("selloRecibido"),
+                    "hacienda_clasificaMsg": data.get("clasificaMsg"),
+                    "hacienda_codigoMsg": data.get("codigoMsg"),
+                    "hacienda_descripcionMsg": data.get("descripcionMsg"),
+                    "hacienda_observaciones": ", ".join(data.get("observaciones") or []),
+                    "state": "posted",
+                })
+                self.message_post(
+                    body=_("Documento ya existente en Hacienda: %s") % data.get("descripcionMsg")
+                )
+                return data
 
-        # ——— 7) Errores HTTP distintos de 200 ———
-        if resp.status_code != 200:
-            _logger.warning("Error MH (HTTP %s): %s", resp.status_code, data or resp.text)
-            # raise UserError(_("Error MH (HTTP %s): %s") % (resp.status_code, data or resp.text))
-            return data
+            # ——— 7) Errores HTTP distintos de 200 ———
+            if resp.status_code != 200:
+                mensaje = f"Error MH (HTTP {resp.status_code}): {data or resp.text}"
+                _logger.warning(mensaje)
+                if intento == max_intentos:
+                    self._crear_contingencia(resp, data, mensaje)
+                    raise UserError(_("Error MH (HTTP %s): %s") % (resp.status_code, data or resp.text))
+                continue  # intenta de nuevo
+            # data = resp.json()
 
-        # data = resp.json()
-        estado = data.get('estado')
-        if estado == 'RECHAZADO':
-            _logger.warning("Rechazado por MH: %s – %s", data.get('clasificaMsg'), data.get('descripcionMsg'))
-            # raise UserError(_("Rechazado por MH: %s – %s") % (data.get('clasificaMsg'), data.get('descripcionMsg')))
-            return data
-        if estado == 'PROCESADO':
-            return data
+            estado = data.get('estado')
+            if estado == 'RECHAZADO':
+                mensaje = f"Rechazado por MH: {data.get('clasificaMsg')} - {data.get('descripcionMsg')}"
+                _logger.warning(mensaje)
+                if intento == max_intentos:
+                    self._crear_contingencia(resp, data, mensaje)
+                    raise UserError(_("Rechazado por MH: %s – %s") % (data.get('clasificaMsg'), data.get('descripcionMsg')))
+                continue
 
-        # ——— 9) Caso realmente inesperado ———
-        _logger.warning("Respuesta inesperada de MH: %s", data)
+            if estado == 'PROCESADO':
+                return data
+
+            # ——— 9) Caso realmente inesperado ———
+            _logger.warning("Respuesta inesperada de MH: %s", data)
+            _logger.warning("Finalizó sin respuesta exitosa ni contingencia: %s", data)
         return data
 
     def _autenticar(self,user,pwd):
@@ -1211,3 +1288,128 @@ class AccountMove(models.Model):
         if not generacion_dte["codigoGeneracion"]:
             ERROR = 'El codigoGeneracion  no está definido.'
             raise UserError(_(ERROR))
+
+    def _evaluar_error_contingencia(self, status_code, origen="desconocido"):
+        motivo_otro = False
+        mensaje = ""
+        contingencia_model = self.env['account.move.tipo_contingencia.field']
+
+        if status_code in [500, 502, 503, 504, 408]:
+            contingencia = contingencia_model.search([('codigo', '=', '01')], limit=1)
+        elif status_code in [408, 499]:
+            contingencia = contingencia_model.search([('codigo', '=', '02')], limit=1)
+        elif status_code in [503, 504]:
+            contingencia = contingencia_model.search([('codigo', '=', '04')], limit=1)
+        else:
+            contingencia = contingencia_model.search([('codigo', '=', '05')], limit=1)
+            motivo_otro = True
+            mensaje = f"Error grave en el envío ({origen}) - Código HTTP: {status_code}"
+
+        return contingencia, motivo_otro, mensaje
+
+    def _crear_contingencia(self, resp, data, mensaje):
+        # ___Actualizar dte en contingencia
+        if not data:
+            data = {}
+
+        codigo = data.get("codigoMsg") or "SIN_CODIGO"
+        descripcion = data.get("descripcionMsg") or resp.text or "Error desconocido"
+        _logger.warning("Creando contingencia por error MH: [%s] %s", codigo, descripcion)
+
+        error_msg = _(mensaje) % (max_intentos, data)
+
+        tipo_contingencia, motivo_otro, mensaje_motivo = self._evaluar_error_contingencia(
+            status_code=resp.status_code,
+            origen="envío DTE"
+        )
+
+        self.write({
+            'error_log': error_msg,
+            'sit_es_contingencia': True,
+            'sit_tipo_contingencia': tipo_contingencia.id if tipo_contingencia else False,
+            # 'sit_tipo_contingencia_otro': mensaje_motivo,
+        })
+        _logger.warning("Guardando DTE en contingencia (%s): %s", tipo_contingencia.codigo if tipo_contingencia else "", self.name)
+
+        _logger.warning("Buscando contingencia activa para empresa: %s", self.company_id.name)
+
+        Contingencia = self.env['account.contingencia1']
+        Lote = self.env['account.lote']
+
+        # Buscar contingencia activa
+        contingencia_activa = Contingencia.search([
+            ('company_id', '=', self.company_id.id),
+            ('sit_selloRecibido', '=', False),
+            ('contingencia_activa', '=', True),
+        ], limit=1)
+
+        lote_asignado = None
+
+        if contingencia_activa:
+            _logger.info("Contingencia activa encontrada: %s", contingencia_activa.name)
+
+            # Asociar esta factura a la contingencia
+            self.write({'sit_factura_de_contingencia': contingencia_activa.id})
+
+            # Buscar lote incompleto
+            lotes_validos = Lote.search([
+                ('sit_contingencia', '=', contingencia_activa.id),
+                ('hacienda_codigoLote_lote', '=', False),
+                ('lote_activo', '=', True),
+            ])
+
+            for lote in lotes_validos:
+                if len(lote.move_ids) < 2:#100
+                    if not self.sit_lote_contingencia:
+                        self.write({'sit_lote_contingencia': lote.id})
+                    else:
+                        self.write({'sit_lote_contingencia': lote.id})
+                    lote_asignado = lote
+                    _logger.info("Factura asignada a lote existente: %s", lote.id)
+                    break
+
+            if not lote_asignado:
+                num_lotes = Lote.search_count([('sit_contingencia', '=', contingencia_activa.id)])
+                if num_lotes < 2:#400
+                    lote_asignado = Lote.create({
+                        'name': f"Lote de contingencia {contingencia_activa.name}-{num_lotes + 1}",
+                        'sit_contingencia': contingencia_activa.id,
+                        'lote_activo': True,
+                    })
+                    if not self.sit_lote_contingencia:
+                        self.write({'sit_lote_contingencia': lote_asignado.id})
+                        _logger.info("Factura asignada a nuevo lote: %s", lote_asignado.name)
+                    else:
+                        _logger.warning("Factura ya tenía un lote asignado al crear nuevo: %s", self.sit_lote_contingencia.name)
+                else:
+                    _logger.warning("Contingencia ya tiene 400 lotes. Creando nueva contingencia.")
+                    contingencia_activa = None  # Forzar nueva contingencia
+        else:
+            _logger.info("No se encontró contingencia activa. Creando nueva.")
+
+        # Si no hay contingencia activa o válida, crear una nueva
+        if not contingencia_activa:
+            contingencia_activa = Contingencia.create({
+                'company_id': self.company_id.id,
+                'journal_id': self.journal_id.id,
+                'sit_tipo_contingencia': tipo_contingencia.id if tipo_contingencia else False,
+                'contingencia_activa': True,
+                # 'move_ids': [(6, 0, [self.id])],
+                # 'estado': 'pendiente',
+                # 'motivo': f"Error {codigo}: {descripcion}",
+                # 'respuesta_mh': resp.text,
+                # 'codigo_generacion': self.codigoGeneracion,
+            })
+
+            lote_asignado = Lote.create({
+                'name': f"Lote de contingencia {contingencia_activa.name}-1",
+                'sit_contingencia': contingencia_activa.id,
+                'lote_activo': True,
+            })
+            self.write({'sit_lote_contingencia': lote_asignado.id})
+            _logger.info("Creada nueva contingencia y lote: %s, %s", contingencia_activa.name, lote_asignado.name)
+
+        _logger.info("Factura %s asignada a contingencia %s y lote %s", self.name, contingencia_activa.name,
+                     lote_asignado.name if lote_asignado else "N/A")
+
+

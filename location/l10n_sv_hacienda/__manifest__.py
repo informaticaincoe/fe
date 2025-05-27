@@ -28,7 +28,6 @@
         "security/ir.model.access.csv",
         "security/security.xml",
         "data/ir.actions.url_data.xml",
-        "data/ir.cron.xml",
     ],
     "demo": [
         "demo/certificate_demo.xml",
