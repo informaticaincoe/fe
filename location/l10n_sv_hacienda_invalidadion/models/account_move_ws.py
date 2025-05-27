@@ -233,7 +233,7 @@ class AccountMove(models.Model):
         nit = dui.replace("-", "")
         invoice_info = {
             "tipoAnulacion": int(self.sit_tipoAnulacion),
-            "motivoAnulacion": self.sit_motivoAnulacion if self.sit_tipoAnulacion == 3 else None,
+            "motivoAnulacion": self.sit_motivoAnulacion,#self.sit_motivoAnulacion if self.sit_tipoAnulacion == 3 else None,
             "nombreResponsable": self.partner_id.name,
             "tipDocResponsable": "36",
             "numDocResponsable": nit,
