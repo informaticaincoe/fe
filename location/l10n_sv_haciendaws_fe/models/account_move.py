@@ -214,6 +214,27 @@ class AccountMove(models.Model):
             else:
                 _logger.info("Diario '%s' no es venta, omito DTE", journal and journal.name)
 
+            # ——— NUEVA SECCIÓN: para asientos contables (entry) ———
+            if move_type == 'entry':
+                # Si no viene nombre o viene como '/', se lo asignamos desde la secuencia
+                if not vals.get('name') or vals['name'] == '/':
+                    journal = self.env['account.journal'].browse(vals.get('journal_id'))
+                    if journal and journal.sequence_id:
+                        # Reservar siguiente número de la secuencia del diario
+                        # nuevo:
+                        if journal.sequence_id:
+                            # next_by_id() sabe gestionar date_ranges internamente
+                            vals['name'] = journal.sequence_id.next_by_id()
+                        else:
+                            # fallback genérico
+                            vals['name'] = self.env['ir.sequence'].next_by_code('account.move') or '/'
+
+                        _logger.info("SIT Asignado nombre de entry desde secuencia: %s", vals['name'])
+                    else:
+                        # Fallback genérico por si no hay sequence_id
+                        vals['name'] = self.env['ir.sequence'].next_by_code('account.move') or '/'
+                        _logger.info("SIT Asignado nombre genérico: %s", vals['name'])
+
         # no forzar name
         self._fields['name'].required = False
         records = super().create(vals_list)

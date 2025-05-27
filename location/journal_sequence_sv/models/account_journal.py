@@ -38,11 +38,14 @@ class AccountJournal(models.Model):
         help="Prefijo usado al generar el número de control del DTE."
     )
 
-
     @api.model
     def _create_sequence(self, vals, refund=False):
-        prefix = self._get_sequence_prefix(vals['code'], refund)
-        seq_name = refund and vals['code'] + _(': Refund') or vals['code']
+        # 1. Determinar un código válido (vals, o self.code, o vals['name'] como última opción)
+        code = vals.get('code') or getattr(self, 'code', None) or vals.get('name', '') or ''
+        # 2. Construir prefijo y nombre de secuencia
+        prefix = self._get_sequence_prefix(code, refund)
+        seq_name = refund and f"{code}: Refund" or code
+        # 3. Valores para crear la secuencia
         seq_vals = {
             'name': _('%s Sequence') % seq_name,
             'implementation': 'no_gap',
@@ -53,12 +56,15 @@ class AccountJournal(models.Model):
         }
         if 'company_id' in vals:
             seq_vals['company_id'] = vals['company_id']
+        # 4. Crear la secuencia
         seq = self.env['ir.sequence'].create(seq_vals)
-        seq_date_range = seq._get_current_sequence()
-        seq_date_range.number_next = (
-            refund and vals.get('refund_sequence_number_next', 1)
-            or vals.get('sequence_number_next', 1)
+        # 5. Inicializar el siguiente número según el diario
+        seq_range = seq._get_current_sequence()
+        start = (
+                refund and (vals.get('refund_sequence_number_next') or self.refund_sequence_number_next or 1)
+                or (vals.get('sequence_number_next') or self.sequence_number_next or 1)
         )
+        seq_range.sudo().number_next = start
         return seq
 
     def create_sequence(self, refund):

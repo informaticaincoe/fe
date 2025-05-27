@@ -28,7 +28,7 @@ from pytz import timezone, UTC
 
 _logger = logging.getLogger(__name__)
 
-EXTRA_ADDONS = r'C:\Users\INCOE\Documents\GitHub\fe\location\mnt\extra-addons\src'
+EXTRA_ADDONS = r'C:\Users\Admin\Documents\GitHub\fe\location\mnt\extra-addons\src'
 
 
 class AccountMove(models.Model):
@@ -132,6 +132,14 @@ class AccountMove(models.Model):
 #---------------------------------------------------------------------------------------------
 # ANULAR FACTURA
 #---------------------------------------------------------------------------------------------
+
+    def button_anulacion(self):
+        raise UserError("Boton de Prueba")
+
+    def button_anul(self):
+        raise UserError("Boton de Prueba")
+
+
     def action_button_anulacion(self):
         _logger.info("SIT [INICIO] action_button_anulacion para facturas: %s", self.ids)
         # Verificamos si estamos en una factura que puede ser anulada
