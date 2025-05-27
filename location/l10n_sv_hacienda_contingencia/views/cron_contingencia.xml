@@ -5,7 +5,7 @@
         <field name="state">code</field>
         <field name="code">model.actualizar_contingencias_expiradas()</field>
         <field name="interval_number">1</field>
-        <field name="interval_type">minutes</field><!-- hours -->
+        <field name="interval_type">hours</field><!-- hours -->
         <field name="active" eval="True"/>
     </record>
 </odoo>

@@ -27,6 +27,7 @@ import pytz
 
 _logger = logging.getLogger(__name__)
 EXTRA_ADDONS = r'C:\Users\Admin\Documents\GitHub\fe\location\mnt\extra-addons\src'
+#EXTRA_ADDONS = r'C:\Users\INCOE\Documents\GitHub\fe\location\mnt\extra-addons\src'
 
 class AccountMoveInvalidation(models.Model):
     _name = "account.move.invalidation"
@@ -405,8 +406,11 @@ class AccountMoveInvalidation(models.Model):
         else:
             host = "https://api.dtes.mh.gob.sv"
         url = host + '/fesv/anulardte'
-        agente = self.sit_factura_a_reemplazar.company_id.sit_token_user
-        authorization = self.sit_factura_a_reemplazar.company_id.sit_token
+
+        # ——— Refrescar token si hace falta ———
+        today = fields.Date.context_today(self)
+        if not self.sit_factura_a_reemplazar.company_id.sit_token_fecha or self.sit_factura_a_reemplazar.company_id.sit_token_fecha.date() < today:
+            self.sit_factura_a_reemplazar.company_id.get_generar_token()
 
         headers = {
             'Content-Type': 'application/json',
@@ -419,20 +423,24 @@ class AccountMoveInvalidation(models.Model):
             _logger.info("SIT generar_dte_invalidacion DTE response =%s", response.status_code)
             _logger.info("SIT generar_dte_invalidacion DTE response.text =%s", response.text)
         except Exception as e:
-            error = str(e)
-            _logger.info('SIT error= %s, ', error)
-            if "error" in error or "" in error:
-                MENSAJE_ERROR = str(error['status']) + ", " + str(error['error']) + ", " + str(error['message'])
-                raise UserError(_(MENSAJE_ERROR))
+            _logger.error("SIT Error posterior al crear la invalidación: %s ", e, exc_info=True)
+            error_msg = ""
+            if isinstance(e, dict):
+                error_msg = str(e.get('status', '')) + ", " + str(e.get('error', '')) + ", " + str(e.get('message', ''))
             else:
-                raise UserError(_(error))
+                error_msg = str(e)
+            raise UserError(_("Error al generar la invalidación del DTE: %s" % error_msg))
+
         resultado = []
         _logger.info("SIT generar_dte_invalidacion DTE decodificando respuestas invalidacion")
         # status = json_response.get('status')
 
         if response.status_code in [400, 401]:
-            MENSAJE_ERROR = "ERROR de conexión : " + str(response.text) + " ((( " + str(
-                json.dumps(payload_original)) + " )))"
+            #MENSAJE_ERROR = "ERROR de conexión : " + str(response.text) + " ((( " + str(json.dumps(payload_original)) + " )))"
+            MENSAJE_ERROR = (
+                f"ERROR de conexión (HTTP {response.status_code}):\n"
+                f"Respuesta: {response.text}\n\n"
+            )
             raise UserError(_(MENSAJE_ERROR))
 
         json_response = response.json()
