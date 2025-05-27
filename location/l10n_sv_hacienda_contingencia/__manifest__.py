@@ -33,6 +33,7 @@
         'views/account_contingencia.xml',
         'views/menuitem.xml',
         'views/account_move_views.xml',
+        'views/cron_contingencia.xml',
     ],
     # only loaded in demonstration mode
     "demo": [],
