@@ -202,17 +202,7 @@ class AccountMoveInvalidation(models.Model):
                     _logger.info("SIT Payload original de anulación generado")
 
                     self.check_parametros_invalidacion()
-
-                    if not invoice.sit_factura_a_reemplazar.hacienda_selloRecibido:
-                        documento_firmado = invoice.firmar_documento_anu(validation_type, payload)
-                        _logger.info("SIT Documento firmado exitosamente")
-                    elif invoice.sit_factura_a_reemplazar.sit_documento_firmado:
-                        documento_firmado = invoice.sit_factura_a_reemplazar.sit_documento_firmado
-                        _logger.info("SIT Documento firmado ya existente recuperado")
-                    else:
-                        MENSAJE = "SIT Factura no contiene Sello de Hacienda por lo que no se puede anular"
-                        raise UserError(_(MENSAJE))
-                        # _logger.info("SIT documento_firmado recuperado ---------------------------> = %s ", (documento_firmado))
+                    documento_firmado = invoice.firmar_documento_anu(validation_type, payload)
 
                     if documento_firmado:
                         _logger.info("SIT Firmado de documento")
@@ -222,6 +212,29 @@ class AccountMoveInvalidation(models.Model):
                         payload_dte = invoice.sit_factura_a_reemplazar.sit_obtener_payload_anulacion_dte_info(ambiente, documento_firmado)
                         MENSAJE = "SIT documento a invalidar firmado = " + str(payload_dte)
                         # raise UserError(_(MENSAJE))
+
+                        # Guardar json generado
+                        json_dte = payload_original['dteJson']
+                        # Solo serializar si no es string
+                        try:
+                            if isinstance(json_dte, str):
+                                try:
+                                    # Verifica si es un JSON string válido, y lo convierte a dict
+                                    json_dte = json.loads(json_dte)
+                                except json.JSONDecodeError:
+                                    # Ya era string, pero no era JSON válido -> guardar tal cual
+                                    invoice.sit_json_respuesta_invalidacion = json_dte
+                                else:
+                                    # Era un JSON string válido → ahora es dict
+                                    invoice.sit_json_respuesta_invalidacion = json.dumps(json_dte, ensure_ascii=False)
+                            elif isinstance(json_dte, dict):
+                                invoice.sit_json_respuesta_invalidacion = json.dumps(json_dte, ensure_ascii=False)
+                            else:
+                                # Otro tipo de dato no esperado
+                                invoice.sit_json_respuesta_invalidacion = str(json_dte)
+                        except Exception as e:
+                            _logger.warning("No se pudo guardar el JSON del DTE: %s", e)
+
                         self.check_parametros_dte_invalidacion(payload_dte)
                         Resultado = invoice.generar_dte_invalidacion(validation_type, payload_dte, payload_original)
 
@@ -268,8 +281,7 @@ class AccountMoveInvalidation(models.Model):
                                              str(json.dumps(payload_original)))
 
                                 # invoice.sit_json_respuesta = str(json.dumps(payload_original['dteJson']))
-                                print(type(payload_original['dteJson']))
-                                invoice.sit_json_respuesta_invalidacion = payload_original['dteJson']
+                                #invoice.sit_json_respuesta_invalidacion = payload_original['dteJson']
                                 _logger.info("SIT JSON de Invalidacion=%s", invoice.sit_json_respuesta_invalidacion)
                                 json_str = json.dumps(payload_original['dteJson'])
                                 _logger.info("SIT JSON de respuesta guardado")
