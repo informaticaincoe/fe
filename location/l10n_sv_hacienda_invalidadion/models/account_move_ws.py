@@ -120,18 +120,40 @@ class AccountMove(models.Model):
             "montoIva": round(self.amount_total, 2),
         }
 
-        fecha_facturacion = (datetime.strptime(self.fecha_facturacion_hacienda, '%Y-%m-%d')
-                             if isinstance(self.fecha_facturacion_hacienda, str)
-                             else self.fecha_facturacion_hacienda)
+        # fecha_facturacion = (datetime.strptime(self.fecha_facturacion_hacienda, '%Y-%m-%d')
+        #                      if isinstance(self.fecha_facturacion_hacienda, str)
+        #                      else self.fecha_facturacion_hacienda)
 
+        # --- Procesamiento robusto de fecha ---
+        fecha_facturacion = None
+        raw_date = self.fecha_facturacion_hacienda
+        try:
+            if not raw_date:
+                _logger.warning("No hay valor en 'fecha_facturacion_hacienda', se usará la fecha actual.")
+                fecha_facturacion  = datetime.now(tz_el_salvador)
+            elif isinstance(raw_date, str):
+                try:
+                    fecha_facturacion  = datetime.fromisoformat(raw_date)
+                except ValueError:
+                    try:
+                        fecha_facturacion  = datetime.strptime(raw_date, '%Y-%m-%d %H:%M:%S')
+                    except ValueError:
+                        fecha_facturacion  = datetime.strptime(raw_date, '%Y-%m-%d')
+                if fecha_facturacion .tzinfo is None:
+                    fecha_facturacion  = tz_el_salvador.localize(fecha_facturacion )
+            elif isinstance(raw_date, datetime):
+                fecha_facturacion  = raw_date
+                if fecha_facturacion .tzinfo is None:
+                    fecha_facturacion  = tz_el_salvador.localize(fecha_facturacion )
+            else:
+                raise ValueError(f"'fecha_facturacion_hacienda' no es un valor válido: {type(raw_date)}")
 
-        if isinstance(fecha_facturacion, datetime):
-            adjusted_fecha = fecha_facturacion - timedelta(hours=6)
-        else:
+            adjusted = fecha_facturacion  - timedelta(hours=6)
+            invoice_info["fecEmi"] = adjusted.strftime('%Y-%m-%d')
+        except Exception as e:
             _logger.error("fecha_facturacion no es datetime, es: %s, %s", type(fecha_facturacion), fecha_facturacion)
             raise ValueError("fecha_facturacion no es un datetime válido")
-        invoice_info["fecEmi"] = adjusted_fecha.strftime('%Y-%m-%d')
-        _logger.info("SIT Codigo generacion R: self.id=%s", self.sit_codigoGeneracionR)
+
         if self.sit_tipoAnulacion == '2':
             self.sit_codigoGeneracionR = None
 
@@ -141,52 +163,6 @@ class AccountMove(models.Model):
             nit = self.partner_id.dui.replace("-", "") if isinstance(self.partner_id.dui,str) and self.partner_id.dui.strip() else None
         else:
             nit = self.partner_id.fax.replace("-", "") if isinstance(self.partner_id.fax,str) and self.partner_id.fax.strip() else None
-
-        # --- Manejo seguro de fecha de facturación Hacienda ---
-        raw_date = self.fecha_facturacion_hacienda
-        if not raw_date:
-            # Si no hay fecha (draft), usamos ahora en El Salvador
-            FechaEmi = datetime.now(tz_el_salvador)
-        elif isinstance(raw_date, str):
-            # Intentamos parsearla
-            try:
-                # ISO o con zona
-                FechaEmi = datetime.fromisoformat(raw_date)
-            except ValueError:
-                FechaEmi = datetime.strptime(raw_date, '%Y-%m-%d %H:%M:%S')
-            # Aseguramos tz
-            if FechaEmi.tzinfo is None:
-                FechaEmi = tz_el_salvador.localize(FechaEmi)
-        else:
-            # Ya es datetime
-            FechaEmi = raw_date
-            if FechaEmi.tzinfo is None:
-                FechaEmi = tz_el_salvador.localize(FechaEmi)
-
-        # --- Manejo seguro de fecha de facturación Hacienda ---
-        raw_date = self.fecha_facturacion_hacienda
-        if not raw_date:
-            # Si no hay fecha (draft), usamos ahora en El Salvador
-            FechaEmi = datetime.now(tz_el_salvador)
-        elif isinstance(raw_date, str):
-            # Intentamos parsearla
-            try:
-                # ISO o con zona
-                FechaEmi = datetime.fromisoformat(raw_date)
-            except ValueError:
-                FechaEmi = datetime.strptime(raw_date, '%Y-%m-%d %H:%M:%S')
-            # Aseguramos tz
-            if FechaEmi.tzinfo is None:
-                FechaEmi = tz_el_salvador.localize(FechaEmi)
-        else:
-            # Ya es datetime
-            FechaEmi = raw_date
-            if FechaEmi.tzinfo is None:
-                FechaEmi = tz_el_salvador.localize(FechaEmi)
-
-        # Ajuste a UTC-6 según spec
-        adjusted = FechaEmi - timedelta(hours=6)
-        invoice_info["fecEmi"] = adjusted.strftime('%Y-%m-%d')
 
         #invoice_info["codigoGeneracionR"] = None  # ó self.sit_codigoGeneracionR
 

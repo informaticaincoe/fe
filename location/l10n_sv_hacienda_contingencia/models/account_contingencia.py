@@ -8,6 +8,7 @@ _logger = logging.getLogger(__name__)
 
 from pytz import timezone
 from datetime import datetime
+import pytz
 
 def _default_fecha_hora_sv():
     tz = pytz.timezone('America/El_Salvador')
