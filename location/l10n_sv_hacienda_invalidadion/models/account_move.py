@@ -28,7 +28,7 @@ from pytz import timezone, UTC
 
 _logger = logging.getLogger(__name__)
 
-EXTRA_ADDONS = r'C:\Users\Admin\Documents\GitHub\fe\location\mnt\extra-addons\src'
+EXTRA_ADDONS = r'C:\Users\INCOE\Documents\GitHub\fe\location\mnt\extra-addons\src'
 
 
 class AccountMove(models.Model):
@@ -97,7 +97,8 @@ class AccountMove(models.Model):
     # CAMPOS INVALIDACION 
     sit_invalidar = fields.Boolean('Invalidar ?',  copy=False,   default=False)
     sit_codigoGeneracion_invalidacion = fields.Char(string="codigoGeneracion" , copy=False, store=True)
-    sit_fec_hor_Anula = fields.Datetime(string="Fecha de Anulación" , copy=False, )
+    sit_fec_hor_Anula = fields.Datetime(string="Fecha de Anulación" , copy=False)
+    temp_fecha_anulacion = fields.Date(string="Fecha de Anulación")
     
     # sit_codigoGeneracionR = fields.Char(string="codigoGeneracion que Reemplaza" , copy=False, )
     sit_codigoGeneracionR = fields.Char(related="sit_factura_a_reemplazar.hacienda_codigoGeneracion_identificacion", string="codigoGeneracion que Reemplaza" , copy=False, )
@@ -120,6 +121,7 @@ class AccountMove(models.Model):
     # sit_numDocSolicita = fields.Char(related="sit_nombreSolicita.dui", string="Número de documento de identificación solicitante" , copy=False, )
     sit_numDocSolicita = fields.Char(related="sit_nombreSolicita.vat", string="Número de documento de identificación solicitante" , copy=False, )
     sit_factura_a_reemplazar = fields.Many2one('account.move', string="Documento que reeemplaza", copy=False)
+    sit_evento_invalidacion = fields.Many2one('account.move.invalidation', string="Documento que invalida el dte", copy=False)
 
     @api.model
     def _get_tipo_Anulacion_selection(self):
@@ -139,44 +141,34 @@ class AccountMove(models.Model):
     def button_anul(self):
         raise UserError("Boton de Prueba")
 
-
     def action_button_anulacion(self):
         _logger.info("SIT [INICIO] action_button_anulacion para facturas: %s", self.ids)
         # Verificamos si estamos en una factura que puede ser anulada
-        if self.state != 'posted' and self.hacienda_estado !='PROCESADO':
+        if self.state != 'posted' and self.hacienda_estado != 'PROCESADO':
             raise UserError("Solo se pueden anular facturas que ya han sido publicadas.")
 
+        if self.sit_evento_invalidacion and self.sit_evento_invalidacion.hacienda_selloRecibido_anulacion and self.sit_evento_invalidacion.invalidacion_recibida_mh:
+            raise UserError("Este DTE ya ha sido invalidado por Hacienda. No es posible repetir la anulación.")
+
+        EL_SALVADOR_TZ = timezone('America/El_Salvador')
+
+        _logger.info("SIT Fecha invalidacion= %s", self.temp_fecha_anulacion)
         for invoice in self:
             # Primero creamos el registro en account.move.invalidation
             _logger.info("SIT Creando el registro de invalidación para la factura: %s", invoice.name)
 
-            # Convertir la fecha manual a UTC si está definida
-            anulacion_fecha = invoice.sit_fec_hor_Anula
-            _logger.info("SIT Fecha de anulación seleccionada desde la interfaz: %s", anulacion_fecha)
+            # Si no se seleccionó una fecha, usar la fecha actual
+            anulacion_fecha = invoice.temp_fecha_anulacion or datetime.now(EL_SALVADOR_TZ).date()
+            _logger.info("SIT Fecha de anulación utilizada: %s", anulacion_fecha)
 
-            if anulacion_fecha:
-                # Si la hora es 00:00:00 (viene desde interfaz solo con fecha), le agregamos la hora actual
-                if anulacion_fecha.time() == time(0, 0, 0):
-                    ahora = datetime.now().time()
-                    anulacion_fecha = datetime.combine(anulacion_fecha.date(), ahora)
-                _logger.info("SIT Fecha ajustada con hora actual: %s", anulacion_fecha)
+            # Obtener hora actual en El Salvador
+            hora_actual = datetime.now(EL_SALVADOR_TZ).time().replace(microsecond=0)
+            fecha_hora_local = datetime.combine(anulacion_fecha, hora_actual)
+            fecha_hora_local = EL_SALVADOR_TZ.localize(fecha_hora_local)
 
-                user_tz_str = self.env.user.tz or 'UTC'
-                user_tz = timezone(user_tz_str)
-
-                # Forzar anulacion_fecha a no tener tzinfo
-                anulacion_fecha = anulacion_fecha.replace(tzinfo=None)
-                # Localizar en zona horaria del usuario
-                local_dt = user_tz.localize(anulacion_fecha)
-
-                # Convertir a UTC
-                utc_dt = local_dt.astimezone(UTC).replace(tzinfo=None)
-                _logger.info("SIT Fecha convertida de %s (%s) a UTC: %s", anulacion_fecha, user_tz_str, utc_dt)
-
-                _logger.info("SIT Fecha convertida a UTC: %s (zona de usuario: %s)", utc_dt, user_tz_str)
-            else:
-                utc_dt = fields.Datetime.now()  # Fallback
-                _logger.warning("SIT No se ingresó fecha de anulación, usando fecha/hora actual en UTC: %s", utc_dt)
+            # Convertir a UTC
+            utc_dt = fecha_hora_local.astimezone(UTC).replace(tzinfo=None)
+            _logger.info("SIT Fecha local + hora actual = UTC: %s", utc_dt)
 
             try:
                 # Buscar si ya existe el registro de invalidación
@@ -206,7 +198,10 @@ class AccountMove(models.Model):
                     self.env.cr.commit()
 
                 # Continuar con el flujo para ambos casos
-                invoice.write({'state': 'cancel'})
+                invoice.write({
+                    'state': 'cancel',
+                    'sit_evento_invalidacion': invalidation.id
+                })
                 _logger.info("SIT Estado de factura actualizado a cancelado: %s", invoice.name)
 
                 invalidation.button_anul()
@@ -214,8 +209,6 @@ class AccountMove(models.Model):
 
             except Exception as e:
                 _logger.exception("SIT Error posterior al crear la invalidación: %s", e)
-                raise UserError(
-                    "La anulación fue registrada, pero ocurrió un error al completar el proceso. Contacta al administrador.")
 
         return True
 
