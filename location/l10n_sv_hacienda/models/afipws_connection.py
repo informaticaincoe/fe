@@ -29,7 +29,9 @@ class AfipwsConnection(models.Model):
     def _compute_afip_urls(self):
         for rec in self:
             rec.afip_login_url = rec.get_afip_login_url(rec.type)
+            _logger.info("afip_ws: %s", rec.afip_ws)
             afip_ws_url = rec.get_afip_ws_url(rec.afip_ws, rec.type)
+            _logger.info("afip_ws_url: %s", afip_ws_url)
             if rec.afip_ws and not afip_ws_url:
                 raise UserError(_("Webservice %s not supported") % rec.afip_ws)
             rec.afip_ws_url = afip_ws_url
@@ -43,9 +45,11 @@ class AfipwsConnection(models.Model):
 
     def get_afip_ws_url(self, hacienda_ws, environment_type):
         hacienda_ws_url = False
+        _logger.info("hacienda_ws: %s", hacienda_ws)
         # Similar lógica a tu código anterior para obtener la URL
-        if hacienda_ws == "ws_svr_uno_uno":
+        if hacienda_ws == "ws_svr_uno_uno" or hacienda_ws == "ws_svr_consulta_dte":#if hacienda_ws == "ws_svr_uno_uno":
             hacienda_ws_url = "https://api.dtes.mh.gob.sv/fesv/recepciondte" if environment_type == "production" else "https://apitest.dtes.mh.gob.sv/fesv/recepciondte"
+        _logger.info("hacienda_ws_url: %s", hacienda_ws_url)
         return hacienda_ws_url
 
     @api.model

@@ -51,6 +51,23 @@
 					</group>
 				</page>
 			</xpath>
+
+            <xpath expr="//page[@name='general_info']" position="after">
+                <page string="Configuración Empresa" name="configuracion_empresa">
+                    <group>
+                        <field name="configuration_ids">
+                            <list editable="bottom">
+                                <field name="url"/>
+                                <field name="pwd" password="True"/>
+                                <field name="value_type"/>
+                                <field name="value_text"/>
+                                <field name="description"/>
+                                <field name="active"/>
+                            </list>
+                        </field>
+                    </group>
+                </page>
+            </xpath>
 		</field>
 	</record>
 </odoo>

@@ -16,6 +16,10 @@ _logger = logging.getLogger(__name__)
 # Zona horaria El Salvador
 tz_el_salvador = pytz.timezone('America/El_Salvador')
 COD_FE = "01"
+from ..constantes_utils import get_constantes_anulacion
+from pytz import timezone, UTC
+
+ZONA_HORARIA = timezone('America/El_Salvador')
 
 class AccountMove(models.Model):
     _inherit = "account.move"
@@ -57,8 +61,9 @@ class AccountMove(models.Model):
         _logger.info("SIT [INICIO] Identificación para anulación: self.id=%s", self.id)
 
         invoice_info = {}
+        FechaHoraAnulacion = None
         invoice_info["version"] = 2
-        ambiente = "00" if self._compute_validation_type_2() == 'homologation' else "01"
+        ambiente = str(get_constantes_anulacion()['AMBIENTE']) #"00" if self._compute_validation_type_2() == 'homologation' else "01"
         invoice_info["ambiente"] = ambiente
 
         if self.sit_codigoGeneracion_invalidacion:
@@ -70,8 +75,10 @@ class AccountMove(models.Model):
         os.environ["TZ"] = "America/El_Salvador"
         fecha_actual = datetime.datetime.now(pytz.timezone("America/El_Salvador"))
         _logger.info("Fecha en sesion 1: %s", fecha_actual)
-        if self.sit_fec_hor_Anula:
-            FechaHoraAnulacion = fecha_actual#self.sit_fec_hor_Anula
+
+        if self.sit_evento_invalidacion.sit_fec_hor_Anula:
+            utc_dt = self.sit_evento_invalidacion.sit_fec_hor_Anula.replace(tzinfo=UTC)
+            FechaHoraAnulacion = utc_dt.astimezone(ZONA_HORARIA)
             _logger.info("SIT campo fecha anulacion: =%s", FechaHoraAnulacion)
         else:
             FechaHoraAnulacion = fecha_actual#datetime.now() - timedelta(hours=6)
@@ -129,8 +136,9 @@ class AccountMove(models.Model):
         raw_date = self.fecha_facturacion_hacienda
         try:
             if not raw_date:
-                _logger.warning("No hay valor en 'fecha_facturacion_hacienda', se usará la fecha actual.")
-                fecha_facturacion  = datetime.now(tz_el_salvador)
+                _logger.warning("No hay valor en 'fecha_facturacion_hacienda'.")
+                #fecha_facturacion  = datetime.now(tz_el_salvador)
+                raise UserError("No se encontró la fecha de facturación enviada a Hacienda")
             elif isinstance(raw_date, str):
                 try:
                     fecha_facturacion  = datetime.fromisoformat(raw_date)
@@ -159,22 +167,28 @@ class AccountMove(models.Model):
 
         invoice_info["codigoGeneracionR"] = self.sit_codigoGeneracionR or None
 
+        dui = None
+        nit = None
         if self.journal_id.sit_tipo_documento.codigo == COD_FE:
-            nit = self.partner_id.dui.replace("-", "") if isinstance(self.partner_id.dui,str) and self.partner_id.dui.strip() else None
+            #nit = self.partner_id.dui.replace("-", "") if isinstance(self.partner_id.dui,str) and self.partner_id.dui.strip() else None
+            if isinstance(self.partner_id.dui,str) and self.partner_id.dui.strip():
+                dui = self.partner_id.dui.replace("-", "")
+            elif isinstance(self.partner_id.fax,str) and self.partner_id.fax.strip():
+                nit = self.partner_id.fax.replace("-", "")
         else:
             nit = self.partner_id.fax.replace("-", "") if isinstance(self.partner_id.fax,str) and self.partner_id.fax.strip() else None
 
         #invoice_info["codigoGeneracionR"] = None  # ó self.sit_codigoGeneracionR
 
         # Datos del receptor
-        dui = self.partner_id.dui or ''
-        nit = dui.replace("-", "") if isinstance(dui, str) else None
+        #dui = self.partner_id.dui or ''
+        #nit = dui.replace("-", "") if isinstance(dui, str) else None
 
         if dui:
-            nit = dui.replace("-", "")
-        else:
-            nit_partner = self.partner_id.fax or ''
-            nit = nit_partner.replace("-", "") if isinstance(nit_partner, str) else ''
+            nit = dui
+        # else:
+        #     nit_partner = self.partner_id.fax or ''
+        #     nit = nit_partner.replace("-", "") if isinstance(nit_partner, str) else ''
 
         invoice_info["numDocumento"] = nit
         invoice_info["tipoDocumento"] = (
@@ -205,16 +219,26 @@ class AccountMove(models.Model):
             raise UserError(
                 _("No se encontró el DUI del responsable en la empresa. Por favor verifique el campo DUI en el partner de la compañía."))
 
+        numDocumento = None
+        if self.company_id:
+            if self.company_id.sit_uuid:
+                numDocumento = self.company_id.sit_uuid
+
         #nit = self.company_id.partner_id.dui.replace("-", "")
         nit = dui.replace("-", "")
+        if numDocumento:
+            numDocumento = numDocumento.replace("-", "")
+
+        #Cat-022 Tipo de documento
+
         invoice_info = {
             "tipoAnulacion": int(self.sit_tipoAnulacion),
             "motivoAnulacion": self.sit_motivoAnulacion,#self.sit_motivoAnulacion if self.sit_tipoAnulacion == 3 else None,
             "nombreResponsable": self.partner_id.name,
             "tipDocResponsable": "36",
-            "numDocResponsable": nit,
+            "numDocResponsable": numDocumento,
             "nombreSolicita": self.partner_id.name,
-            "tipDocSolicita": "36",
+            "tipDocSolicita": "36" if self.partner_id and self.partner_id.fax else "13",
             "numDocSolicita": nit
         }
 
@@ -246,8 +270,8 @@ class AccountMove(models.Model):
 
         nit = self.company_id.vat.replace("-", "")
         invoice_info = {
-            "ambiente": ambiente,
-            "idEnvio": 1,
+            "ambiente": get_constantes_anulacion()['AMBIENTE'],
+            "idEnvio": int(self.sit_evento_invalidacion.id),
             "version": 2,
             "documento": doc_firmado
         }

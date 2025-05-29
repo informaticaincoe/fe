@@ -11,6 +11,8 @@ class sit_CAT_002_tipo_documento(models.Model):
     _rec_name = "valores"
     codigo = fields.Char("Código")
     valores = fields.Char("Valores")
+    version = fields.Integer("Versión")
+
 
 class sit_CAT_003_tipo_modelo(models.Model):
     _name = "account.journal.tipo_modelo.field"

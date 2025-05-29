@@ -776,8 +776,10 @@ class AccountMove(models.Model):
                                 self.check_parametros_dte(payload_dte)
                                 Resultado = invoice.generar_dte('production', payload_dte, payload)
 
-                        if Resultado and Resultado.get('estado', '').lower() == 'procesado': #if Resultado:
+                        estado = None
+                        if Resultado and Resultado.get('estado'):
                             estado = Resultado['estado'].strip().lower()
+                        if Resultado and Resultado.get('estado', '').lower() == 'procesado': #if Resultado:
                             if estado == 'procesado':
                                 invoice.actualizar_secuencia()
 
@@ -810,17 +812,6 @@ class AccountMove(models.Model):
                             invoice.sit_qr_hacienda = codigo_qr
                             invoice.sit_documento_firmado = documento_firmado
 
-                            # json_str = json.dumps(payload['dteJson'], ensure_ascii=False, default=str)
-                            # json_base64 = base64.b64encode(json_str.encode('utf-8'))
-                            # file_name = payload['dteJson']["identificacion"]["numeroControl"] + '.json'
-                            # invoice.env['ir.attachment'].sudo().create({
-                            #     'name': file_name,
-                            #     'datas': json_base64,
-                            #     'res_model': self._name,
-                            #     'res_id': invoice.id,
-                            #     'mimetype': 'application/json'
-                            # })
-
                             # —————————————————————————————————————————————
                             # C) Guardar DTE
                             # —————————————————————————————————————————————
@@ -848,15 +839,15 @@ class AccountMove(models.Model):
                                 'hacienda_observaciones': str(Resultado.get('observaciones', '')),
                                 'state': 'draft',
                             })
-
-                            # Lanzar error al final si fue rechazado
-                            if estado == 'rechazado':
-                                mensaje = Resultado['descripcionMsg'] or _('Documento rechazado por Hacienda.')
-                                raise UserError(_("DTE rechazado por MH:\n%s") % mensaje)
-                            elif estado not in ('procesado', ''):
-                                raise UserError(_("Respuesta inesperada de Hacienda. Estado: %s\nMensaje: %s") % (estado, Resultado['descripcionMsg']))
                         else:
-                            raise UserError("DTE no procesado correctamente")
+                            # Lanzar error al final si fue rechazado
+                            if estado:
+                                if estado == 'rechazado':
+                                    mensaje = Resultado['descripcionMsg'] or _('Documento rechazado por Hacienda.')
+                                    raise UserError(_("DTE rechazado por MH:\n%s") % mensaje)
+                                elif estado not in ('procesado', ''):
+                                    mensaje = Resultado.get('descripcionMsg') or _('DTE no procesado correctamente')
+                                    raise UserError(_("Respuesta inesperada de Hacienda. Estado: %s\nMensaje: %s") % (estado, mensaje))
 
                         # 2) Validar formato
                         if not invoice.name.startswith("DTE-"):
@@ -896,6 +887,7 @@ class AccountMove(models.Model):
         else:
             ambiente = "01"
         max_intentos = 3
+        resultado = []
         # host = self.company_id.sit_firmador
         url = "http://192.168.2.25:8113/firmardocumento/"  # host + '/firmardocumento/'
         headers = {
@@ -1351,7 +1343,7 @@ class AccountMove(models.Model):
 
         self.write({
             'error_log': error_msg,
-            'sit_es_contingencia': True,
+            'sit_es_configencia': True,
             'sit_tipo_contingencia': tipo_contingencia.id if tipo_contingencia else False,
             # 'sit_tipo_contingencia_otro': mensaje_motivo,
         })
@@ -1415,17 +1407,17 @@ class AccountMove(models.Model):
 
         # Si no hay contingencia activa o válida, crear una nueva
         if not contingencia_activa:
-            contingencia_activa = Contingencia.create({
-                'company_id': self.company_id.id,
-                'journal_id': self.journal_id.id,
-                'sit_tipo_contingencia': tipo_contingencia.id if tipo_contingencia else False,
-                'contingencia_activa': True,
-                # 'move_ids': [(6, 0, [self.id])],
-                # 'estado': 'pendiente',
-                # 'motivo': f"Error {codigo}: {descripcion}",
-                # 'respuesta_mh': resp.text,
-                # 'codigo_generacion': self.codigoGeneracion,
-            })
+            # contingencia_activa = Contingencia.create({
+            #     'company_id': self.company_id.id,
+            #     'journal_id': self.journal_id.id,
+            #     'sit_tipo_contingencia': tipo_contingencia.id if tipo_contingencia else False,
+            #     'contingencia_activa': True,
+            #     # 'move_ids': [(6, 0, [self.id])],
+            #     # 'estado': 'pendiente',
+            #     # 'motivo': f"Error {codigo}: {descripcion}",
+            #     # 'respuesta_mh': resp.text,
+            #     # 'codigo_generacion': self.codigoGeneracion,
+            # })
 
             lote_asignado = Lote.create({
                 'name': f"Lote de contingencia {contingencia_activa.name}-1",
