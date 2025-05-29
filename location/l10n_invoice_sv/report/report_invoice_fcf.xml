@@ -2,12 +2,13 @@
 <odoo>
     <data>
         <template id="report_invoice_fcf">
-           <t t-name="l10n_invoice_sv.report_invoice_fcf">
+            <t t-name="l10n_invoice_sv.report_invoice_fcf">
                 <t t-call="web.html_container">
                     <t t-set="o" t-value="o.with_context({'lang':o.partner_id.lang})"/>
                     <t t-call-assets="web.assets_pdf" t-js="false"/>
                     <div class="article" t-att-data-oe-model="o._name" t-att-data-oe-id="o.id">
-                        <div class="page" style="display:flex; flex-direction:column; justify-content: space-between; align-items: end; height:100vh;">
+                        <div class="page"
+                             style="display:flex; flex-direction:column; justify-content: space-between; align-items: end; height:100vh;">
                             <style>
                                 .section-title {
                                 font-size: 1 rem;
@@ -99,7 +100,8 @@
                             <div class="row align-items-center mb-4">
                                 <div class="col">
                                     <t t-if="company.logo_web">
-                                      <img t-att-src="'data:image/png;base64,%s' % company.logo_web.decode('utf-8')" style="height:auto; width:20vw;"/>
+                                        <img t-att-src="'data:image/png;base64,%s' % company.logo_web.decode('utf-8')"
+                                             style="height:auto; width:20vw;"/>
                                     </t>
                                 </div>
                                 <div class="col-7 text-center" style="gap: 0;">
@@ -107,13 +109,15 @@
                                         <span t-field="company.name" class="text-uppercase fs-6 fw-bold p-0"/>
                                     </p>
                                     <p>
-                                        <span t-field="company.partner_id.contact_address_complete" class="fw-normal p-0"/>
+                                        <span t-field="company.partner_id.contact_address_complete"
+                                              class="fw-normal p-0"/>
                                     </p>
                                     <p>Número de control:
                                         <span t-field="o.name" class="fw-normal p-0"/>
                                     </p>
                                     <p>Codigo de generación:
-                                        <span t-field="o.hacienda_codigoGeneracion_identificacion" class="fw-normal p-0"/>
+                                        <span t-field="o.hacienda_codigoGeneracion_identificacion"
+                                              class="fw-normal p-0"/>
                                     </p>
                                     <p>sello:
                                         <span t-field="o.hacienda_selloRecibido" class="fw-normal p-0"/>
@@ -128,7 +132,8 @@
                                 <div class="col text-center border rounded-2 border-light-subtle">
                                     <p style="padding:0 15%;" t-field="o.journal_id"/>
                                     <t t-if="o.sit_qr_hacienda">
-                                      <img t-att-src="'data:image/png;base64,%s' % o.sit_qr_hacienda.decode('utf-8')" style="width:40%; height:auto;"/>
+                                        <img t-att-src="'data:image/png;base64,%s' % o.sit_qr_hacienda.decode('utf-8')"
+                                             style="width:40%; height:auto;"/>
                                     </t>
                                     <p style="">Generado:
                                         <span t-field="o.fecha_facturacion_hacienda" class="fw-normal"/>
@@ -238,13 +243,15 @@
                                                     <span t-field="l.uom_id" groups="product.group_uom"/>
                                                 </td>
                                                 <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;">
-                                                    <span t-esc="l.price_unit * 1.13" t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
+                                                    <span t-esc="l.price_unit * 1.13"
+                                                          t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
                                                 </td>
                                                 <td style="border:1px solid #e5e7e9; padding:4px; text-align:left; white-space:normal; word-break:break-word;">
                                                     <span t-field="l.name"/>
                                                 </td>
                                                 <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;">
-                                                    <span t-esc="l.price_subtotal * 1.13" t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
+                                                    <span t-esc="l.price_subtotal * 1.13"
+                                                          t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
                                                 </td>
                                                 <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;">
                                                     <span t-field="l.discount"/>%
@@ -259,7 +266,8 @@
                                                     <span>$0.00</span>
                                                 </td>
                                                 <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;">
-                                                    <span t-esc="l.price_subtotal * 1.13 - (l.price_subtotal * 1.13 * l.discount)" t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
+                                                    <span t-esc="l.price_subtotal * 1.13 - (l.price_subtotal * 1.13 * l.discount)"
+                                                          t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
                                                 </td>
                                             </tr>
                                         </t>
@@ -343,68 +351,86 @@
                                                         </td>
                                                     </tr>
                                                     <tr>
-                                                        <td class="px-1 border border-light-subtle text-end" style="padding: 1% 0%;">Monto global Desc. Rebajas y otros a
+                                                        <td class="px-1 border border-light-subtle text-end"
+                                                            style="padding: 1% 0%;">Monto global Desc. Rebajas y otros a
                                                             ventas no sujetas:
                                                         </td>
-                                                        <td class="px-1 border border-light-subtle text-left" style="padding: 1% 0%;">
+                                                        <td class="px-1 border border-light-subtle text-left"
+                                                            style="padding: 1% 0%;">
                                                             <span>$ 0.00</span>
                                                         </td>
                                                     </tr>
                                                     <tr>
-                                                        <td class="px-1 border border-light-subtle text-end" style="padding: 1% 0%;">Otros montos, global Desc. Rebajas y
+                                                        <td class="px-1 border border-light-subtle text-end"
+                                                            style="padding: 1% 0%;">Otros montos, global Desc. Rebajas y
                                                             otros a ventas exentas:
                                                         </td>
-                                                        <td class="px-1 border border-light-subtle text-left" style="padding: 1% 0%;">
+                                                        <td class="px-1 border border-light-subtle text-left"
+                                                            style="padding: 1% 0%;">
                                                             <span>$ 0.00</span>
                                                         </td>
                                                     </tr>
                                                     <tr>
-                                                        <td class="px-1 border border-light-subtle text-end" style="padding: 1% 0%;">Monto global Desc. Rebajas y otros a
+                                                        <td class="px-1 border border-light-subtle text-end"
+                                                            style="padding: 1% 0%;">Monto global Desc. Rebajas y otros a
                                                             ventas grabadas:
                                                         </td>
-                                                        <td class="px-1 border border-light-subtle text-start" style="padding: 1% 0%;">
+                                                        <td class="px-1 border border-light-subtle text-start"
+                                                            style="padding: 1% 0%;">
                                                             <span>$ 0.00</span>
                                                         </td>
                                                     </tr>
                                                     <tr>
-                                                        <td class="px-1 border border-light-subtle text-end" style="padding: 1% 0%;">Sub-total:
+                                                        <td class="px-1 border border-light-subtle text-end"
+                                                            style="padding: 1% 0%;">Sub-total:
                                                         </td>
-                                                        <td class="px-1 border border-light-subtle text-start" style="padding: 1% 0%;">
+                                                        <td class="px-1 border border-light-subtle text-start"
+                                                            style="padding: 1% 0%;">
                                                             <span>$ 0.00</span>
                                                         </td>
                                                     </tr>
                                                     <tr>
-                                                        <td class="px-1 border border-light-subtle text-end" style="padding: 1% 0%;">Total IVA:
+                                                        <td class="px-1 border border-light-subtle text-end"
+                                                            style="padding: 1% 0%;">Total IVA:
                                                         </td>
-                                                        <td class="px-1 border border-light-subtle text-start" style="padding: 1% 0%;">
+                                                        <td class="px-1 border border-light-subtle text-start"
+                                                            style="padding: 1% 0%;">
                                                             <span>$ 0.00</span>
                                                         </td>
                                                     </tr>
                                                     <tr>
-                                                        <td class="px-1 border border-light-subtle text-end" style="padding: 1% 0%;">IVA retenido:
+                                                        <td class="px-1 border border-light-subtle text-end"
+                                                            style="padding: 1% 0%;">IVA retenido:
                                                         </td>
-                                                        <td class="px-1 border border-light-subtle text-start" style="padding: 1% 0%;">
+                                                        <td class="px-1 border border-light-subtle text-start"
+                                                            style="padding: 1% 0%;">
                                                             <span>$ 0.00</span>
                                                         </td>
                                                     </tr>
                                                     <tr>
-                                                        <td class="px-1 border border-light-subtle text-end" style="padding: 1% 0%;">Retención de renta:
+                                                        <td class="px-1 border border-light-subtle text-end"
+                                                            style="padding: 1% 0%;">Retención de renta:
                                                         </td>
-                                                        <td class="px-1 border border-light-subtle text-start" style="padding: 1% 0%;">
+                                                        <td class="px-1 border border-light-subtle text-start"
+                                                            style="padding: 1% 0%;">
                                                             <span>$ 0.00</span>
                                                         </td>
                                                     </tr>
                                                     <tr>
-                                                        <td class="px-1 border border-light-subtle text-end" style="padding: 1% 0%;">Monto total operación:
+                                                        <td class="px-1 border border-light-subtle text-end"
+                                                            style="padding: 1% 0%;">Monto total operación:
                                                         </td>
-                                                        <td class="px-1 border border-light-subtle text-start" style="padding: 1% 0%;">
+                                                        <td class="px-1 border border-light-subtle text-start"
+                                                            style="padding: 1% 0%;">
                                                             <span>$ 0.00</span>
                                                         </td>
                                                     </tr>
                                                     <tr>
-                                                        <td class="px-1 border border-light-subtle text-end" style="padding: 1% 0%;">Total otros Montos No afectados:
+                                                        <td class="px-1 border border-light-subtle text-end"
+                                                            style="padding: 1% 0%;">Total otros Montos No afectados:
                                                         </td>
-                                                        <td class="px-1 border border-light-subtle text-start" style="padding: 1% 0%;">
+                                                        <td class="px-1 border border-light-subtle text-start"
+                                                            style="padding: 1% 0%;">
                                                             <span>$ 0.00</span>
                                                         </td>
                                                     </tr>
@@ -431,9 +457,11 @@
                                         </td>
                                         <td style="padding:4px; vertical-align:middle; text-align:right;">
                                             Contáctanos
-                                            <img src="/l10n_invoice_sv/static/src/img/email.svg" style="width:12px; vertical-align:middle; margin:0 4px;"/>
+                                            <img src="/l10n_invoice_sv/static/src/img/email.svg"
+                                                 style="width:12px; vertical-align:middle; margin:0 4px;"/>
                                             admin@admin.com
-                                            <img src="/l10n_invoice_sv/static/src/img/telephone.svg" style="width:12px; vertical-align:middle; margin:0 4px;"/>
+                                            <img src="/l10n_invoice_sv/static/src/img/telephone.svg"
+                                                 style="width:12px; vertical-align:middle; margin:0 4px;"/>
                                             +503 7746 2310
                                         </td>
                                     </tr>

@@ -893,6 +893,7 @@ class AccountMove(models.Model):
         else:
             ambiente = "01"
         max_intentos = 3
+        resultado = []
         # host = self.company_id.sit_firmador
         url = "http://192.168.2.25:8113/firmardocumento/"  # host + '/firmardocumento/'
         headers = {
