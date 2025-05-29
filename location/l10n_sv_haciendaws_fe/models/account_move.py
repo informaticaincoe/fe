@@ -5,7 +5,7 @@
 from odoo import fields, models, api, _
 from odoo.exceptions import UserError
 from odoo.tools import float_repr
-from odoo.addons.l10n_sv_haciendaws_fe.afip_utils import get_invoice_number_from_response
+#from odoo.addons.l10n_sv_haciendaws_fe.afip_utils import get_invoice_number_from_response
 import base64
 import pyqrcode
 import qrcode
@@ -879,6 +879,9 @@ class AccountMove(models.Model):
         _logger.info("SIT  Firmando documento")
         _logger.info("SIT Documento a FIRMAR = %s", payload)
 
+        # 1) inicializar la lista donde acumularás status/cuerpo o errores
+        resultado = []
+
         if enviroment_type == 'homologation':
             ambiente = "01"
         else:
@@ -908,7 +911,7 @@ class AccountMove(models.Model):
 
                 json_response = response.json()
                 # Manejo de errores 400–402
-                if json_response['status'] in [400, 401, 402]:
+                if json_response.get('status') in [400, 401, 402, 'ERROR']:
                     _logger.info("SIT Error 40X  =%s", json_response['status'])
                     status = json_response['status']
                     error = json_response['error']
@@ -916,7 +919,7 @@ class AccountMove(models.Model):
                     MENSAJE_ERROR = "Código de Error:" + str(status) + ", Error:" + str(error) + ", Detalle:" + str(
                         message)
                     # raise UserError(_(MENSAJE_ERROR))
-                    _logger.warning("Error de firma intento %s: %s", intento, mensaje_error)
+                    _logger.warning("Error de firma intento %s: %s", intento, MENSAJE_ERROR)
 
                     if intento == max_intentos:
                         raise UserError(_(MENSAJE_ERROR))
@@ -1322,6 +1325,7 @@ class AccountMove(models.Model):
 
     def _crear_contingencia(self, resp, data, mensaje):
         # ___Actualizar dte en contingencia
+        max_intentos = 3
         if not data:
             data = {}
 
@@ -1329,7 +1333,8 @@ class AccountMove(models.Model):
         descripcion = data.get("descripcionMsg") or resp.text or "Error desconocido"
         _logger.warning("Creando contingencia por error MH: [%s] %s", codigo, descripcion)
 
-        error_msg = _(mensaje) % (data)
+        tmpl = _(mensaje)  # mensaje debe ser clave de traducción
+        error_msg = tmpl.format(max_intentos=max_intentos, data=data)
 
         tipo_contingencia, motivo_otro, mensaje_motivo = self._evaluar_error_contingencia(
             status_code=resp.status_code,
