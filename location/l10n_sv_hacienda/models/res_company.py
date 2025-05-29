@@ -32,6 +32,7 @@ class ResCompany(models.Model):
     codActividad = fields.Many2one(related="partner_id.codActividad", store=True, string="Actividad Económica")
     nombreComercial = fields.Char(related="partner_id.nombreComercial", string="Nombre Comercial")
     tipoEstablecimiento = fields.Many2one("account.move.tipo_establecimiento.field", string="Tipo de Establecimiento")
+    configuration_ids = fields.One2many('res.configuration', 'company_id', string='Configuraciones')
 
     def get_generar_token(self):
         _logger.info("SIT get_generar_token = %s,%s,%s", self.sit_token_user, self.sit_token_pass, self.sit_passwordPri)
