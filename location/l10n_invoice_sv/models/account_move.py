@@ -158,63 +158,128 @@ class AccountMove(models.Model):
         #    return self.env['ir.actions.report']._action_configure_external_report_layout(report_action)
         #return report_action
 
-        template = self.env.ref(self._get_mail_template(), raise_if_not_found=False)
-        
+        #template = self.env.ref(self._get_mail_template(), raise_if_not_found=False)
+        template = self.env.ref(self._get_mail_template_sv(), raise_if_not_found=False)
+        _logger.info("SIT | Plantilla de correo obtenida: %s", template and template.name or 'No encontrada')
         print(template)
 
-        invoice = self.env['account.move'].browse(self.id)
-        print(invoice)
-        report = invoice.journal_id.report_xml
-        report_xml = invoice.journal_id.report_xml.xml_id
-        if report_xml:
-            user_admin = self.env.ref("base.user_admin")
-            compo = self.env.ref(report_xml).with_user(user_admin).report_action(self)
-            #print(report)
-            #res = report.with_context().sudo()._render_qweb_pdf(report.id)
-            res = self.env['ir.actions.report'].sudo()._render_qweb_pdf(report_xml, [invoice.id])[0]
-            #print(compo)
-            #print(res)
-            #attachment1 = self.env['ir.attachment'].create({
+        attachment_ids = []
+        for invoice in self:
+            _logger.info("SIT | Procesando factura: %s", invoice.name)
+            print(invoice)
+
+            report_xml = invoice.journal_id.report_xml.xml_id if invoice.journal_id.report_xml else False
+            _logger.info("SIT | XML ID del reporte: %s", report_xml)
+
+            # Adjuntos base (los de la plantilla)
+            if template:
+                for att in template.attachment_ids:
+                    if att.id not in attachment_ids:
+                        attachment_ids.append(att.id)
+
+            # Verificar si ya existe un PDF adjunto
+            pdf_filename = f"{invoice.name or 'invoice'}.pdf"
+            pdf_attachment = self.env['ir.attachment'].search([
+                ('res_id', '=', invoice.id),
+                ('res_model', '=', 'account.move'),
+                ('name', '=', pdf_filename),
+            ], limit=1)
+
+            # Generar PDF si no existe
+            if not pdf_attachment and report_xml:
+                try:
+                    res = self.env['ir.actions.report'].sudo()._render_qweb_pdf(report_xml, [invoice.id])[0]
+                    pdf_binary = base64.encodebytes(res)
+                    pdf_attachment = self.env['ir.attachment'].create({
+                        'name': pdf_filename,
+                        'type': 'binary',
+                        'datas': pdf_binary,
+                        'res_model': 'account.move',
+                        'res_id': invoice.id,
+                        'mimetype': 'application/pdf',
+                    })
+                    _logger.info("SIT | Nuevo PDF generado y adjuntado: %s", pdf_attachment.name)
+                except Exception as e:
+                    _logger.error("SIT | Error generando el PDF: %s", str(e))
+            if pdf_attachment and pdf_attachment.id not in attachment_ids:
+                attachment_ids.append(pdf_attachment.id)
+
+            # if report_xml:
+            # user_admin = self.env.ref("base.user_admin")
+            # _logger.info("SIT | Usuario admin encontrado: %s", user_admin.name)
+            # compo = self.env.ref(report_xml).with_user(user_admin).report_action(self)
+            # print(report)
+            # res = report.with_context().sudo()._render_qweb_pdf(report.id)
+            # res = self.env['ir.actions.report'].sudo()._render_qweb_pdf(report_xml, [invoice.id])[0]
+            # _logger.info("SIT | PDF generado correctamente para factura: %s", invoice.name)
+            # print(compo)
+            # print(res)
+            # attachment1 = self.env['ir.attachment'].create({
             #    'name': invoice.name + '.pdf',
             #    'type': 'binary',
             #    'datas': base64.encodebytes(res),
             #    'res_model': 'account.move',
             #    'res_id': invoice.id,
-            #    })                
-            #print(attachment1)
-        # Verificar si el objeto tiene el atributo 'hacienda_estado'
-        if invoice.hacienda_estado == 'PROCESADO':
-            domain = [
-                ('res_id', '=', invoice.id),
-                ('res_model', '=', invoice._name),
-                ('name', '=', invoice.name.replace('/', '_') + '.json')]
+            #    })
+            # print(attachment1)
+            # Verificar si el objeto tiene el atributo 'hacienda_estado'
 
-            xml_file = self.env['ir.attachment'].search(domain, limit=1)
-            attachments = template.attachment_ids
-            print(attachments)
-            if xml_file:
-                attachments = []
-                attachments.append((invoice.name.replace('/', '_') + '.json', xml_file.datas))
-                attachments.append((invoice.name + '.pdf',base64.encodebytes(res)))
-                #print(attachments)
-            #results[res_id]['attachments'] = attachments
-            #template.attachment_ids = [attachment1.id,xml_file.id]
+            # Si fue procesado por Hacienda, añadir JSON
+            if invoice.hacienda_estado == 'PROCESADO' or invoice.recibido_mh:
+                _logger.info("SIT | Factura %s fue PROCESADA por Hacienda", invoice.name)
+                json_attachment = self.env['ir.attachment'].search([
+                    ('res_id', '=', invoice.id),
+                    ('res_model', '=', invoice._name),
+                    ('name', '=', invoice.name.replace('/', '_') + '.json')
+                ], limit=1)
 
-        #template.checkbox_download = False
+                if json_attachment and json_attachment.id not in attachment_ids:
+                    _logger.info("SIT | Archivo JSON de Hacienda encontrado: %s", json_attachment.name)
+                    attachment_ids.append(json_attachment.id)
+                    # attachments.append((invoice.name.replace('/', '_') + '.json', xml_file.datas))
+                    # attachments.append((invoice.name + '.pdf',base64.encodebytes(res)))
+                    # print(attachments)
+                    # results[res_id]['attachments'] = attachments
+                    # template.attachment_ids = [attachment1.id,xml_file.id]
+                else:
+                    _logger.info("SIT | JSON de Hacienda no encontrado.")
+            # template.checkbox_download = False
 
         if any(not x.is_sale_document(include_receipts=True) for x in self):
+            _logger.warning("SIT | Documento no permitido para envío por correo.")
             raise UserError(_("You can only send sales documents"))
-        
+
+        _logger.info("SIT | Abriendo formulario de envío de correo para: %s", self.ids)
+
+        # return {
+        #     'name': _("Send"),
+        #     'type': 'ir.actions.act_window',
+        #     'view_type': 'form',
+        #     'view_mode': 'form',
+        #     'res_model': 'account.move.send',
+        #     'target': 'new',
+        #     'context': {
+        #         'active_ids': self.ids,
+        #         'default_mail_template_id': template and template.id or False,
+        #     },
+        # }
+        compose_form = self.env.ref('mail.email_compose_message_wizard_form', raise_if_not_found=True)
         return {
             'name': _("Send"),
             'type': 'ir.actions.act_window',
-            'view_type': 'form',
+            'res_model': 'mail.compose.message',
             'view_mode': 'form',
-            'res_model': 'account.move.send',
+            'view_id': compose_form.id,
             'target': 'new',
             'context': {
-                'active_ids': self.ids,
-                'default_mail_template_id': template and template.id or False,
+                'default_model': 'account.move',
+                'default_res_ids': self.ids,
+                'default_use_template': bool(template),
+                'default_template_id': template.id if template else False,
+                'default_composition_mode': 'comment',
+                'force_email': True,
+                'mark_invoice_as_sent': True,
+                'default_attachment_ids': list(set(attachment_ids)),
             },
         }
 
