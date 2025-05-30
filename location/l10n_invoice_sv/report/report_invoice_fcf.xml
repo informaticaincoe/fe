@@ -2,389 +2,475 @@
 <odoo>
     <data>
         <template id="report_invoice_fcf">
-        <t t-name="l10n_invoice_sv.report_invoice_fcf">
-	<t t-call="web.html_container">
-		<t t-set="o" t-value="o.with_context({'lang':o.partner_id.lang})"/>
-		<!-- zip qr -->
-		<div class="page" style="display:flex, flex-direction:column; justify-content: space-between; align-items: end; height:100vh;" t-att-data-oe-model="o and o._name" t-att-data-oe-id="o and o.id">
-			<style>
-			    .section-title {
-			        font-size: 11px;
-			        font-weight: bold;
-			        text-transform: uppercase;
-			    }
+            <t t-name="l10n_invoice_sv.report_invoice_fcf">
+                <t t-call="web.html_container">
+                    <t t-set="o" t-value="o.with_context({'lang':o.partner_id.lang})"/>
+                    <t t-call-assets="web.assets_pdf" t-js="false"/>
+                    <div class="article" t-att-data-oe-model="o._name" t-att-data-oe-id="o.id">
+                        <div class="page"
+                             style="display:flex; flex-direction:column; justify-content: space-between; align-items: end; height:100vh;">
+                            <style>
+                                .section-title {
+                                font-size: 1 rem;
+                                font-weight: bold;
+                                text-transform: uppercase;
+                                }
 
-    	        p {
-    	            margin: 2px 0;
-                    line-height: 1.5;
-    	        }
+                                @page {
+                                <!-- margin: 15px 5px; -->
+                                }
 
-    	        span {
-    	            font-weight: normal;
-    	        }
+                                .page {
+                                display: flex;
+                                flex-direction: column;
+                                <!-- height: 100vh; -->
+                                }
 
-    	        @page {
-                    margin: 15px 5px;
-                 }
+                                body {
+                                font-family: 'Inter', sans-serif;
+                                font-size: 1rem;
+                                line-height: 100%;
+                                }
+                                <!-- p
+                                body {
+                                    font-family: 'Inter', sans-serif;
+                                    MARGIN-top: 5%  !important;
+                                    margin-bottom: 5% !important;
+                                    margin-left: 2% !important;
+                                    margin-right: 2% !important;
+                                    font-size: 1rem;
+                                }
+                                -->
 
-                .page {
-                  display: flex;
-                  flex-direction: column;
-                  height: 100vh;
-                }
+                                p {
+                                margin: 2%;
+                                }
 
-                body {
-                    font-family: 'Inter', sans-serif;
-                    margin-top: 5mm;
-                    margin-bottom: 5mm;
-                    margin-left: 10mm;
-                    margin-right: 10mm;
-                    padding-top: 10px !important;
-                    padding-bottom: 10px !important;
-                    font-size: 12px;
-                }
+                                @font-face {
+                                font-family: 'Inter';
+                                src: url('/l10n_invoice_sv/static/src/fonts/Inter-Regular.ttf') format('truetype');
+                                }
 
-                @font-face {
-                  font-family: 'Inter';
-                  src: url('/l10n_invoice_sv/static/src/fonts/Inter-Regular.ttf') format('truetype');
-                }
+                                div {
+                                padding: 0;
+                                }
 
-                div {
-                    padding: 0;
-                }
+                                #detalles {
+                                flex: 1 1 auto;
+                                }
 
-                #detalles {
-                  flex: 1 1 auto;
-                }
+                                .resumen, .footer {
+                                flex: 0 0 auto;
+                                }
 
-                .resumen, .footer {
-                  flex: 0 0 auto;
-                }
+                                .page .article {
+                                display: flex;
+                                flex-direction: column;
+                                height: 100%;
+                                }
+                                <!-- html, body { height: 100%; margin: 0; } -->
 
-                .page .article {
-                  display: flex;
-                  flex-direction: column;
-                  height: 100%;
-                }
+                                .resumen {
+                                flex: 0 0 auto;
+                                margin-top: auto;
+                                }
 
-                html, body { height: 100%; margin: 0; }
+                                .footer {
+                                display:flex;
+                                flex: 0 0 auto;
+                                }
 
-               .resumen {
-                  flex: 0 0 auto;
-                  margin-top: auto;
-                }
+                                .invoice_tbody td {
+                                margin: 5px;
+                                text-align: left !important;
+                                vertical-align: top;
+                                }
 
-                .footer {
-                  flex: 0 0 auto;
-                }
+                                .invoice_tbody td span {
+                                <!-- margin: 5px;     -->
+                                }
 
-                .invoice_tbody td {
-                  margin: 5px;
-                  text-align: left !important;
-                  vertical-align: top;      /* si quieres que el texto empiece desde arriba */
-                }
+                                .border-light-subtle{
+                                border-color: #e5e7e9 !important;
+                                }
+                            </style>
+                            <!-- Header factura -->
+                            <t t-set="company" t-value="o.company_id"/>
+                            <t t-set="partner" t-value="o.partner_id"/>
+                            <div class="row align-items-center mb-4">
+                                <div class="col">
+                                    <t t-if="company.logo_web">
+                                        <img t-att-src="'data:image/png;base64,%s' % company.logo_web.decode('utf-8')"
+                                             style="height:auto; width:20vw;"/>
+                                    </t>
+                                </div>
+                                <div class="col-7 text-center" style="gap: 0;">
+                                    <p>
+                                        <span t-field="company.name" class="text-uppercase fs-6 fw-bold p-0"/>
+                                    </p>
+                                    <p>
+                                        <span t-field="company.partner_id.contact_address_complete"
+                                              class="fw-normal p-0"/>
+                                    </p>
+                                    <p>Número de control:
+                                        <span t-field="o.name" class="fw-normal p-0"/>
+                                    </p>
+                                    <p>Codigo de generación:
+                                        <span t-field="o.hacienda_codigoGeneracion_identificacion"
+                                              class="fw-normal p-0"/>
+                                    </p>
+                                    <p>sello:
+                                        <span t-field="o.hacienda_selloRecibido" class="fw-normal p-0"/>
+                                    </p>
+                                    <p>Tipo modelo:
+                                        <span t-field="o.journal_id.sit_modelo_facturacion" class="fw-normal p-0"/>
+                                    </p>
+                                    <p>Tipo transmisión:
+                                        <span t-field="o.journal_id.sit_tipo_transmision" class="fw-normal p-0"/>
+                                    </p>
+                                </div>
+                                <div class="col text-center border rounded-2 border-light-subtle">
+                                    <p style="padding:0 15%;" t-field="o.journal_id"/>
+                                    <t t-if="o.sit_qr_hacienda">
+                                        <img t-att-src="'data:image/png;base64,%s' % o.sit_qr_hacienda.decode('utf-8')"
+                                             style="width:40%; height:auto;"/>
+                                    </t>
+                                    <p style="">Generado:
+                                        <span t-field="o.fecha_facturacion_hacienda" class="fw-normal"/>
+                                    </p>
+                                </div>
+                            </div>
+                            <!--  Seccion receptor -->
+                            <div style="margin: 4% 0%;" class="w-100">
+                                <p class="section-title text-center mb-1 justify-content-center">Receptor</p>
+                                <div class="row rounded-2 border border-light-subtle px-2 py-2">
+                                    <div class="col-auto text-nowrap">
+                                        <p class="my-2 ">Nombre o razón social:</p>
+                                        <p class="my-2">Documento identificación:</p>
+                                        <p class="my-2">Correo electronico:</p>
+                                        <p class="my-2">Telefono:</p>
+                                        <p class="my-2">Dirección:</p>
+                                    </div>
+                                    <div class="col text-nowrap">
+                                        <p t-field="partner.complete_name" class="my-2"/>
+                                        <p class="d-flex align-items-center my-2">
+                                            <span t-field="partner.dui"/>
+                                            <span>(DUI)</span>
+                                        </p>
+                                        <p t-field="partner.email" class="my-2"/>
+                                        <p t-field="partner.phone" class="my-2"/>
+                                        <p t-field="partner.contact_address_complete" class="my-2"/>
+                                    </div>
+                                </div>
+                            </div>
+                            <!--  Seccion venta a cuenta de terceros -->
+                            <div style="margin: 4% 0%;" class="mb-4 w-100">
+                                <p class="section-title text-center mb-1">Venta a cuenta de terceros</p>
+                                <div class="row border border-light-subtle rounded-2 align-items-center">
+                                    <p class="col border-end border-light-subtle">Tipo de documento:
+                                        <span/>
+                                    </p>
+                                    <p class="col py-1">Nombre, denomicación o razón social:
+                                        <span/>
+                                    </p>
+                                    <p class="col">
+                                        <span/>
+                                    </p>
+                                </div>
+                            </div>
+                            <!--  Seccion documentos relacionados -->
+                            <div style="margin: 4% 0%;" class="mb-4 w-100">
+                                <p class="section-title text-center mb-1">Documentos relacionados</p>
+                                <div class="row border border-light-subtle rounded-2 align-items-center">
+                                    <p class="col border-end border-light-subtle">Tipo de documento:
+                                        <span/>
+                                    </p>
+                                    <p class="col py-1">N° documento:
+                                        <span/>
+                                    </p>
+                                    <p class="col py-1">fecha del documento
+                                        <span/>
+                                    </p>
+                                </div>
+                            </div>
+                            <!-- Seccion detalles compra -->
+                            <br/>
+                            <div class="row" id="detalles">
+                                <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
+                                    <thead>
+                                        <tr>
+                                            <th style="border:1px solid #e5e7e9; padding:4px; text-align:center; width:4%;">
+                                                N°
+                                            </th>
+                                            <th style="border:1px solid #e5e7e9; padding:4px; text-align:right; width:8%;">
+                                                Cant.
+                                            </th>
+                                            <th style="border:1px solid #e5e7e9; padding:4px; text-align:right; width:10%;">
+                                                Código
+                                            </th>
+                                            <th style="border:1px solid #e5e7e9; padding:4px; text-align:left; width:30%;">
+                                                Descripción
+                                            </th>
+                                            <th style="border:1px solid #e5e7e9; padding:4px; text-align:right; width:10%;">
+                                                P. Unit.
+                                            </th>
+                                            <th style="border:1px solid #e5e7e9; padding:4px; text-align:right; width:10%;">
+                                                Otros Mtos.
+                                            </th>
+                                            <th style="border:1px solid #e5e7e9; padding:4px; text-align:right; width:8%;">
+                                                Desc.%
+                                            </th>
+                                            <th style="border:1px solid #e5e7e9; padding:4px; text-align:right; width:8%;">
+                                                Ventas S.
+                                            </th>
+                                            <th style="border:1px solid #e5e7e9; padding:4px; text-align:right; width:6%;">
+                                                Exentas
+                                            </th>
+                                            <th style="border:1px solid #e5e7e9; padding:4px; text-align:right; width:6%;">
+                                                Grabadas
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <!-- t-foreach con index correcto -->
+                                        <t t-foreach="o.invoice_line_ids" t-as="l">
+                                            <tr>
+                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:center;">
+                                                    <span/>
+                                                </td>
+                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;">
+                                                    <span t-field="l.quantity"/>
+                                                    <span t-field="l.uom_id" groups="product.group_uom"/>
+                                                </td>
+                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;">
+                                                    <span t-esc="l.price_unit * 1.13"
+                                                          t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
+                                                </td>
+                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:left; white-space:normal; word-break:break-word;">
+                                                    <span t-field="l.name"/>
+                                                </td>
+                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;">
+                                                    <span t-esc="l.price_subtotal * 1.13"
+                                                          t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
+                                                </td>
+                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;">
+                                                    <span t-field="l.discount"/>%
+                                                </td>
+                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;">
+                                                    <span>$0.00</span>
+                                                </td>
+                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;">
+                                                    <span>$0.00</span>
+                                                </td>
+                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;">
+                                                    <span>$0.00</span>
+                                                </td>
+                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;">
+                                                    <span t-esc="l.price_subtotal * 1.13 - (l.price_subtotal * 1.13 * l.discount)"
+                                                          t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
+                                                </td>
+                                            </tr>
+                                        </t>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <!-- RESUMENTES-->
+                            <section style="width:100%; margin-top:4%;">
+                                <table style="width:100%; border-color: #ffffff;">
+                                    <tr>
+                                        <!-- CELDA IZQUIERDA: Son / Condición / Observaciones + Responsables -->
+                                        <td style="vertical-align:top; width:48%; padding-right:2%;">
+                                            <!-- 1) Son / Condición / Observaciones -->
+                                            <table style="width:100%; border:1px solid #e5e7e9; border-collapse:collapse; margin-bottom:3%;">
+                                                <tr>
+                                                    <td style="padding:2%;">
+                                                        <strong>Son:</strong>
+                                                        <span t-field="o.amount_text"/>
+                                                    </td>
+                                                </tr>
+                                            </table>
 
-                .invoice_tbody td span {
-                  margin: 5px;     /* si quieres que el texto empiece desde arriba */
-                }
-		    </style>
-			<!-- Header factura -->
-			<t t-set="company" t-value="o.company_id"/>
-			<t t-set="partner" t-value="o.partner_id"/>
+                                            <!-- Tabla 2: Condición de operación -->
+                                            <table style="width:100%; border:1px solid #e5e7e9; border-collapse:collapse; margin-bottom:3%; ">
+                                                <tr>
+                                                    <td style="padding:2%;">
+                                                        <strong>Condición de operación:</strong>
+                                                        <span t-field="o.condiciones_pago"/>
+                                                    </td>
+                                                </tr>
+                                            </table>
 
-			<div class="row align-items-center mb-4">
-				<div class="col">
-					<img t-att-src="'data:image/png;base64,%s' % company.logo_web.decode('utf-8')" style="max-height:55px; max-width:120px;"/>
-				</div>
-				<div class="col-7 text-center" style="row-gap: 0;">
-					<p>
-						<span t-field="company.name" class="text-uppercase fs-6 "/>
-					</p>
-					<p>
-						<span t-field="company.partner_id.contact_address_complete" class="fw-normal"/>
-					</p>
-					<p>Número de control:
-
-						<span t-field="o.name" class="fw-normal"/>
-					</p>
-					<p>Codigo de generación:
-
-						<span t-field="o.hacienda_codigoGeneracion_identificacion" class="fw-normal"/>
-					</p>
-					<p>sello:
-
-						<span t-field="o.hacienda_selloRecibido" class="fw-normal"/>
-					</p>
-					<p>Tipo modelo:
-
-						<span t-field="o.journal_id.sit_modelo_facturacion" class="fw-normal"/>
-					</p>
-					<p>Tipo transmisión:
-
-						<span t-field="o.journal_id.sit_tipo_transmision" class="fw-normal"/>
-					</p>
-				</div>
-				<div class="col text-center border rounded-2 border-light-subtle">
-					<p style="font-size: 11px;" t-field="o.journal_id"/>
-					<img t-att-src="'data:image/png;base64,%s' % o.sit_qr_hacienda.decode('utf-8')" style="width:50%; height:auto;"/>
-					<p style="font-size: 11px;">Generado:
-
-						<span t-field="o.fecha_facturacion_hacienda" class="fw-normal"/>
-					</p>
-				</div>
-			</div>
-			<!--  Seccion receptor -->
-			<div class="mb-4 w-100">
-				<h1 class="section-title text-center mb-1 justify-content-center">Receptor</h1>
-				<div class="row rounded-2 border border-light-subtle px-2 py-2">
-					<div class="d-grid col-md-auto">
-						<p>Nombre o razón social:</p>
-						<p>Documento identificación:</p>
-						<p>Correo electronico:</p>
-						<p>Telefono:</p>
-						<p>Dirección:</p>
-					</div>
-					<div class="d-grid col">
-						<p>
-							<span t-field="partner.complete_name" class="fw-normal"/>
-						</p>
-						<p>
-							<span t-field="partner.dui" class="fw-normal"/> (DUI)
-
-						</p>
-						<p>
-							<span t-field="partner.email" class="fw-normal"/>
-						</p>
-						<p>
-							<span t-field="partner.phone" class="fw-normal"/>
-						</p>
-						<p>
-							<span t-field="partner.contact_address_complete" class="fw-normal"/>
-						</p>
-					</div>
-				</div>
-			</div>
-			<!--  Seccion venta a cuenta de terceros -->
-			<div class="mb-4 w-100">
-				<h1 class="section-title text-center mb-1">Venta a cuenta de terceros</h1>
-				<div class="row border border-light-subtle rounded-2 align-items-center">
-					<p class="col border-end border-light-subtle">Tipo de documento:
-						<span/>
-					</p>
-					<p class="col py-1">Nombre, denomicación o razón social:
-						<span/>
-					</p>
-					<p class="col">
-						<span/>
-					</p>
-				</div>
-			</div>
-			<!--  Seccion documentos relacionados -->
-			<div class="mb-4 w-100">
-				<h1 class="section-title text-center mb-1">Documentos relacionados</h1>
-				<div class="row border border-light-subtle rounded-2 align-items-center">
-					<p class="col border-end border-light-subtle">Tipo de documento:
-
-						<span/>
-					</p>
-					<p class="col py-1">N° documento:
-
-						<span/>
-					</p>
-					<p class="col py-1">fecha del documento
-
-						<span/>
-					</p>
-				</div>
-			</div>
-			<!-- Seccion detalles compra -->
-			<br/>
-			<div class="row" id="detalles">
-				<table id="detalle" class="border border-light-subtle rounded-2">
-					<thead>
-						<tr>
-							<th class="text-center border border-light-subtle" style="width: auto;">N°</th>
-							<th class="text-center border border-light-subtle" style="width: auto;">Cantidad</th>
-							<th class="text-center border border-light-subtle" style="width: auto;">Codigo</th>
-							<th class="text-center border border-light-subtle" style="width: auto;">Descripcion</th>
-							<th class="text-center border border-light-subtle" style="width: auto;">Precio Unitario</th>
-							<th class="text-center border border-light-subtle" style="width: auto;">Otros montos no afectos</th>
-							<th class="text-center border border-light-subtle" style="width: auto;">Descuento por item</th>
-							<th class="text-center border border-light-subtle" style="width: auto;">Ventas sujetas</th>
-							<th class="text-center border border-light-subtle" style="width: auto;">Ventas exentas</th>
-							<th class="text-center border border-light-subtle" style="width: auto;">Ventas grabadas</th>
-						</tr>
-					</thead>
-					<tbody class="invoice_tbody">
-						<tr t-foreach="o.invoice_line_ids" t-as="l">
-							<td class="border-end border-light-subtle text-start"/>
-							<td class="border-end border-light-subtle text-start">
-								<span t-field="l.quantity"/>
-								<span t-field="l.uom_id" groups="product.group_uom"/>
-							</td>
-							<td class="border-end border-light-subtle text-start">
-								<span t-esc="l.price_unit * 1.13" t-options="{'widget': 'monetary', 'display_currency': o.currency_id}"/>
-							</td>
-							<td class="border-end border-light-subtle text-start">
-								<span t-field="l.name"/>
-							</td>
-							<td class="border-end border-light-subtle text-start">
-								<span t-esc="l.price_unit * 1.13"/>
-							</td>
-							<td class="border-end border-light-subtle text-start">
-								<span t-esc="l.price_subtotal * 1.13" t-options="{'widget': 'monetary', 'display_currency': o.currency_id}"/>
-							</td>
-							<td class="border-end border-light-subtle text-start">
-								<span t-field="l.discount"/>
-							</td>
-							<td class="border-end border-light-subtle text-start">
-								<span>$ 0.00</span>
-							</td>
-							<td class="border-end border-light-subtle text-start">
-								<span>$ 0.00</span>
-							</td>
-							<td class="border-end border-light-subtle text-start">
-								<span>$ 0.00</span>
-							</td>
-						</tr>
-					</tbody>
-				</table>
-			</div>
-			<!-- RESUMENTES-->
-			<section class="mt-3 w-100 p-0">
-				<div class="d-grid gap-2 align-items-center" style="grid-template-columns: repeat(2, 1fr); align-items:center;">
-					<div class="d-grid h-100 gap-2">
-						<div class="px-2 border border-light-subtle rounded-2" style="display: flex; align-items:center;">
-							<p class="fw-bold mb-1">Son:
-
-								<span t-field="o.amount_text"/>
-							</p>
-						</div>
-						<div class="px-2 border border-light-subtle rounded-2" style="display: flex; align-items:center;">
-							<p class="fw-bold mb-1">Condición de operación:
-
-
-								<span t-field="o.condiciones_pago"/>
-							</p>
-						</div>
-						<div class="px-2 border border-light-subtle rounded-2" style=" display: flex; align-items:center;">
-							<p class="fw-bold mb-1">Observaciones:
-
-								<span/>
-							</p>
-						</div>
-						<div class="px-2 border border-light-subtle rounded-2 d-flex" style="height: 160px; display: flex; align-items: stretch;">
-							<!-- tu sub‐grid de responsables -->
-							<div class="d-grid" style="grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr 1fr 1fr; width:100%; align-items: stretch;">
-								<p class="fw-bold mb-3">Responsable emisor:</p>
-								<p class="fw-bold">N° de documento:</p>
-								<p/>
-								<p/>
-								<p class="fw-bold mb-3">Responsable receptor:</p>
-								<p class="fw-bold">N° de documento:</p>
-								<p/>
-								<p/>
-							</div>
-						</div>
-					</div>
-					<!--
-                        grid-template-columns: 1fr 1fr;
-                        -->
-					<div class="w-100">
-						<table class="w-100">
-							<tbody>
-								<tr>
-									<td class="px-1 border border-light-subtle text-end">Sumatoria de venta:</td>
-									<td class="px-1 border border-light-subtle text-left">
-										<span t-field="o.amount_total"/>
-									</td>
-								</tr>
-								<tr>
-									<td class="px-1 border border-light-subtle text-end">Monto global Desc. Rebajas y otros a ventas no sujetas:</td>
-									<td class="px-1 border border-light-subtle text-left">
-									    	<span>$ 0.00</span>
-									</td>
-								</tr>
-								<tr>
-									<td class="px-1 border border-light-subtle text-end">Otros montos, global Desc. Rebajas y otros a ventas exentas:</td>
-									<td class="px-1 border border-light-subtle text-left">
-											<span>$ 0.00</span>
-									</td>
-								</tr>
-								<tr>
-									<td class="px-1 border border-light-subtle text-end">Monto global Desc. Rebajas y otros a ventas grabadas:</td>
-									<td class="px-1 border border-light-subtle text-start">
-											<span>$ 0.00</span>
-									</td>
-								</tr>
-								<tr>
-									<td class="px-1 border border-light-subtle text-end">Sub-total:</td>
-									<td class="px-1 border border-light-subtle text-start">
-											<span>$ 0.00</span>
-									</td>
-								</tr>
-								<tr>
-									<td class="px-1 border border-light-subtle text-end">Total IVA:</td>
-									<td class="px-1 border border-light-subtle text-start">
-											<span>$ 0.00</span>
-									</td>
-								</tr>
-								<tr>
-									<td class="px-1 border border-light-subtle text-end">IVA retenido:</td>
-									<td class="px-1 border border-light-subtle text-start">
-										<span>$ 0.00</span>
-									</td>
-								</tr>
-								<tr>
-									<td class="px-1 border border-light-subtle text-end">Retención de renta:</td>
-									<td class="px-1 border border-light-subtle text-start">
-									<span>$ 0.00</span>
-									</td>
-								</tr>
-								<tr>
-									<td class="px-1 border border-light-subtle text-end">Monto total operación:</td>
-									<td class="px-1 border border-light-subtle text-start">
-										<span>$ 0.00</span>
-									</td>
-								</tr>
-								<tr>
-									<td class="px-1 border border-light-subtle text-end">Total otros Montos No afectados:</td>
-									<td class="px-1 border border-light-subtle text-start">
-										<span>$ 0.00</span>
-									</td>
-								</tr>
-								<tr>
-									<td class="px-1 border border-light-subtle text-end">Total a pagar:</td>
-									<td class="px-1 border border-light-subtle text-start px-5">
-									    <span class="text-start" t-field="o.amount_total"/>
-									</td>
-								</tr>
-							</tbody>
-						</table>
-					</div>
-				</div>
-			</section>
-			<!-- footer -->
-			<div class="footer d-flex w-100 justify-content-between p-0 mt-1">
-				<p>Version:</p>
-				<!-- <span t-field="o.sit_json_respuesta"/> -->
-				<div class="d-flex justify-content-end align-items-center gap-3">
-					<p class="">Contactanos</p>
-					<div class="d-flex">
-						<img t-att-src="'/l10n_invoice_sv/static/src/img/email.svg'" style="width:16px; height:auto; margin-right:7px;"/>
-						<span t-field="company.email"/>
-					</div>
-					<div class="d-flex">
-						<img t-att-src="'/l10n_invoice_sv/static/src/img/telephone.svg'" style="width:18px; height:auto; margin-right:7px;"/>
-						<span t-field="company.phone"/>
-					</div>
-				</div>
-			</div>
-
-		<div class="footer"/>
-		</div>
-	</t>
-</t>
+                                            <!-- Tabla 3: Observaciones -->
+                                            <table style="width:100%; border:1px solid #e5e7e9; border-collapse:collapse; margin-bottom:3%;">
+                                                <tr>
+                                                    <td style="padding:2%; vertical-align:top;">
+                                                        <strong>Observaciones:</strong>
+                                                    </td>
+                                                </tr>
+                                            </table>
+                                            <!-- 2) Responsables -->
+                                            <div class="row border border-light-subtle rounded-2 align-items-center">
+                                                <table style="width:100%; border-color:#ffffff;">
+                                                    <tr>
+                                                        <td style="border:1px solid #ffffff; padding:1%; width:50%;">
+                                                            <strong>Responsable emisor:</strong>
+                                                        </td>
+                                                        <td style="border:1px solid #ffffff; padding:1%; width:50%;">
+                                                            <strong>N° de documento:</strong>
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td style="border:1px solid #ffffff; padding:1%; height:30px;"/>
+                                                        <td style="border:1px solid #ffffff; padding:1%;"/>
+                                                    </tr>
+                                                    <tr>
+                                                        <td style="border:1px solid #ffffff; padding:1%;">
+                                                            <strong>Responsable receptor:</strong>
+                                                        </td>
+                                                        <td style="border:1px solid #ffffff; padding:1%;">
+                                                            <strong>N° de documento:</strong>
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td style="border:1px solid #ffffff; padding:1%; height:30px;"/>
+                                                        <td style="border:1px solid #ffffff; padding:1%;"/>
+                                                    </tr>
+                                                </table>
+                                            </div>
+                                        </td>
+                                        <!-- DERECHA: Resúmenes -->
+                                        <td style="vertical-align:top; width:50%;">
+                                            <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
+                                                <tbody>
+                                                    <tr>
+                                                        <td style="border:1px solid #e5e7e9; padding:4px; text-align:end;">
+                                                            Sumatoria de venta:
+                                                        </td>
+                                                        <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;">
+                                                            <span t-field="o.amount_total"/>
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td class="px-1 border border-light-subtle text-end"
+                                                            style="padding: 1% 0%;">Monto global Desc. Rebajas y otros a
+                                                            ventas no sujetas:
+                                                        </td>
+                                                        <td class="px-1 border border-light-subtle text-left"
+                                                            style="padding: 1% 0%;">
+                                                            <span>$ 0.00</span>
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td class="px-1 border border-light-subtle text-end"
+                                                            style="padding: 1% 0%;">Otros montos, global Desc. Rebajas y
+                                                            otros a ventas exentas:
+                                                        </td>
+                                                        <td class="px-1 border border-light-subtle text-left"
+                                                            style="padding: 1% 0%;">
+                                                            <span>$ 0.00</span>
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td class="px-1 border border-light-subtle text-end"
+                                                            style="padding: 1% 0%;">Monto global Desc. Rebajas y otros a
+                                                            ventas grabadas:
+                                                        </td>
+                                                        <td class="px-1 border border-light-subtle text-start"
+                                                            style="padding: 1% 0%;">
+                                                            <span>$ 0.00</span>
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td class="px-1 border border-light-subtle text-end"
+                                                            style="padding: 1% 0%;">Sub-total:
+                                                        </td>
+                                                        <td class="px-1 border border-light-subtle text-start"
+                                                            style="padding: 1% 0%;">
+                                                            <span>$ 0.00</span>
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td class="px-1 border border-light-subtle text-end"
+                                                            style="padding: 1% 0%;">Total IVA:
+                                                        </td>
+                                                        <td class="px-1 border border-light-subtle text-start"
+                                                            style="padding: 1% 0%;">
+                                                            <span>$ 0.00</span>
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td class="px-1 border border-light-subtle text-end"
+                                                            style="padding: 1% 0%;">IVA retenido:
+                                                        </td>
+                                                        <td class="px-1 border border-light-subtle text-start"
+                                                            style="padding: 1% 0%;">
+                                                            <span>$ 0.00</span>
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td class="px-1 border border-light-subtle text-end"
+                                                            style="padding: 1% 0%;">Retención de renta:
+                                                        </td>
+                                                        <td class="px-1 border border-light-subtle text-start"
+                                                            style="padding: 1% 0%;">
+                                                            <span>$ 0.00</span>
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td class="px-1 border border-light-subtle text-end"
+                                                            style="padding: 1% 0%;">Monto total operación:
+                                                        </td>
+                                                        <td class="px-1 border border-light-subtle text-start"
+                                                            style="padding: 1% 0%;">
+                                                            <span>$ 0.00</span>
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td class="px-1 border border-light-subtle text-end"
+                                                            style="padding: 1% 0%;">Total otros Montos No afectados:
+                                                        </td>
+                                                        <td class="px-1 border border-light-subtle text-start"
+                                                            style="padding: 1% 0%;">
+                                                            <span>$ 0.00</span>
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td style="border:1px solid #e5e7e9; padding:4px; text-align:end;">
+                                                            Total a pagar:
+                                                        </td>
+                                                        <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;">
+                                                            <span t-field="o.amount_residual"/>
+                                                        </td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </section>
+                            <!-- footer -->
+                            <div class="footer" style="font-size:0.85rem; ">
+                                <table style="     width: 100%;   border-color: white;   font-size: 0.85rem;   ">
+                                    <tr>
+                                        <td style="padding:4px; vertical-align:middle;">
+                                            Version:
+                                        </td>
+                                        <td style="padding:4px; vertical-align:middle; text-align:right;">
+                                            Contáctanos
+                                            <img src="/l10n_invoice_sv/static/src/img/email.svg"
+                                                 style="width:12px; vertical-align:middle; margin:0 4px;"/>
+                                            admin@admin.com
+                                            <img src="/l10n_invoice_sv/static/src/img/telephone.svg"
+                                                 style="width:12px; vertical-align:middle; margin:0 4px;"/>
+                                            +503 7746 2310
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </t>
+            </t>
         </template>
     </data>
 </odoo>

@@ -3,6 +3,7 @@
 {
     "name": "Fields purchase sv",
     "version": "17.1",
+    'license': 'LGPL-3',
     "author": "Gerardo-MiRe",
     "category": "Tools",
     'website': 'https://github.com/Gerardo-MiRe',

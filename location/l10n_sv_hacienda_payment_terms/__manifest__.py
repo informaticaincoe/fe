@@ -3,6 +3,7 @@
 {
     "name": "Añade configuracion para terminos de pagos hacienda sv",
     "version": "17.1",
+    'license': 'LGPL-3',
     "author": "Gerardo-MiRe",
     "category": "Point of Sale",
     'website': 'https://github.com/Gerardo-MiRe',
