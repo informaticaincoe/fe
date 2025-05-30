@@ -3,7 +3,7 @@
 
     <!-- Mail template are declared in a NOUPDATE block
          so users can freely customize/delete them -->
-    <data noupdate="1">
+    <data noupdate="0">
         <!--Email template -->
         <record id="sit_email_template_edi_invoice" model="mail.template">
             <field name="name">Invoice: Sending</field>
@@ -23,9 +23,9 @@
                             <t t-out="object.partner_id.name or ''">Brandon Lee</t>,
                         </t>
                         <br /><br />
-                        Aqui está su 
+                        Adjunto encontrará su
                         <t t-if="object.name">
-                            DTE <span style="font-weight:bold;" t-out="object.name or ''">DTE XXX-XXX-XXXXXXX2023</span>
+                            <span style="font-weight:bold;" t-out="object.name or ''"> XXX-XXX-XXXXXXX2023</span>
                         </t>
                         <t t-else="">
                             Factura
@@ -33,20 +33,20 @@
                         <t t-if="object.invoice_origin">
                             (con referencia: <t t-out="object.invoice_origin or ''">SUB003</t>)
                         </t>
-                        con la cantidad de <span style="font-weight:bold;" t-out="format_amount(object.amount_total, object.currency_id) or ''">$ 143,750.00</span>
+                        por <span style="font-weight:bold;" t-out="format_amount(object.amount_total, object.currency_id) or ''">$ 143,750.00</span>
                         de <t t-out="object.company_id.name or ''">Service-IT AR</t>.
                         <t t-if="object.payment_state in ('paid', 'in_payment')">
                             Esta Factura se encuentra Pagada.
                         </t>
                         <t t-else="">
-                            Por favor remita el pago a su más pronta conveniencia.
+                            Por favor remita el pago a su pronta conveniencia.
                             <t t-if="object.payment_reference">
                                 <br /><br />
                                 Por favor utilice la siguiente comunicación para su pago.: <span style="font-weight:bold;" t-out="object.payment_reference or ''">INV/2021/05/0005</span>.
                             </t>
                         </t>
                         <br /><br />
-                        No dude en contactarnos si tiene alguna pregunta.
+                        Contáctenos si tiene alguna duda.
                         <t t-if="not is_html_empty(object.invoice_user_id.signature)">
                             <br /><br />
                             <t t-out="object.invoice_user_id.signature or ''">--<br/>SIT Admin</t>

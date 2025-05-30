@@ -1,1 +1,2 @@
-id,company_id,url,pwd,value_type,
+id,company_id:id,pwd,value_type,value_text,description,active,clave
+config_version_invalidacion,base.main_company,,int,2,Versión vigente para el evento de invalidación,True,version_invalidacion

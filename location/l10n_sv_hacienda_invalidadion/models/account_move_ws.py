@@ -21,10 +21,38 @@ from pytz import timezone, UTC
 
 ZONA_HORARIA = timezone('America/El_Salvador')
 
+#Error al importar si el modulo aun no se ha instalado
+#from common_utils.utils import config_utils
+try:
+    from common_utils.utils import config_utils
+except ImportError:
+    config_utils = None  # o alguna otra lógica de fallback
+
+
 class AccountMove(models.Model):
     _inherit = "account.move"
 
     ######################################### F-ANULACION
+
+    def _get_version_invalidacion(self):
+        """Helper para obtener la version_invalidacion de la configuración de empresa."""
+        if config_utils:
+            version = config_utils.get_config_value(self.env, 'version_invalidacion', self.company_id.id)
+            if version is None:
+                _logger.warning("No se encontró 'version_invalidacion' en configuración.")
+                return 2
+            # Si viene como lista, toma el primer elemento
+            if isinstance(version, list):
+                version = version[0]
+
+            try:
+                return int(version)
+            except (ValueError, TypeError):
+                _logger.warning("Valor inválido para 'version_invalidacion': %s. Usando valor por defecto.", version)
+                return 2
+        else:
+            _logger.warning("common_utils no está instalado. Usando valor por defecto para version_invalidacion.")
+            return 2
 
     def sit_anulacion_base_map_invoice_info(self):
         _logger.info("SIT [INICIO] sit_anulacion_base_map_invoice_info: self.id=%s, sel.factura_reemplazar=%s", self.id, self.sit_factura_a_reemplazar.company_id)
@@ -62,7 +90,7 @@ class AccountMove(models.Model):
 
         invoice_info = {}
         FechaHoraAnulacion = None
-        invoice_info["version"] = 2
+        invoice_info["version"] = self._get_version_invalidacion()
         ambiente = str(get_constantes_anulacion()['AMBIENTE']) #"00" if self._compute_validation_type_2() == 'homologation' else "01"
         invoice_info["ambiente"] = ambiente
 
@@ -90,6 +118,7 @@ class AccountMove(models.Model):
         _logger.info("SIT Identificación: ambiente=%s, codigoGeneracion=%s, fec=%s, hor=%s",
                      ambiente, invoice_info["codigoGeneracion"],
                      invoice_info["fecAnula"], invoice_info["horAnula"])
+        _logger.info("SIT Identificación json: %s", invoice_info)
         return invoice_info
 
 
@@ -272,7 +301,7 @@ class AccountMove(models.Model):
         invoice_info = {
             "ambiente": get_constantes_anulacion()['AMBIENTE'],
             "idEnvio": int(self.sit_evento_invalidacion.id),
-            "version": 2,
+            "version": self._get_version_invalidacion(),
             "documento": doc_firmado
         }
 
