@@ -27,7 +27,6 @@
     'depends': ['base', 'l10n_sv', 'account', 'product', 'mail'],
     'assets': {
         'web.assets_backend': [
-
             'l10n_invoice_sv/static/src/css/bootstrap.min.css',
         ],
         'web.assets_frontend': [

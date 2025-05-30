@@ -147,6 +147,9 @@ class AccountMove(models.Model):
 
     error_log = fields.Text(string="Error técnico DTE", readonly=True)
 
+    recibido_mh = fields.Boolean(string="Dte recibido por MH", copy=False)
+    correo_enviado = fields.Boolean(string="Correo enviado en la creacion del dte", copy=False)
+
     @api.onchange('move_type')
     def _onchange_move_type(self):
         # Si el tipo de movimiento es una reversión (out_refund), no se debe permitir modificar el nombre (número de control)
@@ -838,7 +841,14 @@ class AccountMove(models.Model):
                                 'hacienda_descripcionMsg': Resultado['descripcionMsg'],
                                 'hacienda_observaciones': str(Resultado.get('observaciones', '')),
                                 'state': 'draft',
+                                'recibido_mh': True,
                             })
+
+                            # Guardar archivo .pdf y enviar correo al cliente
+                            try:
+                                invoice.sudo().sit_enviar_correo_dte_automatico()
+                            except Exception as e:
+                                _logger.warning("SIT | Error al enviar DTE por correo o generar PDF: %s", str(e))
                         else:
                             # Lanzar error al final si fue rechazado
                             if estado:
@@ -1429,5 +1439,52 @@ class AccountMove(models.Model):
 
         _logger.info("Factura %s asignada a contingencia %s y lote %s", self.name, contingencia_activa.name,
                      lote_asignado.name if lote_asignado else "N/A")
+
+    def sit_enviar_correo_dte_automatico(self):
+        for invoice in self:
+            # Validar que el DTE exista en hacienda
+            if not invoice.recibido_mh:
+                _logger.warning("SIT | La factura %s no tiene un DTE procesado, no se enviará correo.", invoice.name)
+                continue
+
+            _logger.info("SIT | DTE procesado correctamente para la factura %s. Procediendo con envío de correo.", invoice.name)
+
+            # Generar PDF como attachment si aún no se ha creado
+            try:
+                report_xml = invoice.journal_id.report_xml.xml_id
+                pdf_content = invoice.env['ir.actions.report'].sudo()._render_qweb_pdf(report_xml, [invoice.id])[0]
+                pdf_base64 = base64.b64encode(pdf_content)
+                pdf_filename = f"{invoice.name or 'dte'}.pdf"
+
+                # Verifica si ya existe un attachment con ese nombre
+                existing_attachment = self.env['ir.attachment'].sudo().search([
+                    ('res_model', '=', 'account.move'),
+                    ('res_id', '=', invoice.id),
+                    ('name', '=', pdf_filename),
+                ], limit=1)
+
+                if not existing_attachment:
+                    self.env['ir.attachment'].sudo().create({
+                        'name': pdf_filename,
+                        'datas': pdf_base64,
+                        'res_model': 'account.move',
+                        'res_id': invoice.id,
+                        'mimetype': 'application/pdf',
+                        'type': 'binary',
+                    })
+                    _logger.info("SIT | PDF generado y adjuntado: %s", pdf_filename)
+                else:
+                    _logger.info("SIT | El attachment PDF ya existe para el dte %s", invoice.name)
+            except Exception as e:
+                _logger.error("SIT | Error generando PDF para la factura %s: %s", invoice.name, str(e))
+                continue
+
+            # Enviar el correo automáticamente solo si el DTE fue aceptado y aún no se ha enviado
+            if invoice.recibido_mh and not invoice.correo_enviado:
+                try:
+                    _logger.info("SIT | Enviando correo automático para la factura %s", invoice.name)
+                    invoice.sudo().sit_action_send_mail()
+                except Exception as e:
+                    _logger.error("SIT | Error al intentar enviar el correo para la factura %s: %s", invoice.name, str(e))
 
 
