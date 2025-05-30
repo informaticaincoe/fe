@@ -82,8 +82,8 @@
 	      <field name="default" eval="True"/>
 	      <field name="format">Letter</field>
 	      <field name="orientation">Portrait</field>
-	      <field name="margin_top">35</field>
-	      <field name="margin_bottom">60</field>
+	      <field name="margin_top">5</field>
+	      <field name="margin_bottom">30</field>
 	      <field name="margin_left">3</field>
 	      <field name="margin_right">3</field>
 	      <field name="header_line" eval="False"/>
@@ -210,5 +210,38 @@
             <field name="attachment_use" eval="False"/>
         </record>
 
+
+
+		<report
+            id="report_cse"
+            model="account.move"
+            string="Compra Sujeto Excluido"
+            report_type="qweb-pdf"
+            name="l10n_invoice_sv.report_invoice_main_cse"
+            file="l10n_invoice_sv.report_invoice_main_cse"
+        />
+        <record id="paperformat_invoice_cse" model="report.paperformat">
+	      <field name="name">Compra Sujeto Excluido</field>
+	      <field name="default" eval="True"/>
+	      <field name="format">Letter</field>
+	      <field name="orientation">Portrait</field>
+	      <field name="margin_top">5</field>
+	      <field name="margin_bottom">10</field>
+	      <field name="margin_left">3</field>
+	      <field name="margin_right">3</field>
+	      <field name="header_line" eval="False"/>
+	      <field name="header_spacing">35</field>
+	      <field name="dpi">90</field>
+		</record>
+        <record id="report_cse" model="ir.actions.report">
+            <field name="name">Compra Sujeto Excluido</field>
+            <field name="model">account.move</field>
+            <field name="report_name">l10n_invoice_sv.report_invoice_main_cse</field>
+            <field name="print_report_name">object.partner_id.display_name + ' - ' + object.name + ' - ' + object.journal_id.name
+            </field>
+            <field name="paperformat_id" ref="paperformat_invoice_cse"/>
+			<field name="attachment">object.partner_id.display_name + ' - ' + object.name + ' -   ' + object.journal_id.name</field>
+            <field name="attachment_use" eval="False"/>
+        </record>
     </data>
 </odoo>
