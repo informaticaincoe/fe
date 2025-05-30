@@ -57,11 +57,10 @@
                     <group>
                         <field name="configuration_ids">
                             <list editable="bottom">
-                                <field name="url"/>
-                                <field name="pwd" password="True"/>
-                                <field name="value_type"/>
+								<field name="clave"/>
                                 <field name="value_text"/>
                                 <field name="description"/>
+								<field name="pwd" password="True"/>
                                 <field name="active"/>
                             </list>
                         </field>
