@@ -82,7 +82,8 @@
                                 }
 
                                 .border-light-subtle{
-                                border-color: #e5e7e9 !important;
+                                border-size: 1px !important;
+                                border-color: #9da2a8 !important;
                                 }
                             </style>
                             <!-- Header factura -->
@@ -167,28 +168,36 @@
                                 <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
                                     <thead>
                                         <tr>
-                                            <th style="border:1px solid #e5e7e9; padding:4px; text-align:center; width:4%;">
+                                            <th style="border:1px solid #e5e7e9; padding:4px; text-align:center; width:4%;"
+                                                class="border-light-subtle">
                                                 N°
                                             </th>
-                                            <th style="border:1px solid #e5e7e9; padding:4px; text-align:right; width:8%;">
+                                            <th style="border:1px solid #e5e7e9; padding:4px; text-align:right; width:8%;"
+                                                class="border-light-subtle">
                                                 Cant.
                                             </th>
-                                            <th style="border:1px solid #e5e7e9; padding:4px; text-align:right; width:10%;">
+                                            <th style="border:1px solid #e5e7e9; padding:4px; text-align:right; width:10%;"
+                                                class="border-light-subtle">
                                                 Código
                                             </th>
-                                            <th style="border:1px solid #e5e7e9; padding:4px; text-align:left; width:10%;">
+                                            <th style="border:1px solid #e5e7e9; padding:4px; text-align:left; width:10%;"
+                                                class="border-light-subtle">
                                                 Unidad
                                             </th>
-                                            <th style="border:1px solid #e5e7e9; padding:4px; text-align:left; width:30%;">
+                                            <th style="border:1px solid #e5e7e9; padding:4px; text-align:left; width:30%;"
+                                                class="border-light-subtle">
                                                 Descripción
                                             </th>
-                                            <th style="border:1px solid #e5e7e9; padding:4px; text-align:right; width:10%;">
+                                            <th style="border:1px solid #e5e7e9; padding:4px; text-align:right; width:10%;"
+                                                class="border-light-subtle">
                                                 P. Unit.
                                             </th>
-                                            <th style="border:1px solid #e5e7e9; padding:4px; text-align:right; width:8%;">
+                                            <th style="border:1px solid #e5e7e9; padding:4px; text-align:right; width:8%;"
+                                                class="border-light-subtle">
                                                 Desc.%
                                             </th>
-                                            <th style="border:1px solid #e5e7e9; padding:4px; text-align:right; width:8%;">
+                                            <th style="border:1px solid #e5e7e9; padding:4px; text-align:right; width:8%;"
+                                                class="border-light-subtle">
                                                 Ventas.
                                             </th>
                                         </tr>
@@ -197,39 +206,47 @@
                                         <!-- t-foreach con index correcto -->
                                         <t t-foreach="range(0, len(o.invoice_line_ids))" t-as="idx">
                                             <tr>
-                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:center;">
+                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:center;"
+                                                    class="border-light-subtle">
                                                     <span t-esc="idx + 1"/>
                                                 </td>
                                                 <!-- Cantidad -->
-                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;">
+                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
+                                                    class="border-light-subtle">
                                                     <span t-field="o.invoice_line_ids[idx].quantity"/>
                                                     <span t-field="o.invoice_line_ids[idx].uom_id"
                                                           groups="product.group_uom"/>
                                                 </td>
                                                 <!-- Código -->
-                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;">
+                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
+                                                    class="border-light-subtle">
                                                     <span t-field="o.invoice_line_ids[idx].product_id.default_code"/>
                                                 </td>
                                                 <!-- Unidad -->
-                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:left; white-space:normal; word-break:break-word;">
+                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:left; white-space:normal; word-break:break-word;"
+                                                    class="border-light-subtle">
                                                     <span t-field="o.invoice_line_ids[idx].product_uom_id"/>
                                                 </td>
                                                 <!-- Descripción -->
-                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:left; white-space:normal; word-break:break-word;">
+                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:left; white-space:normal; word-break:break-word;"
+                                                    class="border-light-subtle">
                                                     <span t-field="o.invoice_line_ids[idx].product_id.name"/>
                                                 </td>
                                                 <!-- Precio Unitario -->
-                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;">
+                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
+                                                    class="border-light-subtle">
                                                     <span t-esc="o.invoice_line_ids[idx].price_unit"
                                                           t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
                                                 </td>
                                                 <!-- Descuento % -->
                                                 <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
-                                                    t-options="{'widget':'monetary','display_currency':o.currency_id}">
-                                                    <span t-esc="o.invoice_line_ids[idx].price_unit * (o.invoice_line_ids[idx].discount / 100)"/>
+                                                    class="border-light-subtle">
+                                                    <span t-esc="o.invoice_line_ids[idx].price_unit * (o.invoice_line_ids[idx].discount / 100)"
+                                                          t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
                                                 </td>
                                                 <!-- Ventas -->
-                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;">
+                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
+                                                    class="border-light-subtle">
                                                     <span t-esc="           (o.invoice_line_ids[idx].price_unit * o.invoice_line_ids[idx].quantity)           - (o.invoice_line_ids[idx].price_unit * (o.invoice_line_ids[idx].discount / 100))         "
                                                           t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
                                                 </td>
@@ -243,7 +260,8 @@
                                 <table style="width:100%; table-layout:fixed; border-collapse:collapse; border-color: #ffffff;">
                                     <tr>
                                         <td style="vertical-align:end; width:48%; padding-right:2%;">
-                                            <table style="width:100%; border:1px solid #e5e7e9; border-collapse:collapse; margin-bottom:3%;">
+                                            <table style="width:100%; border:1px solid #e5e7e9; border-collapse:collapse; margin-bottom:3%;"
+                                                   class="border-light-subtle">
                                                 <tr>
                                                     <td style="padding:2%;">
                                                         <strong>Son:</strong>
@@ -251,7 +269,8 @@
                                                     </td>
                                                 </tr>
                                             </table>
-                                            <table style="width:100%; border:1px solid #e5e7e9; border-collapse:collapse; margin-bottom:3%; ">
+                                            <table style="width:100%; border:1px solid #e5e7e9; border-collapse:collapse; margin-bottom:3%; "
+                                                   class="border-light-subtle">
                                                 <tr>
                                                     <td style="padding:2%;">
                                                         <strong>Condición de operación:</strong>
@@ -259,7 +278,8 @@
                                                     </td>
                                                 </tr>
                                             </table>
-                                            <table style="width:100%; border:1px solid #e5e7e9; border-collapse:collapse; margin-bottom:3%;">
+                                            <table style="width:100%; border:1px solid #e5e7e9; border-collapse:collapse; margin-bottom:3%;"
+                                                   class="border-light-subtle">
                                                 <tr>
                                                     <td style="padding:2%; vertical-align:top;">
                                                         <strong>Observaciones:</strong>
@@ -272,10 +292,12 @@
                                             <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
                                                 <tbody>
                                                     <tr>
-                                                        <td style="border:1px solid #e5e7e9; padding:2% 4px; text-align:end;">
+                                                        <td style="border:1px solid #e5e7e9; padding:2% 4px; text-align:end;"
+                                                            class="border-light-subtle">
                                                             Sumatoria de ventas:
                                                         </td>
-                                                        <td style="border:1px solid #e5e7e9; padding:2% 4px; text-align:right;">
+                                                        <td style="border:1px solid #e5e7e9; padding:2% 4px; text-align:right;"
+                                                            class="border-light-subtle">
                                                             <span t-field="o.amount_untaxed"/>
                                                         </td>
                                                     </tr>
@@ -296,7 +318,7 @@
                                                         </td>
                                                         <td class="px-1 border border-light-subtle text-left"
                                                             style="padding: 2% 0%;">
-                                                            <span>$0.00</span>
+                                                            <span>$ 0.00</span>
                                                         </td>
                                                     </tr>
                                                     <tr>
@@ -306,7 +328,7 @@
                                                         </td>
                                                         <td class="px-1 border border-light-subtle text-left"
                                                             style="padding: 2% 0%;">
-                                                            <span>$0.00</span>
+                                                            <span>$ 0.00</span>
                                                         </td>
                                                     </tr>
                                                     <tr>

@@ -92,7 +92,8 @@
                                     }
 
                                     .border-light-subtle{
-                                    border-color: #e5e7e9 !important;
+                                    border-size: 1px !important;
+                                    border-color: #9da2a8 !important;
                                     }
                                 </style>
                                 <!-- Header factura -->
@@ -253,32 +254,41 @@
                                     <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
                                         <thead>
                                             <tr>
-                                                <th style="border:1px solid #e5e7e9; padding:4px; text-align:center; width:4%;">
+                                                <th style="border:1px solid #e5e7e9; padding:4px; text-align:center; width:4%;"
+                                                    class="border-light-subtle">
                                                     N°
                                                 </th>
-                                                <th style="border:1px solid #e5e7e9; padding:4px; text-align:right; width:8%;">
+                                                <th style="border:1px solid #e5e7e9; padding:4px; text-align:right; width:8%;"
+                                                    class="border-light-subtle">
                                                     Cant.
                                                 </th>
-                                                <th style="border:1px solid #e5e7e9; padding:4px; text-align:right; width:10%;">
+                                                <th style="border:1px solid #e5e7e9; padding:4px; text-align:right; width:10%;"
+                                                    class="border-light-subtle">
                                                     Código
                                                 </th>
-                                                <th style="border:1px solid #e5e7e9; padding:4px; text-align:left; width:30%;">
+                                                <th style="border:1px solid #e5e7e9; padding:4px; text-align:left; width:30%;"
+                                                    class="border-light-subtle">
                                                     Descripción
                                                 </th>
-                                                <th style="border:1px solid #e5e7e9; padding:4px; text-align:right; width:10%;">
+                                                <th style="border:1px solid #e5e7e9; padding:4px; text-align:right; width:10%;"
+                                                    class="border-light-subtle">
                                                     P. Unit.
                                                 </th>
-                                                <th style="border:1px solid #e5e7e9; padding:4px; text-align:right; width:8%;">
+                                                <th style="border:1px solid #e5e7e9; padding:4px; text-align:right; width:8%;"
+                                                    class="border-light-subtle">
                                                     Desc.%
                                                 </th>
-                                                <th style="border:1px solid #e5e7e9; padding:4px; text-align:right; width:8%;">
+                                                <th style="border:1px solid #e5e7e9; padding:4px; text-align:right; width:8%;"
+                                                    class="border-light-subtle">
                                                     Ventas S.
                                                 </th>
-                                                <th style="border:1px solid #e5e7e9; padding:4px; text-align:right; width:6%;">
+                                                <th style="border:1px solid #e5e7e9; padding:4px; text-align:right; width:6%;"
+                                                    class="border-light-subtle">
                                                     Ventas E.
                                                 </th>
-                                                <th style="border:1px solid #e5e7e9; padding:4px; text-align:right; width:6%;">
-                                                    Grabadas
+                                                <th style="border:1px solid #e5e7e9; padding:4px; text-align:right; width:6%;"
+                                                    class="border-light-subtle">
+                                                    Gravadas
                                                 </th>
                                             </tr>
                                         </thead>
@@ -287,45 +297,54 @@
                                             <t t-foreach="range(0, len(o.invoice_line_ids))" t-as="idx">
                                                 <tr>
                                                     <!-- Columna N° -->
-                                                    <td style="border:1px solid #e5e7e9; padding:4px; text-align:center;">
+                                                    <td style="border:1px solid #e5e7e9; padding:4px; text-align:center;"
+                                                        class="border-light-subtle">
                                                         <span t-esc="idx + 1"/>
                                                     </td>
                                                     <!-- Cantidad y Unidad -->
-                                                    <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;">
+                                                    <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
+                                                        class="border-light-subtle">
                                                         <span t-field="o.invoice_line_ids[idx].quantity"/>
                                                         <span t-field="o.invoice_line_ids[idx].uom_id"
                                                               groups="product.group_uom"/>
                                                     </td>
                                                     <!-- Precio unitario con IVA -->
-                                                    <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;">
+                                                    <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
+                                                        class="border-light-subtle">
                                                         <span t-esc="o.invoice_line_ids[idx].price_unit * 1.13"
                                                               t-options="{'widget':'monetary','display_currency': o.currency_id}"/>
                                                     </td>
                                                     <!-- Descripción -->
-                                                    <td style="border:1px solid #e5e7e9; padding:4px; text-align:left; white-space:normal; word-break:break-word;">
+                                                    <td style="border:1px solid #e5e7e9; padding:4px; text-align:left; white-space:normal; word-break:break-word;"
+                                                        class="border-light-subtle">
                                                         <span t-field="o.invoice_line_ids[idx].name"/>
                                                     </td>
                                                     <!-- Total línea con IVA -->
-                                                    <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;">
+                                                    <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
+                                                        class="border-light-subtle">
                                                         <span t-esc="o.invoice_line_ids[idx].price_subtotal * 1.13"
                                                               t-options="{'widget':'monetary','display_currency': o.currency_id}"/>
                                                     </td>
                                                     <!-- Descuento % -->
                                                     <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
-                                                        t-options="{'widget':'monetary','display_currency':o.currency_id}">
-                                                        <span t-esc="o.invoice_line_ids[idx].price_unit * (o.invoice_line_ids[idx].discount / 100)"/>
+                                                        class="border-light-subtle">
+                                                        <span t-esc="o.invoice_line_ids[idx].price_unit * (o.invoice_line_ids[idx].discount / 100)"
+                                                              t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
                                                     </td>
                                                     <!-- “Otros Mtos.” (placeholder) -->
-                                                    <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;">
+                                                    <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
+                                                        class="border-light-subtle">
                                                         <span>$0.00</span>
                                                     </td>
                                                     <!-- “Exentas” (placeholder) -->
-                                                    <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;">
+                                                    <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
+                                                        class="border-light-subtle">
                                                         <span>$0.00</span>
                                                     </td>
                                                     <!-- Grabadas tras descuento -->
-                                                    <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;">
-                                                        <span t-esc="(o.invoice_line_ids[idx].price_unit * o.invoice_line_ids[idx].quantity) - (o.invoice_line_ids[idx].price_unit * (o.invoice_line_ids[idx].discount / 100))"
+                                                    <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
+                                                        class="border-light-subtle">
+                                                        <span t-esc="(o.invoice_line_ids[idx].price_total) - (o.invoice_line_ids[idx].price_total * (o.invoice_line_ids[idx].discount / 100))"
                                                               t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
                                                     </td>
                                                 </tr>
@@ -338,7 +357,8 @@
                                     <table style="width:100%; table-layout:fixed; border-collapse:collapse; border-color: #ffffff;">
                                         <tr>
                                             <td style="vertical-align:end; width:48%; padding-right:2%;">
-                                                <table style="width:100%; border:1px solid #e5e7e9; border-collapse:collapse; margin-bottom:3%;">
+                                                <table style="width:100%; border:1px solid #e5e7e9; border-collapse:collapse; margin-bottom:3%;"
+                                                       class="border-light-subtle">
                                                     <tr>
                                                         <td style="padding:2%;">
                                                             <strong>Son:</strong>
@@ -346,7 +366,8 @@
                                                         </td>
                                                     </tr>
                                                 </table>
-                                                <table style="width:100%; border:1px solid #e5e7e9; border-collapse:collapse; margin-bottom:3%; ">
+                                                <table style="width:100%; border:1px solid #e5e7e9; border-collapse:collapse; margin-bottom:3%; "
+                                                       class="border-light-subtle">
                                                     <tr>
                                                         <td style="padding:2%;">
                                                             <strong>Condición de operación:</strong>
@@ -354,7 +375,8 @@
                                                         </td>
                                                     </tr>
                                                 </table>
-                                                <table style="width:100%; border:1px solid #e5e7e9; border-collapse:collapse; margin-bottom:3%;">
+                                                <table style="width:100%; border:1px solid #e5e7e9; border-collapse:collapse; margin-bottom:3%;"
+                                                       class="border-light-subtle">
                                                     <tr>
                                                         <td style="padding:2%; vertical-align:top;">
                                                             <strong>Observaciones:</strong>
@@ -367,25 +389,48 @@
                                                         <tr>
                                                             <td style="border:1px solid #ffffff; padding:1%; width:50%;">
                                                                 <strong>Responsable emisor:</strong>
+                                                                <t t-if="o.amount_total &gt; 11428.57">
+                                                                    <span t-field="company.name"
+                                                                          class="text-uppercase fs-6 p-0"/>
+                                                                </t>
                                                             </td>
                                                             <td style="border:1px solid #ffffff; padding:1%; width:50%;">
                                                                 <strong>N° de documento:</strong>
+                                                                <t t-if="o.amount_total &gt; 11428.57">
+                                                                    <span t-field="company.vat"
+                                                                          class="text-uppercase fs-6 p-0"/>
+                                                                </t>
                                                             </td>
                                                         </tr>
                                                         <tr>
-                                                            <td style="border:1px solid #ffffff; padding:1%; height:30px;"/>
+                                                            <td style="border:1px solid #ffffff; padding:1%; ;"/>
                                                             <td style="border:1px solid #ffffff; padding:1%;"/>
                                                         </tr>
                                                         <tr>
                                                             <td style="border:1px solid #ffffff; padding:1%;">
                                                                 <strong>Responsable receptor:</strong>
+                                                                <t t-if="o.amount_total &gt; 11428.57">
+                                                                    <span t-field="partner.complete_name"
+                                                                          class="text-uppercase fs-6 p-0"/>
+                                                                </t>
                                                             </td>
                                                             <td style="border:1px solid #ffffff; padding:1%;">
                                                                 <strong>N° de documento:</strong>
+                                                                <t t-if="o.amount_total &gt; 11428.57">
+                                                                    <t t-if="partner.fax">
+                                                                        <span t-field="partner.fax"
+                                                                              class="text-uppercase fs-6 p-0"/>
+                                                                    </t>
+                                                                    <t t-else="partner.dui">
+                                                                        <span t-field="partner.dui"
+                                                                              class="text-uppercase fs-6 p-0"/>
+                                                                    </t>
+                                                                </t>
+
                                                             </td>
                                                         </tr>
                                                         <tr>
-                                                            <td style="border:1px solid #ffffff; padding:1%; height:30px;"/>
+                                                            <td style="border:1px solid #ffffff; padding:1%;"/>
                                                             <td style="border:1px solid #ffffff; padding:1%;"/>
                                                         </tr>
                                                     </table>
@@ -396,10 +441,12 @@
                                                 <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
                                                     <tbody>
                                                         <tr>
-                                                            <td style="border:1px solid #e5e7e9; padding:2% 4px; text-align:end;">
+                                                            <td style="border:1px solid #e5e7e9; padding:2% 4px; text-align:end;"
+                                                                class="border-light-subtle">
                                                                 Total de operaciones:
                                                             </td>
-                                                            <td style="border:1px solid #e5e7e9; padding:2% 4px; text-align:right;">
+                                                            <td style="border:1px solid #e5e7e9; padding:2% 4px; text-align:right;"
+                                                                class="border-light-subtle">
                                                                 <span t-field="o.amount_total"/>
                                                             </td>
                                                         </tr>
@@ -459,21 +506,6 @@
                                                                 <span t-field="o.amount_untaxed"/>
                                                             </td>
                                                         </tr>
-
-                                                        <t t-foreach="o.line_ids.filtered(lambda l: l.tax_line_id)"
-                                                           t-as="tax_line">
-                                                            <tr>
-                                                                <td class="px-1 border border-light-subtle text-end"
-                                                                    style="padding: 2% 0%;">
-                                                                    <span t-field="tax_line.tax_line_id.tributos_hacienda_resumen_dte"/>
-                                                                </td>
-                                                                <td class="px-1 border border-light-subtle text-end"
-                                                                    style="padding: 2% 0%;">
-                                                                    <span t-esc="o.amount_untaxed  * (tax_line.tax_line_id.amount) / 100"
-                                                                          t-options="{'widget':'monetary','display_currency': o.currency_id}"/>
-                                                                </td>
-                                                            </tr>
-                                                        </t>
                                                         <tr>
                                                             <td class="px-1 border border-light-subtle text-end"
                                                                 style="padding: 2% 0%;">IVA percibido:
