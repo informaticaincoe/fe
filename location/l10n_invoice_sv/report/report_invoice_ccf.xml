@@ -100,8 +100,10 @@
 
                             <div class="row align-items-center mb-4">
                                 <div class="col">
-                                    <img t-att-src="'data:image/png;base64,%s' % company.logo_web.decode('utf-8')"
-                                         style="height:auto; width:20vw;"/>
+                                    <t t-if="company.logo_web">
+                                        <img t-att-src="'data:image/png;base64,%s' % company.logo_web.decode('utf-8')" style="height:auto; width:20vw;"/>
+                                        <p t-field="company.tipoEstablecimiento" style="text-align:center; font-style:italic; opacity:70%;"/>
+                                   zz </t>
                                 </div>
                                 <div class="col-7 text-center" style="gap: 0;">
                                     <p>

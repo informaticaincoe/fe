@@ -103,12 +103,21 @@
                                         <t t-if="company.logo_web">
                                             <img t-att-src="'data:image/png;base64,%s' % company.logo_web.decode('utf-8')"
                                                  style="height:auto; width:20vw;"/>
+                                            <p t-field="company.tipoEstablecimiento"
+                                               style="text-align:center; font-style:italic; opacity:70%;"/>
                                         </t>
                                     </div>
                                     <div class="col-7 text-center" style="gap: 0;">
                                         <p>
                                             <span t-field="company.name" class="text-uppercase fs-6 fw-bold p-0"/>
                                         </p>
+                                        <p>
+                                            <span class="text-uppercase fs-6 fw-bold p-0">NIT:</span>
+                                            <span t-field="company.vat"/>
+                                            <span class="text-uppercase fs-6 fw-bold p-0">NRC:</span>
+                                            <span t-field="company.nrc"/>
+                                        </p>
+                                        <p t-field="company.codActividad" class="my-2"/>
                                         <p>
                                             <span t-field="company.partner_id.contact_address_complete"
                                                   class="fw-normal p-0"/>
@@ -149,6 +158,7 @@
                                         <div class="col-auto text-nowrap">
                                             <p class="my-2 ">Nombre o razón social:</p>
                                             <p class="my-2">Documento identificación:</p>
+                                            <p class="my-2">Actividad economica:</p>
                                             <p class="my-2">Correo electronico:</p>
                                             <p class="my-2">Telefono:</p>
                                             <p class="my-2">Dirección:</p>
@@ -156,9 +166,19 @@
                                         <div class="col text-nowrap">
                                             <p t-field="partner.complete_name" class="my-2"/>
                                             <p class="d-flex align-items-center my-2">
-                                                <span t-field="partner.dui"/>
-                                                <span>(DUI)</span>
+                                                <t t-if="partner.dui">
+                                                    <span t-field="partner.dui"/>
+                                                    <span>(DUI)</span>
+                                                </t>
+                                                <t t-elif="partner.fax">
+                                                    <span t-field="partner.fax"/>
+                                                    <span>(NIT)</span>
+                                                </t>
+                                                <t t-else="">
+                                                    <span>Consumidor Final</span>
+                                                </t>
                                             </p>
+                                            <p t-field="partner.codActividad" class="my-2"/>
                                             <p t-field="partner.email" class="my-2"/>
                                             <p t-field="partner.phone" class="my-2"/>
                                             <p t-field="partner.contact_address_complete" class="my-2"/>
@@ -264,36 +284,48 @@
                                         </thead>
                                         <tbody>
                                             <!-- t-foreach con index correcto -->
-                                            <t t-foreach="o.invoice_line_ids" t-as="l">
+                                            <t t-foreach="range(0, len(o.invoice_line_ids))" t-as="idx">
                                                 <tr>
+                                                    <!-- Columna N° -->
                                                     <td style="border:1px solid #e5e7e9; padding:4px; text-align:center;">
-                                                        <span/>
+                                                        <span t-esc="idx + 1"/>
                                                     </td>
+                                                    <!-- Cantidad y Unidad -->
                                                     <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;">
-                                                        <span t-field="l.quantity"/>
-                                                        <span t-field="l.uom_id" groups="product.group_uom"/>
+                                                        <span t-field="o.invoice_line_ids[idx].quantity"/>
+                                                        <span t-field="o.invoice_line_ids[idx].uom_id"
+                                                              groups="product.group_uom"/>
                                                     </td>
+                                                    <!-- Precio unitario con IVA -->
                                                     <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;">
-                                                        <span t-field="l.product_id.default_code"/>
+                                                        <span t-esc="o.invoice_line_ids[idx].price_unit * 1.13"
+                                                              t-options="{'widget':'monetary','display_currency': o.currency_id}"/>
                                                     </td>
+                                                    <!-- Descripción -->
                                                     <td style="border:1px solid #e5e7e9; padding:4px; text-align:left; white-space:normal; word-break:break-word;">
-                                                        <span t-field="l.product_id.name"/>
+                                                        <span t-field="o.invoice_line_ids[idx].name"/>
                                                     </td>
+                                                    <!-- Total línea con IVA -->
                                                     <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;">
-                                                        <span t-esc="l.price_subtotal * 1.13"
-                                                              t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
+                                                        <span t-esc="o.invoice_line_ids[idx].price_subtotal * 1.13"
+                                                              t-options="{'widget':'monetary','display_currency': o.currency_id}"/>
                                                     </td>
-                                                    <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;">
-                                                        <span t-field="l.discount"/>%
+                                                    <!-- Descuento % -->
+                                                    <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
+                                                        t-options="{'widget':'monetary','display_currency':o.currency_id}">
+                                                        <span t-esc="o.invoice_line_ids[idx].price_unit * (o.invoice_line_ids[idx].discount / 100)"/>
                                                     </td>
+                                                    <!-- “Otros Mtos.” (placeholder) -->
                                                     <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;">
                                                         <span>$0.00</span>
                                                     </td>
+                                                    <!-- “Exentas” (placeholder) -->
                                                     <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;">
                                                         <span>$0.00</span>
                                                     </td>
+                                                    <!-- Grabadas tras descuento -->
                                                     <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;">
-                                                        <span t-esc="l.price_subtotal * 1.13 - (l.price_subtotal * 1.13 * l.discount)"
+                                                        <span t-esc="(o.invoice_line_ids[idx].price_unit * o.invoice_line_ids[idx].quantity) - (o.invoice_line_ids[idx].price_unit * (o.invoice_line_ids[idx].discount / 100))"
                                                               t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
                                                     </td>
                                                 </tr>
@@ -404,7 +436,20 @@
                                                                 <span>$ 0.00</span>
                                                             </td>
                                                         </tr>
-
+                                                        <t t-foreach="o.line_ids.filtered(lambda l: l.tax_line_id)"
+                                                           t-as="tax_line">
+                                                            <tr>
+                                                                <td class="px-1 border border-light-subtle text-end"
+                                                                    style="padding: 2% 0%;">
+                                                                    <span t-field="tax_line.tax_line_id.tributos_hacienda_resumen_dte"/>
+                                                                </td>
+                                                                <td class="px-1 border border-light-subtle text-end"
+                                                                    style="padding: 2% 0%;">
+                                                                    <span t-esc="o.amount_untaxed  * (tax_line.tax_line_id.amount) / 100"
+                                                                          t-options="{'widget':'monetary','display_currency': o.currency_id}"/>
+                                                                </td>
+                                                            </tr>
+                                                        </t>
                                                         <tr>
                                                             <td class="px-1 border border-light-subtle text-end"
                                                                 style="padding: 2% 0%;">Sub-total:
@@ -429,8 +474,6 @@
                                                                 </td>
                                                             </tr>
                                                         </t>
-
-
                                                         <tr>
                                                             <td class="px-1 border border-light-subtle text-end"
                                                                 style="padding: 2% 0%;">IVA percibido:
@@ -468,8 +511,11 @@
                                 <div class="footer" style="font-size:0.85rem; ">
                                     <table style="width: 100%; border-color: white; font-size: 0.85rem;">
                                         <tr>
-                                            <td style="padding:4px; vertical-align:middle;">
+                                            <td style="margin:0; padding:0; margin-right: 15px; vertical-align: right;">
                                                 Version:
+
+                                                <p style="padding:0 2%; display:inline-block; margin:0;"
+                                                   t-field="o.journal_id.sit_tipo_documento.version"/>
                                             </td>
                                             <td style="padding:4px; text-align:right;">
                                                 <div style="white-space: nowrap;">

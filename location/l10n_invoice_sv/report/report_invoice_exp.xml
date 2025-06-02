@@ -16,14 +16,17 @@
                                 text-transform: uppercase;
                                 }
 
-
                                 @page {
+
+
                                 <!-- margin: 15px 5px; -->
                                 }
 
                                 .page {
                                 display: flex;
                                 flex-direction: column;
+
+
                                 <!-- height: 100vh; -->
                                 }
 
@@ -32,16 +35,18 @@
                                 font-size: 1rem;
                                 line-height: 100%;
                                 }
+
+
                                 <!-- p
-                                            body {
-                                                font-family: 'Inter', sans-serif;
-                                                MARGIN-top: 5%  !important;
-                                                margin-bottom: 5% !important;
-                                                margin-left: 2% !important;
-                                                margin-right: 2% !important;
-                                                font-size: 1rem;
-                                            }
-                                            -->
+                                                        body {
+                                                            font-family: 'Inter', sans-serif;
+                                                            MARGIN-top: 5%  !important;
+                                                            margin-bottom: 5% !important;
+                                                            margin-left: 2% !important;
+                                                            margin-right: 2% !important;
+                                                            font-size: 1rem;
+                                                        }
+                                                        -->
 
                                 p {
                                 margin: 2%;
@@ -69,6 +74,8 @@
                                 flex-direction: column;
                                 height: 100%;
                                 }
+
+
                                 <!-- html, body { height: 100%; margin: 0; } -->
 
                                 .resumen {
@@ -88,12 +95,16 @@
                                 }
 
                                 .invoice_tbody td span {
+
+
                                 <!-- margin: 5px;     -->
                                 }
 
                                 .border-light-subtle{
                                 border-color: #e5e7e9 !important;
                                 }
+
+
                             </style>
                             <!-- Header factura -->
                             <t t-set="company" t-value="o.company_id"/>
@@ -116,22 +127,30 @@
                                         <span t-field="company.partner_id.contact_address_complete"
                                               class="fw-normal p-0"/>
                                     </p>
-
                                     <p>Número de control:
+
+
                                         <span t-field="o.name" class="fw-normal p-0"/>
                                     </p>
                                     <p>Codigo de generación:
+
+
                                         <span t-field="o.hacienda_codigoGeneracion_identificacion"
                                               class="fw-normal p-0"/>
                                     </p>
                                     <p>sello:
+
+
                                         <span t-field="o.hacienda_selloRecibido" class="fw-normal p-0"/>
                                     </p>
-
                                     <p>Tipo modelo:
+
+
                                         <span t-field="o.journal_id.sit_modelo_facturacion" class="fw-normal p-0"/>
                                     </p>
                                     <p>Tipo transmisión:
+
+
                                         <span t-field="o.journal_id.sit_tipo_transmision" class="fw-normal p-0"/>
                                     </p>
                                 </div>
@@ -142,6 +161,8 @@
                                              style="width:40%; height:auto;"/>
                                     </t>
                                     <p style="">Generado:
+
+
                                         <span t-field="o.fecha_facturacion_hacienda" class="fw-normal"/>
                                     </p>
                                 </div>
@@ -193,7 +214,6 @@
                                     </div>
                                 </div>
                             </div>
-
                             <!--  Seccion Documentos asociados -->
                             <div style="margin: 4% 0%;" class="mb-4 w-100">
                                 <p class="section-title text-center mb-1">Documentos asociados</p>
@@ -234,7 +254,6 @@
                                     </tbody>
                                 </table>
                             </div>
-
                             <!--  Seccion venta a cuenta de terceros -->
                             <div style="margin: 4% 0%;" class="mb-4 w-100">
                                 <p class="section-title text-center mb-1">Venta a cuenta de terceros</p>
@@ -255,7 +274,6 @@
                                     </tbody>
                                 </table>
                             </div>
-
                             <!-- Seccion detalles compra -->
                             <br/>
                             <div class="row" id="detalles">
@@ -281,7 +299,7 @@
                                                 P. Unit.
                                             </th>
                                             <th style="border:1px solid #e5e7e9; padding:4px; text-align:left; width:8%;">
-                                                Desc.%
+                                                Desc.
                                             </th>
                                             <th style="border:1px solid #e5e7e9; padding:4px; text-align:left; width:8%;">
                                                 Otros montos no afectos
@@ -293,35 +311,37 @@
                                     </thead>
                                     <tbody>
                                         <!-- t-foreach con index correcto -->
-                                        <t t-foreach="o.invoice_line_ids" t-as="l">
+                                        <t t-foreach="range(0, len(o.invoice_line_ids))" t-as="idx">
                                             <tr>
-                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:left;">
-                                                    <span/>
+                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:center;">
+                                                    <span t-esc="idx + 1"/>
                                                 </td>
                                                 <td style="border:1px solid #e5e7e9; padding:4px; text-align:left;">
-                                                    <span t-field="l.quantity"/>
-                                                    <span t-field="l.uom_id" groups="product.group_uom"/>
+                                                    <span t-field="o.invoice_line_ids[idx].quantity"/>
+                                                    <span t-field="o.invoice_line_ids[idx].uom_id"
+                                                          groups="product.group_uom"/>
                                                 </td>
                                                 <td style="border:1px solid #e5e7e9; padding:4px; text-align:left;">
-                                                    <span t-field="l.product_id.default_code"/>
+                                                    <span t-field="o.invoice_line_ids[idx].product_id.default_code"/>
                                                 </td>
                                                 <td style="border:1px solid #e5e7e9; padding:4px; text-align:left; white-space:normal; word-break:break-word;">
-                                                    <span t-field="l.product_uom_id"/>
+                                                    <span t-field="o.invoice_line_ids[idx].product_uom_id"/>
                                                 </td>
                                                 <td style="border:1px solid #e5e7e9; padding:4px; text-align:left;">
-                                                    <span t-field="l.product_id.name"/>
+                                                    <span t-field="o.invoice_line_ids[idx].product_id.name"/>
                                                 </td>
                                                 <td style="border:1px solid #e5e7e9; padding:4px; text-align:left;">
-                                                    <span t-field="l.price_unit"/>
+                                                    <span t-field="o.invoice_line_ids[idx].price_unit"/>
                                                 </td>
-                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:left;">
-                                                    <span t-field="l.discount"/>%
+                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
+                                                    t-options="{'widget':'monetary','display_currency':o.currency_id}">
+                                                    <span t-esc="o.invoice_line_ids[idx].price_unit * (o.invoice_line_ids[idx].discount / 100)"/>
                                                 </td>
                                                 <td style="border:1px solid #e5e7e9; padding:4px; text-align:left;">
                                                     <span>$0.00</span>
                                                 </td>
                                                 <td style="border:1px solid #e5e7e9; padding:4px; text-align:left;">
-                                                    <span t-esc="(l.price_unit * (1 - l.discount/100))"
+                                                    <span t-esc="(o.invoice_line_ids[idx].price_unit * (1 - o.invoice_line_ids[idx].discount/100))"
                                                           t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
                                                 </td>
                                             </tr>
@@ -359,11 +379,16 @@
                                             </table>
                                             <!-- Responsables -->
                                             <table style="width:100%; border:1px solid #e5e7e9; border-collapse:collapse; margin-bottom:3%;">
-                                                <tr style="width:100%; border:1px solid #e5e7e9; border-collapse:collapse; margin-bottom:3%; padding:2%; vertical-align:top; display: inline-block;">
-                                                    <strong style="display: inline-block; width:100%;">
-                                                        Descripción incoterms:
-                                                    </strong>
-                                                    <span t-field="o.invoice_incoterm_id.name" style="margin-top: 3%;"/>
+                                                <tr style="width:100%;">
+                                                    <td>
+                                                        <strong style="display: inline-block; width:100%;">
+                                                            Descripción incoterms:
+                                                        </strong>
+                                                    </td>
+                                                    <td>
+                                                        <span t-field="o.invoice_incoterm_id.name"
+                                                              style="margin-top: 3%;"/>
+                                                    </td>
                                                 </tr>
                                             </table>
                                         </td>
@@ -449,8 +474,11 @@
                             <div class="footer" style="font-size:0.85rem; ">
                                 <table style="     width: 100%;   border-color: white;   font-size: 0.85rem;   ">
                                     <tr>
-                                        <td style="padding:4px; vertical-align:middle;">
+                                        <td style="margin:0; padding:0; margin-right: 15px; vertical-align: right;">
                                             Version:
+
+                                            <p style="padding:0 2%; display:inline-block; margin:0;"
+                                               t-field="o.journal_id.sit_tipo_documento.version"/>
                                         </td>
                                         <td style="padding:4px; text-align:right;">
                                             <div style="white-space: nowrap;">
