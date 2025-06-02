@@ -49,6 +49,7 @@
         'report/report_invoice_fcf.xml',
         'report/report_invoice_exp.xml',
         'report/report_invoice_ndc.xml',
+        'report/report_invoice_cse.xml',
         'report/report_invoice_ndd.xml',
         'report/report_invoice_digital.xml',
         'report/report_invoice_ticket.xml',
