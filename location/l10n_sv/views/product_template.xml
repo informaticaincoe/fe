@@ -10,6 +10,7 @@
                 <!-- <field name="l10n_latam_document_type_id" position="before"> -->
                     <field name="uom_hacienda"   options="{'no_open': True, 'no_create': True}"/>
                     <field name="tipoItem"   options="{'no_open': True, 'no_create': True}"/>
+                    <field name="tipo_venta"   options="{'no_open': True, 'no_create': True}"/>
                     <field name="tributos_hacienda_cuerpo"   />
                     <field name="sit_psv"   />
                 <!-- </field> -->
