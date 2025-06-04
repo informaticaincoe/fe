@@ -59,7 +59,8 @@ class AccountMove(models.Model):
         cuerpoDocumento = self.sit_ccf_base_map_invoice_info_cuerpo_documento()
         invoice_info["cuerpoDocumento"] = cuerpoDocumento[0]
         if str(invoice_info["cuerpoDocumento"]) == 'None':
-            raise UserError(_('La Factura no tiene linea de Productos Valida.'))        
+            raise UserError(_('La Factura no tiene linea de Productos Valida.'))
+        _logger.info("SIT total_iva = %s", cuerpoDocumento[4])
         invoice_info["resumen"] = self.sit_ccf_base_map_invoice_info_resumen(cuerpoDocumento[2], cuerpoDocumento[3], cuerpoDocumento[4],  invoice_info["identificacion"]  )
         invoice_info["extension"] = self.sit_ccf_base_map_invoice_info_extension()
         invoice_info["apendice"] = None
@@ -67,7 +68,7 @@ class AccountMove(models.Model):
 
     def sit__ccf_base_map_invoice_info_identificacion(self):
         invoice_info = {}
-        invoice_info["version"] = 3
+        invoice_info["version"] = int(self.journal_id.sit_tipo_documento.version)#3
 
         # ——————————————————————
         # Generar número de control si aún no existe o es inválido
@@ -231,10 +232,10 @@ class AccountMove(models.Model):
         else:
             invoice_info["telefono"] =  None
         invoice_info["correo"] =  self.company_id.email
-        invoice_info["codEstableMH"] =  "M001"#self.journal_id.sit_codestable
-        invoice_info["codEstable"] =  "0001"#self.journal_id.sit_codestable
+        invoice_info["codEstableMH"] =  self.journal_id.sit_codestable
+        invoice_info["codEstable"] =  self.journal_id.sit_codestable
         invoice_info["codPuntoVentaMH"] =  self.journal_id.sit_codpuntoventa
-        invoice_info["codPuntoVenta"] =  "0001"#self.journal_id.sit_codpuntoventa
+        invoice_info["codPuntoVenta"] =  self.journal_id.sit_codpuntoventa
         return invoice_info   
 
     def sit__ccf_base_map_invoice_info_receptor(self):
@@ -307,15 +308,13 @@ class AccountMove(models.Model):
             uniMedida = int(line.product_id.uom_hacienda.codigo)
             line_temp["uniMedida"] = uniMedida
 
-            line_temp["precioUni"] = round(line.price_unit, 4)
-            line_temp["montoDescu"] = round(line_temp["cantidad"] * (line.price_unit * (line.discount / 100)) / 1.13,
-                                            2) or 0.0
-            line_temp["ventaNoSuj"] = 0.0
-            line_temp["ventaExenta"] = 0.0
+            #line_temp["precioUni"] = round(line.price_unit, 4)
+            line_temp["montoDescu"] = round(line_temp["cantidad"] * (line.price_unit * (line.discount / 100)) ,2) or 0.0 #round(line_temp["cantidad"] * (line.price_unit * (line.discount / 100)) / 1.13 ,2) or 0.0
+            line_temp["ventaNoSuj"] = round(line.precio_no_sujeto, 2) #0.0
+            line_temp["ventaExenta"] = round(line.precio_exento,2) #0.0
 
-            ventaGravada = round(line_temp["cantidad"] * (line.price_unit - (line.price_unit * (line.discount / 100))),
-                                 2)
-            line_temp["ventaGravada"] = ventaGravada
+            #ventaGravada = round(line_temp["cantidad"] * (line.price_unit - (line.price_unit * (line.discount / 100))),2)
+            #line_temp["ventaGravada"] = ventaGravada
 
             # Calcular tributos
             for line_tributo in line.tax_ids.filtered(lambda x: x.tributos_hacienda):
@@ -323,20 +322,9 @@ class AccountMove(models.Model):
                 codigo_tributo_codigo = line_tributo.tributos_hacienda.codigo
                 lines_tributes.append(codigo_tributo_codigo)
 
-            # Tributos según tipo de item
-            if ventaGravada == 0.0:
-                line_temp["tributos"] = None
-            elif tipoItem == 4:
-                line_temp["uniMedida"] = 99
-                line_temp["codTributo"] = codTributo
-                line_temp["tributos"] = [20]
-            else:
-                line_temp["codTributo"] = None
-                line_temp["tributos"] = lines_tributes
-
             # Cálculo de IVA
             vat_taxes_amounts = line.tax_ids.compute_all(
-                line.price_unit,
+                line.precio_unitario,
                 self.currency_id,
                 line.quantity,
                 product=line.product_id,
@@ -349,18 +337,42 @@ class AccountMove(models.Model):
             line_temp['psv'] = line.product_id.sit_psv
             line_temp["noGravado"] = 0.0
 
+            price_unit = 0.0
+            _logger.info("SIT sit_amount_base= %s", sit_amount_base)
             if line_temp["cantidad"] > 0:
                 price_unit = round(sit_amount_base / line_temp["cantidad"], 4)
             else:
                 price_unit = 0.00
-            line_temp["precioUni"] = price_unit
+            line_temp["precioUni"] = round(line.precio_unitario, 2)
 
-            ventaGravada = round((sit_amount_base - (line.price_unit * (line.discount / 100))), 2)
+            ventaGravada = round(line.precio_gravado, 2) #round((sit_amount_base - (line.price_unit * (line.discount / 100))), 2)
             total_Gravada += ventaGravada
             line_temp["ventaGravada"] = ventaGravada
 
+            if line.product_id and line.product_id.tipo_venta:
+                if line.product_id.tipo_venta == "gravado":
+                    line_temp["ventaNoSuj"] = 0.0
+                    line_temp["ventaExenta"] = 0.0
+                elif line.product_id.tipo_venta == "exento":
+                    line_temp["ventaNoSuj"] = 0.0
+                    line_temp["ventaGravada"] = 0.0
+                elif line.product_id.tipo_venta == "no_sujeto":
+                    line_temp["ventaExenta"] = 0.0
+                    line_temp["ventaGravada"] = 0.0
+
+            # Tributos según tipo de item
+            if ventaGravada == 0.0:
+                line_temp["tributos"] = None
+            elif tipoItem == 4:
+                line_temp["uniMedida"] = 99
+                line_temp["codTributo"] = codTributo
+                line_temp["tributos"] = [20]
+            else:
+                line_temp["codTributo"] = None
+                line_temp["tributos"] = lines_tributes
+
             totalIva += round(
-                vat_taxes_amount - ((((line.price_unit * line.quantity) * (line.discount / 100)) / 1.13) * 0.13), 2)
+                vat_taxes_amount - ((((line.precio_unitario * line.quantity) * (line.discount / 100)) / 1.13) * 0.13), 2)
 
             lines.append(line_temp)
             self.check_parametros_linea_firmado(line_temp)
@@ -372,34 +384,37 @@ class AccountMove(models.Model):
         total_des = 0
         por_des = 0
         for line in self.invoice_line_ids.filtered(lambda x: x.price_unit < 0):
-            total_des += (line.price_unit * -1/1.13)
+            total_des += (line.precio_unitario * -1/1.13)
         if total_des:
             total_gral = self.amount_total + (total_des)
-            por_des = 100 - round(((total_gral- (total_des*1.13)) / total_gral) * 100) 
+            por_des = 100 - round(((total_gral- (total_des*1.13)) / total_gral) * 100)
+        else:
+            total_des = self.descuento_gravado
         invoice_info = {}
         tributos = {}
         pagos = {}
-        invoice_info["totalNoSuj"] = 0
-        invoice_info["totalExenta"] = 0
+        invoice_info["totalNoSuj"] = round (self.total_no_sujeto,2 ) #0
+        invoice_info["totalExenta"] = round ( self.total_exento,2 ) #0
         invoice_info["totalGravada"] = round(total_Gravada, 2 )
-        invoice_info["subTotalVentas"] = round(total_Gravada, 2 )
-        invoice_info["descuNoSuj"] = 0
-        invoice_info["descuExenta"] = 0
+        invoice_info["subTotalVentas"] = round ( self.sub_total_ventas, 2 )
+        invoice_info["descuNoSuj"] = round ( self.descuento_no_sujeto,2 )#0
+        invoice_info["descuExenta"] = round ( self.descuento_exento,2 ) #0
         invoice_info["descuGravada"] = round(total_des, 2)
         invoice_info["porcentajeDescuento"] = por_des
-        invoice_info["totalDescu"] = 0
+        invoice_info["totalDescu"] = round(self.total_descuento, 2) #0
         _logger.info("SIT  identificacion[tipoDte] = %s", identificacion['tipoDte'] )
         _logger.info("SIT  identificacion[tipoDte] = %s", identificacion )
         _logger.info("SIT resumen totalIVA ========================== %s", totalIva)
         tributos["codigo"] = total_tributos.tributos_hacienda.codigo
         tributos["descripcion"] = total_tributos.tributos_hacienda.valores
-        tributos["valor"] =  round(totalIva -(total_des*0.13),2) 
+        tributos["valor"] =  round(self.amount_tax, 2 ) #round(totalIva -(total_des*0.13),2)
         invoice_info["tributos"] = [ tributos ]
-        invoice_info["subTotal"] = round(total_Gravada - total_des, 2 )
+        invoice_info["subTotal"] = round(self.sub_total, 2) #round(total_Gravada - total_des, 2 )
         invoice_info["ivaPerci1"] = 0
         rete_iva = 0.0
         rete_renta = 0.0
         monto_descu= 0.0
+        retencion = 0.0
         # #for group in self.tax_totals['groups_by_subtotal'].get('Importe sin impuestos', []):
         # groups_by_subtotal = self.tax_totals.get('groups_by_subtotal', {})
         # for group in groups_by_subtotal.get('Importe sin impuestos', []):
@@ -471,7 +486,7 @@ class AccountMove(models.Model):
         if isinstance(nit, str):
             nit = nit.replace("-", "")
             invoice_info["docuRecibe"] = nit
-        invoice_info["observaciones"] = self.observaciones
+        invoice_info["observaciones"] = self.sit_observaciones
         invoice_info["placaVehiculo"] = None
         invoice_info = None
         return invoice_info
@@ -502,7 +517,7 @@ class AccountMove(models.Model):
         invoice_info["cuerpoDocumento"] = cuerpoDocumento[0]
         if str(invoice_info["cuerpoDocumento"]) == 'None':
             raise UserError(_('La Factura no tiene linea de Productos Valida.'))        
-        invoice_info["resumen"] = self.sit_base_map_invoice_info_resumen(cuerpoDocumento[1], cuerpoDocumento[2], cuerpoDocumento[3],  invoice_info["identificacion"]  )
+        invoice_info["resumen"] = self.sit_base_map_invoice_info_resumen(cuerpoDocumento[1], cuerpoDocumento[2], cuerpoDocumento[3],  invoice_info["identificacion"], invoice_info["cuerpoDocumento"]  )
         invoice_info["extension"] = self.sit_base_map_invoice_info_extension()
         invoice_info["apendice"] = None
         return invoice_info        
@@ -660,7 +675,7 @@ class AccountMove(models.Model):
         item_numItem = 0
         total_Gravada = 0.0
         totalIva = 0.0
-        for line in self.invoice_line_ids.filtered(lambda x: x.price_unit > 0):
+        for line in self.invoice_line_ids.filtered(lambda x: x.precio_unitario > 0):
             item_numItem += 1       
             line_temp = {}
             lines_tributes = []
@@ -683,12 +698,12 @@ class AccountMove(models.Model):
             line_temp["uniMedida"] = int(uniMedida)
 
             line_temp["descripcion"] = line.name
-            line_temp["precioUni"] = round(line.price_unit,2)
+            line_temp["precioUni"] = round(line.precio_unitario,2)
             line_temp["montoDescu"] = (
                 line_temp["cantidad"]  * (line.price_unit * (line.discount / 100))
                 or 0.0
             )
-            line_temp["ventaNoSuj"] = 0.0
+            line_temp["ventaNoSuj"] = round(line.precio_no_sujeto,2) #0.0
             codigo_tributo = None
             for line_tributo in line.tax_ids:
                 codigo_tributo_codigo = line_tributo.tributos_hacienda.codigo
@@ -696,26 +711,47 @@ class AccountMove(models.Model):
             lines_tributes.append(codigo_tributo_codigo)
             line_temp["tributos"] = lines_tributes
             vat_taxes_amounts = line.tax_ids.compute_all(
-                line.price_unit,
+                line.precio_unitario,
                 self.currency_id,
                 line.quantity,
                 product=line.product_id,
                 partner=self.partner_id,
             )
             vat_taxes_amount = round( vat_taxes_amounts['taxes'][0]['amount'], 2 )
+            _logger.info("SIT taxes= %s", vat_taxes_amount)
+
             sit_amount_base = round( vat_taxes_amounts['taxes'][0]['base'], 2 )
             line_temp['psv'] =  line.product_id.sit_psv
-            line_temp["noGravado"] = 0.0 
-            line_temp["ivaItem"] = round(vat_taxes_amount - ((((line.price_unit *line.quantity)* (line.discount / 100))/1.13)*0.13),2)
+            line_temp["noGravado"] = 0.0
+
+            ventaGravada = line_temp["cantidad"] * (line.precio_unitario - (line.precio_unitario * (line.discount / 100)))
+            _logger.info("SIT Cantidad= %s, precio gravado= %s, descuento= %s, monto descu= %s, venta gravada= %s", line_temp["cantidad"], line.precio_gravado, (line.discount / 100), (line.precio_gravado * (line.discount / 100)), ventaGravada)
+
+            line_temp["ivaItem"] = round( ( (ventaGravada /1.13) * 0.13) ,2) #round(vat_taxes_amount - ((((line.price_unit *line.quantity)* (line.discount / 100))/1.13)*0.13),2)
+            _logger.info("SIT Iva item= %s", line_temp["ivaItem"])
+
             if line_temp["ivaItem"] == 0.0:
                 ventaGravada = 0.0
-                ventaExenta = line_temp["cantidad"] * (line.price_unit - (line.price_unit * (line.discount / 100)))
-            else:
-                ventaGravada = line_temp["cantidad"] * (line.price_unit - (line.price_unit * (line.discount / 100)))
-                ventaExenta = 0.0  # O lo que corresponda en caso de que haya IVA
+                ventaExenta = line_temp["cantidad"] * (line.precio_exento - (line.precio_exento * (line.discount / 100)))
+            #else:
+                #ventaGravada = line_temp["cantidad"] * (line.price_unit - (line.price_unit * (line.discount / 100)))
+                #ventaExenta = 0.0  # O lo que corresponda en caso de que haya IVA
+            ventaExenta = line_temp["cantidad"] * (line.precio_exento - (line.precio_exento * (line.discount / 100)))
             total_Gravada +=  ventaGravada
             line_temp["ventaGravada"] = round(ventaGravada,2)
             line_temp["ventaExenta"] = round(ventaExenta,2)
+
+            if line.product_id and line.product_id.tipo_venta:
+                if line.product_id.tipo_venta == "gravado":
+                    line_temp["ventaNoSuj"] = 0.0
+                    line_temp["ventaExenta"] = 0.0
+                elif line.product_id.tipo_venta == "exento":
+                    line_temp["ventaNoSuj"] = 0.0
+                    line_temp["ventaGravada"] = 0.0
+                elif line.product_id.tipo_venta == "no_sujeto":
+                    line_temp["ventaExenta"] = 0.0
+                    line_temp["ventaGravada"] = 0.0
+
             if ventaGravada == 0.0:
                 line_temp["tributos"] = None
             if tipoItem == 4:
@@ -733,15 +769,49 @@ class AccountMove(models.Model):
             self.check_parametros_linea_firmado(line_temp)
         return lines, codigo_tributo, total_Gravada, float(totalIva)
 
-    def sit_base_map_invoice_info_resumen(self, tributo_hacienda, total_Gravada, totalIva, identificacion):
+    def sit_base_map_invoice_info_resumen(self, tributo_hacienda, total_Gravada, totalIva, identificacion, cuerpo_documento):
         _logger.info("SIT sit_base_map_invoice_info_resumen self = %s", self)
         total_des = 0
         por_des = 0
-        for line in self.invoice_line_ids.filtered(lambda x: x.price_unit < 0):
-            total_des += (line.price_unit * -1)
+        for line in self.invoice_line_ids.filtered(lambda x: x.price_unit  < 0):
+            total_des += (line.precio_unitario * -1)
 
         if total_des:
             total_gral = self.amount_total + total_des
+            por_des = 100 - round(((total_gral- total_des) / total_gral) * 100)
+        else:
+            total_des = self.descuento_gravado
+            por_des = self.descuento_global
+        _logger.info("SIT total des = %s, total gravado %s", total_des, self.total_gravado)
+
+        subtotal = sum(line.price_subtotal for line in self.invoice_line_ids)
+        total = self.amount_total
+
+        rete_renta = 0.0
+        rete_iva = 0.0
+        monto_descu = 0.0
+
+        for line in self.invoice_line_ids:
+            taxes = line.tax_ids.compute_all(
+                line.price_unit,
+                self.currency_id,
+                line.quantity,
+                product=line.product_id,
+                partner=self.partner_id,
+            )
+
+            monto_descu += round(line.quantity * (line.price_unit * (line.discount / 100)), 2)
+
+            for tax in taxes.get('taxes', []):
+                tax_name = tax.get('name', '').lower()
+                _logger.info("SIT NOMBRE IMPUESTO ************= %s", tax_name)
+                _logger.info("SIT CANTIDAD ************= %s", tax.get('amount'))
+
+                if 'retencion renta' in tax_name:
+                    rete_renta += abs(tax.get('amount', 0.0))
+                elif 'retencion iva 1%' in tax_name:
+                    rete_iva += abs(tax.get('amount', 0.0))
+
             por_des = 100 - round(((total_gral- total_des) / total_gral) * 100)
 
         subtotal = sum(line.price_subtotal for line in self.invoice_line_ids)
@@ -775,14 +845,14 @@ class AccountMove(models.Model):
         invoice_info = {}
         tributos = {}
         pagos = {}
-        invoice_info["totalNoSuj"] = 0
-        invoice_info["totalExenta"] = 0
-        invoice_info["subTotalVentas"] = round (self.amount_total + total_des , 2 )
-        invoice_info["descuNoSuj"] = 0
-        invoice_info["descuExenta"] = 0
+        invoice_info["totalNoSuj"] = round (self.total_no_sujeto,2 ) #0
+        invoice_info["totalExenta"] = round ( self.total_exento,2 ) #0
+        invoice_info["subTotalVentas"] = round ( self.sub_total_ventas, 2 ) #round (self.amount_total + total_des , 2 )
+        invoice_info["descuNoSuj"] = round ( self.descuento_no_sujeto,2 ) #0
+        invoice_info["descuExenta"] = round ( self.descuento_exento,2 ) #0
         invoice_info["descuGravada"] = round(total_des, 2)
-        invoice_info["porcentajeDescuento"] = por_des
-        invoice_info["totalDescu"] = monto_descu
+        invoice_info["porcentajeDescuento"] = round(por_des, 2)
+        invoice_info["totalDescu"] = round ( self.total_descuento, 2 ) #0
         if identificacion['tipoDte'] != "01":
             if  tributo_hacienda:
                 _logger.info("SIT tributo_haciendatributo_hacienda = %s", tributo_hacienda)
@@ -796,20 +866,27 @@ class AccountMove(models.Model):
             invoice_info["tributos"] = tributos
         else:
             invoice_info["tributos"] = None
-        invoice_info["subTotal"] = round(self.amount_total, 2 )  
+        invoice_info["subTotal"] = round ( self.sub_total, 2) #round(self.amount_total, 2 )
         invoice_info["ivaRete1"] = rete_iva
         invoice_info["reteRenta"] = rete_renta
-        invoice_info["montoTotalOperacion"] = round(self.amount_total, 2 )
+
+        #Tributos
+        valor_tributo = 0
+        if tributo_hacienda:
+            valor_tributo = tributos.get("valor", 0) or 0 #Accede al valor del diccionario
+
+        invoice_info["montoTotalOperacion"] = round( self.total_operacion, 2) #round(self.amount_total, 2 )
         invoice_info["totalNoGravado"] = 0
-        invoice_info["totalPagar"] = round(self.amount_total , 2 )
+        invoice_info["totalPagar"] = round(self.amount_total, 2 )
         invoice_info["totalLetras"] = self.amount_text
-        invoice_info["totalIva"] = round(totalIva - (total_des - (total_des / 1.13)), 2 )
+        _logger.info("SIT total descuentos = %s, iva= %s", total_des, totalIva)
+        invoice_info["totalIva"] = round(totalIva, 2 ) #round(totalIva - (total_des - (total_des / 1.13)), 2 )
         if invoice_info["totalIva"] == 0.0:
             invoice_info["totalGravada"]  = 0.0
-            invoice_info["totalExenta"] = round(self.amount_total, 2 )
+            invoice_info["totalExenta"] = round(self.total_exento, 2 )
         else:
-            invoice_info["totalGravada"]  = round(self.amount_total + total_des, 2 )
-            invoice_info["totalExenta"] = 0.0
+            invoice_info["totalGravada"]  = round(self.total_gravado, 2 ) #round(self.total_gravado + total_des, 2 )
+            #invoice_info["totalExenta"] = 0.0
         invoice_info["saldoFavor"] = 0
         invoice_info["condicionOperacion"] = int(self.condiciones_pago)
         pagos["codigo"] = self.forma_pago.codigo  
@@ -1426,6 +1503,3 @@ class AccountMove(models.Model):
             'numeroDocumento':  origin.hacienda_codigoGeneracion_identificacion,
             'fechaEmision':     origin.invoice_date.strftime('%Y-%m-%d'),
         }]
-
-
-

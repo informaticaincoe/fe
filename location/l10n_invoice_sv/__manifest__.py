@@ -57,6 +57,7 @@
         'report/report_invoice_main.xml',
         'security/ir.model.access.csv',
         'wizard/account_move_reversal.xml',
+        'views/account_lines.xml',
     ],
     'demo': [],
     'installable': True,
