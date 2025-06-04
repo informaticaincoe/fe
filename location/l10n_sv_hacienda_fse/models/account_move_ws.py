@@ -259,13 +259,40 @@ class AccountMove(models.Model):
     def sit_fse_base_map_invoice_info_resumen(self):
         _logger.info("SIT sit_base_map_invoice_info_resumen self = %s", self)
         invoice_info = {}
-        invoice_info["totalCompra"] = round(self.amount_total, 2 )
+
+        subtotal = sum(line.price_subtotal for line in self.invoice_line_ids)
+        total = self.amount_total
+
+        rete_renta = 0.0
+        rete_iva = 0.0
+
+        for line in self.invoice_line_ids:
+            taxes = line.tax_ids.compute_all(
+                line.price_unit,
+                self.currency_id,
+                line.quantity,
+                product=line.product_id,
+                partner=self.partner_id,
+            )
+
+            for tax in taxes.get('taxes', []):
+                tax_name = tax.get('name', '').lower()
+                _logger.info("SIT NOMBRE IMPUESTO ************= %s", tax_name)
+                _logger.info("SIT CANTIDAD ************= %s", tax.get('amount'))
+
+                if 'retencion renta' in tax_name:
+                    rete_renta += abs(tax.get('amount', 0.0))
+                elif 'retencion iva' in tax_name:
+                    rete_iva += abs(tax.get('amount', 0.0))
+
+
+        invoice_info["totalCompra"] = round(self.amount_untaxed, 2)
         invoice_info["descu"] = 0
         invoice_info["totalDescu"] = 0
-        invoice_info["subTotal"] = round(self.amount_total, 2 )
-        invoice_info["ivaRete1"] = 0
-        invoice_info["reteRenta"] = 0
-        invoice_info["totalPagar"] = round(self.amount_total, 2 )
+        invoice_info["subTotal"] = round(self.amount_untaxed, 2)
+        invoice_info["ivaRete1"] = round(rete_iva, 2)
+        invoice_info["reteRenta"] = round(rete_renta, 2)
+        invoice_info["totalPagar"] = round(self.amount_total, 2)
         invoice_info["totalLetras"] = self.amount_text
         invoice_info["condicionOperacion"] = int(self.condiciones_pago)
         invoice_info["observaciones"] = None
@@ -302,3 +329,18 @@ class AccountMove(models.Model):
         uuid_aleatorio = uuid.uuid4()
         uuid_cadena = str(uuid_aleatorio)
         return uuid_cadena.upper()
+
+
+    def sit_debug_mostrar_json_fse(self):
+        """Solo muestra el JSON generado de la factura FSE sin enviarlo."""
+        if len(self) != 1:
+            raise UserError("Selecciona una sola factura para depurar el JSON.")
+
+        invoice_json = self.sit__fse_base_map_invoice_info_dtejson()
+
+        import json
+        pretty_json = json.dumps(invoice_json, indent=4, ensure_ascii=False)
+        _logger.info("📄 JSON DTE FSE generado:\n%s", pretty_json)
+        print("📄 JSON DTE FSE generado:\n", pretty_json)
+
+        return True

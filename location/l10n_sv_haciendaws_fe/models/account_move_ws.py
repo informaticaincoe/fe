@@ -390,6 +390,8 @@ class AccountMove(models.Model):
             if group.get('tax_group_name') == 'Retencion':
                 retencion = group.get('tax_group_amount', 0.0)
         retencion = abs(retencion)
+        print("retencion", retencion)
+        print("TAX", groups_by_subtotal)
         invoice_info["ivaRete1"] = retencion
         invoice_info["reteRenta"] = 0
         invoice_info["montoTotalOperacion"] = round(self.amount_total + retencion, 2 )
