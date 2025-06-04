@@ -18,6 +18,7 @@ class sit_account_move(models.Model):
     sit_modelo_facturacion = fields.Selection(selection='_get_modelo_facturacion_selection', string='Modelo de Facturacion - Hacienda', store=True)
     sit_tipo_transmision = fields.Selection(selection='_get_tipo_transmision_selection', string='Tipo de Transmisión - Hacienda', store=True)
     sit_referencia = fields.Text(string="Referencia", default="")
+    sit_observaciones = fields.Text(string="Observaciones", default="")
     sit_qr_hacienda = fields.Binary("QR Hacienda", default=False) 
     sit_json_respuesta = fields.Text("Json de Respuesta", default="")
     sit_regimen = fields.Many2one('account.move.regimen.field', string="Régimen de Exportación")

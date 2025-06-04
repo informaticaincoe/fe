@@ -53,23 +53,23 @@ class AccountMove(models.Model):
         invoice_info["cuerpoDocumento"] = cuerpoDocumento[0]
         _logger.info("SIT CUERTO_DOCUMENTO = %s",   invoice_info["cuerpoDocumento"] )
         if str(invoice_info["cuerpoDocumento"]) == 'None':
-            raise UserError(_('La Factura no tiene linea de Productos Valida.'))        
+            raise UserError(_('La Factura no tiene linea de Productos Valida.'))
         invoice_info["resumen"] = self.sit_fse_base_map_invoice_info_resumen()
         invoice_info["apendice"] = None
-        return invoice_info        
+        return invoice_info
 
     def sit__fse_base_map_invoice_info_identificacion(self):
         _logger.info("SIT sit_base_map_invoice_info_identificacion self = %s", self)
         invoice_info = {}
         invoice_info["version"] = 1
-        validation_type = self._compute_validation_type_2()        
+        validation_type = self._compute_validation_type_2()
         param_type = self.env["ir.config_parameter"].sudo().get_param("afip.ws.env.type")
         if param_type:
             validation_type = param_type
-        if validation_type == 'homologation': 
+        if validation_type == 'homologation':
             ambiente = "00"
         else:
-            ambiente = "01"        
+            ambiente = "01"
         invoice_info["ambiente"] = ambiente
         invoice_info["tipoDte"] = self.journal_id.sit_tipo_documento.codigo
         invoice_info["numeroControl"] = self.name
@@ -88,7 +88,7 @@ class AccountMove(models.Model):
         import pytz
         import os
         os.environ['TZ'] = 'America/El_Salvador'  # Establecer la zona horaria
-        datetime.datetime.now() 
+        datetime.datetime.now()
         salvador_timezone = pytz.timezone('America/El_Salvador')
         FechaEmi = datetime.datetime.now(salvador_timezone)
         _logger.info("SIT FechaEmi = %s (%s)", FechaEmi, type(FechaEmi))
@@ -116,8 +116,8 @@ class AccountMove(models.Model):
         nit = nit.replace("-", "")
         invoice_info["nit"] = nit
         nrc= self.company_id.company_registry
-        if nrc:        
-            nrc = nrc.replace("-", "")        
+        if nrc:
+            nrc = nrc.replace("-", "")
         invoice_info["nrc"] = nrc
         invoice_info["nombre"] = self.company_id.name
         invoice_info["codActividad"] = self.company_id.codActividad.codigo
@@ -136,7 +136,7 @@ class AccountMove(models.Model):
         invoice_info["codEstable"] =  self.journal_id.sit_codestable
         invoice_info["codPuntoVentaMH"] =  self.journal_id.sit_codpuntoventa
         invoice_info["codPuntoVenta"] =  self.journal_id.sit_codpuntoventa
-        return invoice_info   
+        return invoice_info
 
     def sit__fse_base_map_invoice_info_sujeto_excluido(self):
         _logger.info("SIT sit_base_map_invoice_info_receptor self = %s", self)
@@ -154,7 +154,7 @@ class AccountMove(models.Model):
         invoice_info["tipoDocumento"] = tipoDocumento
         nrc= self.partner_id.nrc
         if nrc:
-            nrc = nrc.replace("-", "")        
+            nrc = nrc.replace("-", "")
         invoice_info["nombre"] = self.partner_id.name
         codActividad = self.partner_id.codActividad.codigo if self.partner_id.codActividad and hasattr(self.partner_id.codActividad, 'codigo') else None
         invoice_info["codActividad"] = codActividad
@@ -172,8 +172,8 @@ class AccountMove(models.Model):
         if self.partner_id.email:
             invoice_info["correo"] =  self.partner_id.email
         else:
-            invoice_info["correo"] = None    
-        return invoice_info        
+            invoice_info["correo"] = None
+        return invoice_info
 
     def sit_fse_base_map_invoice_info_cuerpo_documento(self):
             _logger.info("SIT sit_base_map_invoice_info_cuerpo_documento self = %s", self)
@@ -185,8 +185,8 @@ class AccountMove(models.Model):
             item_numItem = 0
             total_Gravada = 0.0
             totalIva = 0.0
-            for line in self.invoice_line_ids:     
-                item_numItem += 1       
+            for line in self.invoice_line_ids:
+                item_numItem += 1
                 line_temp = {}
                 lines_tributes = []
                 line_temp["numItem"] = item_numItem
@@ -222,7 +222,7 @@ class AccountMove(models.Model):
 
                 line_temp["montoDescu"] = (
                     line_temp["cantidad"]  * (line.price_unit * (line.discount / 100))
-                    
+
                     or 0.0
                 )
                 codigo_tributo_codigo=None
@@ -259,13 +259,42 @@ class AccountMove(models.Model):
     def sit_fse_base_map_invoice_info_resumen(self):
         _logger.info("SIT sit_base_map_invoice_info_resumen self = %s", self)
         invoice_info = {}
-        invoice_info["totalCompra"] = round(self.amount_total, 2 )
+
+        subtotal = sum(line.price_subtotal for line in self.invoice_line_ids)
+        total = self.amount_total
+
+        rete_renta = 0.0
+        rete_iva = 0.0
+        monto_descu = 0.0
+
+        for line in self.invoice_line_ids:
+            taxes = line.tax_ids.compute_all(
+                line.price_unit,
+                self.currency_id,
+                line.quantity,
+                product=line.product_id,
+                partner=self.partner_id,
+            )
+
+            monto_descu += round(line.quantity * (line.price_unit * (line.discount / 100)), 2)
+
+            for tax in taxes.get('taxes', []):
+                tax_name = tax.get('name', '').lower()
+                _logger.info("SIT NOMBRE IMPUESTO ************= %s", tax_name)
+                _logger.info("SIT CANTIDAD ************= %s", tax.get('amount'))
+
+                if 'retencion renta' in tax_name:
+                    rete_renta += abs(tax.get('amount', 0.0))
+                elif 'retencion iva 1%' in tax_name:
+                    rete_iva += abs(tax.get('amount', 0.0))
+
+        invoice_info["totalCompra"] = round(self.amount_untaxed, 2)
         invoice_info["descu"] = 0
-        invoice_info["totalDescu"] = 0
-        invoice_info["subTotal"] = round(self.amount_total, 2 )
-        invoice_info["ivaRete1"] = 0
-        invoice_info["reteRenta"] = 0
-        invoice_info["totalPagar"] = round(self.amount_total, 2 )
+        invoice_info["totalDescu"] = monto_descu
+        invoice_info["subTotal"] = round(self.amount_untaxed, 2)
+        invoice_info["ivaRete1"] = round(rete_iva, 2)
+        invoice_info["reteRenta"] = round(rete_renta, 2)
+        invoice_info["totalPagar"] = round(self.amount_total, 2)
         invoice_info["totalLetras"] = self.amount_text
         invoice_info["condicionOperacion"] = int(self.condiciones_pago)
         invoice_info["observaciones"] = None
@@ -274,16 +303,16 @@ class AccountMove(models.Model):
         pagos["montoPago"] = round(self.amount_total, 2)
         pagos["referencia"] = None  # Un campo de texto llamado Referencia de pago
         if int(self.condiciones_pago) in [2]:
-            pagos["plazo"] = self.sit_plazo.codigo   
+            pagos["plazo"] = self.sit_plazo.codigo
             pagos["periodo"] = self.sit_periodo   #30      #  Es un nuevo campo entero
             invoice_info["pagos"] = [pagos]  # Asigna pagos como un elemento de una lista
         else:
             # pagos["plazo"] = self.sit_plazo.codigo 
             pagos["plazo"] = None    # Temporal
-            pagos["periodo"] = None   #30      #  Es un nuevo campo entero            
+            pagos["periodo"] = None   #30      #  Es un nuevo campo entero
         invoice_info["pagos"] = [pagos]  # por ahora queda en null.
-        return invoice_info        
-    
+        return invoice_info
+
     def sit_obtener_payload_fse_dte_info(self,  ambiente, doc_firmado):
         _logger.info("SIT sit_obtener_payload_exp_dte_info self = %s", self)
         invoice_info = {}
@@ -294,7 +323,7 @@ class AccountMove(models.Model):
         invoice_info["version"] = 1
         invoice_info["documento"] = doc_firmado
         invoice_info["codigoGeneracion"] = self.sit_generar_uuid()
-        return invoice_info      
+        return invoice_info
 
     def sit_generar_uuid(self):
         import uuid
@@ -302,3 +331,18 @@ class AccountMove(models.Model):
         uuid_aleatorio = uuid.uuid4()
         uuid_cadena = str(uuid_aleatorio)
         return uuid_cadena.upper()
+
+
+    def sit_debug_mostrar_json_fse(self):
+        """Solo muestra el JSON generado de la factura FSE sin enviarlo."""
+        if len(self) != 1:
+            raise UserError("Selecciona una sola factura para depurar el JSON.")
+
+        invoice_json = self.sit__fse_base_map_invoice_info_dtejson()
+
+        import json
+        pretty_json = json.dumps(invoice_json, indent=4, ensure_ascii=False)
+        _logger.info("📄 JSON DTE FSE generado:\n%s", pretty_json)
+        print("📄 JSON DTE FSE generado:\n", pretty_json)
+
+        return True

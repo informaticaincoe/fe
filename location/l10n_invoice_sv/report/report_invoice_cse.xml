@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data>
-        <template id="report_invoice_main_cse" t-name="l10n_invoice_sv.report_invoice_cse" >
+        <template id="report_invoice_compra_sujeto_excluido">
+            <t t-name="l10n_invoice_sv.report_invoice_compra_sujeto_excluido">
+                <!-- Usamos directamente docs[0] para no necesitar un t-foreach -->
                 <t t-call="web.html_container">
-                    <t t-set="o" t-value="o.with_context({'lang':o.partner_id.lang})"/>
+                    <t t-set="o" t-value="docs[0].with_context({'lang': docs[0].partner_id.lang})"/>
                     <t t-call-assets="web.assets_pdf" t-js="false"/>
                     <div class="article" t-att-data-oe-model="o._name" t-att-data-oe-id="o.id">
                         <div class="page"
@@ -30,16 +32,6 @@
                                 font-size: 1rem;
                                 line-height: 100%;
                                 }
-                                <!-- p
-                                body {
-                                    font-family: 'Inter', sans-serif;
-                                    MARGIN-top: 5%  !important;
-                                    margin-bottom: 5% !important;
-                                    margin-left: 2% !important;
-                                    margin-right: 2% !important;
-                                    font-size: 1rem;
-                                }
-                                -->
 
                                 p {
                                 margin: 2%;
@@ -90,7 +82,8 @@
                                 }
 
                                 .border-light-subtle{
-                                border-color: #e5e7e9 !important;
+                                border-size: 1px !important;
+                                border-color: #9da2a8 !important;
                                 }
                             </style>
                             <!-- Header factura -->
@@ -106,6 +99,10 @@
                                 <div class="col-7 text-center" style="gap: 0;">
                                     <p>
                                         <span t-field="company.name" class="text-uppercase fs-6 fw-bold p-0"/>
+                                    </p>
+                                    <p>
+                                        NIT.
+                                        <span t-field="company.vat"/>
                                     </p>
                                     <p>
                                         <span t-field="company.partner_id.contact_address_complete"
@@ -145,51 +142,24 @@
                                 <div class="row rounded-2 border border-light-subtle px-2 py-2">
                                     <div class="col-auto text-nowrap">
                                         <p class="my-2 ">Nombre o razón social:</p>
-                                        <p class="my-2">Documento identificación:</p>
+                                        <p t-if="partner.dui" class="my-2">DUI:</p>
+                                        <p t-if="partner.fax" class="my-2">NIT:</p>
                                         <p class="my-2">Correo electronico:</p>
                                         <p class="my-2">Telefono:</p>
                                         <p class="my-2">Dirección:</p>
                                     </div>
                                     <div class="col text-nowrap">
                                         <p t-field="partner.complete_name" class="my-2"/>
-                                        <p class="d-flex align-items-center my-2">
+                                        <p t-if="partner.dui" class="d-flex align-items-center my-2">
                                             <span t-field="partner.dui"/>
-                                            <span>(DUI)</span>
+                                        </p>
+                                        <p t-if="partner.fax" class="d-flex align-items-center my-2">
+                                            <span t-field="partner.fax"/>
                                         </p>
                                         <p t-field="partner.email" class="my-2"/>
                                         <p t-field="partner.phone" class="my-2"/>
                                         <p t-field="partner.contact_address_complete" class="my-2"/>
                                     </div>
-                                </div>
-                            </div>
-                            <!--  Seccion venta a cuenta de terceros -->
-                            <div style="margin: 4% 0%;" class="mb-4 w-100">
-                                <p class="section-title text-center mb-1">Venta a cuenta de terceros</p>
-                                <div class="row border border-light-subtle rounded-2 align-items-center">
-                                    <p class="col border-end border-light-subtle">Tipo de documento:
-                                        <span/>
-                                    </p>
-                                    <p class="col py-1">Nombre, denomicación o razón social:
-                                        <span/>
-                                    </p>
-                                    <p class="col">
-                                        <span/>
-                                    </p>
-                                </div>
-                            </div>
-                            <!--  Seccion documentos relacionados -->
-                            <div style="margin: 4% 0%;" class="mb-4 w-100">
-                                <p class="section-title text-center mb-1">Documentos relacionados</p>
-                                <div class="row border border-light-subtle rounded-2 align-items-center">
-                                    <p class="col border-end border-light-subtle">Tipo de documento:
-                                        <span/>
-                                    </p>
-                                    <p class="col py-1">N° documento:
-                                        <span/>
-                                    </p>
-                                    <p class="col py-1">fecha del documento
-                                        <span/>
-                                    </p>
                                 </div>
                             </div>
                             <!-- Seccion detalles compra -->
@@ -198,74 +168,86 @@
                                 <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
                                     <thead>
                                         <tr>
-                                            <th style="border:1px solid #e5e7e9; padding:4px; text-align:center; width:4%;">
+                                            <th style="border:1px solid #e5e7e9; padding:4px; text-align:center; width:4%;"
+                                                class="border-light-subtle">
                                                 N°
                                             </th>
-                                            <th style="border:1px solid #e5e7e9; padding:4px; text-align:right; width:8%;">
+                                            <th style="border:1px solid #e5e7e9; padding:4px; text-align:right; width:8%;"
+                                                class="border-light-subtle">
                                                 Cant.
                                             </th>
-                                            <th style="border:1px solid #e5e7e9; padding:4px; text-align:right; width:10%;">
+                                            <th style="border:1px solid #e5e7e9; padding:4px; text-align:right; width:10%;"
+                                                class="border-light-subtle">
                                                 Código
                                             </th>
-                                            <th style="border:1px solid #e5e7e9; padding:4px; text-align:left; width:30%;">
+                                            <th style="border:1px solid #e5e7e9; padding:4px; text-align:left; width:10%;"
+                                                class="border-light-subtle">
+                                                Unidad
+                                            </th>
+                                            <th style="border:1px solid #e5e7e9; padding:4px; text-align:left; width:30%;"
+                                                class="border-light-subtle">
                                                 Descripción
                                             </th>
-                                            <th style="border:1px solid #e5e7e9; padding:4px; text-align:right; width:10%;">
+                                            <th style="border:1px solid #e5e7e9; padding:4px; text-align:right; width:10%;"
+                                                class="border-light-subtle">
                                                 P. Unit.
                                             </th>
-                                            <th style="border:1px solid #e5e7e9; padding:4px; text-align:right; width:10%;">
-                                                Otros Mtos.
-                                            </th>
-                                            <th style="border:1px solid #e5e7e9; padding:4px; text-align:right; width:8%;">
+                                            <th style="border:1px solid #e5e7e9; padding:4px; text-align:right; width:8%;"
+                                                class="border-light-subtle">
                                                 Desc.%
                                             </th>
-                                            <th style="border:1px solid #e5e7e9; padding:4px; text-align:right; width:8%;">
-                                                Ventas S.
-                                            </th>
-                                            <th style="border:1px solid #e5e7e9; padding:4px; text-align:right; width:6%;">
-                                                Exentas
-                                            </th>
-                                            <th style="border:1px solid #e5e7e9; padding:4px; text-align:right; width:6%;">
-                                                Grabadas
+                                            <th style="border:1px solid #e5e7e9; padding:4px; text-align:right; width:8%;"
+                                                class="border-light-subtle">
+                                                Ventas.
                                             </th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         <!-- t-foreach con index correcto -->
-                                        <t t-foreach="o.invoice_line_ids" t-as="l">
+                                        <t t-foreach="range(0, len(o.invoice_line_ids))" t-as="idx">
                                             <tr>
-                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:center;">
-                                                    <span/>
+                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:center;"
+                                                    class="border-light-subtle">
+                                                    <span t-esc="idx + 1"/>
                                                 </td>
-                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;">
-                                                    <span t-field="l.quantity"/>
-                                                    <span t-field="l.uom_id" groups="product.group_uom"/>
+                                                <!-- Cantidad -->
+                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
+                                                    class="border-light-subtle">
+                                                    <span t-field="o.invoice_line_ids[idx].quantity"/>
+                                                    <span t-field="o.invoice_line_ids[idx].uom_id"
+                                                          groups="product.group_uom"/>
                                                 </td>
-                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;">
-                                                    <span t-esc="l.price_unit * 1.13"
+                                                <!-- Código -->
+                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
+                                                    class="border-light-subtle">
+                                                    <span t-field="o.invoice_line_ids[idx].product_id.default_code"/>
+                                                </td>
+                                                <!-- Unidad -->
+                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:left; white-space:normal; word-break:break-word;"
+                                                    class="border-light-subtle">
+                                                    <span t-field="o.invoice_line_ids[idx].product_uom_id"/>
+                                                </td>
+                                                <!-- Descripción -->
+                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:left; white-space:normal; word-break:break-word;"
+                                                    class="border-light-subtle">
+                                                    <span t-field="o.invoice_line_ids[idx].product_id.name"/>
+                                                </td>
+                                                <!-- Precio Unitario -->
+                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
+                                                    class="border-light-subtle">
+                                                    <span t-esc="o.invoice_line_ids[idx].price_unit"
                                                           t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
                                                 </td>
-                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:left; white-space:normal; word-break:break-word;">
-                                                    <span t-field="l.name"/>
-                                                </td>
-                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;">
-                                                    <span t-esc="l.price_subtotal * 1.13"
+                                                <!-- Descuento % -->
+                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
+                                                    class="border-light-subtle">
+                                                    <span t-esc="o.invoice_line_ids[idx].price_unit * (o.invoice_line_ids[idx].discount / 100)"
                                                           t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
                                                 </td>
-                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;">
-                                                    <span t-field="l.discount"/>%
-                                                </td>
-                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;">
-                                                    <span>$0.00</span>
-                                                </td>
-                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;">
-                                                    <span>$0.00</span>
-                                                </td>
-                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;">
-                                                    <span>$0.00</span>
-                                                </td>
-                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;">
-                                                    <span t-esc="l.price_subtotal * 1.13 - (l.price_subtotal * 1.13 * l.discount)"
+                                                <!-- Ventas -->
+                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
+                                                    class="border-light-subtle">
+                                                    <span t-esc="           (o.invoice_line_ids[idx].price_unit * o.invoice_line_ids[idx].quantity)           - (o.invoice_line_ids[idx].price_unit * (o.invoice_line_ids[idx].discount / 100))         "
                                                           t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
                                                 </td>
                                             </tr>
@@ -275,12 +257,11 @@
                             </div>
                             <!-- RESUMENTES-->
                             <section style="width:100%; margin-top:4%;">
-                                <table style="width:100%; border-color: #ffffff;">
+                                <table style="width:100%; table-layout:fixed; border-collapse:collapse; border-color: #ffffff;">
                                     <tr>
-                                        <!-- CELDA IZQUIERDA: Son / Condición / Observaciones + Responsables -->
-                                        <td style="vertical-align:top; width:48%; padding-right:2%;">
-                                            <!-- 1) Son / Condición / Observaciones -->
-                                            <table style="width:100%; border:1px solid #e5e7e9; border-collapse:collapse; margin-bottom:3%;">
+                                        <td style="vertical-align:end; width:48%; padding-right:2%;">
+                                            <table style="width:100%; border:1px solid #e5e7e9; border-collapse:collapse; margin-bottom:3%;"
+                                                   class="border-light-subtle">
                                                 <tr>
                                                     <td style="padding:2%;">
                                                         <strong>Son:</strong>
@@ -288,9 +269,8 @@
                                                     </td>
                                                 </tr>
                                             </table>
-
-                                            <!-- Tabla 2: Condición de operación -->
-                                            <table style="width:100%; border:1px solid #e5e7e9; border-collapse:collapse; margin-bottom:3%; ">
+                                            <table style="width:100%; border:1px solid #e5e7e9; border-collapse:collapse; margin-bottom:3%; "
+                                                   class="border-light-subtle">
                                                 <tr>
                                                     <td style="padding:2%;">
                                                         <strong>Condición de operación:</strong>
@@ -298,147 +278,67 @@
                                                     </td>
                                                 </tr>
                                             </table>
-
-                                            <!-- Tabla 3: Observaciones -->
-                                            <table style="width:100%; border:1px solid #e5e7e9; border-collapse:collapse; margin-bottom:3%;">
+                                            <table style="width:100%; border:1px solid #e5e7e9; border-collapse:collapse; margin-bottom:3%;"
+                                                   class="border-light-subtle">
                                                 <tr>
                                                     <td style="padding:2%; vertical-align:top;">
                                                         <strong>Observaciones:</strong>
                                                     </td>
                                                 </tr>
                                             </table>
-                                            <!-- 2) Responsables -->
-                                            <div class="row border border-light-subtle rounded-2 align-items-center">
-                                                <table style="width:100%; border-color:#ffffff;">
-                                                    <tr>
-                                                        <td style="border:1px solid #ffffff; padding:1%; width:50%;">
-                                                            <strong>Responsable emisor:</strong>
-                                                        </td>
-                                                        <td style="border:1px solid #ffffff; padding:1%; width:50%;">
-                                                            <strong>N° de documento:</strong>
-                                                        </td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td style="border:1px solid #ffffff; padding:1%; height:30px;"/>
-                                                        <td style="border:1px solid #ffffff; padding:1%;"/>
-                                                    </tr>
-                                                    <tr>
-                                                        <td style="border:1px solid #ffffff; padding:1%;">
-                                                            <strong>Responsable receptor:</strong>
-                                                        </td>
-                                                        <td style="border:1px solid #ffffff; padding:1%;">
-                                                            <strong>N° de documento:</strong>
-                                                        </td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td style="border:1px solid #ffffff; padding:1%; height:30px;"/>
-                                                        <td style="border:1px solid #ffffff; padding:1%;"/>
-                                                    </tr>
-                                                </table>
-                                            </div>
                                         </td>
-                                        <!-- DERECHA: Resúmenes -->
-                                        <td style="vertical-align:top; width:50%;">
+                                        <!-- Tabla de resúmenes -->
+                                        <td style="width:50%; vertical-align:top; padding-left:2%;">
                                             <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
                                                 <tbody>
                                                     <tr>
-                                                        <td style="border:1px solid #e5e7e9; padding:4px; text-align:end;">
-                                                            Sumatoria de venta:
+                                                        <td style="border:1px solid #e5e7e9; padding:2% 4px; text-align:end;"
+                                                            class="border-light-subtle">
+                                                            Sumatoria de ventas:
                                                         </td>
-                                                        <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;">
-                                                            <span t-field="o.amount_total"/>
+                                                        <td style="border:1px solid #e5e7e9; padding:2% 4px; text-align:right;"
+                                                            class="border-light-subtle">
+                                                            <span t-field="o.amount_untaxed"/>
                                                         </td>
                                                     </tr>
                                                     <tr>
                                                         <td class="px-1 border border-light-subtle text-end"
-                                                            style="padding: 1% 0%;">Monto global Desc. Rebajas y otros a
-                                                            ventas no sujetas:
+                                                            style="padding: 2% 0%;">Monto global Desc. Rebajas y
+                                                            Sub-Total:
                                                         </td>
                                                         <td class="px-1 border border-light-subtle text-left"
-                                                            style="padding: 1% 0%;">
-                                                            <span>$ 0.00</span>
+                                                            style="padding: 2% 0%;">
+                                                            <span t-field="o.amount_untaxed"/>
                                                         </td>
                                                     </tr>
                                                     <tr>
                                                         <td class="px-1 border border-light-subtle text-end"
-                                                            style="padding: 1% 0%;">Otros montos, global Desc. Rebajas y
-                                                            otros a ventas exentas:
+                                                            style="padding: 2% 0%;">Monto global Desc. Rebajas y
+                                                            Retencion iva:
                                                         </td>
                                                         <td class="px-1 border border-light-subtle text-left"
-                                                            style="padding: 1% 0%;">
+                                                            style="padding: 2% 0%;">
                                                             <span>$ 0.00</span>
                                                         </td>
                                                     </tr>
                                                     <tr>
                                                         <td class="px-1 border border-light-subtle text-end"
-                                                            style="padding: 1% 0%;">Monto global Desc. Rebajas y otros a
-                                                            ventas grabadas:
+                                                            style="padding: 2% 0%;">Monto global Desc. Rebajas y
+                                                            Retencion renta:
                                                         </td>
-                                                        <td class="px-1 border border-light-subtle text-start"
-                                                            style="padding: 1% 0%;">
+                                                        <td class="px-1 border border-light-subtle text-left"
+                                                            style="padding: 2% 0%;">
                                                             <span>$ 0.00</span>
                                                         </td>
                                                     </tr>
                                                     <tr>
                                                         <td class="px-1 border border-light-subtle text-end"
-                                                            style="padding: 1% 0%;">Sub-total:
-                                                        </td>
-                                                        <td class="px-1 border border-light-subtle text-start"
-                                                            style="padding: 1% 0%;">
-                                                            <span>$ 0.00</span>
-                                                        </td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td class="px-1 border border-light-subtle text-end"
-                                                            style="padding: 1% 0%;">Total IVA:
-                                                        </td>
-                                                        <td class="px-1 border border-light-subtle text-start"
-                                                            style="padding: 1% 0%;">
-                                                            <span>$ 0.00</span>
-                                                        </td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td class="px-1 border border-light-subtle text-end"
-                                                            style="padding: 1% 0%;">IVA retenido:
-                                                        </td>
-                                                        <td class="px-1 border border-light-subtle text-start"
-                                                            style="padding: 1% 0%;">
-                                                            <span>$ 0.00</span>
-                                                        </td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td class="px-1 border border-light-subtle text-end"
-                                                            style="padding: 1% 0%;">Retención de renta:
-                                                        </td>
-                                                        <td class="px-1 border border-light-subtle text-start"
-                                                            style="padding: 1% 0%;">
-                                                            <span>$ 0.00</span>
-                                                        </td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td class="px-1 border border-light-subtle text-end"
-                                                            style="padding: 1% 0%;">Monto total operación:
-                                                        </td>
-                                                        <td class="px-1 border border-light-subtle text-start"
-                                                            style="padding: 1% 0%;">
-                                                            <span>$ 0.00</span>
-                                                        </td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td class="px-1 border border-light-subtle text-end"
-                                                            style="padding: 1% 0%;">Total otros Montos No afectados:
-                                                        </td>
-                                                        <td class="px-1 border border-light-subtle text-start"
-                                                            style="padding: 1% 0%;">
-                                                            <span>$ 0.00</span>
-                                                        </td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td style="border:1px solid #e5e7e9; padding:4px; text-align:end;">
+                                                            style="padding: 2% 0%;">Otros montos, global Desc.
                                                             Total a pagar:
                                                         </td>
-                                                        <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;">
-                                                            <span t-field="o.amount_residual"/>
+                                                        <td class="px-1 border border-light-subtle text-left"
+                                                            style="padding: 2% 0%;">
+                                                            <span t-field="o.amount_untaxed"/>
                                                         </td>
                                                     </tr>
                                                 </tbody>
@@ -449,19 +349,27 @@
                             </section>
                             <!-- footer -->
                             <div class="footer" style="font-size:0.85rem; ">
-                                <table style="     width: 100%;   border-color: white;   font-size: 0.85rem;   ">
+                                <table style="width: 100%; border-color: white; font-size: 0.85rem;">
                                     <tr>
-                                        <td style="padding:4px; vertical-align:middle;">
+                                        <td style="margin:0; padding:0; margin-right: 15px; vertical-align: right;">
                                             Version:
+                                            <p style="padding:0 2%; display:inline-block; margin:0;"
+                                               t-field="o.journal_id.sit_tipo_documento.version"/>
                                         </td>
-                                        <td style="padding:4px; vertical-align:middle; text-align:right;">
-                                            Contáctanos
-                                            <img src="/l10n_invoice_sv/static/src/img/email.svg"
-                                                 style="width:12px; vertical-align:middle; margin:0 4px;"/>
-                                            admin@admin.com
-                                            <img src="/l10n_invoice_sv/static/src/img/telephone.svg"
-                                                 style="width:12px; vertical-align:middle; margin:0 4px;"/>
-                                            +503 7746 2310
+                                        <td style="padding:4px; text-align:right;">
+                                            <div style="white-space: nowrap;">
+                                                <p style="display:inline-block; margin: 0px; padding: 0px; margin-right: 10px;">
+                                                    Contáctanos:
+                                                </p>
+                                                <img src="/l10n_invoice_sv/static/src/img/email.svg"
+                                                     style="width:18px; vertical-align:middle; margin:0 3px 0 5px;"/>
+                                                <p style="display:inline-block; margin:0; padding:0;"
+                                                   t-field="company.email"/>
+                                                <img src="/l10n_invoice_sv/static/src/img/telephone.svg"
+                                                     style="width:18px; vertical-align:middle; margin:0 3px 0 5px;"/>
+                                                <p style="display:inline-block; margin:0; padding:0;"
+                                                   t-field="company.phone"/>
+                                            </div>
                                         </td>
                                     </tr>
                                 </table>
@@ -469,6 +377,7 @@
                         </div>
                     </div>
                 </t>
+            </t>
         </template>
     </data>
 </odoo>

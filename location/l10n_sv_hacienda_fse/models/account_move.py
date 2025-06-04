@@ -342,3 +342,19 @@ class AccountMove(models.Model):
         if not generacion_dte["version"]:
             ERROR = 'La version dte no está definida.'
             raise UserError(_(ERROR))
+
+    def sit_debug_mostrar_json_fse(self):
+        """Solo muestra el JSON generado de la factura FSE sin enviarlo."""
+        if len(self) != 1:
+            raise UserError("Selecciona una sola factura para depurar el JSON.")
+
+        invoice_json = self.sit__fse_base_map_invoice_info_dtejson()
+
+        import json
+        pretty_json = json.dumps(invoice_json, indent=4, ensure_ascii=False)
+        _logger.info("📄 JSON DTE FSE generado:\n%s", pretty_json)
+        print("📄 JSON DTE FSE generado:\n", pretty_json)
+
+
+
+        return True
