@@ -190,7 +190,7 @@ class AccountMove(models.Model):
                 vals['partner_id'] = partner_id
             _logger.info("SIT Partner detectado: %s", partner_id)
 
-            # --- Solo para diarios de venta: generar DTE/número de control ---
+            # --- Solo para diarios de venta (y compras): generar DTE/número de control ---
             journal_id = vals.get('journal_id')
             if not journal_id:
                 journal_id= self.journal_id
@@ -383,6 +383,7 @@ class AccountMove(models.Model):
         tipo = journal.sit_tipo_documento.codigo
         estable = journal.sit_codestable
         seq_code = f'dte.{tipo}'
+        date_range = None
 
         # Buscar el último DTE emitido con este tipo y establecimiento
         domain = [
@@ -398,7 +399,29 @@ class AccountMove(models.Model):
                 raise UserError(_("No se pudo interpretar el número del último DTE: %s") % ultimo.name)
             nuevo_numero = ultima_parte + 1
         else:
+            ultima_parte = 0
             nuevo_numero = 1
+
+        # Obtener secuencia configurada
+        sequence = self.env['ir.sequence'].search([('code', '=', seq_code)], limit=1)
+        if sequence:
+            _logger.info("SIT | Sequence: %s", sequence)
+            if sequence.use_date_range:
+                today = fields.Date.context_today(self)
+                date_range = self.env['ir.sequence.date_range'].search([
+                    ('sequence_id', '=', sequence.id),
+                    ('date_from', '<=', today),
+                    ('date_to', '>=', today)
+                ], limit=1)
+                if date_range and date_range.number_next_actual > nuevo_numero:
+                    _logger.info("SIT | Ajustando número desde secuencia con rango: %s > %s",
+                                 date_range.number_next_actual, nuevo_numero)
+                    nuevo_numero = date_range.number_next_actual
+            else:
+                if sequence.number_next_actual > nuevo_numero:
+                    _logger.info("SIT | Ajustando número desde secuencia directa: %s > %s", sequence.number_next_actual,
+                                 nuevo_numero)
+                    nuevo_numero = sequence.number_next_actual
 
         nuevo_name = f"DTE-{tipo}-0000{estable}-{str(nuevo_numero).zfill(15)}"
 
@@ -409,25 +432,17 @@ class AccountMove(models.Model):
         _logger.info("SIT Nombre DTE generado manualmente: %s", nuevo_name)
 
         # Actualizar secuencia (ir.sequence o ir.sequence.date_range)
-        if actualizar_secuencia:
-            sequence = self.env['ir.sequence'].search([('code', '=', seq_code)], limit=1)
-            if sequence:
-                next_num = nuevo_numero + 1
-                if sequence.use_date_range:
-                    today = fields.Date.context_today(self)
-                    date_range = self.env['ir.sequence.date_range'].search([
-                        ('sequence_id', '=', sequence.id),
-                        ('date_from', '<=', today),
-                        ('date_to', '>=', today)
-                    ], limit=1)
-                    if date_range and date_range.number_next_actual < next_num:
-                        date_range.number_next_actual = next_num
-                        _logger.info("SIT Secuencia con date_range '%s' actualizada a %s", seq_code, next_num)
-                else:
-                    if sequence.number_next_actual < next_num:
-                        sequence.number_next_actual = next_num
-                        _logger.info("SIT Secuencia '%s' actualizada a %s", seq_code, next_num)
-        _logger.info("SIT Actualizar secuencia _generar_dte_name(): %s", actualizar_secuencia)
+        if actualizar_secuencia and sequence:
+            next_num = nuevo_numero + 1
+            if sequence.use_date_range:
+                if date_range and date_range.number_next_actual < next_num:
+                    date_range.number_next_actual = next_num
+                    _logger.info("SIT Secuencia con date_range '%s' actualizada a %s", seq_code, next_num)
+            else:
+                if sequence.number_next_actual < next_num:
+                    sequence.number_next_actual = next_num
+                    _logger.info("SIT Secuencia '%s' actualizada a %s", seq_code, next_num)
+            _logger.info("SIT Actualizar secuencia _generar_dte_name(): %s", actualizar_secuencia)
         return nuevo_name
 
     # ---------------------------------------------------------------------------------------------
@@ -639,6 +654,10 @@ class AccountMove(models.Model):
         # 2) Procesar cada factura
         for invoice in invoices_to_post:
             try:
+
+                if invoice.hacienda_selloRecibido and invoice.recibido_mh:
+                    raise UserError("Documento ya se encuentra procesado")
+
                 journal = invoice.journal_id
                 _logger.info("SIT Procesando invoice %s (journal=%s)", invoice.id, journal.name)
 
@@ -782,6 +801,7 @@ class AccountMove(models.Model):
                         estado = None
                         if Resultado and Resultado.get('estado'):
                             estado = Resultado['estado'].strip().lower()
+
                         if Resultado and Resultado.get('estado', '').lower() == 'procesado': #if Resultado:
                             if estado == 'procesado':
                                 invoice.actualizar_secuencia()
@@ -831,6 +851,22 @@ class AccountMove(models.Model):
                                 'mimetype': 'application/json'
                             })
                             _logger.info("SIT JSON creado y adjuntado.")
+
+                            # Respuesta json
+                            json_response_data = {
+                                "jsonRespuestaMh": Resultado
+                            }
+                            # Convertir el JSON en el campo sit_json_respuesta a un diccionario de Python
+                            try:
+                                json_original = json.loads(
+                                    invoice.sit_json_respuesta) if invoice.sit_json_respuesta else {}
+                            except json.JSONDecodeError:
+                                json_original = {}
+
+                            # Fusionar JSONs
+                            json_original.update(json_response_data)
+                            sit_json_respuesta_fusionado = json.dumps(json_original)
+                            invoice.sit_json_respuesta = sit_json_respuesta_fusionado
 
                             invoice.write({
                                 'hacienda_estado': Resultado['estado'],
@@ -1343,8 +1379,11 @@ class AccountMove(models.Model):
         descripcion = data.get("descripcionMsg") or resp.text or "Error desconocido"
         _logger.warning("Creando contingencia por error MH: [%s] %s", codigo, descripcion)
 
-        tmpl = _(mensaje)  # mensaje debe ser clave de traducción
-        error_msg = tmpl.format(max_intentos=max_intentos, data=data)
+        error_msg = _(mensaje)  # mensaje debe ser clave de traducción
+        # error_msg = tmpl.format(
+        #     max_intentos=max_intentos,
+        #     **data,  # extiende data={'timestamp':…, 'status':…} a timestamp=…, status=…
+        # )
 
         tipo_contingencia, motivo_otro, mensaje_motivo = self._evaluar_error_contingencia(
             status_code=resp.status_code,
@@ -1483,8 +1522,9 @@ class AccountMove(models.Model):
             if invoice.recibido_mh and not invoice.correo_enviado:
                 try:
                     _logger.info("SIT | Enviando correo automático para la factura %s", invoice.name)
-                    invoice.sudo().sit_action_send_mail()
+                    invoice.with_context(from_automatic=True).sudo().sit_action_send_mail()
                 except Exception as e:
                     _logger.error("SIT | Error al intentar enviar el correo para la factura %s: %s", invoice.name, str(e))
-
+            else:
+                _logger.info("SIT | La correspondencia ya había sido transmitida. %s", invoice.name)
 
