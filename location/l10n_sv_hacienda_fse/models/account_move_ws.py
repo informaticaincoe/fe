@@ -265,6 +265,7 @@ class AccountMove(models.Model):
 
         rete_renta = 0.0
         rete_iva = 0.0
+        monto_descu = 0.0
 
         for line in self.invoice_line_ids:
             taxes = line.tax_ids.compute_all(
@@ -274,6 +275,8 @@ class AccountMove(models.Model):
                 product=line.product_id,
                 partner=self.partner_id,
             )
+
+            monto_descu += round(line.quantity * (line.price_unit * (line.discount / 100)), 2)
 
             for tax in taxes.get('taxes', []):
                 tax_name = tax.get('name', '').lower()
@@ -285,10 +288,9 @@ class AccountMove(models.Model):
                 elif 'retencion iva 1%' in tax_name:
                     rete_iva += abs(tax.get('amount', 0.0))
 
-
         invoice_info["totalCompra"] = round(self.amount_untaxed, 2)
         invoice_info["descu"] = 0
-        invoice_info["totalDescu"] = 0
+        invoice_info["totalDescu"] = monto_descu
         invoice_info["subTotal"] = round(self.amount_untaxed, 2)
         invoice_info["ivaRete1"] = round(rete_iva, 2)
         invoice_info["reteRenta"] = round(rete_renta, 2)

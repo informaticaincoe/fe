@@ -24,6 +24,20 @@ class AccountMove(models.Model):
 
 ##------ FEL-COMPROBANTE CREDITO FISCAL----------##
 
+    def sit_debug_mostrar_json_fe(self):
+        """Solo muestra el JSON generado de la factura FSE sin enviarlo."""
+        if len(self) != 1:
+            raise UserError("Selecciona una sola factura para depurar el JSON.")
+
+        invoice_json = self.sit_base_map_invoice_info_dtejson()
+
+        import json
+        pretty_json = json.dumps(invoice_json, indent=4, ensure_ascii=False)
+        _logger.info("📄 JSON DTE FSE generado:\n%s", pretty_json)
+        print("📄 JSON DTE FSE generado:\n", pretty_json)
+
+        return True
+
     def sit__ccf_base_map_invoice_info(self):
         invoice_info = {}
         nit=self.company_id.vat
@@ -383,17 +397,39 @@ class AccountMove(models.Model):
         invoice_info["tributos"] = [ tributos ]
         invoice_info["subTotal"] = round(total_Gravada - total_des, 2 )
         invoice_info["ivaPerci1"] = 0
-        retencion = 0.0
-        #for group in self.tax_totals['groups_by_subtotal'].get('Importe sin impuestos', []):
-        groups_by_subtotal = self.tax_totals.get('groups_by_subtotal', {})
-        for group in groups_by_subtotal.get('Importe sin impuestos', []):
-            if group.get('tax_group_name') == 'Retencion':
-                retencion = group.get('tax_group_amount', 0.0)
-        retencion = abs(retencion)
-        print("retencion", retencion)
-        print("TAX", groups_by_subtotal)
-        invoice_info["ivaRete1"] = retencion
-        invoice_info["reteRenta"] = 0
+        rete_iva = 0.0
+        rete_renta = 0.0
+        monto_descu= 0.0
+        # #for group in self.tax_totals['groups_by_subtotal'].get('Importe sin impuestos', []):
+        # groups_by_subtotal = self.tax_totals.get('groups_by_subtotal', {})
+        # for group in groups_by_subtotal.get('Importe sin impuestos', []):
+        #     if group.get('tax_group_name') == 'Retencion':
+        #         retencion = group.get('tax_group_amount', 0.0)
+
+
+        for line in self.invoice_line_ids:
+            taxes = line.tax_ids.compute_all(
+                line.price_unit,
+                self.currency_id,
+                line.quantity,
+                product=line.product_id,
+                partner=self.partner_id,
+            )
+
+            monto_descu += round(line.quantity * (line.price_unit * (line.discount / 100)), 2)
+
+            for tax in taxes.get('taxes', []):
+                tax_name = tax.get('name', '').lower()
+                _logger.info("SIT NOMBRE IMPUESTO ************= %s", tax_name)
+                _logger.info("SIT CANTIDAD ************= %s", tax.get('amount'))
+
+                if 'retencion renta' in tax_name:
+                    rete_renta += abs(tax.get('amount', 0.0))
+                elif 'retencion iva 1%' in tax_name:
+                    rete_iva += abs(tax.get('amount', 0.0))
+
+        invoice_info["ivaRete1"] = rete_iva
+        invoice_info["reteRenta"] = rete_renta
         invoice_info["montoTotalOperacion"] = round(self.amount_total + retencion, 2 )
         invoice_info["totalNoGravado"] = 0
         invoice_info["totalPagar"] = round(self.amount_total, 2 )
@@ -435,7 +471,7 @@ class AccountMove(models.Model):
         if isinstance(nit, str):
             nit = nit.replace("-", "")
             invoice_info["docuRecibe"] = nit
-        invoice_info["observaciones"] = None
+        invoice_info["observaciones"] = self.observaciones
         invoice_info["placaVehiculo"] = None
         invoice_info = None
         return invoice_info
@@ -703,9 +739,39 @@ class AccountMove(models.Model):
         por_des = 0
         for line in self.invoice_line_ids.filtered(lambda x: x.price_unit < 0):
             total_des += (line.price_unit * -1)
+
         if total_des:
             total_gral = self.amount_total + total_des
-            por_des = 100 - round(((total_gral- total_des) / total_gral) * 100) 
+            por_des = 100 - round(((total_gral- total_des) / total_gral) * 100)
+
+        subtotal = sum(line.price_subtotal for line in self.invoice_line_ids)
+        total = self.amount_total
+
+        rete_renta = 0.0
+        rete_iva = 0.0
+        monto_descu = 0.0
+
+        for line in self.invoice_line_ids:
+            taxes = line.tax_ids.compute_all(
+                line.price_unit,
+                self.currency_id,
+                line.quantity,
+                product=line.product_id,
+                partner=self.partner_id,
+            )
+
+            monto_descu += round(line.quantity * (line.price_unit * (line.discount / 100)), 2)
+
+            for tax in taxes.get('taxes', []):
+                tax_name = tax.get('name', '').lower()
+                _logger.info("SIT NOMBRE IMPUESTO ************= %s", tax_name)
+                _logger.info("SIT CANTIDAD ************= %s", tax.get('amount'))
+
+                if 'retencion renta' in tax_name:
+                    rete_renta += abs(tax.get('amount', 0.0))
+                elif 'retencion iva 1%' in tax_name:
+                    rete_iva += abs(tax.get('amount', 0.0))
+
         invoice_info = {}
         tributos = {}
         pagos = {}
@@ -716,7 +782,7 @@ class AccountMove(models.Model):
         invoice_info["descuExenta"] = 0
         invoice_info["descuGravada"] = round(total_des, 2)
         invoice_info["porcentajeDescuento"] = por_des
-        invoice_info["totalDescu"] = 0
+        invoice_info["totalDescu"] = monto_descu
         if identificacion['tipoDte'] != "01":
             if  tributo_hacienda:
                 _logger.info("SIT tributo_haciendatributo_hacienda = %s", tributo_hacienda)
@@ -731,11 +797,11 @@ class AccountMove(models.Model):
         else:
             invoice_info["tributos"] = None
         invoice_info["subTotal"] = round(self.amount_total, 2 )  
-        invoice_info["ivaRete1"] = 0
-        invoice_info["reteRenta"] = 0
+        invoice_info["ivaRete1"] = rete_iva
+        invoice_info["reteRenta"] = rete_renta
         invoice_info["montoTotalOperacion"] = round(self.amount_total, 2 )
         invoice_info["totalNoGravado"] = 0
-        invoice_info["totalPagar"] = round(self.amount_total, 2 )
+        invoice_info["totalPagar"] = round(self.amount_total , 2 )
         invoice_info["totalLetras"] = self.amount_text
         invoice_info["totalIva"] = round(totalIva - (total_des - (total_des / 1.13)), 2 )
         if invoice_info["totalIva"] == 0.0:
@@ -774,9 +840,9 @@ class AccountMove(models.Model):
             nit = nit.replace("-", "")
         nit = self.partner_id.dui.replace("-", "") if self.partner_id.dui and isinstance(self.partner_id.dui, str) else None
         invoice_info["docuRecibe"] = nit
-        invoice_info["observaciones"] = None
+        invoice_info["observaciones"] = self.sit_observaciones
         invoice_info["placaVehiculo"] = None
-        invoice_info["observaciones"] = None
+        invoice_info["observaciones"] = self.sit_observaciones
         invoice_info["placaVehiculo"] = None
         return invoice_info
 
@@ -1088,8 +1154,8 @@ class AccountMove(models.Model):
             nit = nit.replace("-", "")
         nit = self.partner_id.dui.replace("-", "") if self.partner_id.dui and isinstance(self.partner_id.dui, str) else None
         invoice_info["docuRecibe"] = nit
-        invoice_info["observaciones"] = None
-        invoice_info["observaciones"] = None
+        invoice_info["observaciones"] = self.sit_observaciones
+        invoice_info["observaciones"] = self.sit_observaciones
         return invoice_info
 
     def sit__ndc_relacionado(self):
@@ -1360,3 +1426,6 @@ class AccountMove(models.Model):
             'numeroDocumento':  origin.hacienda_codigoGeneracion_identificacion,
             'fechaEmision':     origin.invoice_date.strftime('%Y-%m-%d'),
         }]
+
+
+
