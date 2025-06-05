@@ -876,7 +876,7 @@ class AccountMove(models.Model):
                                 'hacienda_codigoMsg': Resultado['codigoMsg'],
                                 'hacienda_descripcionMsg': Resultado['descripcionMsg'],
                                 'hacienda_observaciones': str(Resultado.get('observaciones', '')),
-                                'state': 'draft',
+                                'state': 'posted',
                                 'recibido_mh': True,
                             })
 

@@ -67,6 +67,14 @@
                     </group>
                 </page>
             </xpath>
+
+			<xpath expr="//page[@name='general_info']" position="after">
+				<page string="Plan de cuentas" name="discounts_settings">
+					<group>
+						<field name="account_discount_id"/>
+					</group>
+				</page>
+			</xpath>
 		</field>
 	</record>
 </odoo>

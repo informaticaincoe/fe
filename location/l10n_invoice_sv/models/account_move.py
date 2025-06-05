@@ -557,16 +557,25 @@ class AccountMove(models.Model):
             if move.state != 'draft':
                 continue
 
-            move.agregar_lineas_descuento_a_borrador()
+            # Solo llamar a agregar_lineas_descuento_a_borrador si hay descuento global
+            if (move.descuento_gravado_pct and move.descuento_gravado_pct > 0)\
+                    or (move.descuento_exento_pct and move.descuento_exento_pct > 0)\
+                    or (move.descuento_no_sujeto_pct and move.descuento_no_sujeto_pct > 0)\
+                    or (move.descuento_global_monto and move.descuento_global_monto > 0):
+                _logger.info(f"[action_post] La factura tiene descuento global de {move.descuento_global}, agregando línea contable.")
+                move.agregar_lineas_descuento()
+            else:
+                _logger.info("[action_post] No hay descuento global, no se agrega línea contable.")
+
         return super().action_post()
 
     # Crear o buscar la cuenta contable para descuentos
     def obtener_cuenta_descuento(self):
         self.ensure_one()
-        codigo_deseado = '5103'
+        codigo_cuenta = self.company_id.account_discount_id.code #'5103'
 
         cuenta = self.env['account.account'].search([
-            ('code', '=', codigo_deseado)
+            ('code', '=', codigo_cuenta)
         ], limit=1)
 
         if cuenta:
@@ -574,78 +583,54 @@ class AccountMove(models.Model):
             return cuenta
         else:
             _logger.warning(
-                f"[obtener_cuenta_descuento] No se encontró una cuenta contable con código '{codigo_deseado}'.")
-            raise UserError(f"No se encontró una cuenta contable con código '{codigo_deseado}'.")
-
-    # Crear líneas contables de descuento
-    def generar_lineas_descuento(self):
-        cuenta_descuento = self.obtener_cuenta_descuento()
-        lineas = []
-
-        if self.descuento_gravado > 0:
-            _logger.info(f"[generar_lineas_descuento] Descuento gravado: {self.descuento_gravado}")
-            lineas.append((0, 0, {
-                'account_id': cuenta_descuento.id,
-                'name': 'Descuento sobre ventas gravadas',
-                'credit': 0.0,
-                'debit': self.descuento_gravado,
-            }))
-
-        if self.descuento_exento > 0:
-            _logger.info(f"[generar_lineas_descuento] Descuento exento: {self.descuento_exento}")
-            lineas.append((0, 0, {
-                'account_id': cuenta_descuento.id,
-                'name': 'Descuento sobre ventas exentas',
-                'credit': 0.0,
-                'debit': self.descuento_exento,
-            }))
-
-        if self.descuento_no_sujeto > 0:
-            _logger.info(f"[generar_lineas_descuento] Descuento no sujeto: {self.descuento_no_sujeto}")
-            lineas.append((0, 0, {
-                'account_id': cuenta_descuento.id,
-                'name': 'Descuento sobre ventas no sujetas',
-                'credit': 0.0,
-                'debit': self.descuento_no_sujeto,
-            }))
-
-        if self.descuento_global > 0:
-            _logger.info(f"[generar_lineas_descuento] Descuento global: {self.descuento_global}")
-            lineas.append((0, 0, {
-                'account_id': cuenta_descuento.id,
-                'name': 'Descuento global',
-                'credit': 0.0,
-                'debit': self.descuento_global,
-            }))
-
-        if not lineas:
-            _logger.info(f"[generar_lineas_descuento] No hay descuentos aplicables para la factura ID {self.id}")
-
-        return lineas
+                f"[obtener_cuenta_descuento] No se encontró una cuenta contable con código '{codigo_cuenta}'.")
+            raise UserError("No se ha configurado una cuenta de descuento global para la empresa.")
 
     # Agregar las líneas al asiento contable
-    def agregar_lineas_descuento_a_borrador(self):
+    def agregar_lineas_descuento(self):
         for move in self:
             _logger.info(f"[agregar_lineas_descuento_a_borrador] Evaluando factura ID {move.id} - Estado: {move.state}")
             cuenta_descuento = move.obtener_cuenta_descuento()
-            lineas_descuento = move.generar_lineas_descuento()
 
-            nombres_descuento = [
-                'Descuento sobre ventas gravadas',
-                'Descuento sobre ventas exentas',
-                'Descuento sobre ventas no sujetas',
-                'Descuento global'
-            ]
-            nombres_existentes = move.line_ids.mapped('name')
-            ya_agregadas = any(name in nombres_existentes for name in nombres_descuento)
+            descuentos = {
+                'Descuento sobre ventas gravadas': move.descuento_gravado,
+                'Descuento sobre ventas exentas': move.descuento_exento,
+                'Descuento sobre ventas no sujetas': move.descuento_no_sujeto,
+                'Descuento global': move.descuento_global,
+            }
 
-            if not ya_agregadas and lineas_descuento:
-                _logger.info(
-                    f"[agregar_lineas_descuento_a_borrador] Agregando {len(lineas_descuento)} líneas de descuento a factura {move.name}")
-                move.write({'line_ids': [(0, 0, linea[2]) for linea in lineas_descuento]})
-            else:
-                _logger.info(
-                    f"[agregar_lineas_descuento_a_borrador] No se agregaron líneas. Ya existen o no hay descuentos.")
+            if all(monto <= 0 for monto in descuentos.values()):
+                _logger.info("No hay descuentos aplicables.")
+                continue
+
+            es_nota_credito = move.move_type in ('out_refund', 'in_refund')
+
+            nuevas_lineas = []
+            for nombre, monto in descuentos.items():
+                if monto <= 0:
+                    continue
+
+                # Buscar línea existente
+                linea = move.line_ids.filtered(lambda l: l.name == nombre and l.account_id == cuenta_descuento)
+                valores = {
+                    'debit': 0.0 if es_nota_credito else monto,
+                    'credit': monto if es_nota_credito else 0.0
+                }
+
+                if linea:
+                    if (linea.debit != valores['debit'] or linea.credit != valores['credit']):
+                        _logger.info(f"Actualizando línea existente '{nombre}' con monto {monto}")
+                        linea.write(valores)
+                else:
+                    _logger.info(f"Agregando nueva línea de descuento: '{nombre}' con monto {monto}")
+                    nuevas_lineas.append((0, 0, {
+                        'account_id': cuenta_descuento.id,
+                        'name': nombre,
+                        **valores,
+                    }))
+
+            if nuevas_lineas:
+                move.write({'line_ids': nuevas_lineas})
 
 
 class AccountMoveSend(models.AbstractModel):
