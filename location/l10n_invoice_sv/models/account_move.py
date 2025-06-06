@@ -604,6 +604,7 @@ class AccountMove(models.Model):
                 continue
 
             es_nota_credito = move.move_type in ('out_refund', 'in_refund')
+            _logger.info("Tipo de dte: %s", es_nota_credito)
 
             nuevas_lineas = []
             for nombre, monto in descuentos.items():
@@ -626,12 +627,13 @@ class AccountMove(models.Model):
                     nuevas_lineas.append((0, 0, {
                         'account_id': cuenta_descuento.id,
                         'name': nombre,
+                        'custom_discount_line': True,
                         **valores,
                     }))
 
             if nuevas_lineas:
+                _logger.info("Lineas de factura: %s", nuevas_lineas)
                 move.write({'line_ids': nuevas_lineas})
-
 
 class AccountMoveSend(models.AbstractModel):
     _inherit = 'account.move.send'
