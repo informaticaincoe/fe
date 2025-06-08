@@ -1433,11 +1433,11 @@ class AccountMove(models.Model):
             invoice_info["tributos"] = [tributos]
         else:
             invoice_info["tributos"] = None
-        invoice_info["subTotal"] = round(total_Gravada, 2)  # self.             amount_untaxed
+        invoice_info["subTotal"] = round(self.sub_total, 2)  # self.             amount_untaxed
         invoice_info["ivaPerci1"] = 0.0
         invoice_info["ivaRete1"] = 0
         invoice_info["reteRenta"] = 0
-        invoice_info["montoTotalOperacion"] = round(self.amount_total + retencion, 2)
+        invoice_info["montoTotalOperacion"] = round(self.total_operacion + retencion, 2)
         #invoice_info["totalNoGravado"] = 0
         #invoice_info["totalPagar"] = round(self.amount_total, 2)
         invoice_info["totalLetras"] = self.amount_text
@@ -1481,11 +1481,19 @@ class AccountMove(models.Model):
             'motivoContin':    self.sit_tipo_contingencia_otro or None,
         })
         # fecha/hora
+        import datetime, pytz, os
+        os.environ["TZ"] = "America/El_Salvador"
+        fecha_actual = datetime.datetime.now(pytz.timezone("America/El_Salvador"))
+        _logger.info("Fecha en sesion 1: %s", fecha_actual)
+
         if self.fecha_facturacion_hacienda:
             FechaEmi = self.fecha_facturacion_hacienda
+            _logger.info("Fecha bd: ", FechaEmi)
         else:
-            tz = pytz.timezone('America/El_Salvador')
-            FechaEmi = datetime.datetime.now(tz)
+            salvador_tz = pytz.timezone("America/El_Salvador")
+            FechaEmi = datetime.datetime.now(salvador_tz)
+            _logger.info("Fecha en sesion: %s", FechaEmi)
+        _logger.info("SIT FechaEmi = %s (%s)", FechaEmi, type(FechaEmi))
         invoice_info['fecEmi'] = FechaEmi.strftime('%Y-%m-%d')
         invoice_info['horEmi'] = FechaEmi.strftime('%H:%M:%S')
         invoice_info['tipoMoneda'] = self.currency_id.name

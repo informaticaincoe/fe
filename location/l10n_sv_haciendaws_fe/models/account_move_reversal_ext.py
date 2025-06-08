@@ -50,6 +50,8 @@ class AccountMoveReversal(models.TransientModel):
             default_vals['inv_refund_id'] = move.id
             default_vals['reversed_entry_id'] = move.id
 
+            _logger.info("SIT descuentos globales desc gravado=%s, desc exento=%s, desc no sujeto=%s, desc global=%s",
+                         move.descuento_gravado_pct, move.descuento_exento_pct, move.descuento_no_sujeto_pct, move.descuento_global_monto)
             # Copiar descuentos globales, si existen
             if hasattr(move, 'descuento_gravado_pct'): #Si account.move tiene un campo descuento_gravado_pct
                 default_vals['descuento_gravado_pct'] = move.descuento_gravado_pct
