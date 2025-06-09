@@ -50,6 +50,21 @@ class AccountMoveReversal(models.TransientModel):
             default_vals['inv_refund_id'] = move.id
             default_vals['reversed_entry_id'] = move.id
 
+            _logger.info("SIT descuentos globales desc gravado=%s, desc exento=%s, desc no sujeto=%s, desc global=%s",
+                         move.descuento_gravado_pct, move.descuento_exento_pct, move.descuento_no_sujeto_pct, move.descuento_global_monto)
+            # Copiar descuentos globales, si existen
+            if hasattr(move, 'descuento_gravado_pct'): #Si account.move tiene un campo descuento_gravado_pct
+                default_vals['descuento_gravado_pct'] = move.descuento_gravado_pct
+
+            if hasattr(move, 'descuento_exento_pct'):
+                default_vals['descuento_exento_pct'] = move.descuento_exento_pct
+
+            if hasattr(move, 'descuento_no_sujeto_pct'):
+                default_vals['descuento_no_sujeto_pct'] = move.descuento_no_sujeto_pct
+
+            if hasattr(move, 'descuento_global_monto'):
+                default_vals['descuento_global_monto'] = move.descuento_global_monto
+
             _logger.info("SIT Preparing reversal for move_id=%s → reversed_entry_id=%s | inv_refund_id=%s",
                          move.id, default_vals['reversed_entry_id'], default_vals['inv_refund_id'])
 
@@ -58,8 +73,9 @@ class AccountMoveReversal(models.TransientModel):
 
             for line in move.invoice_line_ids:
                 _logger.info("SIT display type: %s", line.display_type)
-                if line.display_type not in [False, 'product']:
+                if line.display_type not in [False, 'product'] or line.custom_discount_line:
                     continue
+
                 invoice_lines_vals.append((0, 0, {
                     'product_id': line.product_id.id,
                     'name': line.name,
@@ -67,6 +83,7 @@ class AccountMoveReversal(models.TransientModel):
                     'price_unit': line.price_unit,
                     'account_id': line.account_id.id,
                     'tax_ids': [(6, 0, line.tax_ids.ids)],
+                    'discount': line.discount,
                 }))
                 #'analytic_account_id': line.analytic_account_id.id if line.analytic_account_id else False,
                 #'analytic_tag_ids': [(6, 0, line.analytic_tag_ids.ids)],

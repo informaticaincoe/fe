@@ -9,6 +9,7 @@ class AccountMoveLine(models.Model):
     precio_gravado = fields.Float(string='Gravado', compute='_compute_precios_tipo_venta', store=True)
     precio_exento = fields.Float(string='Exento', compute='_compute_precios_tipo_venta', store=True)
     precio_no_sujeto = fields.Float(string='No Sujeto', compute='_compute_precios_tipo_venta', store=True)
+    custom_discount_line = fields.Boolean(string='Es línea de descuento', default=False)
 
     @api.depends('product_id', 'quantity', 'price_unit', 'discount', 'tax_ids', 'move_id.journal_id')
     #@api.onchange('product_id', 'quantity', 'price_unit', 'discount')

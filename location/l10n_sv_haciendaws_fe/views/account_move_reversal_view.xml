@@ -8,11 +8,16 @@
 
         <!-- Insertar el campo antes o después de otro conocido, como journal_id -->
         <xpath expr="//field[@name='journal_id']" position="after">
-          <field name="l10n_latam_document_type_id" domain="[('code','=','05')]"/>
+          <field name="l10n_latam_document_type_id"
+                 domain="[('code','in',['05','06'])]"
+                 context="{'default_code': '05'}"/>
+          <field name="inv_refund_id" invisible="1"/>
+          <field name="inv_debit_id" invisible="1"/>
         </xpath>
 
+        <!-- Reemplazar botón por el método intermedio -->
         <xpath expr="//button[@name='refund_moves']" position="replace">
-          <button string="Reverse" name="refund_moves_custom" type="object" class="btn-primary" data-hotkey="q"/>
+          <button name="refund_or_debit_custom" type="object" string="Reversar" />
         </xpath>
       </field>
     </record>

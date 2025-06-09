@@ -10,6 +10,7 @@
                 <field name="precio_exento"/>
                 <field name="precio_gravado"/>
                 <field name="debit" attrs="{'invisible': [('move_id.state', '!=', 'posted')]}"/>
+                <field name="credit" attrs="{'invisible': [('move_id.state', '!=', 'posted')]}"/>
             </xpath>
         </field>
     </record>

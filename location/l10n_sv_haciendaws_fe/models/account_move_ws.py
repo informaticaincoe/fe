@@ -778,6 +778,7 @@ class AccountMove(models.Model):
         for line in self.invoice_line_ids.filtered(lambda x: x.price_unit < 0):
             total_des += (line.precio_unitario * -1)
 
+        total_gral = self.amount_total + total_des
         if total_des:
             total_gral = self.amount_total + total_des
             por_des = 100 - round(((total_gral - total_des) / total_gral) * 100)
@@ -968,17 +969,7 @@ class AccountMove(models.Model):
         invoice_info["ambiente"] = ambiente
         invoice_info["tipoDte"] = self.journal_id.sit_tipo_documento.codigo
         if self.name == "/":
-            tipo_dte = self.journal_id.sit_tipo_documento.codigo or '01'
-
-            # Obtener el código de establecimiento desde el diario
-            cod_estable = self.journal_id.cod_sit_estable or '0000M001'
-
-            # Obtener la secuencia desde ir.sequence con padding 15
-            correlativo = self.env['ir.sequence'].next_by_code('dte.secuencia') or '0'
-            correlativo = correlativo.zfill(15)
-
-            # Construir el número de control completo
-            invoice_info["numeroControl"] = f"DTE-{tipo_dte}-0000{cod_estable}-{correlativo}"
+            invoice_info["numeroControl"] = None
         else:
             invoice_info["numeroControl"] = self.name
         invoice_info[
@@ -1029,93 +1020,108 @@ class AccountMove(models.Model):
         _logger.info("Iniciando el mapeo de la información del documento NDC = %s", self.invoice_line_ids)
 
         for line in self.invoice_line_ids:
-            item_numItem += 1
-            line_temp = {}
-            lines_tributes = []
-            line_temp["numItem"] = item_numItem
-            tipoItem = int(line.product_id.tipoItem.codigo or line.product_id.product_tmpl_id.tipoItem.codigo)
-            line_temp["tipoItem"] = tipoItem
-            _logger.debug(
-                f"Procesando línea de factura: {line.product_id.name}, tipoItem: {tipoItem}.")  # Log en cada línea.
+            if not line.custom_discount_line:
+                item_numItem += 1
+                line_temp = {}
+                lines_tributes = []
+                line_temp["numItem"] = item_numItem
+                tipoItem = int(line.product_id.tipoItem.codigo or line.product_id.product_tmpl_id.tipoItem.codigo)
+                line_temp["tipoItem"] = tipoItem
+                _logger.info(
+                    f"Procesando línea de factura: {line.product_id.name}, tipoItem: {tipoItem}.")  # Log en cada línea.
 
-            if self.inv_refund_id:
-                line_temp["numeroDocumento"] = self.inv_refund_id.hacienda_codigoGeneracion_identificacion
-            else:
-                line_temp["numeroDocumento"] = None
+                if self.inv_refund_id:
+                    line_temp["numeroDocumento"] = self.inv_refund_id.hacienda_codigoGeneracion_identificacion
+                else:
+                    line_temp["numeroDocumento"] = None
 
-            line_temp["codigo"] = line.product_id.default_code
-            codTributo = line.product_id.tributos_hacienda_cuerpo.codigo
-            if codTributo == False:
-                line_temp["codTributo"] = None
-            else:
-                line_temp["codTributo"] = codTributo
+                line_temp["codigo"] = line.product_id.default_code
+                codTributo = line.product_id.tributos_hacienda_cuerpo.codigo
+                if codTributo == False:
+                    line_temp["codTributo"] = None
+                else:
+                    line_temp["codTributo"] = codTributo
 
-            line_temp["descripcion"] = line.name
-            line_temp["cantidad"] = line.quantity
-            if not line.product_id.uom_hacienda:
-                uniMedida = 7
-                _logger.error(f"UOM no configurado para el producto: {line.product_id.name}.")  # Log de error
-                raise UserError(_("UOM de producto no configurado para:  %s" % (line.product_id.name)))
-            else:
-                uniMedida = int(line.product_id.uom_hacienda.codigo)
+                line_temp["descripcion"] = line.name
+                line_temp["cantidad"] = line.quantity
+                if line.product_id and not line.product_id.uom_hacienda:
+                    uniMedida = 7
+                    _logger.error(f"UOM no configurado para el producto: {line.product_id.name}.")  # Log de error
+                    raise UserError(_("UOM de producto no configurado para:  %s" % (line.product_id.name)))
+                else:
+                    uniMedida = int(line.product_id.uom_hacienda.codigo)
 
-            line_temp["uniMedida"] = int(uniMedida)
-            line_temp["precioUni"] = round(line.price_unit, 4)
-            line_temp["montoDescu"] = (
-                    round(line_temp["cantidad"] * (line.price_unit * (line.discount / 100)), 2) or 0.0)
-            line_temp["ventaNoSuj"] = 0.0
-            line_temp["ventaExenta"] = 0.0
-            ventaGravada = line_temp["cantidad"] * (line.price_unit * (line.discount / 100))
-            line_temp["ventaGravada"] = round(ventaGravada, 2)
+                line_temp["uniMedida"] = int(uniMedida)
+                # line_temp["precioUni"] = round(line.price_unit, 4)
+                line_temp["montoDescu"] = (
+                        round(line_temp["cantidad"] * (line.price_unit * (line.discount / 100)), 2) or 0.0)
+                line_temp["ventaNoSuj"] = round(line.precio_no_sujeto, 2)  # 0.0
+                line_temp["ventaExenta"] = round(line.precio_exento, 2)  # 0.0
+                ventaGravada = round(line.precio_gravado,
+                                     2)  # line_temp["cantidad"] * (line.price_unit * (line.discount / 100))
+                line_temp["ventaGravada"] = round(ventaGravada, 2)
 
-            _logger.debug(
-                f"Venta gravada: {ventaGravada}, cantidad: {line_temp['cantidad']}, precio unitario: {line.price_unit}.")  # Log sobre cálculos.
+                _logger.debug(
+                    f"Venta gravada: {ventaGravada}, cantidad: {line_temp['cantidad']}, precio unitario: {line.price_unit}.")  # Log sobre cálculos.
 
-            for line_tributo in line.tax_ids:
-                codigo_tributo_codigo = line_tributo.tributos_hacienda.codigo
-                codigo_tributo = line_tributo.tributos_hacienda  # Asignamos el valor de `codigo_tributo`
-                lines_tributes.append(codigo_tributo_codigo)
+                for line_tributo in line.tax_ids:
+                    codigo_tributo_codigo = line_tributo.tributos_hacienda.codigo
+                    codigo_tributo = line_tributo.tributos_hacienda  # Asignamos el valor de `codigo_tributo`
+                    lines_tributes.append(codigo_tributo_codigo)
 
-            line_temp["tributos"] = lines_tributes
-            vat_taxes_amounts = line.tax_ids.compute_all(
-                line.price_unit,
-                self.currency_id,
-                line.quantity,
-                product=line.product_id,
-                partner=self.partner_id,
-            )
-            vat_taxes_amount = vat_taxes_amounts['taxes'][0]['amount']
-            sit_amount_base = round(vat_taxes_amounts['taxes'][0]['base'], 2)
-            price_unit_mas_iva = round(line.price_unit, 4)
-
-            if line_temp["cantidad"] > 0:
-                price_unit = round(sit_amount_base / line_temp["cantidad"], 4)
-            else:
-                price_unit = round(0.00, 4)
-
-            line_temp["precioUni"] = price_unit
-            ventaGravada = line_temp["cantidad"] * line_temp["precioUni"] - line_temp["montoDescu"]
-            total_Gravada += round(ventaGravada, 4)
-            line_temp["ventaGravada"] = round(ventaGravada, 4)
-
-            _logger.debug(f"Total gravada acumulado: {total_Gravada}.")  # Log del total gravado.
-
-            if ventaGravada == 0.0:
-                line_temp["tributos"] = None
-            else:
                 line_temp["tributos"] = lines_tributes
+                vat_taxes_amounts = line.tax_ids.compute_all(
+                    line.price_unit,
+                    self.currency_id,
+                    line.quantity,
+                    product=line.product_id,
+                    partner=self.partner_id,
+                )
 
-            if tipoItem == 4:
-                line_temp["uniMedida"] = 99
-                line_temp["codTributo"] = codTributo
-                line_temp["tributos"] = [20]
-            else:
-                line_temp["codTributo"] = None
-                line_temp["tributos"] = lines_tributes
+                _logger.info(f"Impuestos: {vat_taxes_amounts}")  # Log en cada línea.
+                vat_taxes_amount = vat_taxes_amounts['taxes'][0]['amount'] if vat_taxes_amounts['taxes'] and vat_taxes_amounts['taxes'] !="" else 0
+                sit_amount_base = round(vat_taxes_amounts['taxes'][0]['base'], 2) if vat_taxes_amounts['taxes'] and vat_taxes_amounts['taxes'] !="" else 0
+                price_unit_mas_iva = round(line.price_unit, 4)
 
-            totalIva += vat_taxes_amount
-            lines.append(line_temp)
-            tax_ids_list.append(line.tax_ids)  # Almacenamos los tax_ids de la línea
+                price_unit = 0.0
+                if line_temp["cantidad"] > 0:
+                    price_unit = round(sit_amount_base / line_temp["cantidad"], 4)
+                else:
+                    price_unit = round(0.00, 4)
+
+                line_temp["precioUni"] = round(line.precio_unitario, 2)
+                # ventaGravada = line_temp["cantidad"] * line_temp["precioUni"] - line_temp["montoDescu"]
+                total_Gravada += round(ventaGravada, 4)
+                # line_temp["ventaGravada"] = round(ventaGravada, 4)
+
+                _logger.debug(f"Total gravada acumulado: {total_Gravada}.")  # Log del total gravado.
+                if line.product_id and line.product_id.tipo_venta:
+                    if line.product_id.tipo_venta == "gravado":
+                        line_temp["ventaNoSuj"] = 0.0
+                        line_temp["ventaExenta"] = 0.0
+                    elif line.product_id.tipo_venta == "exento":
+                        line_temp["ventaNoSuj"] = 0.0
+                        line_temp["ventaGravada"] = 0.0
+                    elif line.product_id.tipo_venta == "no_sujeto":
+                        line_temp["ventaExenta"] = 0.0
+                        line_temp["ventaGravada"] = 0.0
+
+                if ventaGravada == 0.0:
+                    line_temp["tributos"] = None
+                else:
+                    line_temp["tributos"] = lines_tributes
+
+                if tipoItem == 4:
+                    line_temp["uniMedida"] = 99
+                    line_temp["codTributo"] = codTributo
+                    line_temp["tributos"] = [20]
+                else:
+                    line_temp["codTributo"] = None
+                    line_temp["tributos"] = lines_tributes
+
+                totalIva += vat_taxes_amount
+                lines.append(line_temp)
+                tax_ids_list.append(line.tax_ids)  # Almacenamos los tax_ids de la línea
 
         _logger.info(
             f"Proceso de mapeo finalizado. Total Gravada: {total_Gravada}, Total IVA: {totalIva}.")  # Log al finalizar la función.
@@ -1129,14 +1135,14 @@ class AccountMove(models.Model):
 
         _logger.info("SIT total gravado NC = %s", total_Gravada)
 
-        invoice_info["totalNoSuj"] = 0
-        invoice_info["totalExenta"] = 0
+        invoice_info["totalNoSuj"] = round(self.total_no_sujeto, 2)  # 0
+        invoice_info["totalExenta"] = round(self.total_exento, 2)  # 0
         invoice_info["totalGravada"] = round(total_Gravada, 2)
-        invoice_info["subTotalVentas"] = round(total_Gravada, 2)
-        invoice_info["descuNoSuj"] = 0
-        invoice_info["descuExenta"] = 0
-        invoice_info["descuGravada"] = 0
-        invoice_info["totalDescu"] = 0
+        invoice_info["subTotalVentas"] = round(self.sub_total_ventas, 2)
+        invoice_info["descuNoSuj"] = round(self.descuento_no_sujeto, 2)  # 0
+        invoice_info["descuExenta"] = round(self.descuento_exento, 2)  # 0
+        invoice_info["descuGravada"] = round(self.descuento_gravado, 2)
+        invoice_info["totalDescu"] = round(self.total_descuento, 2)  # 0
         if identificacion['tipoDte'] != "01":
             if tributo_hacienda:
                 tributos["codigo"] = tributo_hacienda.codigo
@@ -1150,7 +1156,7 @@ class AccountMove(models.Model):
             invoice_info["tributos"] = [tributos]
         else:
             invoice_info["tributos"] = None
-        invoice_info["subTotal"] = round(total_Gravada, 2)  # self.             amount_untaxed
+        invoice_info["subTotal"] = round(self.sub_total, 2)  # self.             amount_untaxed
         invoice_info["ivaPerci1"] = 0.0
         invoice_info["ivaRete1"] = 0
         invoice_info["reteRenta"] = 0
@@ -1277,94 +1283,95 @@ class AccountMove(models.Model):
         _logger.info("Iniciando el mapeo de la información del documento NDD = %s", self.invoice_line_ids)
 
         for line in self.invoice_line_ids:
-            item_numItem += 1
-            line_temp = {}
-            lines_tributes = []
-            line_temp["numItem"] = item_numItem
-            tipoItem = int(line.product_id.tipoItem.codigo or line.product_id.product_tmpl_id.tipoItem.codigo)
-            line_temp["tipoItem"] = tipoItem
-            _logger.debug(
-                f"Procesando línea de factura: {line.product_id.name}, tipoItem: {tipoItem}.")  # Log en cada línea.
+            if not line.custom_discount_line:
+                item_numItem += 1
+                line_temp = {}
+                lines_tributes = []
+                line_temp["numItem"] = item_numItem
+                tipoItem = int(line.product_id.tipoItem.codigo or line.product_id.product_tmpl_id.tipoItem.codigo)
+                line_temp["tipoItem"] = tipoItem
+                _logger.debug(
+                    f"Procesando línea de factura: {line.product_id.name}, tipoItem: {tipoItem}.")  # Log en cada línea.
 
-            _logger.info("Numero de documento:=%s ", self.debit_origin_id)
-            if self.debit_origin_id:
-                line_temp["numeroDocumento"] = self.debit_origin_id.hacienda_codigoGeneracion_identificacion
-            else:
-                line_temp["numeroDocumento"] = None
+                _logger.info("Numero de documento:=%s ", self.debit_origin_id)
+                if self.debit_origin_id:
+                    line_temp["numeroDocumento"] = self.debit_origin_id.hacienda_codigoGeneracion_identificacion
+                else:
+                    line_temp["numeroDocumento"] = None
 
-            line_temp["codigo"] = line.product_id.default_code
-            codTributo = line.product_id.tributos_hacienda_cuerpo.codigo
-            if codTributo == False:
-                line_temp["codTributo"] = None
-            else:
-                line_temp["codTributo"] = codTributo
+                line_temp["codigo"] = line.product_id.default_code
+                codTributo = line.product_id.tributos_hacienda_cuerpo.codigo
+                if codTributo == False:
+                    line_temp["codTributo"] = None
+                else:
+                    line_temp["codTributo"] = codTributo
 
-            line_temp["descripcion"] = line.name
-            line_temp["cantidad"] = line.quantity
-            if not line.product_id.uom_hacienda:
-                uniMedida = 7
-                _logger.error(f"UOM no configurado para el producto: {line.product_id.name}.")  # Log de error
-                raise UserError(_("UOM de producto no configurado para:  %s" % (line.product_id.name)))
-            else:
-                uniMedida = int(line.product_id.uom_hacienda.codigo)
+                line_temp["descripcion"] = line.name
+                line_temp["cantidad"] = line.quantity
+                if not line.product_id.uom_hacienda:
+                    uniMedida = 7
+                    _logger.error(f"UOM no configurado para el producto: {line.product_id.name}.")  # Log de error
+                    raise UserError(_("UOM de producto no configurado para:  %s" % (line.product_id.name)))
+                else:
+                    uniMedida = int(line.product_id.uom_hacienda.codigo)
 
-            line_temp["uniMedida"] = int(uniMedida)
-            line_temp["precioUni"] = round(line.price_unit, 4)
-            line_temp["montoDescu"] = (
-                    round(line_temp["cantidad"] * (line.price_unit * (line.discount / 100)), 2) or 0.0)
-            line_temp["ventaNoSuj"] = 0.0
-            line_temp["ventaExenta"] = 0.0
-            ventaGravada = line_temp["cantidad"] * (line.price_unit * (line.discount / 100))
-            line_temp["ventaGravada"] = round(ventaGravada, 2)
+                line_temp["uniMedida"] = int(uniMedida)
+                # line_temp["precioUni"] = round(line.price_unit, 4)
+                line_temp["montoDescu"] = (
+                        round(line_temp["cantidad"] * (line.price_unit * (line.discount / 100)), 2) or 0.0)
+                line_temp["ventaNoSuj"] = round(line.precio_no_sujeto, 2)  # 0.0
+                line_temp["ventaExenta"] = round(line.precio_exento, 2)  # 0.0
+                ventaGravada = line.precio_gravado  # line_temp["cantidad"] * (line.price_unit * (line.discount / 100))
+                line_temp["ventaGravada"] = round(ventaGravada, 2)
 
-            _logger.debug(
-                f"Venta gravada: {ventaGravada}, cantidad: {line_temp['cantidad']}, precio unitario: {line.price_unit}.")  # Log sobre cálculos.
+                _logger.debug(
+                    f"Venta gravada: {ventaGravada}, cantidad: {line_temp['cantidad']}, precio unitario: {line.price_unit}.")  # Log sobre cálculos.
 
-            for line_tributo in line.tax_ids:
-                codigo_tributo_codigo = line_tributo.tributos_hacienda.codigo
-                codigo_tributo = line_tributo.tributos_hacienda  # Asignamos el valor de `codigo_tributo`
-                lines_tributes.append(codigo_tributo_codigo)
+                for line_tributo in line.tax_ids:
+                    codigo_tributo_codigo = line_tributo.tributos_hacienda.codigo
+                    codigo_tributo = line_tributo.tributos_hacienda  # Asignamos el valor de `codigo_tributo`
+                    lines_tributes.append(codigo_tributo_codigo)
 
-            line_temp["tributos"] = lines_tributes
-            vat_taxes_amounts = line.tax_ids.compute_all(
-                line.price_unit,
-                self.currency_id,
-                line.quantity,
-                product=line.product_id,
-                partner=self.partner_id,
-            )
-            vat_taxes_amount = vat_taxes_amounts['taxes'][0]['amount']
-            sit_amount_base = round(vat_taxes_amounts['taxes'][0]['base'], 2)
-            price_unit_mas_iva = round(line.price_unit, 4)
-
-            if line_temp["cantidad"] > 0:
-                price_unit = round(sit_amount_base / line_temp["cantidad"], 4)
-            else:
-                price_unit = round(0.00, 4)
-
-            line_temp["precioUni"] = price_unit
-            ventaGravada = line_temp["cantidad"] * line_temp["precioUni"] - line_temp["montoDescu"]
-            total_Gravada += round(ventaGravada, 4)
-            line_temp["ventaGravada"] = round(ventaGravada, 4)
-
-            _logger.debug(f"Total gravada acumulado: {total_Gravada}.")  # Log del total gravado.
-
-            if ventaGravada == 0.0:
-                line_temp["tributos"] = None
-            else:
                 line_temp["tributos"] = lines_tributes
+                vat_taxes_amounts = line.tax_ids.compute_all(
+                    line.precio_unitario,
+                    self.currency_id,
+                    line.quantity,
+                    product=line.product_id,
+                    partner=self.partner_id,
+                )
+                vat_taxes_amount = vat_taxes_amounts['taxes'][0]['amount']
+                sit_amount_base = round(vat_taxes_amounts['taxes'][0]['base'], 2)
+                price_unit_mas_iva = round(line.price_unit, 4)
 
-            if tipoItem == 4:
-                line_temp["uniMedida"] = 99
-                line_temp["codTributo"] = codTributo
-                line_temp["tributos"] = [20]
-            else:
-                line_temp["codTributo"] = None
-                line_temp["tributos"] = lines_tributes
+                if line_temp["cantidad"] > 0:
+                    price_unit = round(sit_amount_base / line_temp["cantidad"], 4)
+                else:
+                    price_unit = round(0.00, 4)
 
-            totalIva += vat_taxes_amount
-            lines.append(line_temp)
-            tax_ids_list.append(line.tax_ids)  # Almacenamos los tax_ids de la línea
+                line_temp["precioUni"] = round(line.precio_unitario, 2)
+                # ventaGravada = line_temp["cantidad"] * line_temp["precioUni"] - line_temp["montoDescu"]
+                total_Gravada += round(ventaGravada, 4)
+                # line_temp["ventaGravada"] = round(ventaGravada, 4)
+
+                _logger.debug(f"Total gravada acumulado: {total_Gravada}.")  # Log del total gravado.
+
+                if ventaGravada == 0.0:
+                    line_temp["tributos"] = None
+                else:
+                    line_temp["tributos"] = lines_tributes
+
+                if tipoItem == 4:
+                    line_temp["uniMedida"] = 99
+                    line_temp["codTributo"] = codTributo
+                    line_temp["tributos"] = [20]
+                else:
+                    line_temp["codTributo"] = None
+                    line_temp["tributos"] = lines_tributes
+
+                totalIva += vat_taxes_amount
+                lines.append(line_temp)
+                tax_ids_list.append(line.tax_ids)  # Almacenamos los tax_ids de la línea
 
         _logger.info(
             f"Proceso de mapeo finalizado. Total Gravada: {total_Gravada}, Total IVA: {totalIva}.")  # Log al finalizar la función.
@@ -1375,17 +1382,18 @@ class AccountMove(models.Model):
         invoice_info = {}
         tributos = {}
         pagos = {}
+        retencion = 0.0
 
         _logger.info("SIT total gravado NC = %s", total_Gravada)
 
-        invoice_info["totalNoSuj"] = 0
-        invoice_info["totalExenta"] = 0
+        invoice_info["totalNoSuj"] = round(self.total_no_sujeto, 2)  # 0
+        invoice_info["totalExenta"] = round(self.total_exento, 2)  # 0
         invoice_info["totalGravada"] = round(total_Gravada, 2)
-        invoice_info["subTotalVentas"] = round(total_Gravada, 2)
-        invoice_info["descuNoSuj"] = 0
-        invoice_info["descuExenta"] = 0
-        invoice_info["descuGravada"] = 0
-        invoice_info["totalDescu"] = 0
+        invoice_info["subTotalVentas"] = round(self.sub_total_ventas, 2)
+        invoice_info["descuNoSuj"] = round(self.descuento_no_sujeto, 2)  # 0
+        invoice_info["descuExenta"] = round(self.descuento_exento, 2)  # 0
+        invoice_info["descuGravada"] = round(self.descuento_gravado, 2)
+        invoice_info["totalDescu"] = round(self.total_descuento, 2)  # 0
         invoice_info["numPagoElectronico"] = None
         if identificacion['tipoDte'] != "01":
             if tributo_hacienda:
@@ -1400,11 +1408,13 @@ class AccountMove(models.Model):
             invoice_info["tributos"] = [tributos]
         else:
             invoice_info["tributos"] = None
-        invoice_info["subTotal"] = round(total_Gravada, 2)  # self.             amount_untaxed
+        invoice_info["subTotal"] = round(self.sub_total, 2)  # self.             amount_untaxed
         invoice_info["ivaPerci1"] = 0.0
         invoice_info["ivaRete1"] = 0
         invoice_info["reteRenta"] = 0
-        invoice_info["montoTotalOperacion"] = round(self.amount_total, 2)
+        invoice_info["montoTotalOperacion"] = round(self.total_operacion + retencion, 2)
+        #invoice_info["totalNoGravado"] = 0
+        #invoice_info["totalPagar"] = round(self.amount_total, 2)
         invoice_info["totalLetras"] = self.amount_text
         invoice_info["condicionOperacion"] = int(self.condiciones_pago)
         pagos["codigo"] = self.forma_pago.codigo  # '01'   # CAT-017 Forma de Pago    01 = bienes
@@ -1446,11 +1456,19 @@ class AccountMove(models.Model):
             'motivoContin': self.sit_tipo_contingencia_otro or None,
         })
         # fecha/hora
+        import datetime, pytz, os
+        os.environ["TZ"] = "America/El_Salvador"
+        fecha_actual = datetime.datetime.now(pytz.timezone("America/El_Salvador"))
+        _logger.info("Fecha en sesion 1: %s", fecha_actual)
+
         if self.fecha_facturacion_hacienda:
             FechaEmi = self.fecha_facturacion_hacienda
+            _logger.info("Fecha bd: ", FechaEmi)
         else:
-            tz = pytz.timezone('America/El_Salvador')
-            FechaEmi = datetime.datetime.now(tz)
+            salvador_tz = pytz.timezone("America/El_Salvador")
+            FechaEmi = datetime.datetime.now(salvador_tz)
+            _logger.info("Fecha en sesion: %s", FechaEmi)
+        _logger.info("SIT FechaEmi = %s (%s)", FechaEmi, type(FechaEmi))
         invoice_info['fecEmi'] = FechaEmi.strftime('%Y-%m-%d')
         invoice_info['horEmi'] = FechaEmi.strftime('%H:%M:%S')
         invoice_info['tipoMoneda'] = self.currency_id.name

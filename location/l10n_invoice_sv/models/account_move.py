@@ -714,6 +714,8 @@ class AccountMove(models.Model):
                 continue
 
             es_nota_credito = move.move_type in ('out_refund', 'in_refund')
+            es_factura_o_debito = move.move_type in ('out_invoice', 'in_invoice')
+            _logger.info(f"Tipo de movimiento: {move.move_type} | Credito: {es_nota_credito} | Débito: {es_factura_o_debito}")
 
             nuevas_lineas = []
             for nombre, monto in descuentos.items():
@@ -723,8 +725,8 @@ class AccountMove(models.Model):
                 # Buscar línea existente
                 linea = move.line_ids.filtered(lambda l: l.name == nombre and l.account_id == cuenta_descuento)
                 valores = {
-                    'debit': 0.0 if es_nota_credito else monto,
-                    'credit': monto if es_nota_credito else 0.0
+                    'debit': monto if es_factura_o_debito else 0.0,
+                    'credit': monto if es_nota_credito else 0.0,
                 }
 
                 if linea:
@@ -736,12 +738,13 @@ class AccountMove(models.Model):
                     nuevas_lineas.append((0, 0, {
                         'account_id': cuenta_descuento.id,
                         'name': nombre,
+                        'custom_discount_line': True,
                         **valores,
                     }))
 
             if nuevas_lineas:
+                _logger.info("Lineas de factura: %s", nuevas_lineas)
                 move.write({'line_ids': nuevas_lineas})
-
 
 class AccountMoveSend(models.AbstractModel):
     _inherit = 'account.move.send'
