@@ -200,21 +200,6 @@
                                     </p>
                                 </div>
                             </div>
-                            <!--  Seccion documentos relacionados -->
-                            <!--<div style="margin: 4% 0%;" class="mb-4 w-100">
-                               <p class="section-title text-center mb-1">Documentos relacionados</p>
-                               <div class="row border border-light-subtle rounded-2 align-items-center">
-                                   <p class="col border-end border-light-subtle">Tipo de documento:
-                                       <span/>
-                                   </p>
-                                   <p class="col py-1">N° documento:
-                                       <span/>
-                                   </p>
-                                   <p class="col py-1">fecha del documento
-                                       <span/>
-                                   </p>
-                               </div>
-                           </div>-->
 
                             <!-- Seccion detalles compra -->
                             <br/>
@@ -278,7 +263,6 @@
                                                     <span t-field="o.invoice_line_ids[idx].uom_id"
                                                           groups="product.group_uom"/>
                                                 </td>
-                                                ;
                                                 <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
                                                     class="border-light-subtle">
                                                     <span t-field="o.invoice_line_ids[idx].product_id.default_code"/>
@@ -292,7 +276,6 @@
                                                     <span t-esc="o.invoice_line_ids[idx].price_unit * 1.13"
                                                           t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
                                                 </td>
-
                                                 <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
                                                     class="border-light-subtle">
                                                     <span>$0.00</span>
@@ -317,8 +300,6 @@
                                                     <span t-esc="(o.invoice_line_ids[idx].precio_gravado)"
                                                           t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
                                                 </td>
-
-
                                             </tr>
                                         </t>
                                     </tbody>
@@ -477,7 +458,26 @@
                                                             </td>
                                                         </tr>
                                                     </t>
-
+                                                    <tr>
+                                                        <td class="px-1 border border-light-subtle text-end"
+                                                            style="padding: 1% 0%;">Retención IVA:
+                                                        </td>
+                                                        <td class="px-1 border border-light-subtle text-start"
+                                                            style="padding: 1% 0%;">
+                                                            <span t-esc="o.retencion_iva_amount"
+                                                                  t-options="{'widget':'monetary','display_currency': o.currency_id}"/>
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td class="px-1 border border-light-subtle text-end"
+                                                            style="padding: 1% 0%;">Retención renta:
+                                                        </td>
+                                                        <td class="px-1 border border-light-subtle text-start"
+                                                            style="padding: 1% 0%;">
+                                                            <span t-esc="o.retencion_renta_amount"
+                                                                  t-options="{'widget':'monetary','display_currency': o.currency_id}"/>
+                                                        </td>
+                                                    </tr>
                                                     <tr>
                                                         <td class="px-1 border border-light-subtle text-end"
                                                             style="padding: 1% 0%;">Monto total operación:
@@ -504,7 +504,8 @@
                                                         </td>
                                                         <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
                                                             class="border-light-subtle">
-                                                            <span t-field="o.amount_total"/>
+                                                            <span t-esc="o.total_pagar"
+                                                                  t-options="{'widget':'monetary','display_currency': o.currency_id}"/>
                                                         </td>
                                                     </tr>
                                                 </tbody>

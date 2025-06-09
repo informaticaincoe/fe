@@ -101,7 +101,11 @@ class AccountMove(models.Model):
             if move.apply_retencion_renta:
                 move.retencion_renta_amount = base_total * 0.10
             if move.apply_retencion_iva:
-                move.retencion_iva_amount = base_total * 0.13
+                tipo_doc = move.journal_id.sit_tipo_documento.codigo
+                if tipo_doc in ["01", "03"]:  # FCF y CCF
+                    move.retencion_iva_amount = base_total * 0.01  # 1% para estos tipos
+                else:
+                    move.retencion_iva_amount = base_total * 0.13  # 13% general
 
     def _create_retencion_renta_line(self):
         cuenta_retencion = self.env.ref('mi_modulo.cuenta_retencion_renta')  # Asegúrate de definir esto correctamente
@@ -569,10 +573,9 @@ class AccountMove(models.Model):
                 move.total_operacion = move.sub_total
                 _logger.info(f"[{move.name}] Documento tipo 01, total_operacion: {move.total_operacion}")
 
-            move.total_pagar = move.total_operacion- (move.retencion_renta_amount + move.retencion_iva_amount)
+            move.total_pagar = move.total_operacion - (move.retencion_renta_amount + move.retencion_iva_amount)
 
-            if move.journal_id.sit_tipo_documento.codigo != "14":
-                move.total_pagar = move.total_operacion - (move.retencion_renta_amount + move.retencion_iva_amount)
+            _logger.info(f"{move.journal_id.sit_tipo_documento.codigo}] move.journal_id.sit_tipo_documento.codigo")
 
             _logger.info(f"[{move.name}] sub_total: {move.sub_total}")
             _logger.info(f"[{move.name}] total_descuento: {move.total_descuento}")

@@ -290,7 +290,7 @@ class AccountMove(models.Model):
 
         invoice_info["totalCompra"] = round(self.sub_total_ventas , 2)
         invoice_info["descu"] = self.descuento_global # suma de descuento por item
-        invoice_info["totalDescu"] = self.descuento_global + self.total_descuento # suma de descuento por item (descu) + descuentos globales y por operacion
+        invoice_info["totalDescu"] = round(self.descuento_global + self.total_descuento,2) # suma de descuento por item (descu) + descuentos globales y por operacion
 
         invoice_info["subTotal"] = round(self.sub_total_ventas - self.descuento_global, 2)
         invoice_info["ivaRete1"] = round(rete_iva, 2)
