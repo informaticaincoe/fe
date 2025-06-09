@@ -13,6 +13,9 @@ class AccountMoveReversal(models.TransientModel):
         domain=[('code', '=', '05')],
     )
 
+    inv_refund_id = fields.Many2one('account.move', string='Factura a Reversar')
+    inv_debit_id = fields.Many2one('account.move', string='Factura a Debitar')
+
     def refund_moves_custom(self):
         self.ensure_one()
         _logger.info("SIT refund_moves_custom iniciado con move_ids=%s", self.move_ids)
@@ -127,3 +130,23 @@ class AccountMoveReversal(models.TransientModel):
                 'default_move_type': new_moves[0].move_type if new_moves else 'out_refund',
             },
         }
+
+    def refund_or_debit_custom(self):
+        self.ensure_one()
+
+        doc_type = self.l10n_latam_document_type_id.code
+
+        if doc_type == '05':
+            # Nota de Crédito: usar el refund original
+            return self.refund_moves()
+
+        elif doc_type == '06':
+            # Nota de Débito: redirigir al wizard de nota de débito
+            debit_wizard = self.env['account.debit.note'].create({
+                'move_ids': [(6, 0, self.move_ids.ids)],
+                'journal_id': self.journal_id.id,
+            })
+            return debit_wizard.create_debit()
+
+        else:
+            raise UserError(_("Tipo de documento no soportado para reverso: %s") % doc_type)
