@@ -56,3 +56,4 @@ class AccountMoveLine(models.Model):
                 line.precio_exento = precio_total
             elif tipo_venta == 'no_sujeto':
                 line.precio_no_sujeto = precio_total
+            _logger.info("SIT Precio total gravado= %s, total exento= %s, total no sujeto= %s", line.precio_gravado, line.precio_exento, line.precio_no_sujeto)

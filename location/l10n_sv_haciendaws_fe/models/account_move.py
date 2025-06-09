@@ -214,6 +214,7 @@ class AccountMove(models.Model):
                 # códigoGeneracion_identificación
                 if not vals.get('hacienda_codigoGeneracion_identificacion'):
                     vals['hacienda_codigoGeneracion_identificacion'] = self.sit_generar_uuid()
+                    _logger.info("Codigo de generacion asignado: %s", vals['hacienda_codigoGeneracion_identificacion'])
             else:
                 _logger.info("Diario '%s' no es venta, omito DTE", journal and journal.name)
 
@@ -680,6 +681,10 @@ class AccountMove(models.Model):
                     invoice.name = numero_control
                     _logger.info("SIT DTE generado en _post: %s", numero_control)
 
+                if not invoice.hacienda_codigoGeneracion_identificacion:
+                    invoice.hacienda_codigoGeneracion_identificacion = self.sit_generar_uuid()
+                    _logger.info("Codigo de generacion asignado en el post: %s", invoice.hacienda_codigoGeneracion_identificacion)
+
                 # Si el tipo de documento requiere validación adicional, hacerlo aquí
                 if invoice.journal_id.sit_tipo_documento:
                     type_report = invoice.journal_id.type_report
@@ -743,30 +748,6 @@ class AccountMove(models.Model):
                         payload_dte = invoice.sit_obtener_payload_dte_info(ambiente, documento_firmado)
                         self.check_parametros_dte(payload_dte)
 
-                        # Guardar json generado
-                        json_dte = payload['dteJson']
-                        _logger.info("Tipo de dteJson: %s", type(json_dte))
-                        _logger.info("SIT JSON=%s", json_dte)
-                        # Solo serializar si no es string
-                        try:
-                            if isinstance(json_dte, str):
-                                try:
-                                    # Verifica si es un JSON string válido, y lo convierte a dict
-                                    json_dte = json.loads(json_dte)
-                                except json.JSONDecodeError:
-                                    # Ya era string, pero no era JSON válido -> guardar tal cual
-                                    invoice.sit_json_respuesta = json_dte
-                                else:
-                                    # Era un JSON string válido → ahora es dict
-                                    invoice.sit_json_respuesta = json.dumps(json_dte, ensure_ascii=False)
-                            elif isinstance(json_dte, dict):
-                                invoice.sit_json_respuesta = json.dumps(json_dte, ensure_ascii=False)
-                            else:
-                                # Otro tipo de dato no esperado
-                                invoice.sit_json_respuesta = str(json_dte)
-                        except Exception as e:
-                            _logger.warning("No se pudo guardar el JSON del DTE: %s", e)
-
                         # Intentar generar el DTE
                         Resultado = invoice.generar_dte('production', payload_dte, payload)
                         _logger.warning("SIT Resultado. =%s, estado=%s", Resultado, Resultado.get('estado', ''))
@@ -798,6 +779,31 @@ class AccountMove(models.Model):
                                 self.check_parametros_dte(payload_dte)
                                 Resultado = invoice.generar_dte('production', payload_dte, payload)
 
+                        # Guardar json generado
+                        json_dte = payload['dteJson']
+                        _logger.info("Tipo de dteJson: %s", type(json_dte))
+                        _logger.info("SIT JSON=%s", json_dte)
+
+                        # Solo serializar si no es string
+                        try:
+                            if isinstance(json_dte, str):
+                                try:
+                                    # Verifica si es un JSON string válido, y lo convierte a dict
+                                    json_dte = json.loads(json_dte)
+                                except json.JSONDecodeError:
+                                    # Ya era string, pero no era JSON válido -> guardar tal cual
+                                    invoice.sit_json_respuesta = json_dte
+                                else:
+                                    # Era un JSON string válido → ahora es dict
+                                    invoice.sit_json_respuesta = json.dumps(json_dte, ensure_ascii=False)
+                            elif isinstance(json_dte, dict):
+                                invoice.sit_json_respuesta = json.dumps(json_dte, ensure_ascii=False)
+                            else:
+                                # Otro tipo de dato no esperado
+                                invoice.sit_json_respuesta = str(json_dte)
+                        except Exception as e:
+                            _logger.warning("No se pudo guardar el JSON del DTE: %s", e)
+
                         estado = None
                         if Resultado and Resultado.get('estado'):
                             estado = Resultado['estado'].strip().lower()
@@ -824,11 +830,13 @@ class AccountMove(models.Model):
                             # Procesar la respuesta de Hacienda
                             invoice.hacienda_estado = Resultado['estado']
                             invoice.hacienda_codigoGeneracion_identificacion = self.hacienda_codigoGeneracion_identificacion
+                            _logger.info("Codigo de generacion session: %s, codigo generacion bd: %s", self.hacienda_codigoGeneracion_identificacion, invoice.hacienda_codigoGeneracion_identificacion)
                             invoice.hacienda_selloRecibido = Resultado['selloRecibido']
                             invoice.hacienda_clasificaMsg = Resultado['clasificaMsg']
                             invoice.hacienda_codigoMsg = Resultado['codigoMsg']
                             invoice.hacienda_descripcionMsg = Resultado['descripcionMsg']
                             invoice.hacienda_observaciones = str(Resultado['observaciones'])
+                            #invoice.sit_json_respuesta = json_dte
 
                             codigo_qr = invoice._generar_qr(ambiente,self.hacienda_codigoGeneracion_identificacion,
                                                             invoice.fecha_facturacion_hacienda)
@@ -868,6 +876,7 @@ class AccountMove(models.Model):
                             sit_json_respuesta_fusionado = json.dumps(json_original)
                             invoice.sit_json_respuesta = sit_json_respuesta_fusionado
 
+                            _logger.info("Codigo de generacion resultado: %s", Resultado['codigoGeneracion'])
                             invoice.write({
                                 'hacienda_estado': Resultado['estado'],
                                 'hacienda_codigoGeneracion_identificacion': Resultado['codigoGeneracion'],
@@ -1138,6 +1147,7 @@ class AccountMove(models.Model):
 
             _logger.info("SIT MH status=%s text=%s", resp.status_code, resp.text)
             _logger.info("SIT MH fecha procesamiento text=%s", resp.text)
+            _logger.info("SIT MH DATA=%s", data)
 
             # ——— 6) Manejo especial de códigoMsg '004' ———
             if resp.status_code == 400 and data.get("clasificaMsg") == "11" and data.get("codigoMsg") == "004":
