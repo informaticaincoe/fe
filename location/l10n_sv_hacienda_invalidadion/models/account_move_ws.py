@@ -16,6 +16,7 @@ _logger = logging.getLogger(__name__)
 # Zona horaria El Salvador
 tz_el_salvador = pytz.timezone('America/El_Salvador')
 COD_FE = "01"
+COD_FSE = "14"
 from ..constantes_utils import get_constantes_anulacion
 from pytz import timezone, UTC
 
@@ -198,7 +199,7 @@ class AccountMove(models.Model):
 
         dui = None
         nit = None
-        if self.journal_id.sit_tipo_documento.codigo == COD_FE:
+        if self.journal_id.sit_tipo_documento.codigo in [COD_FE, COD_FSE]:
             #nit = self.partner_id.dui.replace("-", "") if isinstance(self.partner_id.dui,str) and self.partner_id.dui.strip() else None
             if isinstance(self.partner_id.dui,str) and self.partner_id.dui.strip():
                 dui = self.partner_id.dui.replace("-", "")
@@ -206,7 +207,7 @@ class AccountMove(models.Model):
                 nit = self.partner_id.fax.replace("-", "")
         else:
             nit = self.partner_id.fax.replace("-", "") if isinstance(self.partner_id.fax,str) and self.partner_id.fax.strip() else None
-
+        _logger.info("SIT Numero de documento: %s, %s", dui, nit)
         #invoice_info["codigoGeneracionR"] = None  # ó self.sit_codigoGeneracionR
 
         # Datos del receptor

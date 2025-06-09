@@ -895,6 +895,7 @@ class AccountMove(models.Model):
         return invoice_info
 
     def sit_obtener_payload_dte_info(self, ambiente, doc_firmado):
+        _logger.info("Generando payload FCF (cg):%s", self.hacienda_codigoGeneracion_identificacion)
         invoice_info = {}
         invoice_info["ambiente"] = ambiente
         invoice_info["idEnvio"] = "00001"
