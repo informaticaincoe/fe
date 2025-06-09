@@ -56,6 +56,8 @@ class AccountMove(models.Model):
             raise UserError(_('La Factura no tiene linea de Productos Valida.'))
         invoice_info["resumen"] = self.sit_fse_base_map_invoice_info_resumen()
         invoice_info["apendice"] = None
+        _logger.info("RESUMEEEEEEEEn %s", self.sit_fse_base_map_invoice_info_resumen())
+
         return invoice_info
 
     def sit__fse_base_map_invoice_info_identificacion(self):
@@ -194,6 +196,9 @@ class AccountMove(models.Model):
                 line_temp["tipoItem"] = tipoItem
                 line_temp["cantidad"] = line.quantity
                 line_temp["codigo"] = line.product_id.default_code
+                if not line.product_id:
+                    _logger.error("Producto no configurado en la línea de factura.")
+                    continue  # O puedes decidir manejar de otra manera
                 # unidad de referencia del producto si se comercializa
                 # en una unidad distinta a la de consumo
                 # uom is not mandatory, if no UOM we use "unit"
@@ -202,7 +207,7 @@ class AccountMove(models.Model):
                 #     line_temp["codTributo"] = None
                 # else:
                 #     line_temp["codTributo"] = line.product_id.tributos_hacienda_cuerpo.codigo
-                _logger.info("SIT UOM =%s",  line.product_id.uom_hacienda)
+                _logger.info("SIT UOM =%s",  line.product_id)
                 if not line.product_id.uom_hacienda:
                     uniMedida = 7
                     raise UserError(
@@ -263,8 +268,13 @@ class AccountMove(models.Model):
         subtotal = sum(line.price_subtotal for line in self.invoice_line_ids)
         total = self.amount_total
 
-        rete_renta = 0.0
-        rete_iva = 0.0
+        rete_iva = round(self.retencion_iva_amount or 0.0, 2)
+        rete_renta = round(self.retencion_renta_amount or 0.0, 2)
+        _logger.warning("SIT  RENTA RENTA= %s", rete_renta)
+        _logger.warning("SIT  rete iva = %s", rete_iva)
+        _logger.warning("SIT  total pagar resta = %s", self.total_operacion - (rete_renta + rete_iva))
+        _logger.warning("SIT  total pagar = %s", self.total_operacion)
+
         monto_descu = 0.0
 
         for line in self.invoice_line_ids:
@@ -278,29 +288,20 @@ class AccountMove(models.Model):
 
             monto_descu += round(line.quantity * (line.price_unit * (line.discount / 100)), 2)
 
-            for tax in taxes.get('taxes', []):
-                tax_name = tax.get('name', '').lower()
-                _logger.info("SIT NOMBRE IMPUESTO ************= %s", tax_name)
-                _logger.info("SIT CANTIDAD ************= %s", tax.get('amount'))
+        invoice_info["totalCompra"] = round(self.sub_total_ventas , 2)
+        invoice_info["descu"] = self.descuento_global # suma de descuento por item
+        invoice_info["totalDescu"] = round(self.descuento_global + self.total_descuento,2) # suma de descuento por item (descu) + descuentos globales y por operacion
 
-                if 'retencion renta' in tax_name:
-                    rete_renta += abs(tax.get('amount', 0.0))
-                elif 'retencion iva 1%' in tax_name:
-                    rete_iva += abs(tax.get('amount', 0.0))
-
-        invoice_info["totalCompra"] = round(self.amount_untaxed, 2)
-        invoice_info["descu"] = 0
-        invoice_info["totalDescu"] = monto_descu
-        invoice_info["subTotal"] = round(self.amount_untaxed, 2)
+        invoice_info["subTotal"] = round(self.sub_total_ventas - self.descuento_global, 2)
         invoice_info["ivaRete1"] = round(rete_iva, 2)
         invoice_info["reteRenta"] = round(rete_renta, 2)
-        invoice_info["totalPagar"] = round(self.amount_total, 2)
+        invoice_info["totalPagar"] = round(self.total_pagar, 2)
         invoice_info["totalLetras"] = self.amount_text
         invoice_info["condicionOperacion"] = int(self.condiciones_pago)
         invoice_info["observaciones"] = None
         pagos = {}  # Inicializa el diccionario pagos
         pagos["codigo"] = self.forma_pago.codigo  # '01'   # CAT-017 Forma de Pago    01 = bienes
-        pagos["montoPago"] = round(self.amount_total, 2)
+        pagos["montoPago"] = round(self.total_pagar, 2)
         pagos["referencia"] = None  # Un campo de texto llamado Referencia de pago
         if int(self.condiciones_pago) in [2]:
             pagos["plazo"] = self.sit_plazo.codigo

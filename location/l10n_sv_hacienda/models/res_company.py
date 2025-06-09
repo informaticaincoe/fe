@@ -41,6 +41,16 @@ class ResCompany(models.Model):
         help='Cuenta contable predeterminada en esta empresa.'
     )
 
+    retencion_renta_account_id = fields.Many2one(
+        'account.account',
+        string='Cuenta contable de Retención de Renta'
+    )
+
+    retencion_iva_account_id = fields.Many2one(
+        'account.account',
+        string='Cuenta contable de Retención de IVA'
+    )
+
 
     def get_generar_token(self):
         _logger.info("SIT get_generar_token = %s,%s,%s", self.sit_token_user, self.sit_token_pass, self.sit_passwordPri)

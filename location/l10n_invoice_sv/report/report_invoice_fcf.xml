@@ -200,21 +200,6 @@
                                     </p>
                                 </div>
                             </div>
-                            <!--  Seccion documentos relacionados -->
-                            <!--<div style="margin: 4% 0%;" class="mb-4 w-100">
-                               <p class="section-title text-center mb-1">Documentos relacionados</p>
-                               <div class="row border border-light-subtle rounded-2 align-items-center">
-                                   <p class="col border-end border-light-subtle">Tipo de documento:
-                                       <span/>
-                                   </p>
-                                   <p class="col py-1">N° documento:
-                                       <span/>
-                                   </p>
-                                   <p class="col py-1">fecha del documento
-                                       <span/>
-                                   </p>
-                               </div>
-                           </div>-->
 
                             <!-- Seccion detalles compra -->
                             <br/>
@@ -278,7 +263,6 @@
                                                     <span t-field="o.invoice_line_ids[idx].uom_id"
                                                           groups="product.group_uom"/>
                                                 </td>
-                                                ;
                                                 <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
                                                     class="border-light-subtle">
                                                     <span t-field="o.invoice_line_ids[idx].product_id.default_code"/>
@@ -289,10 +273,9 @@
                                                 </td>
                                                 <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
                                                     class="border-light-subtle">
-                                                    <span t-esc="o.invoice_line_ids[idx].price_unit * 1.133"
+                                                    <span t-esc="o.invoice_line_ids[idx].price_unit * 1.13"
                                                           t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
                                                 </td>
-
                                                 <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
                                                     class="border-light-subtle">
                                                     <span>$0.00</span>
@@ -302,23 +285,21 @@
                                                     <span t-esc="o.invoice_line_ids[idx].price_unit * (o.invoice_line_ids[idx].discount / 100)"
                                                           t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
                                                 </td>
-
-
                                                 <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
                                                     class="border-light-subtle">
-                                                    <span>$0.00</span>
-                                                </td>
-                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
-                                                    class="border-light-subtle">
-                                                    <span>$0.00</span>
-                                                </td>
-                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
-                                                    class="border-light-subtle">
-                                                    <span t-esc="(o.invoice_line_ids[idx].price_total)"
+                                                    <span t-esc="(o.invoice_line_ids[idx].precio_no_sujeto)"
                                                           t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
                                                 </td>
-
-
+                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
+                                                    class="border-light-subtle">
+                                                    <span t-esc="(o.invoice_line_ids[idx].precio_exento)"
+                                                          t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
+                                                </td>
+                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
+                                                    class="border-light-subtle">
+                                                    <span t-esc="(o.invoice_line_ids[idx].precio_gravado)"
+                                                          t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
+                                                </td>
                                             </tr>
                                         </t>
                                     </tbody>
@@ -358,6 +339,7 @@
                                                 <tr>
                                                     <td style="padding:2%; vertical-align:top;">
                                                         <strong>Observaciones:</strong>
+                                                        <span t-field="o.sit_observaciones"/>
                                                     </td>
                                                 </tr>
                                             </table>
@@ -414,13 +396,14 @@
                                             <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
                                                 <tbody>
                                                     <tr>
-                                                        <td style="border:1px solid #e5e7e9; padding:4px; text-align:end;"
+                                                        <td style="border:1px solid #e5e7e9; text-align:end;"
                                                             class="border-light-subtle">
                                                             Sumatoria de venta:
                                                         </td>
-                                                        <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
-                                                            class="border-light-subtle">
-                                                            <span t-field="o.amount_total"/>
+                                                        <td style="border:1px solid #e5e7e9; text-align:left;"
+                                                            class="border-light-subtle px-1">
+                                                            <span t-esc="o.sub_total_ventas"
+                                                                  t-options="{'widget':'monetary','display_currency': o.currency_id}"/>
                                                         </td>
                                                     </tr>
                                                     <tr>
@@ -430,7 +413,8 @@
                                                         </td>
                                                         <td class="px-1 border border-light-subtle text-left"
                                                             style="padding: 1% 0%;">
-                                                            <span>$ 0.00</span>
+                                                            <span t-esc="o.descuento_no_sujeto"
+                                                                  t-options="{'widget':'monetary','display_currency': o.currency_id}"/>
                                                         </td>
                                                     </tr>
                                                     <tr>
@@ -440,7 +424,8 @@
                                                         </td>
                                                         <td class="px-1 border border-light-subtle text-left"
                                                             style="padding: 1% 0%;">
-                                                            <span>$ 0.00</span>
+                                                            <span t-esc="o.descuento_exento"
+                                                                  t-options="{'widget':'monetary','display_currency': o.currency_id}"/>
                                                         </td>
                                                     </tr>
                                                     <tr>
@@ -450,7 +435,8 @@
                                                         </td>
                                                         <td class="px-1 border border-light-subtle text-start"
                                                             style="padding: 1% 0%;">
-                                                            <span>$ 0.00</span>
+                                                            <span t-esc="o.descuento_gravado"
+                                                                  t-options="{'widget':'monetary','display_currency': o.currency_id}"/>
                                                         </td>
                                                     </tr>
                                                     <t t-foreach="o.line_ids.filtered(lambda l: l.tax_line_id)"
@@ -465,14 +451,33 @@
                                                                     <span t-field="tax_line.tax_line_id.tributos_hacienda_resumen_dte"/>
                                                                 </t>
                                                             </td>
-                                                            <td class="px-1 border border-light-subtle text-end"
+                                                            <td class="px-1 border border-light-subtle text-left"
                                                                 style="padding: 2% 0%;">
                                                                 <span t-esc="abs(o.amount_untaxed * (tax_line.tax_line_id.amount / 100))"
                                                                       t-options="{'widget':'monetary','display_currency': o.currency_id}"/>
                                                             </td>
                                                         </tr>
                                                     </t>
-
+                                                    <tr>
+                                                        <td class="px-1 border border-light-subtle text-end"
+                                                            style="padding: 1% 0%;">Retención IVA:
+                                                        </td>
+                                                        <td class="px-1 border border-light-subtle text-start"
+                                                            style="padding: 1% 0%;">
+                                                            <span t-esc="o.retencion_iva_amount"
+                                                                  t-options="{'widget':'monetary','display_currency': o.currency_id}"/>
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td class="px-1 border border-light-subtle text-end"
+                                                            style="padding: 1% 0%;">Retención renta:
+                                                        </td>
+                                                        <td class="px-1 border border-light-subtle text-start"
+                                                            style="padding: 1% 0%;">
+                                                            <span t-esc="o.retencion_renta_amount"
+                                                                  t-options="{'widget':'monetary','display_currency': o.currency_id}"/>
+                                                        </td>
+                                                    </tr>
                                                     <tr>
                                                         <td class="px-1 border border-light-subtle text-end"
                                                             style="padding: 1% 0%;">Monto total operación:
@@ -499,7 +504,8 @@
                                                         </td>
                                                         <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
                                                             class="border-light-subtle">
-                                                            <span t-field="o.amount_total"/>
+                                                            <span t-esc="o.total_pagar"
+                                                                  t-options="{'widget':'monetary','display_currency': o.currency_id}"/>
                                                         </td>
                                                     </tr>
                                                 </tbody>
