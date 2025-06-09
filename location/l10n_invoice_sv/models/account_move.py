@@ -5,6 +5,7 @@ from .amount_to_text_sv import to_word
 import base64
 
 import logging
+
 _logger = logging.getLogger(__name__)
 import base64
 import json
@@ -12,6 +13,14 @@ import json
 
 class AccountMove(models.Model):
     _inherit = 'account.move'
+
+    apply_retencion_iva = fields.Boolean(string="Aplicar Retención IVA")
+    retencion_iva_amount = fields.Monetary(string="Monto Retención IVA", currency_field='currency_id',
+                                           compute='_compute_retencion', readonly=True, store=True)
+
+    apply_retencion_renta = fields.Boolean(string="Aplicar Retención Renta")
+    retencion_renta_amount = fields.Monetary(string="Monto Retención Renta", currency_field='currency_id',
+                                           compute='_compute_retencion', readonly=True, store=True)
 
     inv_refund_id = fields.Many2one('account.move',
                                     'Factura Relacionada',
@@ -39,11 +48,13 @@ class AccountMove(models.Model):
     descuento_no_sujeto_pct = fields.Float(string='Descuento No Sujeto (%)', default=0.0)
 
     descuento_gravado = fields.Float(string='Monto Desc. Gravado', store=True, compute='_compute_descuentos')
-    descuento_exento = fields.Float(string='Monto Desc. Exento',  store=True, compute='_compute_descuentos')
+    descuento_exento = fields.Float(string='Monto Desc. Exento', store=True, compute='_compute_descuentos')
     descuento_no_sujeto = fields.Float(string='Monto Desc. No Sujeto', store=True, compute='_compute_descuentos')
-    total_descuento = fields.Float(string='Total descuento', default=0.00, store=True, compute='_compute_total_descuento', )
+    total_descuento = fields.Float(string='Total descuento', default=0.00, store=True,
+                                   compute='_compute_total_descuento', )
 
-    descuento_global = fields.Float(string='Monto Desc. Global', default=0.00, store=True, compute='_compute_descuento_global', inverse='_inverse_descuento_global')
+    descuento_global = fields.Float(string='Monto Desc. Global', default=0.00, store=True,
+                                    compute='_compute_descuento_global', inverse='_inverse_descuento_global')
 
     descuento_global_monto = fields.Float(
         string='Descuento global (%)',
@@ -65,9 +76,10 @@ class AccountMove(models.Model):
         currency_field='currency_id'
     )
 
-    sub_total = fields.Float(string='Subtotal', default=0.0, compute='_compute_total_con_descuento',store=True)
-    total_operacion = fields.Float(string='Total Operacion', default=0.0, compute='_compute_total_con_descuento',store=True)
-    total_pagar = fields.Float(string='Total a Pagar', default=0.0, compute='_compute_total_con_descuento',store=True)
+    sub_total = fields.Float(string='Subtotal', default=0.0, compute='_compute_total_con_descuento', store=True)
+    total_operacion = fields.Float(string='Total Operacion', default=0.0, compute='_compute_total_con_descuento',
+                                   store=True)
+    total_pagar = fields.Float(string='Total a Pagar', default=0.0, compute='_compute_total_con_descuento', store=True)
     total_pagar_text = fields.Char(
         string='Total a Pagar en Letras',
         compute='_compute_total_pagar_text',
@@ -78,6 +90,48 @@ class AccountMove(models.Model):
     def _compute_total_pagar_text(self):
         for move in self:
             move.total_pagar_text = to_word(move.total_pagar)
+
+    @api.depends('apply_retencion_renta', 'apply_retencion_iva', 'amount_total')
+    def _compute_retencion(self):
+        for move in self:
+            base_total = move.sub_total_ventas - move.descuento_global
+            move.retencion_renta_amount = 0.0
+            move.retencion_iva_amount = 0.0
+
+            if move.apply_retencion_renta:
+                move.retencion_renta_amount = base_total * 0.10
+            if move.apply_retencion_iva:
+                tipo_doc = move.journal_id.sit_tipo_documento.codigo
+                if tipo_doc in ["01", "03"]:  # FCF y CCF
+                    move.retencion_iva_amount = base_total * 0.01  # 1% para estos tipos
+                else:
+                    move.retencion_iva_amount = base_total * 0.13  # 13% general
+
+    def _create_retencion_renta_line(self):
+        cuenta_retencion = self.env.ref('mi_modulo.cuenta_retencion_renta')  # Asegúrate de definir esto correctamente
+        for move in self:
+            if move.state != 'draft':
+                continue  # Solo aplicar en borrador
+
+            if not move.apply_retencion_renta or not cuenta_retencion:
+                continue
+
+            existe_linea = move.line_ids.filtered(
+                lambda l: l.account_id == cuenta_retencion and l.name == "Retención de Renta"
+            )
+            if not existe_linea:
+                move.line_ids += self.env['account.move.line'].new({
+                    'name': "Retención de Renta",
+                    'account_id': cuenta_retencion.id,
+                    'move_id': move.id,
+                    'credit': move.retencion_renta_amount,
+                    'debit': 0.0,
+                    'partner_id': move.partner_id.id,
+                })
+
+    def _post(self, soft=True):
+        self._create_retencion_renta_line()
+        return super()._post(soft=soft)
 
     @api.depends('amount_total')
     def _amount_to_text(self):
@@ -118,19 +172,19 @@ class AccountMove(models.Model):
                 if type_report == 'fcf':
                     if not invoice.partner_id.parent_id:
                         if not invoice.partner_id.vat:
-                            #invoice.msg_error("N.I.T.")
+                            # invoice.msg_error("N.I.T.")
                             pass
                         if invoice.partner_id.company_type == 'person':
                             if not invoice.partner_id.dui:
-                                #invoice.msg_error("D.U.I.")
+                                # invoice.msg_error("D.U.I.")
                                 pass
                     else:
                         if not invoice.partner_id.parent_id.fax:
-                            #invoice.msg_error("N.I.T.")
+                            # invoice.msg_error("N.I.T.")
                             pass
                         if invoice.partner_id.parent_id.company_type == 'person':
                             if not invoice.partner_id.dui:
-                                #invoice.msg_error("D.U.I.")
+                                # invoice.msg_error("D.U.I.")
                                 pass
 
                 if type_report == 'exp':
@@ -157,22 +211,22 @@ class AccountMove(models.Model):
 
         return super(AccountMove, self)._post()
 
-#--------------------------------------------------------------------------------------------------------- 
+    # ---------------------------------------------------------------------------------------------------------
 
     def sit_action_send_mail(self):
         _logger.info("SIT enviando correo = %s", self)
         """ Open a window to compose an email, with the edi invoice template
             message loaded by default
         """
-        #self.ensure_one()
-        #template = self.env.ref(self._get_mail_template_sv(), raise_if_not_found=False)
-        #lang = False
-        #if template:
+        # self.ensure_one()
+        # template = self.env.ref(self._get_mail_template_sv(), raise_if_not_found=False)
+        # lang = False
+        # if template:
         #    lang = template._render_lang(self.ids)[self.id]
-        #if not lang:
+        # if not lang:
         #    lang = get_lang(self.env).code
-        #compose_form = self.env.ref('account.account_invoice_send_wizard_form', raise_if_not_found=False)
-        #ctx = dict(
+        # compose_form = self.env.ref('account.account_invoice_send_wizard_form', raise_if_not_found=False)
+        # ctx = dict(
         #    default_model='account.move',
         #    default_res_id=self.id,
         #    default_res_model='account.move',
@@ -185,9 +239,9 @@ class AccountMove(models.Model):
         #    model_description=self.with_context(lang=lang).type_name,
         #    force_email=True,
         #    active_ids=self.ids,
-        #)
-#
-        #report_action = {
+        # )
+        #
+        # report_action = {
         #    'name': _('Enviar Factura_por email'),
         #    'type': 'ir.actions.act_window',
         #    'view_type': 'form',
@@ -197,13 +251,13 @@ class AccountMove(models.Model):
         #    'view_id': compose_form.id,
         #    'target': 'new',
         #    'context': ctx,
-        #}
-#
-        #if self.env.is_admin() and not self.env.company.external_report_layout_id and not self.env.context.get('discard_logo_check'):
+        # }
+        #
+        # if self.env.is_admin() and not self.env.company.external_report_layout_id and not self.env.context.get('discard_logo_check'):
         #    return self.env['ir.actions.report']._action_configure_external_report_layout(report_action)
-        #return report_action
+        # return report_action
 
-        #template = self.env.ref(self._get_mail_template(), raise_if_not_found=False)
+        # template = self.env.ref(self._get_mail_template(), raise_if_not_found=False)
         template = self.env.ref(self._get_mail_template_sv(), raise_if_not_found=False)
         _logger.info("SIT | Plantilla de correo obtenida: %s", template and template.name or 'No encontrada')
         print(template)
@@ -398,7 +452,7 @@ class AccountMove(models.Model):
             else:
                 _logger.info("SIT | Ya se envio el correo %s", invoice.name)
 
-#-------Inicio Descuentos globales
+    # -------Inicio Descuentos globales
     # @api.depends('invoice_line_ids.precio_gravado', 'invoice_line_ids.precio_exento', 'invoice_line_ids.precio_no_sujeto')
     # def _compute_totales_tipo_venta(self):
     #     for move in self:
@@ -450,7 +504,7 @@ class AccountMove(models.Model):
             _logger.info("SIT Onchange: cambios asignados a los campos en memoria: %s", move.sub_total_ventas)
 
     @api.depends('descuento_gravado', 'descuento_exento', 'descuento_no_sujeto',
-                 'invoice_line_ids.price_unit', 'invoice_line_ids.quantity', 'invoice_line_ids.discount')
+                 'invoice_line_ids.price_unit', 'invoice_line_ids.quantity', 'invoice_line_ids.discount', 'apply_retencion_renta', 'apply_retencion_iva', 'retencion_renta_amount', 'retencion_iva_amount')
     def _compute_total_descuento(self):
         for move in self:
             total_descuentos_globales = (
@@ -488,7 +542,7 @@ class AccountMove(models.Model):
             move.descuento_no_sujeto = no_sujeto * move.descuento_no_sujeto_pct / 100
 
     @api.depends('amount_total', 'descuento_global', 'sub_total_ventas', 'descuento_no_sujeto', 'descuento_exento',
-                 'descuento_gravado', 'amount_tax')
+                 'descuento_gravado', 'amount_tax', 'apply_retencion_renta', 'apply_retencion_iva')
     def _compute_total_con_descuento(self):
         for move in self:
             # 1. Obtener montos
@@ -519,7 +573,14 @@ class AccountMove(models.Model):
                 move.total_operacion = move.sub_total
                 _logger.info(f"[{move.name}] Documento tipo 01, total_operacion: {move.total_operacion}")
 
-            move.total_pagar = move.total_operacion
+            move.total_pagar = move.total_operacion - (move.retencion_renta_amount + move.retencion_iva_amount)
+
+            _logger.info(f"{move.journal_id.sit_tipo_documento.codigo}] move.journal_id.sit_tipo_documento.codigo")
+
+            _logger.info(f"[{move.name}] sub_total: {move.sub_total}")
+            _logger.info(f"[{move.name}] total_descuento: {move.total_descuento}")
+            _logger.info(f"[{move.name}] move.retencion_renta_amount + move.retencion_iva_amount: {move.retencion_renta_amount + move.retencion_iva_amount}")
+
             _logger.info(f"[{move.name}] total_pagar: {move.total_pagar}")
 
     @api.depends('descuento_global_monto', 'sub_total_ventas')
@@ -538,8 +599,10 @@ class AccountMove(models.Model):
 
     @api.depends(
         'invoice_line_ids.precio_gravado', 'invoice_line_ids.precio_exento', 'invoice_line_ids.precio_no_sujeto',
-        'invoice_line_ids.price_unit', 'invoice_line_ids.quantity', 'invoice_line_ids.discount', 'invoice_line_ids.product_id.tipo_venta',
-        'descuento_gravado_pct', 'descuento_exento_pct', 'descuento_no_sujeto_pct', 'descuento_global_monto', 'amount_tax')
+        'invoice_line_ids.price_unit', 'invoice_line_ids.quantity', 'invoice_line_ids.discount',
+        'invoice_line_ids.product_id.tipo_venta',
+        'descuento_gravado_pct', 'descuento_exento_pct', 'descuento_no_sujeto_pct', 'descuento_global_monto',
+        'amount_tax')
     def _recalcular_resumen_documento(self):
         for move in self:
             move._calcular_totales_sv()
@@ -547,10 +610,53 @@ class AccountMove(models.Model):
             move._compute_total_descuento()
             move._compute_descuento_global()
             move._compute_total_con_descuento()
-#-------Fin descuentos
 
-#-------Creacion de apunte contable para los descuentos
-    #Actualizar apuntes contables
+    # -------Fin descuentos
+
+    # -------Retenciones
+    def agregar_lineas_retencion(self):
+        for move in self:
+            if move.state != 'draft':
+                continue
+
+            lineas = []
+
+            # Retención Renta
+            if move.apply_retencion_renta and move.retencion_renta_amount > 0:
+                cuenta_renta = move.company_id.retencion_renta_account_id
+                ya_existe_renta = move.line_ids.filtered(
+                    lambda l: l.account_id == cuenta_renta and l.name == "Retención de Renta"
+                )
+                if cuenta_renta and not ya_existe_renta:
+                    lineas.append((0, 0, {
+                        'account_id': cuenta_renta.id,
+                        'name': "Retención de Renta",
+                        'credit': move.retencion_renta_amount,
+                        'debit': 0.0,
+                        'partner_id': move.partner_id.id,
+                    }))
+
+            # Retención IVA
+            if move.apply_retencion_iva and move.retencion_iva_amount > 0:
+                cuenta_iva = move.company_id.retencion_iva_account_id
+                ya_existe_iva = move.line_ids.filtered(
+                    lambda l: l.account_id == cuenta_iva and l.name == "Retención de IVA"
+                )
+                if cuenta_iva and not ya_existe_iva:
+                    lineas.append((0, 0, {
+                        'account_id': cuenta_iva.id,
+                        'name': "Retención de IVA",
+                        'credit': move.retencion_iva_amount,
+                        'debit': 0.0,
+                        'partner_id': move.partner_id.id,
+                    }))
+
+            if lineas:
+                move.write({'line_ids': lineas})
+    # -------Fin retenciones
+
+    # -------Creacion de apunte contable para los descuentos
+    # Actualizar apuntes contables
     def action_post(self):
         for move in self:
             _logger.info(f"[action_post] Procesando factura ID {move.id} con número {move.name}")
@@ -558,21 +664,25 @@ class AccountMove(models.Model):
                 continue
 
             # Solo llamar a agregar_lineas_descuento_a_borrador si hay descuento global
-            if (move.descuento_gravado_pct and move.descuento_gravado_pct > 0)\
-                    or (move.descuento_exento_pct and move.descuento_exento_pct > 0)\
-                    or (move.descuento_no_sujeto_pct and move.descuento_no_sujeto_pct > 0)\
+            if (move.descuento_gravado_pct and move.descuento_gravado_pct > 0) \
+                    or (move.descuento_exento_pct and move.descuento_exento_pct > 0) \
+                    or (move.descuento_no_sujeto_pct and move.descuento_no_sujeto_pct > 0) \
                     or (move.descuento_global_monto and move.descuento_global_monto > 0):
-                _logger.info(f"[action_post] La factura tiene descuento global de {move.descuento_global}, agregando línea contable.")
+                _logger.info(
+                    f"[action_post] La factura tiene descuento global de {move.descuento_global}, agregando línea contable.")
                 move.agregar_lineas_descuento()
             else:
                 _logger.info("[action_post] No hay descuento global, no se agrega línea contable.")
 
+            # if move.apply_retencion_renta or move.apply_retencion_iva:
+            #     move.agregar_lineas_retencion()
+            move.agregar_lineas_retencion()
         return super().action_post()
 
     # Crear o buscar la cuenta contable para descuentos
     def obtener_cuenta_descuento(self):
         self.ensure_one()
-        codigo_cuenta = self.company_id.account_discount_id.code #'5103'
+        codigo_cuenta = self.company_id.account_discount_id.code  # '5103'
 
         cuenta = self.env['account.account'].search([
             ('code', '=', codigo_cuenta)
@@ -653,12 +763,12 @@ class AccountMoveSend(models.AbstractModel):
             return []
 
         filename = move._get_invoice_report_filename()
-        #return [{
+        # return [{
         #    'id': f'placeholder_{filename}',
         #    'name': filename,
         #    'mimetype': 'application/pdf',
         #    'placeholder': True,
-        #}]
+        # }]
 
         return []
 
@@ -680,8 +790,8 @@ class AccountMoveSend(models.AbstractModel):
                 ('name', '=', invoice.name.replace('/', '_') + '.json')]
             xml_file = self.env['ir.attachment'].search(domain, limit=1)
             domain2 = [('res_id', '=', invoice.id),
-                ('res_model', '=', invoice._name),
-                ('mimetype', '=', 'application/pdf')]
+                       ('res_model', '=', invoice._name),
+                       ('mimetype', '=', 'application/pdf')]
             xml_file2 = self.env['ir.attachment'].search(domain2, limit=1)
             if not xml_file2:
                 xml_file2 = self.env['ir.attachment'].create({
@@ -690,8 +800,8 @@ class AccountMoveSend(models.AbstractModel):
                     'datas': base64.encodebytes(res),
                     'res_model': 'account.move',
                     'res_id': invoice.id,
-                })                
-            
+                })
+
             attachments = []
             print(xml_file)
             if xml_file:
