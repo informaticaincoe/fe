@@ -17,7 +17,10 @@
 
         <!-- Reemplazar botón por el método intermedio -->
         <xpath expr="//button[@name='refund_moves']" position="replace">
-          <button name="refund_or_debit_custom" type="object" string="Reversar" />
+          <button name="refund_or_debit_custom"
+                  type="object"
+                  string="Reversar"
+                  class="btn-primary"/>
         </xpath>
       </field>
     </record>
