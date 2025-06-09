@@ -131,22 +131,35 @@ class AccountMoveReversal(models.TransientModel):
             },
         }
 
+    import logging
+    _logger = logging.getLogger(__name__)
+
     def refund_or_debit_custom(self):
         self.ensure_one()
+        _logger.info("SIT refund_or_debit_custom iniciado para account.move.reversal con ID=%s", self.id)
 
         doc_type = self.l10n_latam_document_type_id.code
+        _logger.info("SIT Tipo de documento detectado: %s", doc_type)
 
         if doc_type == '05':
-            # Nota de Crédito: usar el refund original
-            return self.refund_moves()
+            _logger.info("SIT Ejecutando refund_moves() para Nota de Crédito")
+            result = self.refund_moves_custom()
+            _logger.info("SIT refund_moves() ejecutado con éxito")
+            return result
 
         elif doc_type == '06':
-            # Nota de Débito: redirigir al wizard de nota de débito
+            _logger.info("SIT Ejecutando creación de Nota de Débito con wizard")
+            _logger.info("SIT move_ids para el wizard: %s", self.move_ids.ids)
+            _logger.info("SIT journal_id: %s", self.journal_id.id)
             debit_wizard = self.env['account.debit.note'].create({
                 'move_ids': [(6, 0, self.move_ids.ids)],
                 'journal_id': self.journal_id.id,
             })
-            return debit_wizard.create_debit()
+            _logger.info("SIT Wizard creado con ID: %s", debit_wizard.id)
+            result = debit_wizard.create_debit()
+            _logger.info("SIT create_debit() ejecutado con éxito")
+            return result
 
         else:
+            _logger.error("SIT Tipo de documento no soportado para reverso: %s", doc_type)
             raise UserError(_("Tipo de documento no soportado para reverso: %s") % doc_type)
