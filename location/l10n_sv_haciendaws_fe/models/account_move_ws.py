@@ -28,7 +28,7 @@ class AccountMove(models.Model):
         if len(self) != 1:
             raise UserError("Selecciona una sola factura para depurar el JSON.")
 
-        invoice_json = self.sit_base_map_invoice_info_dtejson()
+        invoice_json = self.sit__ccf_base_map_invoice_info()
 
         import json
         pretty_json = json.dumps(invoice_json, indent=4, ensure_ascii=False)
@@ -414,7 +414,7 @@ class AccountMove(models.Model):
         tributos["valor"] = round(self.amount_tax, 2)  # round(totalIva -(total_des*0.13),2)
         invoice_info["tributos"] = [tributos]
         invoice_info["subTotal"] = round(self.sub_total, 2)  # round(total_Gravada - total_des, 2 )
-        invoice_info["ivaPerci1"] = 0
+        invoice_info["ivaPerci1"] = round(self.iva_percibido_amount, 2)
 
         monto_descu = 0.0
         rete_iva = round(self.retencion_iva_amount or 0.0, 2)

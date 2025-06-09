@@ -27,14 +27,19 @@
                 </xpath>
                 <xpath expr="//field[@name='narration']" position="before">
                     <!-- <field class="oe_left" name="amount_text" placeholder="amount to text"/> -->
-                    <group string="Retenciones" col="2">Add commentMore actions
+                    <group string="Retenciones" col="2">
                         <field name="apply_retencion_renta"/>
                         <field name="retencion_renta_amount" readonly="1" widget="monetary"
                                options="{'currency_field': 'currency_id'}"/>
 
                         <field name="apply_retencion_iva"/>
                         <field name="retencion_iva_amount" readonly="1" widget="monetary"
-                               options="{'currency_field': 'currency_id'}"/>Add commentMore actions
+                               options="{'currency_field': 'currency_id'}"/>
+
+                        <field name="apply_iva_percibido"/>
+                        <field name="iva_percibido_amount" readonly="1" widget="monetary"
+                               options="{'currency_field': 'currency_id'}"/>
+
                     </group>
                     <field name="total_pagar_text" placeholder="Total en letras"/>
                     <group string="Totales por tipo de operación" col="2">

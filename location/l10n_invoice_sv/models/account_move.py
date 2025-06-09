@@ -22,6 +22,10 @@ class AccountMove(models.Model):
     retencion_renta_amount = fields.Monetary(string="Monto Retención Renta", currency_field='currency_id',
                                            compute='_compute_retencion', readonly=True, store=True)
 
+    apply_iva_percibido = fields.Boolean(string="Aplicar IVA percibido")
+    iva_percibido_amount = fields.Monetary(string="Monto iva percibido", currency_field='currency_id',
+                                             compute='_compute_retencion', readonly=True, store=True)
+
     inv_refund_id = fields.Many2one('account.move',
                                     'Factura Relacionada',
                                     copy=False,
@@ -97,16 +101,64 @@ class AccountMove(models.Model):
             base_total = move.sub_total_ventas - move.descuento_global
             move.retencion_renta_amount = 0.0
             move.retencion_iva_amount = 0.0
+            move.iva_percibido_amount = 0.0
 
             if move.apply_retencion_renta:
                 move.retencion_renta_amount = base_total * 0.10
             if move.apply_retencion_iva:
                 tipo_doc = move.journal_id.sit_tipo_documento.codigo
                 if tipo_doc in ["01", "03"]:  # FCF y CCF
-                    move.retencion_iva_amount = base_total * 0.01  # 1% para estos tipos
+                    move.retencion_iva_amount = ((move.sub_total_ventas / 1.13) - move.descuento_global) * 0.01 #En FCF y CCF la retencion es del %
                 else:
                     move.retencion_iva_amount = base_total * 0.13  # 13% general
+            if move.apply_iva_percibido:
+                tipo_doc = move.journal_id.sit_tipo_documento.codigo
+                if tipo_doc in ["03"]:  # FCF y CCF
+                    move.iva_percibido_amount = ((move.sub_total_ventas / 1.13) - move.descuento_global) * 0.01  # 1% solo aplicado en CCF
 
+    def _create_iva_percibido_line(self):
+        cuenta_retencion = self.env.ref('account.move.line')  # Asegúrate de definir esto correctamente
+        for move in self:
+            if move.state != 'draft':
+                continue  # Solo aplicar en borrador
+
+            if not move.apply_iva_percibido or not cuenta_retencion:
+                continue
+
+            existe_linea = move.line_ids.filtered(
+                lambda l: l.account_id == cuenta_retencion and l.name == "IVA percibido"
+            )
+            if not existe_linea:
+                move.line_ids += self.env['account.move.line'].new({
+                    'name': "IVA percibido",
+                    'account_id': cuenta_retencion.id,
+                    'move_id': move.id,
+                    'credit': move.iva_percibido_amount,
+                    'debit': 0.0,
+                    'partner_id': move.partner_id.id,
+                })
+
+    def _create_retencion_iva_line(self):
+        cuenta_retencion = self.env.ref('account.move.line')  # Asegúrate de definir esto correctamente
+        for move in self:
+            if move.state != 'draft':
+                continue  # Solo aplicar en borrador
+
+            if not move.apply_retencion_iva or not cuenta_retencion:
+                continue
+
+            existe_linea = move.line_ids.filtered(
+                lambda l: l.account_id == cuenta_retencion and l.name == "Retención de IVA"
+            )
+            if not existe_linea:
+                move.line_ids += self.env['account.move.line'].new({
+                    'name': "Retención de IVA",
+                    'account_id': cuenta_retencion.id,
+                    'move_id': move.id,
+                    'credit': move.retencion_iva_amount,
+                    'debit': 0.0,
+                    'partner_id': move.partner_id.id,
+                })
     def _create_retencion_renta_line(self):
         cuenta_retencion = self.env.ref('mi_modulo.cuenta_retencion_renta')  # Asegúrate de definir esto correctamente
         for move in self:
