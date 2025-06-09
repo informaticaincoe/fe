@@ -11,15 +11,15 @@
                     <field name="sit_observaciones" invisible="0"/>
                 </xpath>
                 <xpath expr="//label[@for='journal_id']" position="before">
-                    <field name="invoice_payment_term_name" invisible="1"/>
+<!--                    <field name="invoice_payment_term_name" invisible="1"/>-->
                     <group string="Pago Hacienda">
+                        <field name="invoice_payment_term_id" string="Términos de Pago" />
                         <field name="condiciones_pago" string="Condiciones de Pago"
                                options="{'no_open': True, 'no_create': True}"/>
-
                         <field name="forma_pago" string="Forma de Pago" options="{'no_open': True, 'no_create': True}"/>
                         <field name="sit_periodo" string="periodo de pago"
                                options="{'no_open': True, 'no_create': True}"/>
-                        <field name="sit_plazo" string="plazo" options="{'no_open': True, 'no_create': True}"/>
+                        <field name="sit_plazo" string="plazo" invisible="0"/>
                     </group>
                 </xpath>
                 <notebook>
