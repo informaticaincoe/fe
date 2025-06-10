@@ -27,6 +27,8 @@
                 </xpath>
                 <xpath expr="//field[@name='narration']" position="before">
                     <!-- <field class="oe_left" name="amount_text" placeholder="amount to text"/> -->
+                                            <field name="codigo_tipo_documento" invisible="1"/>
+
                     <group string="Retenciones" col="2">
                         <field name="apply_retencion_renta"/>
                         <field name="retencion_renta_amount" readonly="1" widget="monetary"
@@ -36,9 +38,8 @@
                         <field name="retencion_iva_amount" readonly="1" widget="monetary"
                                options="{'currency_field': 'currency_id'}"/>
 
-                        <field name="apply_iva_percibido"/>
-                        <field name="iva_percibido_amount" readonly="1" widget="monetary"
-                               options="{'currency_field': 'currency_id'}"/>
+                        <field name="apply_iva_percibido" visibility_condition="codigo_tipo_documento == '03'"/>
+                        <field name="iva_percibido_amount" visibility_condition="codigo_tipo_documento == '03'"/>
 
                     </group>
                     <field name="total_pagar_text" placeholder="Total en letras"/>

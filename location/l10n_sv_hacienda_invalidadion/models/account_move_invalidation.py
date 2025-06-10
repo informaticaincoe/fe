@@ -27,8 +27,8 @@ import re
 # from datetime import datetime
 
 _logger = logging.getLogger(__name__)
-#EXTRA_ADDONS = r'C:\Users\Admin\Documents\GitHub\fe\location\mnt\extra-addons\src'
-EXTRA_ADDONS = r'C:\Users\INCOE\Documents\GitHub\fe\location\mnt\extra-addons\src'
+EXTRA_ADDONS = r'C:\Users\Admin\Documents\GitHub\fe\location\mnt\extra-addons\src'
+#EXTRA_ADDONS = r'C:\Users\INCOE\Documents\GitHub\fe\location\mnt\extra-addons\src'
 
 class AccountMoveInvalidation(models.Model):
     _name = "account.move.invalidation"
@@ -184,9 +184,9 @@ class AccountMoveInvalidation(models.Model):
                         pytz.utc)
                     time_diff = datetime.now(pytz.utc) - fecha_factura_utc
 
-                    if time_diff.total_seconds() > 24 * 3600:
-                        _logger.warning("SIT Factura excede el límite de anulación de 24h")
-                        raise UserError(_("La anulación no puede realizarse. La factura tiene más de 24 horas."))
+                    # if time_diff.total_seconds() > 24 * 3600:
+                    #     _logger.warning("SIT Factura excede el límite de anulación de 24h")
+                    #     raise UserError(_("La anulación no puede realizarse. La factura tiene más de 24 horas."))
 
             if not invoice.hacienda_estado_anulacion:
                 if invoice.sit_factura_a_reemplazar.move_type != 'entry':

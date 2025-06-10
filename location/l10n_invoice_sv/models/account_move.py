@@ -14,6 +14,11 @@ import json
 class AccountMove(models.Model):
     _inherit = 'account.move'
 
+    codigo_tipo_documento = fields.Char(
+        related='journal_id.sit_tipo_documento.codigo',
+        store=True
+    )
+
     apply_retencion_iva = fields.Boolean(string="Aplicar Retención IVA")
     retencion_iva_amount = fields.Monetary(string="Monto Retención IVA", currency_field='currency_id',
                                            compute='_compute_retencion', readonly=True, store=True)
@@ -105,6 +110,7 @@ class AccountMove(models.Model):
 
             if move.apply_retencion_renta:
                 move.retencion_renta_amount = base_total * 0.10
+
             if move.apply_retencion_iva:
                 tipo_doc = move.journal_id.sit_tipo_documento.codigo
                 if tipo_doc in ["01", "03"]:  # FCF y CCF
@@ -113,31 +119,30 @@ class AccountMove(models.Model):
                     move.retencion_iva_amount = base_total * 0.13  # 13% general
             if move.apply_iva_percibido:
                 tipo_doc = move.journal_id.sit_tipo_documento.codigo
-                if tipo_doc in ["03"]:  # FCF y CCF
-                    move.iva_percibido_amount = ((move.sub_total_ventas / 1.13) - move.descuento_global) * 0.01  # 1% solo aplicado en CCF
-
+                move.iva_percibido_amount = ((move.sub_total_ventas / 1.13) - move.descuento_global) * 0.01
     def _create_iva_percibido_line(self):
-        cuenta_retencion = self.env.ref('account.move.line')  # Asegúrate de definir esto correctamente
+        cuenta_iva_percibido = self.env.ref('mi_modulo.cuenta_iva_percibido')  # Usa el ID real que declaraste
         for move in self:
             if move.state != 'draft':
-                continue  # Solo aplicar en borrador
+                continue
 
-            if not move.apply_iva_percibido or not cuenta_retencion:
+            if not move.apply_iva_percibido or not cuenta_iva_percibido:
                 continue
 
             existe_linea = move.line_ids.filtered(
-                lambda l: l.account_id == cuenta_retencion and l.name == "IVA percibido"
+                lambda l: l.account_id == cuenta_iva_percibido and l.name == "IVA Percibido"
             )
             if not existe_linea:
                 move.line_ids += self.env['account.move.line'].new({
-                    'name': "IVA percibido",
-                    'account_id': cuenta_retencion.id,
+                    'name': "IVA Percibido",
+                    'account_id': cuenta_iva_percibido.id,
                     'move_id': move.id,
                     'credit': move.iva_percibido_amount,
                     'debit': 0.0,
                     'partner_id': move.partner_id.id,
                 })
 
+    @api.depends('apply_retencion_renta', 'apply_retencion_iva', 'apply_iva_percibido', 'amount_total')
     def _create_retencion_iva_line(self):
         cuenta_retencion = self.env.ref('account.move.line')  # Asegúrate de definir esto correctamente
         for move in self:
@@ -159,6 +164,8 @@ class AccountMove(models.Model):
                     'debit': 0.0,
                     'partner_id': move.partner_id.id,
                 })
+
+    @api.depends('apply_retencion_renta', 'apply_retencion_iva', 'apply_iva_percibido', 'amount_total')
     def _create_retencion_renta_line(self):
         cuenta_retencion = self.env.ref('mi_modulo.cuenta_retencion_renta')  # Asegúrate de definir esto correctamente
         for move in self:
@@ -594,7 +601,7 @@ class AccountMove(models.Model):
             move.descuento_no_sujeto = no_sujeto * move.descuento_no_sujeto_pct / 100
 
     @api.depends('amount_total', 'descuento_global', 'sub_total_ventas', 'descuento_no_sujeto', 'descuento_exento',
-                 'descuento_gravado', 'amount_tax', 'apply_retencion_renta', 'apply_retencion_iva')
+                 'descuento_gravado', 'amount_tax', 'apply_retencion_renta', 'apply_retencion_iva', 'apply_iva_percibido')
     def _compute_total_con_descuento(self):
         for move in self:
             # 1. Obtener montos
@@ -625,7 +632,7 @@ class AccountMove(models.Model):
                 move.total_operacion = move.sub_total
                 _logger.info(f"[{move.name}] Documento tipo 01, total_operacion: {move.total_operacion}")
 
-            move.total_pagar = move.total_operacion - (move.retencion_renta_amount + move.retencion_iva_amount)
+            move.total_pagar = move.total_operacion - (move.retencion_renta_amount + move.retencion_iva_amount + move.iva_percibido_amount)
 
             _logger.info(f"{move.journal_id.sit_tipo_documento.codigo}] move.journal_id.sit_tipo_documento.codigo")
 
@@ -688,6 +695,8 @@ class AccountMove(models.Model):
                         'partner_id': move.partner_id.id,
                     }))
 
+            _logger.warning(f"RETENCION RENTA {move.apply_retencion_renta} con número {move.retencion_renta_amount}")
+
             # Retención IVA
             if move.apply_retencion_iva and move.retencion_iva_amount > 0:
                 cuenta_iva = move.company_id.retencion_iva_account_id
@@ -703,11 +712,31 @@ class AccountMove(models.Model):
                         'partner_id': move.partner_id.id,
                     }))
 
+            _logger.warning(f"RETENCION IVA {move.apply_retencion_iva} con número {move.retencion_iva_amount}")
+
+            #Aplicar iva percibido
+            if move.apply_iva_percibido and move.iva_percibido_amount > 0:
+                cuenta_iva = move.company_id.iva_percibido_account_id
+                ya_existe_iva = move.line_ids.filtered(
+                    lambda l: l.account_id == cuenta_iva and l.name == "IVA percibido"
+                )
+                if cuenta_iva and not ya_existe_iva:
+                    lineas.append((0, 0, {
+                        'account_id': cuenta_iva.id,
+                        'name': "IVA percibido",
+                        'credit': move.iva_percibido_amount,
+                        'debit': 0.0,
+                        'partner_id': move.partner_id.id,
+                    }))
+            _logger.warning(f"IVA PERCIBIDO {move.apply_iva_percibido} con número {move.iva_percibido_amount}")
+
             if lineas:
                 move.write({'line_ids': lineas})
+                _logger.warning(f"line_ids {lineas}")
+
     # -------Fin retenciones
 
-    # -------Creacion de apunte contable para los descuentos
+    # -------Creacion de apunte contable para los descuent|os
     # Actualizar apuntes contables
     def action_post(self):
         for move in self:

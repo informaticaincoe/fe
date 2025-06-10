@@ -1402,7 +1402,7 @@ class AccountMove(models.Model):
 
         self.write({
             'error_log': error_msg,
-            'sit_es_configencia': True,
+            'sit_es_configencia': False,
             'sit_tipo_contingencia': tipo_contingencia.id if tipo_contingencia else False,
             # 'sit_tipo_contingencia_otro': mensaje_motivo,
         })
