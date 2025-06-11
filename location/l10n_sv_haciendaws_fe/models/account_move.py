@@ -149,6 +149,21 @@ class AccountMove(models.Model):
 
     recibido_mh = fields.Boolean(string="Dte recibido por MH", copy=False)
     correo_enviado = fields.Boolean(string="Correo enviado en la creacion del dte", copy=False)
+    invoice_time = fields.Char(string="Hora de Facturación", compute='_compute_invoice_time', store=True, readonly=True)
+
+    @api.depends('invoice_date')
+    def _compute_invoice_time(self):
+        _logger.info("---> _compute_invoice_time iniciado con %d registros", len(self))
+        salvador_tz = pytz.timezone('America/El_Salvador')
+        for move in self:
+            _logger.info("---> Procesando factura ID: %s", move.id)
+            if move.invoice_date:
+                now_salvador = datetime.now(salvador_tz)
+                hora_formateada = now_salvador.strftime('%H:%M:%S')
+                move.invoice_time = hora_formateada
+                _logger.info("---> Hora asignada: %s", hora_formateada)
+            else:
+                _logger.info("---> Sin invoice_date asignada")
 
     @api.onchange('move_type')
     def _onchange_move_type(self):
@@ -661,6 +676,9 @@ class AccountMove(models.Model):
 
                 journal = invoice.journal_id
                 _logger.info("SIT Procesando invoice %s (journal=%s)", invoice.id, journal.name)
+
+                if not self.invoice_time:
+                    self._compute_invoice_time()
 
                 # —————————————————————————————————————————————
                 # A) DIARIOS NO-VENTA/COMPRA: saltar lógica DTE
@@ -1402,7 +1420,7 @@ class AccountMove(models.Model):
 
         self.write({
             'error_log': error_msg,
-            'sit_es_configencia': True,
+            'sit_es_configencia': False,
             'sit_tipo_contingencia': tipo_contingencia.id if tipo_contingencia else False,
             # 'sit_tipo_contingencia_otro': mensaje_motivo,
         })

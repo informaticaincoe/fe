@@ -6,3 +6,4 @@ from . import posicion_arancel
 from . import product_template
 from . import account_tax
 from . import account_move_line
+from . import sale_order

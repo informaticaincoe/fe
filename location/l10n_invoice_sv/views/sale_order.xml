@@ -1,0 +1,13 @@
+<odoo>
+    <record id="view_order_form_inherit_recinto_fiscal" model="ir.ui.view">
+        <field name="name">sale.order.form.recinto.fiscal</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_order_form"/>
+        <field name="arch" type="xml">
+            <!-- Insertar el nuevo campo "recinto fiscal" despues del campo 'payment_term_id' (Términos de pago) -->
+            <xpath expr="//field[@name='payment_term_id']" position="after">
+                <field name="recintoFiscal"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

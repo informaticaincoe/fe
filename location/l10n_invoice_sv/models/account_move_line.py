@@ -34,19 +34,19 @@ class AccountMoveLine(models.Model):
             # Se verifica el tipo de documento a generar, si es factura el precio debe contener impuesto(IVA), si es CCF no debe tener impuestos(IVA)
             if line.move_id.journal_id.sit_tipo_documento.codigo == "01":
                 if not line.tax_ids:
-                    precio_total = (line.price_unit * line.quantity * (1 - (line.discount or 0.0) / 100.0) * 1.13)
-                    line.precio_unitario = line.price_unit * 1.13
+                    precio_total = round( (line.price_unit * line.quantity * (1 - (line.discount or 0.0) / 100.0) * 1.13), 6)
+                    line.precio_unitario = round(line.price_unit * 1.13, 6)
                 elif line.tax_ids:
-                    precio_total = (line.price_unit * line.quantity * (1 - (line.discount or 0.0) / 100.0))
-                    line.precio_unitario = line.price_unit
+                    precio_total = round( (line.price_unit * line.quantity * (1 - (line.discount or 0.0) / 100.0)), 6)
+                    line.precio_unitario = round(line.price_unit, 6)
 
             elif line.move_id.journal_id.sit_tipo_documento.codigo != "01":
                 if line.tax_ids:
-                    precio_total = line.price_unit * line.quantity * (1 - (line.discount or 0.0) / 100.0) / 1.13
-                    line.precio_unitario = line.price_unit / 1.13
+                    precio_total = round((line.price_unit * line.quantity * (1 - (line.discount or 0.0) / 100.0) / 1.13), 6)
+                    line.precio_unitario = round(line.price_unit / 1.13, 6)
                 elif not line.tax_ids:
-                    precio_total = (line.price_unit * line.quantity * (1 - (line.discount or 0.0) / 100.0))
-                    line.precio_unitario = line.price_unit
+                    precio_total = round( (line.price_unit * line.quantity * (1 - (line.discount or 0.0) / 100.0)), 6)
+                    line.precio_unitario = round(line.price_unit, 6)
             _logger.info("SIT Precio total con descuento: %s", precio_total)
 
             # Asignar según tipo_venta
