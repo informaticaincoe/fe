@@ -28,7 +28,7 @@ class AccountMove(models.Model):
         if len(self) != 1:
             raise UserError("Selecciona una sola factura para depurar el JSON.")
 
-        invoice_json = self.sit_base_map_invoice_info_dtejson()
+        invoice_json = self.sit__ccf_base_map_invoice_info_dtejson()
 
         import json
         pretty_json = json.dumps(invoice_json, indent=4, ensure_ascii=False)
@@ -414,7 +414,7 @@ class AccountMove(models.Model):
         tributos["valor"] = round(self.amount_tax, 2)  # round(totalIva -(total_des*0.13),2)
         invoice_info["tributos"] = [tributos]
         invoice_info["subTotal"] = round(self.sub_total, 2)  # round(total_Gravada - total_des, 2 )
-        invoice_info["ivaPerci1"] = 0
+        invoice_info["ivaPerci1"] = round(self.iva_percibido_amount, 2)
 
         monto_descu = 0.0
         rete_iva = round(self.retencion_iva_amount or 0.0, 2)
@@ -439,13 +439,13 @@ class AccountMove(models.Model):
         invoice_info["reteRenta"] = rete_renta
         invoice_info["montoTotalOperacion"] = round(self.amount_total, 2)
         invoice_info["totalNoGravado"] = 0
-        invoice_info["totalPagar"] = round(self.amount_total, 2)
+        invoice_info["totalPagar"] = round(self.total_pagar, 2)
         invoice_info["totalLetras"] = self.amount_text
         invoice_info["saldoFavor"] = 0
         invoice_info["condicionOperacion"] = int(self.condiciones_pago)
         pagos = {}
         pagos["codigo"] = self.forma_pago.codigo
-        pagos["montoPago"] = round(self.amount_total, 2)
+        pagos["montoPago"] = round(self.total_pagar, 2)
         pagos["referencia"] = None
 
         if int(self.condiciones_pago) in [2]:
@@ -852,7 +852,7 @@ class AccountMove(models.Model):
         invoice_info["saldoFavor"] = 0
         invoice_info["condicionOperacion"] = int(self.condiciones_pago)
         pagos["codigo"] = self.forma_pago.codigo
-        pagos["montoPago"] = round(self.amount_total, 2)
+        pagos["montoPago"] = round(self.total_pagar, 2)
         pagos["referencia"] = self.sit_referencia
         if int(self.condiciones_pago) in [2, 3]:
             pagos["periodo"] = self.sit_periodo
@@ -1012,7 +1012,7 @@ class AccountMove(models.Model):
 
         _logger.info("Iniciando el mapeo de la información del documento NDC = %s", self.invoice_line_ids)
 
-        for line in self.invoice_line_ids:
+        for line in self.invoice_line_ids.filtered(lambda x: x.precio_unitario > 0):
             if not line.custom_discount_line:
                 item_numItem += 1
                 line_temp = {}
@@ -1150,14 +1150,14 @@ class AccountMove(models.Model):
         else:
             invoice_info["tributos"] = None
         invoice_info["subTotal"] = round(self.sub_total, 2)  # self.             amount_untaxed
-        invoice_info["ivaPerci1"] = 0.0
-        invoice_info["ivaRete1"] = 0
-        invoice_info["reteRenta"] = 0
+        invoice_info["ivaPerci1"] =  round(self.inv_refund_id.iva_percibido_amount, 2)
+        invoice_info["ivaRete1"] = round(self.retencion_iva_amount or 0.0, 2)
+        invoice_info["reteRenta"] = round(self.retencion_renta_amount or 0.0, 2)
         invoice_info["montoTotalOperacion"] = round(self.amount_total, 2)
         invoice_info["totalLetras"] = self.amount_text
         invoice_info["condicionOperacion"] = int(self.condiciones_pago)
         pagos["codigo"] = self.forma_pago.codigo  # '01'   # CAT-017 Forma de Pago    01 = bienes
-        pagos["montoPago"] = round(self.amount_total, 2)
+        pagos["montoPago"] = round(self.total_pagar, 2)
         pagos["referencia"] = self.sit_referencia  # Un campo de texto llamado Referencia de pago
         if invoice_info["totalGravada"] == 0.0:
             invoice_info["ivaPerci1"] = 0.0
@@ -1411,7 +1411,7 @@ class AccountMove(models.Model):
         invoice_info["totalLetras"] = self.amount_text
         invoice_info["condicionOperacion"] = int(self.condiciones_pago)
         pagos["codigo"] = self.forma_pago.codigo  # '01'   # CAT-017 Forma de Pago    01 = bienes
-        pagos["montoPago"] = round(self.amount_total, 2)
+        pagos["montoPago"] = round(self.total_pagar, 2)
         pagos["referencia"] = self.sit_referencia  # Un campo de texto llamado Referencia de pago
         if invoice_info["totalGravada"] == 0.0:
             invoice_info["ivaPerci1"] = 0.0

@@ -51,6 +51,10 @@ class ResCompany(models.Model):
         string='Cuenta contable de Retención de IVA'
     )
 
+    iva_percibido_account_id = fields.Many2one(
+        'account.account',
+        string='Cuenta contable de IVA percibido'
+    )
 
     def get_generar_token(self):
         _logger.info("SIT get_generar_token = %s,%s,%s", self.sit_token_user, self.sit_token_pass, self.sit_passwordPri)
