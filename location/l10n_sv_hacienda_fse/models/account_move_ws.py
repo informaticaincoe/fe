@@ -187,12 +187,19 @@ class AccountMove(models.Model):
             item_numItem = 0
             total_Gravada = 0.0
             totalIva = 0.0
+            uniMedida = None
             for line in self.invoice_line_ids:
                 item_numItem += 1
                 line_temp = {}
                 lines_tributes = []
                 line_temp["numItem"] = item_numItem
                 tipoItem = int(line.product_id.tipoItem.codigo or line.product_id.product_tmpl_id.tipoItem.codigo)
+                #Validación: tipoItem debe ser código 1, 2 o 3
+                if tipoItem not in [1, 2, 3]:
+                    raise UserError(
+                        _("El producto '%s' tiene un tipo de ítem inválido: %s. Solo se permiten los valores 1, 2 o 3.") %
+                        (line.product_id.name, tipoItem)
+                    )
                 line_temp["tipoItem"] = tipoItem
                 line_temp["cantidad"] = line.quantity
                 line_temp["codigo"] = line.product_id.default_code
@@ -218,7 +225,10 @@ class AccountMove(models.Model):
                     _logger.info("SIT uniMedida self = %s",  line.product_id.uom_hacienda)
 
                     uniMedida = int(line.product_id.uom_hacienda.codigo)
-                line_temp["uniMedida"] = int(uniMedida)
+                if tipoItem == 2:
+                    line_temp["uniMedida"] = 99
+                else:
+                    line_temp["uniMedida"] = int(uniMedida)
 
                 line_temp["descripcion"] = line.name
                 line_temp["precioUni"] = round(line.price_unit,2)
@@ -288,11 +298,11 @@ class AccountMove(models.Model):
 
             monto_descu += round(line.quantity * (line.price_unit * (line.discount / 100)), 2)
 
-        invoice_info["totalCompra"] = round(self.sub_total_ventas , 2)
-        invoice_info["descu"] = self.descuento_global # suma de descuento por item
-        invoice_info["totalDescu"] = round(self.descuento_global + self.total_descuento,2) # suma de descuento por item (descu) + descuentos globales y por operacion
+        invoice_info["totalCompra"] = round(self.total_gravado , 2)
+        invoice_info["descu"] = self.descuento_gravado # suma de descuento por item
+        invoice_info["totalDescu"] = round(self.total_descuento,2) # suma de descuento por item (descu) + descuentos globales y por operacion
 
-        invoice_info["subTotal"] = round(self.sub_total_ventas - self.descuento_global, 2)
+        invoice_info["subTotal"] = round(self.sub_total, 2)
         invoice_info["ivaRete1"] = round(rete_iva, 2)
         invoice_info["reteRenta"] = round(rete_renta, 2)
         invoice_info["totalPagar"] = round(self.total_pagar, 2)
@@ -307,11 +317,18 @@ class AccountMove(models.Model):
             pagos["plazo"] = self.sit_plazo.codigo
             pagos["periodo"] = self.sit_periodo   #30      #  Es un nuevo campo entero
             invoice_info["pagos"] = [pagos]  # Asigna pagos como un elemento de una lista
+            pagos["montoPago"] = 0.00
         else:
             # pagos["plazo"] = self.sit_plazo.codigo 
             pagos["plazo"] = None    # Temporal
             pagos["periodo"] = None   #30      #  Es un nuevo campo entero
         invoice_info["pagos"] = [pagos]  # por ahora queda en null.
+
+        # Validar forma de pago cuando condiciones_pago es 1 o 3
+        if int(self.condiciones_pago) in [1, 3] and not self.forma_pago:
+            raise UserError(
+                _("Debe seleccionar una forma de pago para condiciones de operación Contado (1) u Otros (3)."))
+
         return invoice_info
 
     def sit_obtener_payload_fse_dte_info(self,  ambiente, doc_firmado):

@@ -43,9 +43,9 @@ class AccountMove(models.Model):
                               readonly=True,
                               compute='_amount_to_text',
                               track_visibility='onchange')
-    descuento_gravado_pct = fields.Float(string='Descuento Gravado (%)', default=0.0)
-    descuento_exento_pct = fields.Float(string='Descuento Exento (%)', default=0.0)
-    descuento_no_sujeto_pct = fields.Float(string='Descuento No Sujeto (%)', default=0.0)
+    descuento_gravado_pct = fields.Float(string='Descuento Gravado', default=0.0)
+    descuento_exento_pct = fields.Float(string='Descuento Exento', default=0.0)
+    descuento_no_sujeto_pct = fields.Float(string='Descuento No Sujeto', default=0.0)
 
     descuento_gravado = fields.Float(string='Monto Desc. Gravado', store=True, compute='_compute_descuentos')
     descuento_exento = fields.Float(string='Monto Desc. Exento', store=True, compute='_compute_descuentos')
@@ -57,7 +57,7 @@ class AccountMove(models.Model):
                                     compute='_compute_descuento_global', inverse='_inverse_descuento_global')
 
     descuento_global_monto = fields.Float(
-        string='Descuento global (%)',
+        string='Descuento global',
         store=True,
         readonly=False,
         default=0.0,
@@ -85,6 +85,14 @@ class AccountMove(models.Model):
         compute='_compute_total_pagar_text',
         store=True
     )
+
+    #sale_order_id = fields.Many2one('sale.order', string='Orden de Venta', compute='_compute_sale_order_id', store=False)
+
+    # def _compute_sale_order_id(self):
+    #     for move in self:
+    #         sale_orders = move.invoice_line_ids.mapped('sale_line_ids.order_id')
+    #         move.sale_order_id = sale_orders[:1] if sale_orders else False
+    #         _logger.info("SIT Cotizacion: %s", move.sale_order_id)
 
     @api.depends('total_pagar')
     def _compute_total_pagar_text(self):
@@ -168,6 +176,7 @@ class AccountMove(models.Model):
         for invoice in self:
             if invoice.move_type != 'entry':
                 type_report = invoice.journal_id.type_report
+                _logger.info("Tipo dte=%s", type_report)
 
                 if type_report == 'fcf':
                     if not invoice.partner_id.parent_id:
@@ -189,7 +198,8 @@ class AccountMove(models.Model):
 
                 if type_report == 'exp':
                     for l in invoice.invoice_line_ids:
-                        if not l.product_id.arancel_id:
+                        if l and l.product_id and not l.product_id.arancel_id:
+                            _logger.info("Producto: =%s", l)
                             invoice.msg_error("Posicion Arancelaria del Producto %s" % l.product_id.name)
 
                 # si es retificativa
@@ -481,7 +491,7 @@ class AccountMove(models.Model):
 
     def _calcular_totales_sv(self):
         for move in self:
-            gravado = exento = no_sujeto = 0.0
+            gravado = exento = no_sujeto = compra = 0.0
             for line in move.invoice_line_ids:
                 # if move.journal_id.sit_tipo_documento.codigo != "01":
                 #     subtotal = (line.price_unit * line.quantity * (1 - (line.discount or 0.0) / 100.0)) / 1.13
@@ -490,16 +500,23 @@ class AccountMove(models.Model):
 
                 tipo = line.product_id.tipo_venta
                 if tipo == 'gravado':
-                    gravado += line.precio_gravado
+                    gravado += round(line.precio_gravado, 2)
                 elif tipo == 'exento':
-                    exento += line.precio_exento
+                    exento += round(line.precio_exento, 2)
                 elif tipo == 'no_sujeto':
-                    no_sujeto += line.precio_no_sujeto
+                    no_sujeto += round(line.precio_no_sujeto, 2)
 
-            move.total_gravado = max(gravado, 0.0)
+                #Total de la compra
+                if move.journal_id.sit_tipo_documento.codigo in ["14"]:
+                    compra += round(line.quantity * (line.price_unit - (line.price_unit * (line.discount / 100))), 2)
+
+            if move.journal_id.sit_tipo_documento.codigo in ["14"]:
+                move.total_gravado = round(compra, 2)
+            else:
+                move.total_gravado = max(gravado, 0.0)
             move.total_exento = max(exento, 0.0)
             move.total_no_sujeto = max(no_sujeto, 0.0)
-            move.sub_total_ventas = move.total_gravado + move.total_exento + move.total_no_sujeto
+            move.sub_total_ventas = round((move.total_gravado + move.total_exento + move.total_no_sujeto), 2)
 
             _logger.info("SIT Onchange: cambios asignados a los campos en memoria: %s", move.sub_total_ventas)
 
@@ -507,19 +524,19 @@ class AccountMove(models.Model):
                  'invoice_line_ids.price_unit', 'invoice_line_ids.quantity', 'invoice_line_ids.discount', 'apply_retencion_renta', 'apply_retencion_iva', 'retencion_renta_amount', 'retencion_iva_amount')
     def _compute_total_descuento(self):
         for move in self:
-            total_descuentos_globales = (
+            total_descuentos_globales = round( (
                     move.descuento_gravado +
                     move.descuento_exento +
                     move.descuento_no_sujeto
-            )
+            ), 2)
 
             total_descuentos_lineas = 0.0
             for line in move.invoice_line_ids:
                 if line.price_unit and line.quantity and line.discount:
-                    monto_descuento_linea = line.price_unit * line.quantity * (line.discount / 100.0)
+                    monto_descuento_linea = round(line.price_unit * line.quantity * (line.discount / 100.0), 2)
                     total_descuentos_lineas += monto_descuento_linea
 
-            move.total_descuento = total_descuentos_globales + total_descuentos_lineas
+            move.total_descuento = round(total_descuentos_globales + total_descuentos_lineas, 2)
 
     @api.depends('descuento_gravado_pct', 'descuento_exento_pct', 'descuento_no_sujeto_pct',
                  'invoice_line_ids.price_unit', 'invoice_line_ids.quantity',
@@ -527,19 +544,12 @@ class AccountMove(models.Model):
     def _compute_descuentos(self):
         for move in self:
             gravado = exento = no_sujeto = 0.0
-            for line in move.invoice_line_ids:
-                subtotal = line.price_unit * line.quantity
-                tipo = line.product_id.tipo_venta
-                if tipo == 'gravado':
-                    gravado += subtotal
-                elif tipo == 'exento':
-                    exento += subtotal
-                elif tipo == 'no_sujeto':
-                    no_sujeto += subtotal
 
-            move.descuento_gravado = gravado * move.descuento_gravado_pct / 100
-            move.descuento_exento = exento * move.descuento_exento_pct / 100
-            move.descuento_no_sujeto = no_sujeto * move.descuento_no_sujeto_pct / 100
+            _logger.info(f"Total gravados: {move.total_gravado}, exentos: {move.total_exento}, no sujetos: {move.total_no_sujeto}")
+            move.descuento_gravado = round( (move.total_gravado * move.descuento_gravado_pct / 100), 2)
+            move.descuento_exento = round( (move.total_exento * move.descuento_exento_pct / 100), 2)
+            move.descuento_no_sujeto = round( (move.total_no_sujeto * move.descuento_no_sujeto_pct / 100), 2)
+            _logger.info(f"Descuentos gravados: {move.descuento_gravado}, exentos: {move.descuento_exento}, no sujetos: {move.descuento_no_sujeto}")
 
     @api.depends('amount_total', 'descuento_global', 'sub_total_ventas', 'descuento_no_sujeto', 'descuento_exento',
                  'descuento_gravado', 'amount_tax', 'apply_retencion_renta', 'apply_retencion_iva')
@@ -550,30 +560,40 @@ class AccountMove(models.Model):
             descuento_global = move.descuento_global
 
             # 2. Aplicar descuento global solo sobre la sumatoria de ventas
-            subtotal_con_descuento_global = max(subtotal_base - descuento_global, 0.0)
+            subtotal_con_descuento_global = round( max(subtotal_base - descuento_global, 0.0), 2)
             move.amount_total_con_descuento = subtotal_con_descuento_global
             _logger.info(f"[{move.name}] sub_total_ventas: {subtotal_base}, descuento_global: {descuento_global}, "
                          f"subtotal_con_descuento_global: {subtotal_con_descuento_global}")
 
             # 3. Calcular descuentos detalle
-            descuentos_detalle = move.descuento_no_sujeto + move.descuento_exento + move.descuento_gravado
+            descuentos_detalle = round( (move.descuento_no_sujeto + move.descuento_exento + move.descuento_gravado), 2)
 
             # 4. Calcular sub_total final restando otros descuentos
-            move.sub_total = max(subtotal_con_descuento_global - descuentos_detalle, 0.0)
+            if move.journal_id.sit_tipo_documento.codigo in["14"]:
+                move.sub_total = round(max(move.total_gravado - move.descuento_gravado, 0.0), 2)
+            else:
+                move.sub_total = round(max(subtotal_con_descuento_global - descuentos_detalle, 0.0), 2)
 
             _logger.info(f"[{move.name}] descuentos no sujeto/exento/gravado: "
                          f"{move.descuento_no_sujeto}/{move.descuento_exento}/{move.descuento_gravado}, "
                          f"sub_total final: {move.sub_total}")
 
             # 5. Calcular total_operacion y total_pagar
-            if move.journal_id.sit_tipo_documento.codigo != "01":
-                move.total_operacion = move.sub_total + move.amount_tax
+            if move.journal_id.sit_tipo_documento.codigo not in["01", "11"]:
+                move.total_operacion = round(move.sub_total + move.amount_tax, 2)
                 _logger.info(f"[{move.name}] Documento no es tipo 01, total_operacion: {move.total_operacion}")
+            elif move.journal_id.sit_tipo_documento.codigo == "11":
+                move.total_operacion = round((move.total_gravado - move.descuento_gravado - descuento_global) + move.amount_tax, 2)
             else:
                 move.total_operacion = move.sub_total
                 _logger.info(f"[{move.name}] Documento tipo 01, total_operacion: {move.total_operacion}")
 
-            move.total_pagar = move.total_operacion - (move.retencion_renta_amount + move.retencion_iva_amount)
+            if move.journal_id.sit_tipo_documento.codigo == "11":
+                move.total_pagar = round( (move.total_operacion - move.retencion_renta_amount), 2)
+            elif move.journal_id.sit_tipo_documento.codigo == "14":
+                move.total_pagar = round((move.sub_total - move.retencion_iva_amount - move.retencion_renta_amount), 2)
+            else:
+                move.total_pagar = round((move.total_operacion - (move.retencion_renta_amount + move.retencion_iva_amount)), 2)
 
             _logger.info(f"{move.journal_id.sit_tipo_documento.codigo}] move.journal_id.sit_tipo_documento.codigo")
 
@@ -586,14 +606,17 @@ class AccountMove(models.Model):
     @api.depends('descuento_global_monto', 'sub_total_ventas')
     def _compute_descuento_global(self):
         for move in self:
-            move.descuento_global = (move.sub_total_ventas or 0.0) * (move.descuento_global_monto or 0.0) / 100.0
+            if move.journal_id.sit_tipo_documento.codigo in["11"]:
+                move.descuento_global = round(((move.total_gravado or 0.0) * (move.descuento_global_monto or 0.0) / 100), 2)
+            else:
+                move.descuento_global = round( ((move.sub_total_ventas or 0.0) * ( move.descuento_global_monto or 0.0) / 100), 2)
             _logger.info("SIT descuento_global: %.2f aplicado sobre sub_total %.2f (%.2f%%)", move.descuento_global,
                          move.sub_total_ventas, move.descuento_global_monto)
 
     def _inverse_descuento_global(self):
         for move in self:
             if move.sub_total_ventas:
-                move.descuento_global_monto = (move.descuento_global / move.sub_total_ventas) * 100
+                move.descuento_global_monto = round( ((move.descuento_global / move.sub_total_ventas) * 100), 2)
             else:
                 move.descuento_global_monto = 0.0
 
@@ -714,8 +737,13 @@ class AccountMove(models.Model):
                 continue
 
             es_nota_credito = move.move_type in ('out_refund', 'in_refund')
-            es_factura_o_debito = move.move_type in ('out_invoice', 'in_invoice')
-            _logger.info(f"Tipo de movimiento: {move.move_type} | Credito: {es_nota_credito} | Débito: {es_factura_o_debito}")
+            es_factura_o_debito = move.move_type in ('out_invoice', 'in_invoice') and not move.journal_id.type == 'purchase'
+            es_factura_compra = move.move_type == 'in_invoice' and move.journal_id.type == 'purchase'
+            if es_factura_compra:
+                es_nota_credito = True
+            else:
+                es_factura_o_debito = False
+            _logger.info(f"Tipo de movimiento: {move.move_type} | Credito: {es_nota_credito} | Débito: {es_factura_o_debito} | FSE: {es_factura_compra}")
 
             nuevas_lineas = []
             for nombre, monto in descuentos.items():

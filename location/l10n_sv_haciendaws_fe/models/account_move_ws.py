@@ -529,20 +529,7 @@ class AccountMove(models.Model):
             ambiente = "01"
         invoice_info["ambiente"] = ambiente
         invoice_info["tipoDte"] = self.journal_id.sit_tipo_documento.codigo
-        if self.name == "/":
-            tipo_dte = self.journal_id.sit_tipo_documento.codigo or '01'
-
-            # Obtener el código de establecimiento desde el diario
-            cod_estable = self.journal_id.cod_sit_estable or '0000M001'
-
-            # Obtener la secuencia desde ir.sequence con padding 15
-            correlativo = self.env['ir.sequence'].next_by_code('dte.secuencia') or '0'
-            correlativo = correlativo.zfill(15)
-
-            # Construir el número de control completo
-            invoice_info["numeroControl"] = f"DTE-{tipo_dte}-0000{cod_estable}-{correlativo}"
-        else:
-            invoice_info["numeroControl"] = self.name
+        invoice_info["numeroControl"] = self.name
         invoice_info["codigoGeneracion"] = self.hacienda_codigoGeneracion_identificacion  # self.sit_generar_uuid()
         invoice_info["tipoModelo"] = int(self.journal_id.sit_modelo_facturacion)
         invoice_info["tipoOperacion"] = int(self.journal_id.sit_tipo_transmision)
@@ -552,13 +539,18 @@ class AccountMove(models.Model):
         import datetime
         import pytz
         import os
-        os.environ['TZ'] = 'America/El_Salvador'  # Establecer la zona horaria
-        datetime.datetime.now()
-        salvador_timezone = pytz.timezone('America/El_Salvador')
-        FechaEmi = datetime.datetime.now(salvador_timezone)
-        _logger.info("SIT FechaEmi = %s (%s)", FechaEmi, type(FechaEmi))
+        FechaEmi = None
+
+        if self.invoice_date:
+            FechaEmi = self.invoice_date
+        else:
+            os.environ['TZ'] = 'America/El_Salvador'  # Establecer la zona horaria
+            datetime.datetime.now()
+            salvador_timezone = pytz.timezone('America/El_Salvador')
+            FechaEmi = datetime.datetime.now(salvador_timezone)
+        _logger.info("SIT FechaEmi = %s (%s): HoraEmi = ", FechaEmi, type(FechaEmi), self.invoice_date)
         invoice_info["fecEmi"] = FechaEmi.strftime('%Y-%m-%d')
-        invoice_info["horEmi"] = FechaEmi.strftime('%H:%M:%S')
+        invoice_info["horEmi"] = self.invoice_time
         invoice_info["tipoMoneda"] = self.currency_id.name
         if invoice_info["tipoOperacion"] == 1:
             invoice_info["tipoModelo"] = 1

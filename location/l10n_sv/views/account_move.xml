@@ -9,6 +9,7 @@
                 <xpath expr="//field[@name='invoice_vendor_bill_id']" position="after">
                     <field name="sit_referencia" invisible="0"/>
                     <field name="sit_observaciones" invisible="0"/>
+                    <field name="sit_regimen" string="Régimen Fiscal" invisible="0"/>
                 </xpath>
                 <xpath expr="//label[@for='journal_id']" position="before">
 <!--                    <field name="invoice_payment_term_name" invisible="1"/>-->
