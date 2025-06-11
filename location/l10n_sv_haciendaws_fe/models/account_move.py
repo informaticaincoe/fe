@@ -1556,3 +1556,34 @@ class AccountMove(models.Model):
             else:
                 _logger.info("SIT | La correspondencia ya había sido transmitida. %s", invoice.name)
 
+    @api.model
+    def create(self, vals):
+        move = super().create(vals)
+        move._copiar_retenciones_desde_documento_relacionado()
+        return move
+
+    def write(self, vals):
+        res = super().write(vals)
+        if any(k in vals for k in ['codigo_tipo_documento', 'reversed_entry_id', 'debit_origin_id']):
+            self._copiar_retenciones_desde_documento_relacionado()
+        return res
+
+    def _copiar_retenciones_desde_documento_relacionado(self):
+        for move in self:
+            origen = None
+            if move.codigo_tipo_documento == '05' and move.reversed_entry_id:
+                origen = move.reversed_entry_id
+            elif move.codigo_tipo_documento == '06' and move.debit_origin_id:
+                origen = move.debit_origin_id
+
+            if not origen:
+                continue
+
+            move.apply_retencion_renta = origen.apply_retencion_renta
+            move.retencion_renta_amount = origen.retencion_renta_amount
+
+            move.apply_retencion_iva = origen.apply_retencion_iva
+            move.retencion_iva_amount = origen.retencion_iva_amount
+
+            move.apply_iva_percibido = origen.apply_iva_percibido
+            move.iva_percibido_amount = origen.iva_percibido_amount

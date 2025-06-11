@@ -437,7 +437,7 @@ class AccountMove(models.Model):
 
         invoice_info["ivaRete1"] = rete_iva
         invoice_info["reteRenta"] = rete_renta
-        invoice_info["montoTotalOperacion"] = round(self.amount_total, 2)
+        invoice_info["montoTotalOperacion"] = round(self.sub_total_ventas - self.total_descuento + self.amount_tax, 2)
         invoice_info["totalNoGravado"] = 0
         invoice_info["totalPagar"] = round(self.total_pagar, 2)
         invoice_info["totalLetras"] = self.amount_text
@@ -711,7 +711,7 @@ class AccountMove(models.Model):
             line_temp["noGravado"] = 0.0
 
             ventaGravada = line_temp["cantidad"] * (
-                        line.precio_unitario - (line.precio_unitario * (line.discount / 100)))
+                    line.precio_unitario - (line.precio_unitario * (line.discount / 100)))
             _logger.info("SIT Cantidad= %s, precio gravado= %s, descuento= %s, monto descu= %s, venta gravada= %s",
                          line_temp["cantidad"], line.precio_gravado, (line.discount / 100),
                          (line.precio_gravado * (line.discount / 100)), ventaGravada)
@@ -724,7 +724,7 @@ class AccountMove(models.Model):
             if line_temp["ivaItem"] == 0.0:
                 ventaGravada = 0.0
                 ventaExenta = line_temp["cantidad"] * (
-                            line.precio_exento - (line.precio_exento * (line.discount / 100)))
+                        line.precio_exento - (line.precio_exento * (line.discount / 100)))
             # else:
             # ventaGravada = line_temp["cantidad"] * (line.price_unit - (line.price_unit * (line.discount / 100)))
             # ventaExenta = 0.0  # O lo que corresponda en caso de que haya IVA
@@ -802,7 +802,6 @@ class AccountMove(models.Model):
 
         subtotal = sum(line.price_subtotal for line in self.invoice_line_ids)
         total = self.amount_total
-
 
         invoice_info = {}
         tributos = {}
@@ -1072,8 +1071,11 @@ class AccountMove(models.Model):
                 )
 
                 _logger.info(f"Impuestos: {vat_taxes_amounts}")  # Log en cada línea.
-                vat_taxes_amount = vat_taxes_amounts['taxes'][0]['amount'] if vat_taxes_amounts['taxes'] and vat_taxes_amounts['taxes'] !="" else 0
-                sit_amount_base = round(vat_taxes_amounts['taxes'][0]['base'], 2) if vat_taxes_amounts['taxes'] and vat_taxes_amounts['taxes'] !="" else 0
+                vat_taxes_amount = vat_taxes_amounts['taxes'][0]['amount'] if vat_taxes_amounts['taxes'] and \
+                                                                              vat_taxes_amounts['taxes'] != "" else 0
+                sit_amount_base = round(vat_taxes_amounts['taxes'][0]['base'], 2) if vat_taxes_amounts['taxes'] and \
+                                                                                     vat_taxes_amounts[
+                                                                                         'taxes'] != "" else 0
                 price_unit_mas_iva = round(line.price_unit, 4)
 
                 price_unit = 0.0
@@ -1150,7 +1152,7 @@ class AccountMove(models.Model):
         else:
             invoice_info["tributos"] = None
         invoice_info["subTotal"] = round(self.sub_total, 2)  # self.             amount_untaxed
-        invoice_info["ivaPerci1"] =  round(self.inv_refund_id.iva_percibido_amount, 2)
+        invoice_info["ivaPerci1"] = round(self.inv_refund_id.iva_percibido_amount, 2)
         invoice_info["ivaRete1"] = round(self.retencion_iva_amount or 0.0, 2)
         invoice_info["reteRenta"] = round(self.retencion_renta_amount or 0.0, 2)
         invoice_info["montoTotalOperacion"] = round(self.amount_total, 2)
@@ -1275,7 +1277,7 @@ class AccountMove(models.Model):
 
         _logger.info("Iniciando el mapeo de la información del documento NDD = %s", self.invoice_line_ids)
 
-        for line in self.invoice_line_ids:
+        for line in self.invoice_line_ids.filtered(lambda x: x.price_unit > 0):
             if not line.custom_discount_line:
                 item_numItem += 1
                 line_temp = {}
@@ -1402,14 +1404,16 @@ class AccountMove(models.Model):
         else:
             invoice_info["tributos"] = None
         invoice_info["subTotal"] = round(self.sub_total, 2)  # self.             amount_untaxed
-        invoice_info["ivaPerci1"] = 0.0
-        invoice_info["ivaRete1"] = 0
-        invoice_info["reteRenta"] = 0
-        invoice_info["montoTotalOperacion"] = round(self.total_operacion + retencion, 2)
-        #invoice_info["totalNoGravado"] = 0
-        #invoice_info["totalPagar"] = round(self.amount_total, 2)
+        invoice_info["ivaPerci1"] = self.iva_percibido_amount
+        invoice_info["ivaRete1"] = self.retencion_iva_amount
+        invoice_info["reteRenta"] = self.retencion_renta_amount
+        # invoice_info["montoTotalOperacion"] = round(self.total_operacion + retencion, 2)
+        invoice_info["montoTotalOperacion"] = round(self.total_pagar, 2)
+
+        # invoice_info["totalNoGravado"] = 0
+        # invoice_info["totalPagar"] = round(self.amount_total, 2)
         invoice_info["totalLetras"] = self.amount_text
-        invoice_info["condicionOperacion"] = int(self.condiciones_pago)
+        invoice_info["condicionOperacion"] = int(self.total_operacion)
         pagos["codigo"] = self.forma_pago.codigo  # '01'   # CAT-017 Forma de Pago    01 = bienes
         pagos["montoPago"] = round(self.total_pagar, 2)
         pagos["referencia"] = self.sit_referencia  # Un campo de texto llamado Referencia de pago
