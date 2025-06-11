@@ -3,7 +3,6 @@ from odoo import api, fields, models, _
 from odoo.exceptions import UserError, ValidationError
 from .amount_to_text_sv import to_word
 import base64
-
 import logging
 
 _logger = logging.getLogger(__name__)
@@ -114,9 +113,9 @@ class AccountMove(models.Model):
             if move.apply_retencion_iva:
                 tipo_doc = move.journal_id.sit_tipo_documento.codigo
                 if tipo_doc in ["01", "03"]:  # FCF y CCF
-                    move.retencion_iva_amount = ((move.sub_total_ventas / 1.13) - move.descuento_global) * 0.01 #En FCF y CCF la retencion es del %
+                    move.retencion_iva_amount = round(((move.sub_total_ventas / 1.13) - move.descuento_global) * 0.01, 2) #En FCF y CCF la retencion es del %
                 else:
-                    move.retencion_iva_amount = base_total * 0.13  # 13% general
+                    move.retencion_iva_amount = round(base_total * 0.13, 2)  # 13% general
             if move.apply_iva_percibido:
                 tipo_doc = move.journal_id.sit_tipo_documento.codigo
                 move.iva_percibido_amount = ((move.sub_total_ventas / 1.13) - move.descuento_global) * 0.01
@@ -160,8 +159,8 @@ class AccountMove(models.Model):
                     'name': "Retención de IVA",
                     'account_id': cuenta_retencion.id,
                     'move_id': move.id,
-                    'credit': move.retencion_iva_amount,
-                    'debit': 0.0,
+                    'credit': 0.0,
+                    'debit': move.retencion_iva_amount,
                     'partner_id': move.partner_id.id,
                 })
 
@@ -178,13 +177,14 @@ class AccountMove(models.Model):
             existe_linea = move.line_ids.filtered(
                 lambda l: l.account_id == cuenta_retencion and l.name == "Retención de Renta"
             )
+
             if not existe_linea:
                 move.line_ids += self.env['account.move.line'].new({
                     'name': "Retención de Renta",
                     'account_id': cuenta_retencion.id,
                     'move_id': move.id,
-                    'credit': move.retencion_renta_amount,
-                    'debit': 0.0,
+                    'credit': 0.0,
+                    'debit': move.retencion_renta_amount,
                     'partner_id': move.partner_id.id,
                 })
 
