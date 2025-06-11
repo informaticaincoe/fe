@@ -44,24 +44,27 @@
                     </group>
                     <field name="total_pagar_text" placeholder="Total en letras"/>
                     <group string="Totales por tipo de operación" col="2">
-                        <field name="total_no_sujeto" readonly="1"/>
-                        <field name="total_exento" readonly="1"/>
-                        <field name="total_gravado" readonly="1"/>
-                        <field name="sub_total_ventas" readonly="1"/>
+                         <!-- invisible="1" modifiers="{'invisible': [['hide_no_sujeto_exento','=',True]]}" -->
+                        <field name="total_no_sujeto"
+                               widget="monetary"
+                               modifiers='{"invisible": [["codigo_dte", "=", "14"]]}'/><!-- invisible="1" modifiers="{'invisible': [['hide_no_sujeto_exento','=',True]]}" -->
+                        <field name="total_exento" widget="monetary" readonly="1"/><!-- invisible="1" modifiers="{'invisible': [['hide_no_sujeto_exento','=',True]]}" -->
+                        <field name="total_gravado" widget="monetary" readonly="1"/>
+                        <field name="sub_total_ventas" widget="monetary" readonly="1"/><!-- invisible="1" modifiers="{'invisible': [['hide_no_sujeto_exento','=',True]]}" -->
                     </group>
 
                     <group string="Descuentos Por Tipo de Operación" col="2">
-                        <field name="descuento_no_sujeto_pct"/>
-                        <field name="descuento_exento_pct"/>
+                        <field name="descuento_no_sujeto_pct" readonly="1"/><!-- invisible="1" modifiers="{'invisible': [['hide_no_sujeto_exento','=',True]]}" -->
+                        <field name="descuento_exento_pct" readonly="1"/><!-- invisible="1" modifiers="{'invisible': [['hide_no_sujeto_exento','=',True]]}" -->
                         <field name="descuento_gravado_pct"/>
                         <field name="descuento_global_monto"/>
                     </group>
 
                     <group string="Totales" col="2">
-                        <field name="total_descuento" readonly="1"/>
-                        <field name="sub_total" readonly="1"/>
-                        <field name="total_operacion" readonly="1"/>
-                        <field name="total_pagar" readonly="1"/>
+                        <field name="total_descuento" widget="percent" readonly="1"/>
+                        <field name="sub_total" widget="monetary" readonly="1"/><!-- invisible="1" modifiers="{'invisible': [['hide_no_sujeto_exento','=',True]]}" -->
+                        <field name="total_operacion" widget="monetary" readonly="1"/>
+                        <field name="total_pagar" widget="monetary" readonly="1"/>
                     </group>
                 </xpath>
                 <xpath expr="//field[@name='payment_reference']" position="before">
