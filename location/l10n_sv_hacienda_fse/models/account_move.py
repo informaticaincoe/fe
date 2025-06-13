@@ -355,6 +355,4 @@ class AccountMove(models.Model):
         _logger.info("📄 JSON DTE FSE generado:\n%s", pretty_json)
         print("📄 JSON DTE FSE generado:\n", pretty_json)
 
-
-
         return True

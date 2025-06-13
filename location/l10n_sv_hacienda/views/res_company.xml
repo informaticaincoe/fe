@@ -78,6 +78,7 @@
                         <field name="account_discount_id"/>
                         <field name="retencion_renta_account_id"/>
                         <field name="retencion_iva_account_id"/>
+                        <field name="iva_percibido_account_id"/>
                     </group>
                 </page>
             </xpath>

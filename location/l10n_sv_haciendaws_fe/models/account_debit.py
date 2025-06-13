@@ -62,6 +62,9 @@ class AccountDebitNote(models.TransientModel):
                     }
                     invoice_lines_vals.append((0, 0, line_vals))
 
+                    _logger.warning("SIT: line_vals: %s", line_vals)
+
+
             # Simula el asiento temporalmente
             temp_move = self.env['account.move'].new({
                 **default_vals,
@@ -73,6 +76,9 @@ class AccountDebitNote(models.TransientModel):
             total_credit = sum(line.credit for line in temp_move.line_ids)
             diferencia = round(total_credit - total_debit, 2)
 
+            _logger.warning("SIT: total_debit: %s", total_debit)
+            _logger.warning("SIT: total_credit: %s", total_credit)
+            _logger.warning("SIT: diferencia: %s", diferencia)
             if abs(diferencia) > 0.01:
                 _logger.warning("SIT: Agregando contrapartida por diferencia: %s", diferencia)
 
