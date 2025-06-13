@@ -120,81 +120,90 @@ class AccountMove(models.Model):
 
             if move.apply_retencion_iva:
                 tipo_doc = move.journal_id.sit_tipo_documento.codigo
-                if tipo_doc in ["01", "03"]:  # FCF y CCF
-                    move.retencion_iva_amount = round(((move.sub_total_ventas / 1.13) - move.descuento_global) * 0.01, 2) #En FCF y CCF la retencion es del %
-                else:
+                # if tipo_doc in ["01", "03"]:  # FCF y CCF
+                #     move.retencion_iva_amount = round(((move.sub_total_ventas / 1.13) - move.descuento_global) * 0.01, 2) #En FCF y CCF la retencion es del %
+                # else:
+                #     move.retencion_iva_amount = round(base_total * 0.13, 2)  # 13% general
+
+                if tipo_doc in ["14"]:  # FCF y CCF
                     move.retencion_iva_amount = round(base_total * 0.13, 2)  # 13% general
+                else:
+                    move.retencion_iva_amount = round(((move.sub_total_ventas / 1.13) - move.descuento_global) * 0.01,2)  # En FCF y CCF la retencion es del %
             if move.apply_iva_percibido:
                 tipo_doc = move.journal_id.sit_tipo_documento.codigo
                 move.iva_percibido_amount = ((move.sub_total_ventas / 1.13) - move.descuento_global) * 0.01
-    def _create_iva_percibido_line(self):
-        cuenta_iva_percibido = self.env.ref('mi_modulo.cuenta_iva_percibido')  # Usa el ID real que declaraste
-        for move in self:
-            if move.state != 'draft':
-                continue
 
-            if not move.apply_iva_percibido or not cuenta_iva_percibido:
-                continue
-
-            existe_linea = move.line_ids.filtered(
-                lambda l: l.account_id == cuenta_iva_percibido and l.name == "IVA Percibido"
-            )
-            if not existe_linea:
-                move.line_ids += self.env['account.move.line'].new({
-                    'name': "IVA Percibido",
-                    'account_id': cuenta_iva_percibido.id,
-                    'move_id': move.id,
-                    'credit': move.iva_percibido_amount,
-                    'debit': 0.0,
-                    'partner_id': move.partner_id.id,
-                })
-
-    @api.depends('apply_retencion_renta', 'apply_retencion_iva', 'apply_iva_percibido', 'amount_total')
-    def _create_retencion_iva_line(self):
-        cuenta_retencion = self.env.ref('account.move.line')  # Asegúrate de definir esto correctamente
-        for move in self:
-            if move.state != 'draft':
-                continue  # Solo aplicar en borrador
-
-            if not move.apply_retencion_iva or not cuenta_retencion:
-                continue
-
-            existe_linea = move.line_ids.filtered(
-                lambda l: l.account_id == cuenta_retencion and l.name == "Retención de IVA"
-            )
-            if not existe_linea:
-                move.line_ids += self.env['account.move.line'].new({
-                    'name': "Retención de IVA",
-                    'account_id': cuenta_retencion.id,
-                    'move_id': move.id,
-                    'credit': 0.0,
-                    'debit': move.retencion_iva_amount,
-                    'partner_id': move.partner_id.id,
-                })
-
-    @api.depends('apply_retencion_renta', 'apply_retencion_iva', 'apply_iva_percibido', 'amount_total')
-    def _create_retencion_renta_line(self):
-        cuenta_retencion = self.env.ref('mi_modulo.cuenta_retencion_renta')  # Asegúrate de definir esto correctamente
-        for move in self:
-            if move.state != 'draft':
-                continue  # Solo aplicar en borrador
-
-            if not move.apply_retencion_renta or not cuenta_retencion:
-                continue
-
-            existe_linea = move.line_ids.filtered(
-                lambda l: l.account_id == cuenta_retencion and l.name == "Retención de Renta"
-            )
-
-            if not existe_linea:
-                move.line_ids += self.env['account.move.line'].new({
-                    'name': "Retención de Renta",
-                    'account_id': cuenta_retencion.id,
-                    'move_id': move.id,
-                    'credit': 0.0,
-                    'debit': move.retencion_renta_amount,
-                    'partner_id': move.partner_id.id,
-                })
+    # def _create_iva_percibido_line(self):
+    #     cuenta_iva_percibido = self.env.ref('mi_modulo.cuenta_iva_percibido')  # Usa el ID real que declaraste
+    #     for move in self:
+    #         if move.state != 'draft':
+    #             continue
+    #
+    #         if not move.apply_iva_percibido or not cuenta_iva_percibido:
+    #             continue
+    #
+    #         existe_linea = move.line_ids.filtered(
+    #             lambda l: l.account_id == cuenta_iva_percibido and l.name == "IVA Percibido"
+    #         )
+    #         if not existe_linea:
+    #             move.line_ids += self.env['account.move.line'].new({
+    #                 'name': "IVA Percibido",
+    #                 'account_id': cuenta_iva_percibido.id,
+    #                 'move_id': move.id,
+    #                 'credit': move.iva_percibido_amount,
+    #                 'debit': 0.0,
+    #                 'partner_id': move.partner_id.id,
+    #             })
+    #
+    # def _create_retencion_iva_line(self):
+    #     cuenta_retencion = self.env.ref('account.move.line')  # Asegúrate de definir esto correctamente
+    #     for move in self:
+    #         if move.state != 'draft':
+    #             continue  # Solo aplicar en borrador
+    #
+    #         if not move.apply_retencion_iva or not cuenta_retencion:
+    #             continue
+    #
+    #         existe_linea = move.line_ids.filtered(
+    #             lambda l: l.account_id == cuenta_retencion and l.name == "Retención de IVA"
+    #         )
+    #         if not existe_linea:
+    #             move.line_ids += self.env['account.move.line'].new({
+    #                 'name': "Retención de IVA",
+    #                 'account_id': cuenta_retencion.id,
+    #                 'move_id': move.id,
+    #                 'credit': 0.0,
+    #                 'debit': move.retencion_iva_amount,
+    #                 'partner_id': move.partner_id.id,
+    #             })
+    #
+    # def _create_retencion_renta_line(self):
+    #     cuenta_retencion = self.env.ref('mi_modulo.cuenta_retencion_renta')  # Define esta cuenta correctamente
+    #     for move in self:
+    #         if move.state != 'draft':
+    #             continue  # Solo aplicar en borrador
+    #
+    #         if not move.apply_retencion_renta or not cuenta_retencion:
+    #             continue
+    #
+    #         existe_linea = move.line_ids.filtered(
+    #             lambda l: l.account_id == cuenta_retencion and l.name == "Retención de Renta"
+    #         )
+    #         if existe_linea:
+    #             continue
+    #
+    #         monto = round(move.retencion_renta_amount, 2)
+    #         es_nota_credito = move.move_type in ('out_refund', 'in_refund')
+    #
+    #         move.write({
+    #             'line_ids': [(0, 0, {
+    #                 'name': "Retención de Renta",
+    #                 'account_id': cuenta_retencion.id,
+    #                 'partner_id': move.partner_id.id,
+    #                 'credit': monto if es_nota_credito else 0.0,
+    #                 'debit': 0.0 if es_nota_credito else monto,
+    #             })]
+    #         })
 
     def _post(self, soft=True):
         self._create_retencion_renta_line()
@@ -652,7 +661,7 @@ class AccountMove(models.Model):
             elif move.journal_id.sit_tipo_documento.codigo == "14":
                 move.total_pagar = round((move.sub_total - move.retencion_iva_amount - move.retencion_renta_amount), 2)
             else:
-                move.total_pagar = round((move.total_operacion - (move.retencion_renta_amount + move.retencion_iva_amount)), 2)
+                move.total_pagar = round((move.total_operacion - (move.retencion_renta_amount + move.retencion_iva_amount + move.iva_percibido_amount)), 2)
 
 
             _logger.info(f"{move.journal_id.sit_tipo_documento.codigo}] move.journal_id.sit_tipo_documento.codigo")
@@ -704,59 +713,84 @@ class AccountMove(models.Model):
 
             lineas = []
 
-            # Retención Renta
+            # Eliminar líneas de retención anteriores
+            cuentas_retencion = [
+                move.company_id.retencion_renta_account_id,
+                move.company_id.retencion_iva_account_id,
+                move.company_id.iva_percibido_account_id,
+            ]
+            cuentas_retencion = [c for c in cuentas_retencion if c]
+
+            lineas_a_borrar = move.line_ids.filtered(
+                lambda l: l.account_id in cuentas_retencion and l.name in (
+                    "Retención de Renta", "Retención de IVA", "IVA percibido")
+            )
+            if lineas_a_borrar:
+                _logger.info("SIT | Eliminando líneas antiguas de retención")
+                lineas_a_borrar.unlink()
+
+            # Detectar si es nota de crédito
+            es_nota_credito = move.codigo_tipo_documento == '05'  # Código oficial para Nota de Crédito
+
+            # Retención de Renta
             if move.apply_retencion_renta and move.retencion_renta_amount > 0:
                 cuenta_renta = move.company_id.retencion_renta_account_id
-                ya_existe_renta = move.line_ids.filtered(
-                    lambda l: l.account_id == cuenta_renta and l.name == "Retención de Renta"
-                )
-                if cuenta_renta and not ya_existe_renta:
-                    lineas.append((0, 0, {
-                        'account_id': cuenta_renta.id,
-                        'name': "Retención de Renta",
-                        'credit': move.retencion_renta_amount,
-                        'debit': 0.0,
-                        'partner_id': move.partner_id.id,
-                    }))
+                monto = round(move.retencion_renta_amount, 2)
+                lineas.append((0, 0, {
+                    'account_id': cuenta_renta.id,
+                    'name': "Retención de Renta",
+                    'credit': monto if es_nota_credito else 0.0,
+                    'debit': 0.0 if es_nota_credito else monto,
+                    'partner_id': move.partner_id.id,
+                }))
+                _logger.info(f"RETENCION RENTA monto={monto}")
 
-            _logger.warning(f"RETENCION RENTA {move.apply_retencion_renta} con número {move.retencion_renta_amount}")
-
-            # Retención IVA
+            # Retención de IVA
             if move.apply_retencion_iva and move.retencion_iva_amount > 0:
                 cuenta_iva = move.company_id.retencion_iva_account_id
-                ya_existe_iva = move.line_ids.filtered(
-                    lambda l: l.account_id == cuenta_iva and l.name == "Retención de IVA"
-                )
-                if cuenta_iva and not ya_existe_iva:
-                    lineas.append((0, 0, {
-                        'account_id': cuenta_iva.id,
-                        'name': "Retención de IVA",
-                        'credit': move.retencion_iva_amount,
-                        'debit': 0.0,
-                        'partner_id': move.partner_id.id,
-                    }))
+                monto = round(move.retencion_iva_amount, 2)
+                lineas.append((0, 0, {
+                    'account_id': cuenta_iva.id,
+                    'name': "Retención de IVA",
+                    'credit': monto if es_nota_credito else 0.0,
+                    'debit': 0.0 if es_nota_credito else monto,
+                    'partner_id': move.partner_id.id,
+                }))
+                _logger.info(f"RETENCION IVA monto={monto}")
+                _logger.info(f"cuenta_iva retecion={cuenta_iva}")
 
-            _logger.warning(f"RETENCION IVA {move.apply_retencion_iva} con número {move.retencion_iva_amount}")
-
-            #Aplicar iva percibido
+            # Retención de IVA
             if move.apply_iva_percibido and move.iva_percibido_amount > 0:
                 cuenta_iva = move.company_id.iva_percibido_account_id
-                ya_existe_iva = move.line_ids.filtered(
-                    lambda l: l.account_id == cuenta_iva and l.name == "IVA percibido"
-                )
-                if cuenta_iva and not ya_existe_iva:
-                    lineas.append((0, 0, {
-                        'account_id': cuenta_iva.id,
-                        'name': "IVA percibido",
-                        'credit': move.iva_percibido_amount,
-                        'debit': 0.0,
-                        'partner_id': move.partner_id.id,
-                    }))
-            _logger.warning(f"IVA PERCIBIDO {move.apply_iva_percibido} con número {move.iva_percibido_amount}")
+                monto = round(move.iva_percibido_amount, 2)
+                lineas.append((0, 0, {
+                    'account_id': cuenta_iva.id,
+                    'name': "Percepcion de IVA",
+                    'credit': monto if es_nota_credito else 0.0,
+                    'debit': 0.0 if es_nota_credito else monto,
+                    'partner_id': move.partner_id.id,
+                }))
+                _logger.info(f"PERCEPCION IVA monto={monto}")
+                _logger.info(f"cuenta_iva={cuenta_iva}")
+
+            # IVA Percibido
+            # if move.apply_iva_percibido and move.iva_percibido_amount > 0:
+            #     cuenta_iva = move.company_id.iva_percibido_account_id
+            #     _logger.info(f"cuenta_iva {cuenta_iva}")
+            #
+            #     monto = round(move.iva_percibido_amount, 2)
+            #     lineas.append((0, 0, {
+            #         'account_id': cuenta_iva.id,
+            #         'name': "IVA percibido",
+            #         'credit': monto if es_nota_credito else 0.0,
+            #         'debit': 0.0 if es_nota_credito else monto,
+            #         'partner_id': move.partner_id.id,
+            #     }))
+            #     _logger.info(f"IVA PERCIBIDO monto={monto}")
 
             if lineas:
                 move.write({'line_ids': lineas})
-                _logger.warning(f"line_ids {lineas}")
+                _logger.info(f"SIT | Nuevas líneas de retención escritas: {lineas}")
 
     # -------Fin retenciones
 

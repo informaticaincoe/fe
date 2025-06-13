@@ -119,6 +119,13 @@ class AccountMoveReversal(models.TransientModel):
             _logger.info("SIT NC creada: ID=%s | reversed_entry_id=%s | inv_refund_id=%s | name=%s",
                          move.id, move.reversed_entry_id.id, move.inv_refund_id.id, move.name)
 
+        new_move = self.env['account.move'].with_context(ctx).create(default_vals)
+
+        if new_move.codigo_tipo_documento == '05' and new_move.reversed_entry_id:
+            _logger.info("SIT NC creada: ID=%s | reversed_entry_id=%s | inv_refund_id=%s | name=%s",
+                         move.id, move.reversed_entry_id.id, move.inv_refund_id.id, move.name)
+            new_move._copiar_retenciones_desde_documento_relacionado()
+
         return {
             'name': _('Reverse Moves'),
             'type': 'ir.actions.act_window',
@@ -163,3 +170,4 @@ class AccountMoveReversal(models.TransientModel):
         else:
             _logger.error("SIT Tipo de documento no soportado para reverso: %s", doc_type)
             raise UserError(_("Tipo de documento no soportado para reverso: %s") % doc_type)
+

@@ -295,59 +295,61 @@
                                         <tbody>
                                             <!-- t-foreach con index correcto -->
                                             <t t-foreach="range(0, len(o.invoice_line_ids))" t-as="idx">
-                                                <tr>
-                                                    <!-- Columna N° -->
-                                                    <td style="border:1px solid #e5e7e9; padding:4px; text-align:center;"
-                                                        class="border-light-subtle">
-                                                        <span t-esc="idx + 1"/>
-                                                    </td>
-                                                    <!-- Cantidad y Unidad -->
-                                                    <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
-                                                        class="border-light-subtle">
-                                                        <span t-field="o.invoice_line_ids[idx].quantity"/>
-                                                        <span t-field="o.invoice_line_ids[idx].uom_id"
-                                                              groups="product.group_uom"/>
-                                                    </td>
-                                                    <!-- Precio unitario con IVA -->
-                                                    <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
-                                                        class="border-light-subtle">
-                                                        <span t-esc="o.invoice_line_ids[idx].price_unit * 1.13"
-                                                              t-options="{'widget':'monetary','display_currency': o.currency_id}"/>
-                                                    </td>
-                                                    <!-- Descripción -->
-                                                    <td style="border:1px solid #e5e7e9; padding:4px; text-align:left; white-space:normal; word-break:break-word;"
-                                                        class="border-light-subtle">
-                                                        <span t-field="o.invoice_line_ids[idx].name"/>
-                                                    </td>
-                                                    <!-- Total línea con IVA -->
-                                                    <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
-                                                        class="border-light-subtle">
-                                                        <span t-esc="o.invoice_line_ids[idx].price_subtotal * 1.13"
-                                                              t-options="{'widget':'monetary','display_currency': o.currency_id}"/>
-                                                    </td>
-                                                    <!-- Descuento % -->
-                                                    <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
-                                                        class="border-light-subtle">
-                                                        <span t-esc="o.invoice_line_ids[idx].price_unit * (o.invoice_line_ids[idx].discount / 100)"
-                                                              t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
-                                                    </td>
-                                                    <!-- “Otros Mtos.” (placeholder) -->
-                                                    <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
-                                                        class="border-light-subtle">
-                                                        <span>$0.00</span>
-                                                    </td>
-                                                    <!-- “Exentas” (placeholder) -->
-                                                    <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
-                                                        class="border-light-subtle">
-                                                        <span>$0.00</span>
-                                                    </td>
-                                                    <!-- Grabadas tras descuento -->
-                                                    <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
-                                                        class="border-light-subtle">
-                                                        <span t-esc="(o.invoice_line_ids[idx].price_total) - (o.invoice_line_ids[idx].price_total * (o.invoice_line_ids[idx].discount / 100))"
-                                                              t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
-                                                    </td>
-                                                </tr>
+                                                <t t-if="o.invoice_line_ids[idx].price_unit &gt; 0">
+                                                    <tr>
+                                                        <!-- Columna N° -->
+                                                        <td style="border:1px solid #e5e7e9; padding:4px; text-align:center;"
+                                                            class="border-light-subtle">
+                                                            <span t-esc="idx + 1"/>
+                                                        </td>
+                                                        <!-- Cantidad y Unidad -->
+                                                        <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
+                                                            class="border-light-subtle">
+                                                            <span t-field="o.invoice_line_ids[idx].quantity"/>
+                                                            <span t-field="o.invoice_line_ids[idx].uom_id"
+                                                                  groups="product.group_uom"/>
+                                                        </td>
+                                                        <!-- Precio unitario con IVA -->
+                                                        <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
+                                                            class="border-light-subtle">
+                                                            <span t-esc="o.invoice_line_ids[idx].price_unit * 1.13"
+                                                                  t-options="{'widget':'monetary','display_currency': o.currency_id}"/>
+                                                        </td>
+                                                        <!-- Descripción -->
+                                                        <td style="border:1px solid #e5e7e9; padding:4px; text-align:left; white-space:normal; word-break:break-word;"
+                                                            class="border-light-subtle">
+                                                            <span t-field="o.invoice_line_ids[idx].name"/>
+                                                        </td>
+                                                        <!-- Total línea con IVA -->
+                                                        <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
+                                                            class="border-light-subtle">
+                                                            <span t-esc="o.invoice_line_ids[idx].price_subtotal * 1.13"
+                                                                  t-options="{'widget':'monetary','display_currency': o.currency_id}"/>
+                                                        </td>
+                                                        <!-- Descuento % -->
+                                                        <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
+                                                            class="border-light-subtle">
+                                                            <span t-esc="o.invoice_line_ids[idx].price_unit * (o.invoice_line_ids[idx].discount / 100)"
+                                                                  t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
+                                                        </td>
+                                                        <!-- “Otros Mtos.” (placeholder) -->
+                                                        <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
+                                                            class="border-light-subtle">
+                                                            <span>$0.00</span>
+                                                        </td>
+                                                        <!-- “Exentas” (placeholder) -->
+                                                        <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
+                                                            class="border-light-subtle">
+                                                            <span>$0.00</span>
+                                                        </td>
+                                                        <!-- Grabadas tras descuento -->
+                                                        <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
+                                                            class="border-light-subtle">
+                                                            <span t-esc="(o.invoice_line_ids[idx].price_total) - (o.invoice_line_ids[idx].price_total * (o.invoice_line_ids[idx].discount / 100))"
+                                                                  t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
+                                                        </td>
+                                                    </tr>
+                                                </t>
                                             </t>
                                         </tbody>
                                     </table>
