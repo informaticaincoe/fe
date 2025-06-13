@@ -264,6 +264,7 @@ class AccountMove(models.Model):
                 rec.name = vals['name']
                 _logger.info("SIT Refuerzo name=%s", rec.name)
 
+            rec._copiar_retenciones_desde_documento_relacionado()
         return records
 
     @api.depends("move_type")
@@ -1556,11 +1557,11 @@ class AccountMove(models.Model):
             else:
                 _logger.info("SIT | La correspondencia ya había sido transmitida. %s", invoice.name)
 
-    @api.model
-    def create(self, vals):
-        move = super().create(vals)
-        move._copiar_retenciones_desde_documento_relacionado()
-        return move
+    # @api.model
+    # def create(self, vals):
+    #     move = super().create(vals)
+    #     move._copiar_retenciones_desde_documento_relacionado()
+    #     return move
 
     def write(self, vals):
         res = super().write(vals)

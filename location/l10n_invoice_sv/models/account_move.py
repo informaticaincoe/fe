@@ -133,78 +133,6 @@ class AccountMove(models.Model):
                 tipo_doc = move.journal_id.sit_tipo_documento.codigo
                 move.iva_percibido_amount = ((move.sub_total_ventas / 1.13) - move.descuento_global) * 0.01
 
-    # def _create_iva_percibido_line(self):
-    #     cuenta_iva_percibido = self.env.ref('mi_modulo.cuenta_iva_percibido')  # Usa el ID real que declaraste
-    #     for move in self:
-    #         if move.state != 'draft':
-    #             continue
-    #
-    #         if not move.apply_iva_percibido or not cuenta_iva_percibido:
-    #             continue
-    #
-    #         existe_linea = move.line_ids.filtered(
-    #             lambda l: l.account_id == cuenta_iva_percibido and l.name == "IVA Percibido"
-    #         )
-    #         if not existe_linea:
-    #             move.line_ids += self.env['account.move.line'].new({
-    #                 'name': "IVA Percibido",
-    #                 'account_id': cuenta_iva_percibido.id,
-    #                 'move_id': move.id,
-    #                 'credit': move.iva_percibido_amount,
-    #                 'debit': 0.0,
-    #                 'partner_id': move.partner_id.id,
-    #             })
-    #
-    # def _create_retencion_iva_line(self):
-    #     cuenta_retencion = self.env.ref('account.move.line')  # Asegúrate de definir esto correctamente
-    #     for move in self:
-    #         if move.state != 'draft':
-    #             continue  # Solo aplicar en borrador
-    #
-    #         if not move.apply_retencion_iva or not cuenta_retencion:
-    #             continue
-    #
-    #         existe_linea = move.line_ids.filtered(
-    #             lambda l: l.account_id == cuenta_retencion and l.name == "Retención de IVA"
-    #         )
-    #         if not existe_linea:
-    #             move.line_ids += self.env['account.move.line'].new({
-    #                 'name': "Retención de IVA",
-    #                 'account_id': cuenta_retencion.id,
-    #                 'move_id': move.id,
-    #                 'credit': 0.0,
-    #                 'debit': move.retencion_iva_amount,
-    #                 'partner_id': move.partner_id.id,
-    #             })
-    #
-    # def _create_retencion_renta_line(self):
-    #     cuenta_retencion = self.env.ref('mi_modulo.cuenta_retencion_renta')  # Define esta cuenta correctamente
-    #     for move in self:
-    #         if move.state != 'draft':
-    #             continue  # Solo aplicar en borrador
-    #
-    #         if not move.apply_retencion_renta or not cuenta_retencion:
-    #             continue
-    #
-    #         existe_linea = move.line_ids.filtered(
-    #             lambda l: l.account_id == cuenta_retencion and l.name == "Retención de Renta"
-    #         )
-    #         if existe_linea:
-    #             continue
-    #
-    #         monto = round(move.retencion_renta_amount, 2)
-    #         es_nota_credito = move.move_type in ('out_refund', 'in_refund')
-    #
-    #         move.write({
-    #             'line_ids': [(0, 0, {
-    #                 'name': "Retención de Renta",
-    #                 'account_id': cuenta_retencion.id,
-    #                 'partner_id': move.partner_id.id,
-    #                 'credit': monto if es_nota_credito else 0.0,
-    #                 'debit': 0.0 if es_nota_credito else monto,
-    #             })]
-    #         })
-
     def _post(self, soft=True):
         self._create_retencion_renta_line()
         return super()._post(soft=soft)
@@ -760,16 +688,24 @@ class AccountMove(models.Model):
                 _logger.info(f"cuenta_iva retecion={cuenta_iva}")
 
             # IVA percibido
+            # Percepción de IVA
             if move.apply_iva_percibido and move.iva_percibido_amount > 0:
                 cuenta_iva = move.company_id.iva_percibido_account_id
-                monto = round(move.iva_percibido_amount, 2)
+                monto = move.iva_percibido_amount  # Usa directamente el valor redondeado previamente
+
+                es_nota_credito = move.move_type == 'out_refund'
+                es_factura_venta = move.move_type == 'out_invoice'
+
                 lineas.append((0, 0, {
                     'account_id': cuenta_iva.id,
-                    'name': "Percepcion de IVA",
-                    'credit': 0.0 if es_nota_credito_o_sujeto_excluido else monto,
-                    'debit': monto if es_nota_credito_o_sujeto_excluido else 0.0,
+                    'name': "Percepción de IVA",
+                    'credit': monto if es_nota_credito_o_sujeto_excluido else 0.0,
+                    'debit': 0.0 if es_nota_credito_o_sujeto_excluido else monto,
                     'partner_id': move.partner_id.id,
                 }))
+                _logger.info(f"PERCEPCION IVA monto={monto} | "
+                             f"{'CRÉDITO' if es_factura_venta else 'DÉBITO'}")
+
                 _logger.info(f"PERCEPCION IVA monto={monto}")
                 _logger.info(f"cuenta_iva={cuenta_iva}")
 
@@ -816,6 +752,9 @@ class AccountMove(models.Model):
             # if move.apply_retencion_renta or move.apply_retencion_iva:
             #     move.agregar_lineas_retencion()
             move.agregar_lineas_retencion()
+
+        _logger.warning(f"[{move.name}] Total débitos: {sum(l.debit for l in move.line_ids)}, "f"Total créditos: {sum(l.credit for l in move.line_ids)}")
+
         return super().action_post()
 
     # Crear o buscar la cuenta contable para descuentos
