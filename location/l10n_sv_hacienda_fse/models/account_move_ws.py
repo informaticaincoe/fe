@@ -195,11 +195,11 @@ class AccountMove(models.Model):
                 line_temp["numItem"] = item_numItem
                 tipoItem = int(line.product_id.tipoItem.codigo or line.product_id.product_tmpl_id.tipoItem.codigo)
                 #Validación: tipoItem debe ser código 1, 2 o 3
-                if tipoItem not in [1, 2, 3]:
-                    raise UserError(
-                        _("El producto '%s' tiene un tipo de ítem inválido: %s. Solo se permiten los valores 1, 2 o 3.") %
-                        (line.product_id.name, tipoItem)
-                    )
+                # if tipoItem not in [1, 2, 3]:
+                #     raise UserError(
+                #         _("El producto '%s' tiene un tipo de ítem inválido: %s. Solo se permiten los valores 1, 2 o 3.") %
+                #         (line.product_id.name, tipoItem)
+                #     )
                 line_temp["tipoItem"] = tipoItem
                 line_temp["cantidad"] = line.quantity
                 line_temp["codigo"] = line.product_id.default_code
