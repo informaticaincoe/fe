@@ -205,52 +205,54 @@
                                     <tbody>
                                         <!-- t-foreach con index correcto -->
                                         <t t-foreach="range(0, len(o.invoice_line_ids))" t-as="idx">
-                                            <tr>
-                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:center;"
-                                                    class="border-light-subtle">
-                                                    <span t-esc="idx + 1"/>
-                                                </td>
-                                                <!-- Cantidad -->
-                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
-                                                    class="border-light-subtle">
-                                                    <span t-field="o.invoice_line_ids[idx].quantity"/>
-                                                    <span t-field="o.invoice_line_ids[idx].uom_id"
-                                                          groups="product.group_uom"/>
-                                                </td>
-                                                <!-- Código -->
-                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
-                                                    class="border-light-subtle">
-                                                    <span t-field="o.invoice_line_ids[idx].product_id.default_code"/>
-                                                </td>
-                                                <!-- Unidad -->
-                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:left; white-space:normal; word-break:break-word;"
-                                                    class="border-light-subtle">
-                                                    <span t-field="o.invoice_line_ids[idx].product_uom_id"/>
-                                                </td>
-                                                <!-- Descripción -->
-                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:left; white-space:normal; word-break:break-word;"
-                                                    class="border-light-subtle">
-                                                    <span t-field="o.invoice_line_ids[idx].product_id.name"/>
-                                                </td>
-                                                <!-- Precio Unitario -->
-                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
-                                                    class="border-light-subtle">
-                                                    <span t-esc="o.invoice_line_ids[idx].price_unit"
-                                                          t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
-                                                </td>
-                                                <!-- Descuento % -->
-                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
-                                                    class="border-light-subtle">
-                                                    <span t-esc="o.invoice_line_ids[idx].price_unit * (o.invoice_line_ids[idx].discount / 100)"
-                                                          t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
-                                                </td>
-                                                <!-- Ventas -->
-                                                <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
-                                                    class="border-light-subtle">
-                                                    <span t-esc="           (o.invoice_line_ids[idx].price_unit * o.invoice_line_ids[idx].quantity)           - (o.invoice_line_ids[idx].price_unit * (o.invoice_line_ids[idx].discount / 100))         "
-                                                          t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
-                                                </td>
-                                            </tr>
+                                            <t t-if="o.invoice_line_ids[idx].price_unit &gt; 0">
+                                                <tr>
+                                                    <td style="border:1px solid #e5e7e9; padding:4px; text-align:center;"
+                                                        class="border-light-subtle">
+                                                        <span t-esc="idx + 1"/>
+                                                    </td>
+                                                    <!-- Cantidad -->
+                                                    <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
+                                                        class="border-light-subtle">
+                                                        <span t-field="o.invoice_line_ids[idx].quantity"/>
+                                                        <span t-field="o.invoice_line_ids[idx].uom_id"
+                                                              groups="product.group_uom"/>
+                                                    </td>
+                                                    <!-- Código -->
+                                                    <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
+                                                        class="border-light-subtle">
+                                                        <span t-field="o.invoice_line_ids[idx].product_id.default_code"/>
+                                                    </td>
+                                                    <!-- Unidad -->
+                                                    <td style="border:1px solid #e5e7e9; padding:4px; text-align:left; white-space:normal; word-break:break-word;"
+                                                        class="border-light-subtle">
+                                                        <span t-field="o.invoice_line_ids[idx].product_uom_id"/>
+                                                    </td>
+                                                    <!-- Descripción -->
+                                                    <td style="border:1px solid #e5e7e9; padding:4px; text-align:left; white-space:normal; word-break:break-word;"
+                                                        class="border-light-subtle">
+                                                        <span t-field="o.invoice_line_ids[idx].product_id.name"/>
+                                                    </td>
+                                                    <!-- Precio Unitario -->
+                                                    <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
+                                                        class="border-light-subtle">
+                                                        <span t-esc="o.invoice_line_ids[idx].price_unit"
+                                                              t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
+                                                    </td>
+                                                    <!-- Descuento % -->
+                                                    <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
+                                                        class="border-light-subtle">
+                                                        <span t-esc="o.invoice_line_ids[idx].price_unit * (o.invoice_line_ids[idx].discount / 100)"
+                                                              t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
+                                                    </td>
+                                                    <!-- Ventas -->
+                                                    <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
+                                                        class="border-light-subtle">
+                                                        <span t-esc="(o.invoice_line_ids[idx].price_unit * o.invoice_line_ids[idx].quantity)  - (o.invoice_line_ids[idx].price_unit * (o.invoice_line_ids[idx].discount / 100))"
+                                                              t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
+                                                    </td>
+                                                </tr>
+                                            </t>
                                         </t>
                                     </tbody>
                                 </table>
@@ -283,6 +285,7 @@
                                                 <tr>
                                                     <td style="padding:2%; vertical-align:top;">
                                                         <strong>Observaciones:</strong>
+                                                        <span t-field="o.sit_observaciones"/>
                                                     </td>
                                                 </tr>
                                             </table>
@@ -296,49 +299,62 @@
                                                             class="border-light-subtle">
                                                             Sumatoria de ventas:
                                                         </td>
-                                                        <td style="border:1px solid #e5e7e9; padding:2% 4px; text-align:right;"
+                                                        <td style="border:1px solid #e5e7e9; padding:2% 4px; text-align:left;"
                                                             class="border-light-subtle">
-                                                            <span t-field="o.amount_untaxed"/>
+                                                            <span t-esc="o.total_operacion"
+                                                                  t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
                                                         </td>
                                                     </tr>
                                                     <tr>
                                                         <td class="px-1 border border-light-subtle text-end"
-                                                            style="padding: 2% 0%;">Monto global Desc. Rebajas y
+                                                            style="padding: 2% 0%;">
+                                                            Total descuentos globales:
+                                                        </td>
+                                                        <td class="px-1 border border-light-subtle text-left"
+                                                            style="padding: 2% 0%;">
+                                                            <span t-esc="o.total_descuento + o.descuento_global"
+                                                                  t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td class="px-1 border border-light-subtle text-end"
+                                                            style="padding: 2% 0%;">
                                                             Sub-Total:
                                                         </td>
                                                         <td class="px-1 border border-light-subtle text-left"
                                                             style="padding: 2% 0%;">
-                                                            <span t-field="o.amount_untaxed"/>
+                                                            <span t-esc="o.total_operacion - (o.total_descuento + o.descuento_global)"
+                                                                  t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
                                                         </td>
                                                     </tr>
                                                     <tr>
                                                         <td class="px-1 border border-light-subtle text-end"
-                                                            style="padding: 2% 0%;">Monto global Desc. Rebajas y
+                                                            style="padding: 2% 0%;">
                                                             Retencion iva:
                                                         </td>
                                                         <td class="px-1 border border-light-subtle text-left"
                                                             style="padding: 2% 0%;">
-                                                            <span>$ 0.00</span>
+                                                            <span t-field="o.retencion_iva_amount"/>
                                                         </td>
                                                     </tr>
                                                     <tr>
                                                         <td class="px-1 border border-light-subtle text-end"
-                                                            style="padding: 2% 0%;">Monto global Desc. Rebajas y
+                                                            style="padding: 2% 0%;">
                                                             Retencion renta:
                                                         </td>
                                                         <td class="px-1 border border-light-subtle text-left"
                                                             style="padding: 2% 0%;">
-                                                            <span>$ 0.00</span>
+                                                            <span t-field="o.retencion_renta_amount"/>
                                                         </td>
                                                     </tr>
                                                     <tr>
                                                         <td class="px-1 border border-light-subtle text-end"
-                                                            style="padding: 2% 0%;">Otros montos, global Desc.
+                                                            style="padding: 2% 0%;">
                                                             Total a pagar:
                                                         </td>
                                                         <td class="px-1 border border-light-subtle text-left"
                                                             style="padding: 2% 0%;">
-                                                            <span t-field="o.amount_untaxed"/>
+                                                            <span t-field="o.total_pagar"/>
                                                         </td>
                                                     </tr>
                                                 </tbody>
