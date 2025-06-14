@@ -670,11 +670,9 @@ class AccountMove(models.Model):
 
         # 2) Procesar cada factura
         for invoice in invoices_to_post:
+            if invoice.hacienda_selloRecibido and invoice.recibido_mh:
+                raise UserError("Documento ya se encuentra procesado")
             try:
-
-                if invoice.hacienda_selloRecibido and invoice.recibido_mh:
-                    raise UserError("Documento ya se encuentra procesado")
-
                 journal = invoice.journal_id
                 _logger.info("SIT Procesando invoice %s (journal=%s)", invoice.id, journal.name)
 
@@ -772,11 +770,12 @@ class AccountMove(models.Model):
                         _logger.warning("SIT Resultado. =%s, estado=%s", Resultado, Resultado.get('estado', ''))
 
                         # Si el resp es un rechazo por número de control
-                        if isinstance(Resultado, dict) and Resultado.get('estado', '').strip().lower() == 'rechazado':
+                        if isinstance(Resultado, dict) and Resultado.get('estado', '').strip().lower() == 'rechazado' and Resultado.get('codigoMsg') == '004':
                             error_text = json.dumps(Resultado).lower()
-                            if 'numero de control' in error_text or 'ya existe un registro con ese valor' in error_text:
-                                _logger.warning(
-                                    "SIT DTE rechazado por número de control duplicado. Generando nuevo número.")
+                            descripcion = Resultado.get('descripcionMsg', '')
+                            _logger.warning("SIT Descripcion error: %s", descripcion)
+                            if 'identificacion.numerocontrol' in descripcion.lower():
+                                _logger.warning("SIT DTE rechazado por número de control duplicado. Generando nuevo número.")
 
                                 # Generar nuevo número de control
                                 nuevo_nombre = invoice._generate_dte_name()
@@ -910,7 +909,7 @@ class AccountMove(models.Model):
 
                             # Guardar archivo .pdf y enviar correo al cliente
                             try:
-                                invoice.sudo().sit_enviar_correo_dte_automatico()
+                                self.with_context(from_button=False, from_invalidacion=False).sit_enviar_correo_dte_automatico()
                             except Exception as e:
                                 _logger.warning("SIT | Error al enviar DTE por correo o generar PDF: %s", str(e))
                         else:
@@ -1175,13 +1174,16 @@ class AccountMove(models.Model):
                 self.write({
                     "hacienda_estado": "PROCESADO",
                     "hacienda_codigoGeneracion_identificacion": data.get("codigoGeneracion"),
-                    "hacienda_selloRecibido": data.get("selloRecibido"),
                     "hacienda_clasificaMsg": data.get("clasificaMsg"),
                     "hacienda_codigoMsg": data.get("codigoMsg"),
                     "hacienda_descripcionMsg": data.get("descripcionMsg"),
                     "hacienda_observaciones": ", ".join(data.get("observaciones") or []),
                     "state": "posted",
                 })
+                if (not self.hacienda_selloRecibido or self.hacienda_selloRecibido.strip()) and data.get("selloRecibido"):
+                    self.write({
+                        "hacienda_selloRecibido": data.get("selloRecibido")
+                    })
                 self.message_post(
                     body=_("Documento ya existente en Hacienda: %s") % data.get("descripcionMsg")
                 )
@@ -1509,53 +1511,36 @@ class AccountMove(models.Model):
                      lote_asignado.name if lote_asignado else "N/A")
 
     def sit_enviar_correo_dte_automatico(self):
+        from_button = self.env.context.get('from_email_button', False) #Controlar si el envio es desde el post o desde la interfaz(boton)
+        es_invalidacion = self.env.context.get('from_invalidacion', False)
+
+        if from_button:
+            _logger.info("SIT | Método invocado desde botón 'Enviar email'")
+        else:
+            _logger.info("SIT | Método invocado desde _post")
+
         for invoice in self:
             # Validar que el DTE exista en hacienda
-            if not invoice.recibido_mh:
-                _logger.warning("SIT | La factura %s no tiene un DTE procesado, no se enviará correo.", invoice.name)
-                continue
+            if not invoice.hacienda_selloRecibido and not invoice.recibido_mh:
+                msg = "La factura %s no tiene un DTE procesado, no se enviará correo." % invoice.name
+                _logger.warning("SIT | %s", msg)
+                raise UserError(msg)
 
             _logger.info("SIT | DTE procesado correctamente para la factura %s. Procediendo con envío de correo.", invoice.name)
 
-            # Generar PDF como attachment si aún no se ha creado
-            try:
-                report_xml = invoice.journal_id.report_xml.xml_id
-                pdf_content = invoice.env['ir.actions.report'].sudo()._render_qweb_pdf(report_xml, [invoice.id])[0]
-                pdf_base64 = base64.b64encode(pdf_content)
-                pdf_filename = f"{invoice.name or 'dte'}.pdf"
-
-                # Verifica si ya existe un attachment con ese nombre
-                existing_attachment = self.env['ir.attachment'].sudo().search([
-                    ('res_model', '=', 'account.move'),
-                    ('res_id', '=', invoice.id),
-                    ('name', '=', pdf_filename),
-                ], limit=1)
-
-                if not existing_attachment:
-                    self.env['ir.attachment'].sudo().create({
-                        'name': pdf_filename,
-                        'datas': pdf_base64,
-                        'res_model': 'account.move',
-                        'res_id': invoice.id,
-                        'mimetype': 'application/pdf',
-                        'type': 'binary',
-                    })
-                    _logger.info("SIT | PDF generado y adjuntado: %s", pdf_filename)
-                else:
-                    _logger.info("SIT | El attachment PDF ya existe para el dte %s", invoice.name)
-            except Exception as e:
-                _logger.error("SIT | Error generando PDF para la factura %s: %s", invoice.name, str(e))
-                continue
-
             # Enviar el correo automáticamente solo si el DTE fue aceptado y aún no se ha enviado
-            if invoice.recibido_mh and not invoice.correo_enviado:
+            _logger.info("SIT | Es evento de invalidacion= %s", es_invalidacion)
+            if ( (not es_invalidacion and invoice.recibido_mh and not invoice.correo_enviado) or
+                    (es_invalidacion and invoice.sit_evento_invalidacion.invalidacion_recibida_mh and not invoice.sit_evento_invalidacion.correo_enviado_invalidacion)
+                    or from_button):
                 try:
                     _logger.info("SIT | Enviando correo automático para la factura %s", invoice.name)
-                    invoice.with_context(from_automatic=True).sudo().sit_action_send_mail()
+                    invoice.with_context(from_automatic=True, from_invalidacion=es_invalidacion).sudo().sit_action_send_mail()
                 except Exception as e:
                     _logger.error("SIT | Error al intentar enviar el correo para la factura %s: %s", invoice.name, str(e))
             else:
                 _logger.info("SIT | La correspondencia ya había sido transmitida. %s", invoice.name)
+        #return True
 
     # @api.model
     # def create(self, vals):

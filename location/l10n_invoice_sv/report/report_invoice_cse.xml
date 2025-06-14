@@ -128,7 +128,7 @@
                                 <div class="col text-center border rounded-2 border-light-subtle">
                                     <p style="padding:0 15%;" t-field="o.journal_id"/>
                                     <t t-if="o.sit_qr_hacienda">
-                                        <img t-att-src="'data:image/png;base64,%s' % o.sit_qr_hacienda.decode('utf-8')"
+                                        <img t-if="o.sit_qr_hacienda and isinstance(o.sit_qr_hacienda, str)" t-att-src="'data:image/png;base64,%s' % o.sit_qr_hacienda.decode('utf-8')"
                                              style="width:40%; height:auto;"/>
                                     </t>
                                     <p style="">Generado:

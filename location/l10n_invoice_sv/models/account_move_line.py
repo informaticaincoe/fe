@@ -11,6 +11,12 @@ class AccountMoveLine(models.Model):
     precio_no_sujeto = fields.Float(string='No Sujeto', compute='_compute_precios_tipo_venta', store=True)
     custom_discount_line = fields.Boolean(string='Es línea de descuento', default=False)
 
+    codigo_tipo_documento = fields.Char(
+        string='Código Tipo Documento',
+        related='journal_id.sit_tipo_documento.codigo',
+        store=True,
+    )
+
     @api.depends('product_id', 'quantity', 'price_unit', 'discount', 'tax_ids', 'move_id.journal_id')
     #@api.onchange('product_id', 'quantity', 'price_unit', 'discount')
     def _compute_precios_tipo_venta(self): #def _onchange_precio_tipo_venta(self):
@@ -29,21 +35,27 @@ class AccountMoveLine(models.Model):
             line.precio_exento = 0.0
             line.precio_no_sujeto = 0.0
             precio_total = 0.0
+            iva = 1.13
+            # if config_utils:
+            #     iva = config_utils.get_config_value(self.env, 'valor_iva', self.company_id.id)
+            # else:
+            #     _logger.error("config_utils no disponible. Valor IVA por defecto 0.0.")
+            # _logger.info("SIT Configuracion IVA: %s", iva)
 
             # Calcular precio total con descuento
             # Se verifica el tipo de documento a generar, si es factura el precio debe contener impuesto(IVA), si es CCF no debe tener impuestos(IVA)
             if line.move_id.journal_id.sit_tipo_documento.codigo == "01":
                 if not line.tax_ids:
-                    precio_total = round( (line.price_unit * line.quantity * (1 - (line.discount or 0.0) / 100.0) * 1.13), 6)
-                    line.precio_unitario = round(line.price_unit * 1.13, 6)
+                    precio_total = round( (line.price_unit * line.quantity * (1 - (line.discount or 0.0) / 100.0) * iva), 6)
+                    line.precio_unitario = round(line.price_unit * iva, 6)
                 elif line.tax_ids:
                     precio_total = round( (line.price_unit * line.quantity * (1 - (line.discount or 0.0) / 100.0)), 6)
                     line.precio_unitario = round(line.price_unit, 6)
 
             elif line.move_id.journal_id.sit_tipo_documento.codigo != "01":
                 if line.tax_ids:
-                    precio_total = round((line.price_unit * line.quantity * (1 - (line.discount or 0.0) / 100.0) / 1.13), 6)
-                    line.precio_unitario = round(line.price_unit / 1.13, 6)
+                    precio_total = round( (line.price_unit * line.quantity * (1 - (line.discount or 0.0) / 100.0) / iva), 6)
+                    line.precio_unitario = round(line.price_unit / iva, 6)
                 elif not line.tax_ids:
                     precio_total = round( (line.price_unit * line.quantity * (1 - (line.discount or 0.0) / 100.0)), 6)
                     line.precio_unitario = round(line.price_unit, 6)
