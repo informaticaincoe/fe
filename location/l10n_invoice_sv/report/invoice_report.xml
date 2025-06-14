@@ -16,7 +16,7 @@
             <field name="format">Letter</field>
             <field name="orientation">Portrait</field>
             <field name="margin_top">5</field>
-            <field name="margin_bottom">5</field>
+            <field name="margin_bottom">8</field>
             <field name="margin_left">3</field>
             <field name="margin_right">3</field>
             <field name="header_line" eval="False"/>
@@ -53,7 +53,7 @@
             <field name="format">Letter</field>
             <field name="orientation">Portrait</field>
             <field name="margin_top">5</field>
-            <field name="margin_bottom">5</field>
+            <field name="margin_bottom">8</field>
             <field name="margin_left">3</field>
             <field name="margin_right">3</field>
             <field name="header_line" eval="False"/>
@@ -76,20 +76,21 @@
         </record>
 
         <report
-                id="report_exportacion"
+                id="report_invoice_exp"
                 model="account.move"
-                string="Factura de Exportacion"
+                string="Factura Exportación (Exp)"
                 report_type="qweb-pdf"
                 name="l10n_invoice_sv.report_invoice_main_exp"
                 file="l10n_invoice_sv.report_invoice_main_exp"
         />
+
         <record id="paperformat_invoice_exportacion" model="report.paperformat">
             <field name="name">Factura de Exportacion</field>
             <field name="default" eval="True"/>
             <field name="format">Letter</field>
             <field name="orientation">Portrait</field>
             <field name="margin_top">5</field>
-            <field name="margin_bottom">5</field>
+            <field name="margin_bottom">8</field>
             <field name="margin_left">3</field>
             <field name="margin_right">3</field>
             <field name="header_line" eval="False"/>
@@ -101,15 +102,18 @@
             <field name="name">Factura de Exportacion</field>
             <field name="model">account.move</field>
             <field name="report_name">l10n_invoice_sv.report_invoice_main_exp</field>
-            <field name="print_report_name">object.partner_id.display_name + ' - ' + object.name + ' - ' +
-                object.journal_id.name
+            <field name="print_report_name">
+                (object.partner_id.display_name or '') + ' - ' + (object.name or '') + ' - ' + (object.journal_id.name or '')
             </field>
+
+
             <field name="paperformat_id" ref="paperformat_invoice_exportacion"/>
             <field name="attachment">object.partner_id.display_name + ' - ' + object.name + ' - ' +
                 object.journal_id.name
             </field>
             <field name="attachment_use" eval="False"/>
         </record>
+
 
         <report
                 id="report_ndc"
@@ -125,7 +129,7 @@
             <field name="format">Letter</field>
             <field name="orientation">Portrait</field>
             <field name="margin_top">5</field>
-            <field name="margin_bottom">5</field>
+            <field name="margin_bottom">8</field>
             <field name="margin_left">3</field>
             <field name="margin_right">3</field>
             <field name="header_line" eval="False"/>
@@ -206,7 +210,7 @@
             <field name="format">Letter</field>
             <field name="orientation">Portrait</field>
             <field name="margin_top">5</field>
-            <field name="margin_bottom">5</field>
+            <field name="margin_bottom">8</field>
             <field name="margin_left">3</field>
             <field name="margin_right">3</field>
             <field name="header_line" eval="False"/>
@@ -243,7 +247,7 @@
             <field name="format">Letter</field>
             <field name="orientation">Portrait</field>
             <field name="margin_top">5</field>
-            <field name="margin_bottom">5</field>
+            <field name="margin_bottom">8</field>
             <field name="margin_left">3</field>
             <field name="margin_right">3</field>
             <field name="header_line" eval="False"/>
