@@ -61,4 +61,17 @@
         </field>
     </record>
 
+    <record id="view_move_form_inherit_send_email" model="ir.ui.view">
+        <field name="name">account.move.form.inherit.send.email</field>
+        <field name="model">account.move</field>
+        <field name="inherit_id" ref="l10n_invoice_sv.view_invoice_form_sv"/>
+        <field name="arch" type="xml">
+            <!-- Reemplazamos el botón 'action_invoice_sent' por el nuevo botón -->
+            <xpath expr="//button[@name='action_invoice_sent']" position="replace">
+                <button name="sit_enviar_correo_dte_automatico" type="object"
+                        options="{'invisible': [('state', '!=', 'posted') ]}" string="Enviar email"
+                        context="{'from_email_button': True}" class="oe_highlight" groups="account.group_account_invoice"/>
+            </xpath>
+        </field>
+    </record>
 </odoo>

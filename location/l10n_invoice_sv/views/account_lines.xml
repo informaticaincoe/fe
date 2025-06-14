@@ -6,8 +6,10 @@
         <field name="arch" type="xml">
             <!-- Insertar campos en la lista de invoice_line_ids(Linead de Factura) -->
             <xpath expr="//field[@name='invoice_line_ids']/list" position="inside">
-                <field name="precio_no_sujeto"/>
-                <field name="precio_exento"/>
+                <field name="codigo_tipo_documento" invisible="1"/>
+
+                <field name="precio_no_sujeto" invisible="codigo_tipo_documento == '11'"/>
+                <field name="precio_exento" invisible="codigo_tipo_documento == '11'"/>
                 <field name="precio_gravado"/>
                 <field name="debit" attrs="{'invisible': [('move_id.state', '!=', 'posted')]}"/>
                 <field name="credit" attrs="{'invisible': [('move_id.state', '!=', 'posted')]}"/>

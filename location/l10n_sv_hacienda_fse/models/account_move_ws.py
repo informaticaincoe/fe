@@ -189,86 +189,87 @@ class AccountMove(models.Model):
             totalIva = 0.0
             uniMedida = None
             for line in self.invoice_line_ids:
-                item_numItem += 1
-                line_temp = {}
-                lines_tributes = []
-                line_temp["numItem"] = item_numItem
-                tipoItem = int(line.product_id.tipoItem.codigo or line.product_id.product_tmpl_id.tipoItem.codigo)
-                #Validación: tipoItem debe ser código 1, 2 o 3
-                if tipoItem not in [1, 2, 3]:
-                    raise UserError(
-                        _("El producto '%s' tiene un tipo de ítem inválido: %s. Solo se permiten los valores 1, 2 o 3.") %
-                        (line.product_id.name, tipoItem)
+                if not line.custom_discount_line:
+                    item_numItem += 1
+                    line_temp = {}
+                    lines_tributes = []
+                    line_temp["numItem"] = item_numItem
+                    tipoItem = int(line.product_id.tipoItem.codigo or line.product_id.product_tmpl_id.tipoItem.codigo)
+                    #Validación: tipoItem debe ser código 1, 2 o 3
+                    if tipoItem not in [1, 2, 3]:
+                        raise UserError(
+                            _("El producto '%s' tiene un tipo de ítem inválido: %s. Solo se permiten los valores 1, 2 o 3.") %
+                            (line.product_id.name, tipoItem)
+                        )
+                    line_temp["tipoItem"] = tipoItem
+                    line_temp["cantidad"] = line.quantity
+                    line_temp["codigo"] = line.product_id.default_code
+                    if not line.product_id:
+                        _logger.error("Producto no configurado en la línea de factura.")
+                        continue  # O puedes decidir manejar de otra manera
+                    # unidad de referencia del producto si se comercializa
+                    # en una unidad distinta a la de consumo
+                    # uom is not mandatory, if no UOM we use "unit"
+                    codTributo = line.product_id.tributos_hacienda_cuerpo.codigo
+                    # if codTributo == False:
+                    #     line_temp["codTributo"] = None
+                    # else:
+                    #     line_temp["codTributo"] = line.product_id.tributos_hacienda_cuerpo.codigo
+                    _logger.info("SIT UOM =%s",  line.product_id)
+                    if not line.product_id.uom_hacienda:
+                        uniMedida = 7
+                        raise UserError(
+                            _("UOM de producto no configurado para:  %s" % (line.product_id.name))
+                        )
+                    else:
+                        _logger.info("SIT uniMedida self = %s",  line.product_id)
+                        _logger.info("SIT uniMedida self = %s",  line.product_id.uom_hacienda)
+
+                        uniMedida = int(line.product_id.uom_hacienda.codigo)
+                    if tipoItem == 2:
+                        line_temp["uniMedida"] = 99
+                    else:
+                        line_temp["uniMedida"] = int(uniMedida)
+
+                    line_temp["descripcion"] = line.name
+                    line_temp["precioUni"] = round(line.price_unit,2)
+                    # line_temp["importe"] = line.price_subtotal
+                    # calculamos bonificacion haciendo teorico menos importe
+
+                    line_temp["montoDescu"] = (
+                        line_temp["cantidad"]  * (line.price_unit * (line.discount / 100))
+
+                        or 0.0
                     )
-                line_temp["tipoItem"] = tipoItem
-                line_temp["cantidad"] = line.quantity
-                line_temp["codigo"] = line.product_id.default_code
-                if not line.product_id:
-                    _logger.error("Producto no configurado en la línea de factura.")
-                    continue  # O puedes decidir manejar de otra manera
-                # unidad de referencia del producto si se comercializa
-                # en una unidad distinta a la de consumo
-                # uom is not mandatory, if no UOM we use "unit"
-                codTributo = line.product_id.tributos_hacienda_cuerpo.codigo
-                # if codTributo == False:
-                #     line_temp["codTributo"] = None
-                # else:
-                #     line_temp["codTributo"] = line.product_id.tributos_hacienda_cuerpo.codigo
-                _logger.info("SIT UOM =%s",  line.product_id)
-                if not line.product_id.uom_hacienda:
-                    uniMedida = 7
-                    raise UserError(
-                        _("UOM de producto no configurado para:  %s" % (line.product_id.name))
+                    codigo_tributo_codigo=None
+                    codigo_tributo=None
+                    for line_tributo in line.tax_ids:
+                        codigo_tributo_codigo = line_tributo.tributos_hacienda.codigo
+                        codigo_tributo = line_tributo.tributos_hacienda
+                    lines_tributes.append(codigo_tributo_codigo)
+                    # line_temp["tributos"] = lines_tributes
+                    vat_taxes_amounts = line.tax_ids.compute_all(
+                        line.price_unit,
+                        self.currency_id,
+                        line.quantity,
+                        product=line.product_id,
+                        partner=self.partner_id,
                     )
-                else:
-                    _logger.info("SIT uniMedida self = %s",  line.product_id)
-                    _logger.info("SIT uniMedida self = %s",  line.product_id.uom_hacienda)
+                    if vat_taxes_amounts['taxes']:
+                        _logger.info("SIT vat_taxes_amounts 0=%s", vat_taxes_amounts['taxes'][0])
+                        vat_taxes_amount = vat_taxes_amounts['taxes'][0]['amount']
+                        sit_amount_base = round(vat_taxes_amounts['taxes'][0]['base'], 2)
+                    else:
+                        # Manejar el caso donde no hay impuestos
+                        vat_taxes_amount = 0
+                        sit_amount_base = round(line.quantity * line.price_unit, 2)
+                    compraS = line_temp["cantidad"] * (line.price_unit - (line.price_unit * (line.discount / 100)))
+                    line_temp["compra"] = round(compraS,2)
 
-                    uniMedida = int(line.product_id.uom_hacienda.codigo)
-                if tipoItem == 2:
-                    line_temp["uniMedida"] = 99
-                else:
-                    line_temp["uniMedida"] = int(uniMedida)
+                    totalIva += 0
 
-                line_temp["descripcion"] = line.name
-                line_temp["precioUni"] = round(line.price_unit,2)
-                # line_temp["importe"] = line.price_subtotal
-                # calculamos bonificacion haciendo teorico menos importe
-
-                line_temp["montoDescu"] = (
-                    line_temp["cantidad"]  * (line.price_unit * (line.discount / 100))
-
-                    or 0.0
-                )
-                codigo_tributo_codigo=None
-                codigo_tributo=None
-                for line_tributo in line.tax_ids:
-                    codigo_tributo_codigo = line_tributo.tributos_hacienda.codigo
-                    codigo_tributo = line_tributo.tributos_hacienda
-                lines_tributes.append(codigo_tributo_codigo)
-                # line_temp["tributos"] = lines_tributes
-                vat_taxes_amounts = line.tax_ids.compute_all(
-                    line.price_unit,
-                    self.currency_id,
-                    line.quantity,
-                    product=line.product_id,
-                    partner=self.partner_id,
-                )
-                if vat_taxes_amounts['taxes']:
-                    _logger.info("SIT vat_taxes_amounts 0=%s", vat_taxes_amounts['taxes'][0])
-                    vat_taxes_amount = vat_taxes_amounts['taxes'][0]['amount']
-                    sit_amount_base = round(vat_taxes_amounts['taxes'][0]['base'], 2)
-                else:
-                    # Manejar el caso donde no hay impuestos
-                    vat_taxes_amount = 0
-                    sit_amount_base = round(line.quantity * line.price_unit, 2)
-                compraS = line_temp["cantidad"] * (line.price_unit - (line.price_unit * (line.discount / 100)))
-                line_temp["compra"] = round(compraS,2)
-
-                totalIva += 0
-
-                lines.append(line_temp)
-                self.check_parametros_linea_firmado(line_temp)
+                    lines.append(line_temp)
+                    self.check_parametros_linea_firmado(line_temp)
             return lines, codigo_tributo, total_Gravada, float(totalIva)
 
     def sit_fse_base_map_invoice_info_resumen(self):

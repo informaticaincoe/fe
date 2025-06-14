@@ -132,6 +132,7 @@ class AccountMoveInvalidation(models.Model):
     invalidacion_recibida_mh = fields.Boolean(string="Contingencia Activa", copy=False, default=False)
 
     display_name = fields.Char(compute='_compute_display_name')
+    correo_enviado_invalidacion = fields.Boolean(string="Correo enviado en la creacion del dte", copy=False)
 
     @api.model
     def _get_tipo_Anulacion_selection(self):
@@ -371,6 +372,13 @@ class AccountMoveInvalidation(models.Model):
                                     'state': 'annulment',
                                     'invalidacion_recibida_mh': True,
                                 })
+
+                                # Guardar archivo .pdf y enviar correo al cliente
+                                try:
+                                    self.sit_factura_a_reemplazar.with_context(from_button=False, from_invalidacion=True).sit_enviar_correo_dte_automatico()
+                                except Exception as e:
+                                    _logger.warning("SIT | Error al enviar DTE por correo o generar PDF: %s", str(e))
+
                                 _logger.info("SIT Factura anulada correctamente.")
                             except Exception as e:
                                 _logger.exception("SIT Error en el procesamiento de la respuesta de Hacienda:")
