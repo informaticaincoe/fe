@@ -30,17 +30,17 @@
                     <!-- <field class="oe_left" name="amount_text" placeholder="amount to text"/> -->
                     <field name="codigo_tipo_documento" invisible="1"/>
 
-                    <group string="Retenciones" col="2">
-                        <field name="apply_retencion_renta"/>
+                    <group string="Retenciones" col="2" invisible="codigo_tipo_documento == '11'">
+                        <field name="apply_retencion_renta"  invisible="not codigo_tipo_documento in ('01', '03', '14')"/>
                         <field name="retencion_renta_amount" readonly="1" widget="monetary"
-                               options="{'currency_field': 'currency_id'}"/>
+                               options="{'currency_field': 'currency_id'}" invisible="not codigo_tipo_documento in ('01', '03', '14')"/>
 
                         <field name="apply_retencion_iva"/>
                         <field name="retencion_iva_amount" readonly="1" widget="monetary"
                                options="{'currency_field': 'currency_id'}"/>
 
-                        <field name="apply_iva_percibido" invisible="codigo_tipo_documento != '03'"/>
-                        <field name="iva_percibido_amount" invisible="codigo_tipo_documento != '03'" readonly="1" widget="monetary" options="{'currency_field': 'currency_id'}"/>
+                        <field name="apply_iva_percibido" invisible="not codigo_tipo_documento in ('03', '05', '06')"/>
+                        <field name="iva_percibido_amount" invisible="not codigo_tipo_documento in ('03', '05', '06')" readonly="1" widget="monetary" options="{'currency_field': 'currency_id'}"/>
 
                     </group>
                     <field name="total_pagar_text" placeholder="Total en letras"/>

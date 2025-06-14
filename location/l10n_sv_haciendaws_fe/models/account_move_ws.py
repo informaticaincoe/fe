@@ -1413,9 +1413,11 @@ class AccountMove(models.Model):
         # invoice_info["totalNoGravado"] = 0
         # invoice_info["totalPagar"] = round(self.amount_total, 2)
         invoice_info["totalLetras"] = self.amount_text
-        invoice_info["condicionOperacion"] = int(self.total_operacion)
+        invoice_info["condicionOperacion"] = int(self.condiciones_pago)
         pagos["codigo"] = self.forma_pago.codigo  # '01'   # CAT-017 Forma de Pago    01 = bienes
-        pagos["montoPago"] = round(self.total_pagar, 2)
+        pagos["montoPago"] = round(self.total_pagar,
+
+                                   2)
         pagos["referencia"] = self.sit_referencia  # Un campo de texto llamado Referencia de pago
         if invoice_info["totalGravada"] == 0.0:
             invoice_info["ivaPerci1"] = 0.0

@@ -787,7 +787,7 @@ class AccountMove(models.Model):
                 lineas_a_borrar.unlink()
 
             # Detectar si es nota de crédito
-            es_nota_credito = move.codigo_tipo_documento == '05'  # Código oficial para Nota de Crédito
+            es_nota_credito_o_sujeto_excluido = move.codigo_tipo_documento in ('05', '14')
 
             # Retención de Renta
             if move.apply_retencion_renta and move.retencion_renta_amount > 0:
@@ -796,8 +796,8 @@ class AccountMove(models.Model):
                 lineas.append((0, 0, {
                     'account_id': cuenta_renta.id,
                     'name': "Retención de Renta",
-                    'credit': monto if es_nota_credito else 0.0,
-                    'debit': 0.0 if es_nota_credito else monto,
+                    'credit': monto if es_nota_credito_o_sujeto_excluido else 0.0,
+                    'debit': 0.0 if es_nota_credito_o_sujeto_excluido else monto,
                     'partner_id': move.partner_id.id,
                 }))
                 _logger.info(f"RETENCION RENTA monto={monto}")
@@ -809,22 +809,22 @@ class AccountMove(models.Model):
                 lineas.append((0, 0, {
                     'account_id': cuenta_iva.id,
                     'name': "Retención de IVA",
-                    'credit': monto if es_nota_credito else 0.0,
-                    'debit': 0.0 if es_nota_credito else monto,
+                    'credit': monto if es_nota_credito_o_sujeto_excluido else 0.0,
+                    'debit': 0.0 if es_nota_credito_o_sujeto_excluido else monto,
                     'partner_id': move.partner_id.id,
                 }))
                 _logger.info(f"RETENCION IVA monto={monto}")
                 _logger.info(f"cuenta_iva retecion={cuenta_iva}")
 
-            # Retención de IVA
+            # IVA percibido
             if move.apply_iva_percibido and move.iva_percibido_amount > 0:
                 cuenta_iva = move.company_id.iva_percibido_account_id
                 monto = round(move.iva_percibido_amount, 2)
                 lineas.append((0, 0, {
                     'account_id': cuenta_iva.id,
                     'name': "Percepcion de IVA",
-                    'credit': monto if es_nota_credito else 0.0,
-                    'debit': 0.0 if es_nota_credito else monto,
+                    'credit': 0.0 if es_nota_credito_o_sujeto_excluido else monto,
+                    'debit': monto if es_nota_credito_o_sujeto_excluido else 0.0,
                     'partner_id': move.partner_id.id,
                 }))
                 _logger.info(f"PERCEPCION IVA monto={monto}")
