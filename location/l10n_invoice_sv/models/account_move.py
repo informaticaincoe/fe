@@ -94,13 +94,13 @@ class AccountMove(models.Model):
         store=True
     )
 
-    #sale_order_id = fields.Many2one('sale.order', string='Orden de Venta', compute='_compute_sale_order_id', store=False)
+    sale_order_id = fields.Many2one('sale.order', string='Orden de Venta', compute='_compute_sale_order_id', store=False)
 
-    # def _compute_sale_order_id(self):
-    #     for move in self:
-    #         sale_orders = move.invoice_line_ids.mapped('sale_line_ids.order_id')
-    #         move.sale_order_id = sale_orders[:1] if sale_orders else False
-    #         _logger.info("SIT Cotizacion: %s", move.sale_order_id)
+    def _compute_sale_order_id(self):
+        for move in self:
+            sale_orders = move.invoice_line_ids.mapped('sale_line_ids.order_id')
+            move.sale_order_id = sale_orders[:1] if sale_orders else False
+            _logger.info("SIT Cotizacion: %s", move.sale_order_id)
 
     @api.depends('total_pagar')
     def _compute_total_pagar_text(self):
@@ -334,139 +334,252 @@ class AccountMove(models.Model):
         # if self.env.is_admin() and not self.env.company.external_report_layout_id and not self.env.context.get('discard_logo_check'):
         #    return self.env['ir.actions.report']._action_configure_external_report_layout(report_action)
         # return report_action
+        es_invalidacion = self.env.context.get('from_invalidacion', False)
+        if es_invalidacion:
+            _logger.info("SIT | El correo se enviará como parte de una invalidación.")
+        else:
+            _logger.info("SIT | El correo se enviará como parte de un DTE procesado normalmente.")
 
-        # template = self.env.ref(self._get_mail_template(), raise_if_not_found=False)
-        template = self.env.ref(self._get_mail_template_sv(), raise_if_not_found=False)
-        _logger.info("SIT | Plantilla de correo obtenida: %s", template and template.name or 'No encontrada')
-        print(template)
+        default_model = None
+        try:
+            # template = self.env.ref(self._get_mail_template(), raise_if_not_found=False)
+            template = self.env.ref(self._get_mail_template_sv(), raise_if_not_found=False)
+            _logger.info("SIT | Plantilla de correo obtenida: %s", template and template.name or 'No encontrada')
+            print(template)
 
-        # Archivos adjuntos
-        attachment_ids = []
-        for invoice in self:
-            _logger.info("SIT | Procesando factura: %s", invoice.name)
-            print(invoice)
+            _logger.warning("SIT | Email del partner: %s", self.partner_id.email)
+            if template and template.email_to:
+                email_to = template._render_template(template.email_to, 'account.move', self.ids)
 
-            report_xml = invoice.journal_id.report_xml.xml_id if invoice.journal_id.report_xml else False
-            _logger.info("SIT | XML ID del reporte: %s", report_xml)
+                _logger.info("Email a enviar: %s", email_to)
 
-            # Adjuntos base (los de la plantilla)
-            if template:
-                for att in template.attachment_ids:
-                    if att.id not in attachment_ids:
-                        attachment_ids.append(att.id)
+                # Asegurarse que el correo es válido
+                if not email_to:
+                    _logger.error("El correo destinatario no es válido: %s", email_to)
+                    return False
 
-            # Verificar si ya existe un PDF adjunto
-            pdf_filename = f"{invoice.name or 'invoice'}.pdf"
-            pdf_attachment = self.env['ir.attachment'].search([
-                ('res_id', '=', invoice.id),
-                ('res_model', '=', 'account.move'),
-                ('name', '=', pdf_filename),
-            ], limit=1)
+                template.subject = self._sanitize_string(template.subject, "subject")
+                template.body_html = self._sanitize_string(template.body_html, "body_html")
+                template.email_from = self._sanitize_string(template.email_from, "email_from")
+                _logger.info("SIT | template from: %s", template.email_from)
 
-            # Generar PDF si no existe
-            if not pdf_attachment and report_xml:
-                try:
-                    res = self.env['ir.actions.report'].sudo()._render_qweb_pdf(report_xml, [invoice.id])[0]
-                    pdf_binary = base64.encodebytes(res)
-                    pdf_attachment = self.env['ir.attachment'].create({
-                        'name': pdf_filename,
-                        'type': 'binary',
-                        'datas': pdf_binary,
-                        'res_model': 'account.move',
-                        'res_id': invoice.id,
-                        'mimetype': 'application/pdf',
-                    })
-                    _logger.info("SIT | Nuevo PDF generado y adjuntado: %s", pdf_attachment.name)
-                except Exception as e:
-                    _logger.error("SIT | Error generando el PDF: %s", str(e))
-            if pdf_attachment and pdf_attachment.id not in attachment_ids:
-                attachment_ids.append(pdf_attachment.id)
+            # Archivos adjuntos
+            attachment_ids = []
+            for invoice in self:
+                _logger.info("SIT | Procesando factura: %s", invoice.name)
+                print(invoice)
 
-            # if report_xml:
-            # user_admin = self.env.ref("base.user_admin")
-            # _logger.info("SIT | Usuario admin encontrado: %s", user_admin.name)
-            # compo = self.env.ref(report_xml).with_user(user_admin).report_action(self)
-            # print(report)
-            # res = report.with_context().sudo()._render_qweb_pdf(report.id)
-            # res = self.env['ir.actions.report'].sudo()._render_qweb_pdf(report_xml, [invoice.id])[0]
-            # _logger.info("SIT | PDF generado correctamente para factura: %s", invoice.name)
-            # print(compo)
-            # print(res)
-            # attachment1 = self.env['ir.attachment'].create({
-            #    'name': invoice.name + '.pdf',
-            #    'type': 'binary',
-            #    'datas': base64.encodebytes(res),
-            #    'res_model': 'account.move',
-            #    'res_id': invoice.id,
-            #    })
-            # print(attachment1)
-            # Verificar si el objeto tiene el atributo 'hacienda_estado'
+                report_xml = invoice.journal_id.report_xml.xml_id if invoice.journal_id.report_xml else False
+                _logger.info("SIT | XML ID del reporte: %s", report_xml)
 
-            # Si fue procesado por Hacienda, añadir JSON
-            if invoice.hacienda_estado == 'PROCESADO' or invoice.recibido_mh:
-                _logger.info("SIT | Factura %s fue PROCESADA por Hacienda", invoice.name)
-                json_attachment = self.env['ir.attachment'].search([
+                # Adjuntar archivos de la plantilla, evitando PDFs
+                if template:
+                    for att in template.attachment_ids:
+                        if att.id not in attachment_ids and not att.name.lower().endswith('.pdf'):
+                            attachment_ids.append(att.id)
+
+                # Verificar si ya existe un PDF adjunto
+                raw_filename = f"{invoice.name or 'invoice'}.pdf"
+                pdf_filename = self._sanitize_attachment_name(raw_filename)
+
+                pdf_attachment = self.env['ir.attachment'].search([
                     ('res_id', '=', invoice.id),
-                    ('res_model', '=', invoice._name),
-                    ('name', '=', invoice.name.replace('/', '_') + '.json')
+                    ('res_model', '=', 'account.move'),
+                    ('name', '=', pdf_filename),
                 ], limit=1)
 
-                if json_attachment and json_attachment.id not in attachment_ids:
-                    _logger.info("SIT | Archivo JSON de Hacienda encontrado: %s", json_attachment.name)
-                    attachment_ids.append(json_attachment.id)
-                    # attachments.append((invoice.name.replace('/', '_') + '.json', xml_file.datas))
-                    # attachments.append((invoice.name + '.pdf',base64.encodebytes(res)))
-                    # print(attachments)
-                    # results[res_id]['attachments'] = attachments
-                    # template.attachment_ids = [attachment1.id,xml_file.id]
-                else:
-                    _logger.info("SIT | JSON de Hacienda no encontrado.")
-            # template.checkbox_download = False
+                # Generar PDF si no existe
+                if not pdf_attachment and report_xml:  # and report_xml
+                    try:
+                        res = self.env['ir.actions.report'].sudo()._render_qweb_pdf(report_xml, [invoice.id])[0]
+                        pdf_base64 = base64.b64encode(res).decode('utf-8')  # codificar a base64 y luego a string
+                        pdf_attachment = self.env['ir.attachment'].create({
+                            'name': pdf_filename,
+                            'type': 'binary',
+                            'datas': pdf_base64,
+                            'res_model': 'account.move',
+                            'res_id': invoice.id,
+                            'mimetype': 'application/pdf',
+                        })
+                        _logger.info("SIT | Nuevo PDF generado y adjuntado: %s", pdf_attachment.name)
+                    except Exception as e:
+                        _logger.error("SIT | Error generando el PDF: %s", str(e))
 
-        if any(not x.is_sale_document(include_receipts=True) for x in self):
-            _logger.warning("SIT | Documento no permitido para envío por correo.")
+                # Adjuntar el PDF si no está duplicado
+                if pdf_attachment:
+                    if self._has_nul_bytes(pdf_attachment):
+                        _logger.warning("SIT | PDF %s contiene byte nulo en contenido", pdf_attachment.name)
+                    if pdf_attachment.id not in attachment_ids:
+                        attachment_ids.append(pdf_attachment.id)
+                        _logger.info("SIT | Adjuntando PDF desde BD: %s", pdf_attachment.name)
+                    else:
+                        _logger.info("SIT | PDF ya estaba incluido en attachment_ids: %s", pdf_attachment.name)
 
-        # Validar si viene de un envío automático
-        if self.env.context.get('from_automatic'):
-            _logger.info("SIT | Envío automático detectado, enviando correo directamente...")
-            for invoice in self:
-                if template:
-                    template.send_mail(invoice.id, force_send=True,
-                                       email_values={'attachment_ids': [(6, 0, attachment_ids)]})
-                invoice.correo_enviado = True  # si manejas este campo
-            return True
-        # return {
-        #     'name': _("Send"),
-        #     'type': 'ir.actions.act_window',
-        #     'view_type': 'form',
-        #     'view_mode': 'form',
-        #     'res_model': 'account.move.send',
-        #     'target': 'new',
-        #     'context': {
-        #         'active_ids': self.ids,
-        #         'default_mail_template_id': template and template.id or False,
-        #     },
-        # }
-        # Si no es automático, abrir modal
-        compose_form = self.env.ref('mail.email_compose_message_wizard_form', raise_if_not_found=True)
-        return {
-            'name': _("Send"),
-            'type': 'ir.actions.act_window',
-            'res_model': 'mail.compose.message',
-            'view_mode': 'form',
-            'view_id': compose_form.id,
-            'target': 'new',
-            'context': {
-                'default_model': 'account.move',
-                'default_res_ids': self.ids,
-                'default_use_template': bool(template),
-                'default_template_id': template.id if template else False,
-                'default_composition_mode': 'comment',
-                'force_email': True,
-                'mark_invoice_as_sent': True,
-                'default_attachment_ids': [(6, 0, list(set(attachment_ids)))],
-            },
-        }
+                _logger.info("SIT | Tipo de movimiento: %s", invoice.move_type)
+                _logger.info("SIT | Email destino: %s", invoice.partner_id.email)
+
+                # Si fue procesado por Hacienda, añadir JSON
+                if not es_invalidacion and (invoice.hacienda_selloRecibido or invoice.recibido_mh):
+                    _logger.info("SIT | Factura %s fue PROCESADA por Hacienda", invoice.name)
+                    default_model = "account.move"
+                    json_name = self._sanitize_attachment_name(invoice.name.replace('/', '_') + '.json')
+                    json_attachment = self.env['ir.attachment'].search([
+                        ('res_id', '=', invoice.id),
+                        ('res_model', '=', invoice._name),
+                        ('name', '=', json_name)
+                    ], limit=1)
+
+                    _logger.warning("SIT | JSON: %s", json_attachment)
+                    if json_attachment.exists():
+                        _logger.warning("SIT | JSON encontrado: %s", json_attachment)
+                        if self._has_nul_bytes(json_attachment):
+                            _logger.warning("SIT | JSON %s contiene byte nulo en contenido", json_attachment.name)
+                        if json_attachment.id not in attachment_ids:
+                            _logger.info("SIT | JSON de Hacienda encontrado: %s", json_attachment.name)
+                            attachment_ids.append(json_attachment.id)
+                            _logger.info("SIT | Archivo JSON de Hacienda encontrado: %s", json_attachment.name)
+                    else:
+                        _logger.info("SIT | JSON de Hacienda no encontrado, se procederá a generarlo.")
+
+                        if invoice.sit_json_respuesta:
+                            try:
+                                # Validar si el contenido es JSON válido
+                                json.loads(invoice.sit_json_respuesta)
+
+                                # Crear attachment
+                                json_attachment = self.env['ir.attachment'].create({
+                                    'name': json_name,
+                                    'type': 'binary',
+                                    'datas': base64.b64encode(invoice.sit_json_respuesta.encode('utf-8')),
+                                    'res_model': invoice._name,
+                                    'res_id': invoice.id,
+                                    'mimetype': 'application/json',
+                                })
+                                _logger.info("SIT | JSON generado y adjuntado: %s", json_attachment.name)
+                                attachment_ids.append(json_attachment.id)
+
+                            except json.JSONDecodeError:
+                                _logger.error("SIT | El campo 'sit_json_respuesta' no contiene un JSON válido.")
+                            except Exception as e:
+                                _logger.error("SIT | Error al generar el archivo JSON: %s", str(e))
+                        else:
+                            _logger.warning(
+                                "SIT | No se pudo generar el JSON porque el campo 'sit_json_respuesta' está vacío.")
+
+                # === JSON INVALIDACIÓN ===
+                elif es_invalidacion and (invoice.sit_evento_invalidacion.hacienda_selloRecibido_anulacion or invoice.sit_evento_invalidacion.invalidacion_recibida_mh):
+                    default_model = "account.move.invalidation"
+                    invalidacion = self.env['account.move.invalidation'].search([
+                        ('sit_factura_a_reemplazar', '=', invoice.id)
+                    ], limit=1)
+
+                    if not invalidacion:
+                        _logger.warning("SIT | No se encontró invalidación para %s", invoice.name)
+                    else:
+                        json_name = self._sanitize_attachment_name('invalidacion ' + invoice.name.replace('/',
+                                                                                                          '_') + '.json')  # ejemplo de json de invalidacion Invalidacion DTE-01-0000M001-000000000000082.json
+                        json_attachment = self.env['ir.attachment'].search([
+                            ('res_model', '=', 'account.move.invalidation'),
+                            ('res_id', '=', invoice.sit_evento_invalidacion.id),
+                            ('name', '=', json_name),
+                        ], limit=1)
+
+                        if json_attachment.exists():
+                            _logger.info("SIT | JSON Invalidación ya existe: %s", json_attachment.name)
+                            if self._has_nul_bytes(json_attachment):
+                                _logger.warning("SIT | JSON %s contiene byte nulo", json_attachment.name)
+                            attachment_ids.append(json_attachment.id)
+                        elif invalidacion.sit_json_respuesta_invalidacion:
+                            try:
+                                json.loads(invalidacion.sit_json_respuesta_invalidacion)
+                                json_attachment = self.env['ir.attachment'].create({
+                                    'name': json_name,
+                                    'type': 'binary',
+                                    'datas': base64.b64encode(
+                                        invalidacion.sit_json_respuesta_invalidacion.encode('utf-8')),
+                                    'res_model': 'account.move.invalidation',
+                                    'res_id': invoice.sit_evento_invalidacion.id,
+                                    'mimetype': 'application/json',
+                                })
+                                _logger.info("SIT | JSON Invalidación generado: %s", json_attachment.name)
+                                attachment_ids.append(json_attachment.id)
+                            except json.JSONDecodeError:
+                                _logger.error("SIT | JSON Invalidación inválido para %s", invoice.name)
+                            except Exception as e:
+                                _logger.error("SIT | Error creando JSON Invalidación: %s", str(e))
+                        else:
+                            _logger.warning("SIT | Campo sit_json_respuesta_invalidacion vacío para %s", invoice.name)
+
+            if any(not x.is_sale_document(include_receipts=True) for x in self):
+                _logger.warning("SIT | Documento no permitido para envío por correo.")
+            _logger.info("SIT | Attachments antes de enviar: %s", attachment_ids)
+
+            # Validar si viene de un envío automático
+            if self.env.context.get('from_automatic'):
+                _logger.info("SIT | Envío automático detectado, enviando correo directamente...")
+                for invoice in self:
+                    if template:
+                        if es_invalidacion:
+                            if invoice.sit_evento_invalidacion:
+                                template.send_mail(invoice.sit_evento_invalidacion.id, force_send=True, email_values={'attachment_ids': [(6, 0, attachment_ids)]})
+                                invoice.sit_evento_invalidacion.correo_enviado_invalidacion = True
+                                _logger.info("SIT | Correo de invalidación enviado para %s", invoice.name)
+                            else:
+                                _logger.warning("SIT | No se encontró evento de invalidación para %s", invoice.name)
+                        else:
+                            template.send_mail(invoice.id, force_send=True, email_values={'attachment_ids': [(6, 0, attachment_ids)]})
+                            invoice.correo_enviado = True
+                            _logger.info("SIT | Correo normal enviado para %s", invoice.name)
+                return True
+
+            # ENVÍO MANUAL: abrir wizard
+            compose_form = self.env.ref('mail.email_compose_message_wizard_form', raise_if_not_found=True)
+            return {
+                'name': _("Send"),
+                'type': 'ir.actions.act_window',
+                'res_model': 'mail.compose.message',
+                'view_mode': 'form',
+                'view_id': compose_form.id,
+                'target': 'new',
+                'context': {
+                    'default_model': default_model,
+                    'default_res_ids': self.ids,
+                    'default_use_template': bool(template),
+                    'default_template_id': template.id if template else False,
+                    'default_composition_mode': 'comment',
+                    'force_email': True,
+                    'mark_invoice_as_sent': True,
+                    'default_attachment_ids': [(6, 0, list(set(attachment_ids)))],
+                },
+            }
+        except Exception as e:
+            _logger.error("SIT | Error en el proceso de envío de correo: %s", str(e))
+            import traceback
+            _logger.error("SIT | Traceback: %s", traceback.format_exc())
+            raise
+
+    @staticmethod
+    def _sanitize_string(val, field_name=""):
+        if val and '\x00' in val:
+            _logger.warning("SIT | Caracter nulo detectado en campo '%s'. Será eliminado.", field_name)
+            return val.replace('\x00', '')
+        return val
+
+    @staticmethod
+    def _sanitize_attachment_name(name):
+        if name and '\x00' in name:
+            _logger.warning("SIT | Caracter nulo detectado en nombre de adjunto: %s", repr(name))
+            return name.replace('\x00', '')
+        return name
+
+    @staticmethod
+    def _has_nul_bytes(attachment):
+        try:
+            content = base64.b64decode(attachment.datas)
+            return b'\x00' in content
+        except Exception as e:
+            _logger.error("SIT | Error decodificando contenido de %s: %s", attachment.name, e)
+            return False
 
     def _get_mail_template_sv(self):
         """
@@ -478,57 +591,6 @@ class AccountMove(models.Model):
             else 'l10n_invoice_sv.sit_email_template_edi_invoice'
             # else 'account.sit_email_template_edi_invoice'
         )
-
-    def sit_enviar_correo_dte(self):
-        for invoice in self:
-            # Validar que el DTE exista en hacienda
-            if not invoice.recibido_mh:
-                _logger.warning("SIT | La factura %s no tiene un DTE procesado, no se enviará correo.", invoice.name)
-                continue
-
-            _logger.info("SIT | DTE procesado correctamente para la factura %s. Procediendo con envío de correo.",
-                         invoice.name)
-
-            # Generar PDF como attachment si aún no se ha creado
-            try:
-                report_xml = invoice.journal_id.report_xml.xml_id
-                pdf_content = invoice.env['ir.actions.report'].sudo()._render_qweb_pdf(report_xml, [invoice.id])[0]
-                pdf_base64 = base64.b64encode(pdf_content)
-                pdf_filename = f"{invoice.name or 'dte'}.pdf"
-
-                # Verifica si ya existe un attachment con ese nombre
-                existing_attachment = self.env['ir.attachment'].sudo().search([
-                    ('res_model', '=', 'account.move'),
-                    ('res_id', '=', invoice.id),
-                    ('name', '=', pdf_filename),
-                ], limit=1)
-
-                if not existing_attachment:
-                    self.env['ir.attachment'].sudo().create({
-                        'name': pdf_filename,
-                        'datas': pdf_base64,
-                        'res_model': 'account.move',
-                        'res_id': invoice.id,
-                        'mimetype': 'application/pdf',
-                        'type': 'binary',
-                    })
-                    _logger.info("SIT | PDF generado y adjuntado: %s", pdf_filename)
-                else:
-                    _logger.info("SIT | El attachment PDF ya existe para el dte %s", invoice.name)
-            except Exception as e:
-                _logger.error("SIT | Error generando PDF para la factura %s: %s", invoice.name, str(e))
-                continue
-
-            # Enviar el correo automáticamente solo si el DTE fue aceptado y aún no se ha enviado
-            if invoice.recibido_mh:
-                try:
-                    _logger.info("SIT | Enviando correo automático para la factura %s", invoice.name)
-                    invoice.with_context(from_automatic=True).sudo().sit_action_send_mail()
-                except Exception as e:
-                    _logger.error("SIT | Error al intentar enviar el correo para la factura %s: %s", invoice.name,
-                                  str(e))
-            else:
-                _logger.info("SIT | Ya se envio el correo %s", invoice.name)
 
     # -------Inicio Descuentos globales
     # @api.depends('invoice_line_ids.precio_gravado', 'invoice_line_ids.precio_exento', 'invoice_line_ids.precio_no_sujeto')
@@ -561,11 +623,6 @@ class AccountMove(models.Model):
         for move in self:
             gravado = exento = no_sujeto = compra = 0.0
             for line in move.invoice_line_ids:
-                # if move.journal_id.sit_tipo_documento.codigo != "01":
-                #     subtotal = (line.price_unit * line.quantity * (1 - (line.discount or 0.0) / 100.0)) / 1.13
-                # else:
-                #     subtotal = line.price_unit * line.quantity * (1 - (line.discount or 0.0) / 100.0)
-
                 tipo = line.product_id.tipo_venta
                 if tipo == 'gravado':
                     gravado += round(line.precio_gravado, 2)
@@ -857,8 +914,8 @@ class AccountMove(models.Model):
             es_factura_compra = move.move_type == 'in_invoice' and move.journal_id.type == 'purchase'
             if es_factura_compra:
                 es_nota_credito = True
-            else:
-                es_factura_o_debito = False
+            #else:
+                #es_factura_o_debito = False
             _logger.info(f"Tipo de movimiento: {move.move_type} | Credito: {es_nota_credito} | Débito: {es_factura_o_debito} | FSE: {es_factura_compra}")
 
             nuevas_lineas = []
