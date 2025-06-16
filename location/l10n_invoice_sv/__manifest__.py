@@ -58,7 +58,8 @@
         'security/ir.model.access.csv',
         'wizard/account_move_reversal.xml',
         'views/account_lines.xml',
-        'views/sale_order.xml'
+        'views/sale_order.xml',
+        'data/account_retention_accounts.xml'
     ],
     'demo': [],
     'installable': True,

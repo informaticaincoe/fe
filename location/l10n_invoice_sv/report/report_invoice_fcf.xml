@@ -143,7 +143,7 @@
                                 <div class="col text-center border rounded-2 border-light-subtle">
                                     <p style="padding:0 15%;" t-field="o.journal_id"/>
                                     <t t-if="o.sit_qr_hacienda">
-                                        <img t-if="o.sit_qr_hacienda and isinstance(o.sit_qr_hacienda, str)" t-att-src="'data:image/png;base64,%s' % o.sit_qr_hacienda.decode('utf-8')"
+                                        <img t-att-src="'data:image/png;base64,%s' % o.sit_qr_hacienda.decode('utf-8')"
                                              style="width:40%; height:auto;"/>
                                     </t>
                                     <p style="">Generado:
@@ -414,11 +414,11 @@
                                             <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
                                                 <tbody>
                                                     <tr>
-                                                        <td style="border:1px solid #e5e7e9; text-align:left;"
+                                                        <td style="border:1px solid #e5e7e9; text-align:end;"
                                                             class="border-light-subtle">
                                                             Total operaciones no sujetas:
                                                         </td>
-                                                        <td style="border:1px solid #e5e7e9; text-align:left;"
+                                                        <td style="border:1px solid #e5e7e9; text-align:left; padding: 1% 0%;"
                                                             class="border-light-subtle px-1">
                                                             <span t-esc="o.total_no_sujeto"
                                                                   t-options="{'widget':'monetary','display_currency': o.currency_id}"/>
@@ -504,6 +504,17 @@
                                                     <tr>
                                                         <td class="px-1 border border-light-subtle text-end"
                                                             style="padding: 1% 0%;">
+                                                            Total monto de descuento:
+                                                        </td>
+                                                        <td class="px-1 border border-light-subtle text-start"
+                                                            style="padding: 1% 0%;">
+                                                            <span t-esc="o.descuento_global + o.descuento_no_sujeto + o.descuento_exento + o.descuento_gravado + o.total_descuento"
+                                                                  t-options="{'widget':'monetary','display_currency': o.currency_id}"/>
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td class="px-1 border border-light-subtle text-end"
+                                                            style="padding: 1% 0%;">
                                                             Subtotal:
                                                         </td>
                                                         <td class="px-1 border border-light-subtle text-start"
@@ -566,7 +577,7 @@
                                                             class="border-light-subtle">
                                                             Total a pagar:
                                                         </td>
-                                                        <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
+                                                        <td style="border:1px solid #e5e7e9; padding:4px; text-align:left;"
                                                             class="border-light-subtle">
                                                             <span t-esc="o.total_pagar"
                                                                   t-options="{'widget':'monetary','display_currency': o.currency_id}"/>
