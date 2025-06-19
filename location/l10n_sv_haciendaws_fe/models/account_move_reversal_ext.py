@@ -4,6 +4,13 @@ import logging
 
 _logger = logging.getLogger(__name__)
 
+try:
+    from odoo.addons.common_utils.utils import constants
+    _logger.info("SIT Modulo config_utils [Reverse] Nota de credito")
+except ImportError as e:
+    _logger.error(f"Error al importar 'config_utils': {e}")
+    config_utils = None
+
 class AccountMoveReversal(models.TransientModel):
     _inherit = "account.move.reversal"
 
@@ -27,7 +34,7 @@ class AccountMoveReversal(models.TransientModel):
             raise UserError(_("Debe seleccionar un Tipo de Documento para la Nota de Crédito."))
 
         if self.journal_id.type == 'sale' and not self.l10n_latam_document_type_id:
-            doc_type = self.env['l10n_latam.document.type'].search([('code', '=', '05')], limit=1)
+            doc_type = self.env['l10n_latam.document.type'].search([('code', '=', constants.COD_DTE_NC)], limit=1)
             if not doc_type:
                 raise UserError(_("No se encontró el tipo de documento (05) Nota de crédito."))
             self.l10n_latam_document_type_id = doc_type
@@ -42,6 +49,7 @@ class AccountMoveReversal(models.TransientModel):
 
         moves = self.move_ids
         default_values_list = []
+        default_vals = []
 
         for move in moves:
             default_vals = self._prepare_default_reversal(move)
@@ -121,7 +129,7 @@ class AccountMoveReversal(models.TransientModel):
 
         new_move = self.env['account.move'].with_context(ctx).create(default_vals)
 
-        if new_move.codigo_tipo_documento == '05' and new_move.reversed_entry_id:
+        if new_move.codigo_tipo_documento == constants.COD_DTE_NC and new_move.reversed_entry_id:
             _logger.info("SIT NC creada: ID=%s | reversed_entry_id=%s | inv_refund_id=%s | name=%s",
                          move.id, move.reversed_entry_id.id, move.inv_refund_id.id, move.name)
             new_move._copiar_retenciones_desde_documento_relacionado()
@@ -148,13 +156,13 @@ class AccountMoveReversal(models.TransientModel):
         doc_type = self.l10n_latam_document_type_id.code
         _logger.info("SIT Tipo de documento detectado: %s", doc_type)
 
-        if doc_type == '05':
+        if doc_type == constants.COD_DTE_NC:
             _logger.info("SIT Ejecutando refund_moves() para Nota de Crédito")
             result = self.refund_moves_custom()
             _logger.info("SIT refund_moves() ejecutado con éxito")
             return result
 
-        elif doc_type == '06':
+        elif doc_type == constants.COD_DTE_ND:
             _logger.info("SIT Ejecutando creación de Nota de Débito con wizard")
             _logger.info("SIT move_ids para el wizard: %s", self.move_ids.ids)
             _logger.info("SIT journal_id: %s", self.journal_id.id)

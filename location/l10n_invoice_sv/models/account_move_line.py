@@ -11,11 +11,14 @@ class AccountMoveLine(models.Model):
     precio_no_sujeto = fields.Float(string='No Sujeto', compute='_compute_precios_tipo_venta', store=True)
     custom_discount_line = fields.Boolean(string='Es línea de descuento', default=False)
 
-    codigo_tipo_documento = fields.Char(
-        string='Código Tipo Documento',
-        related='journal_id.sit_tipo_documento.codigo',
-        store=True,
-    )
+    codigo_tipo_documento = fields.Char(string='Código Tipo Documento', store=True,
+                                        compute='_compute_codigo_tipo_documento')
+
+    @api.depends('move_id.journal_id.sit_tipo_documento.codigo')
+    def _compute_codigo_tipo_documento(self):
+        for line in self:
+            line.codigo_tipo_documento = line.move_id.journal_id.sit_tipo_documento.codigo or False
+            _logger.info("SIT Tipo de documento(dte): %s", line.codigo_tipo_documento)
 
     @api.depends('product_id', 'quantity', 'price_unit', 'discount', 'tax_ids', 'move_id.journal_id')
     #@api.onchange('product_id', 'quantity', 'price_unit', 'discount')
