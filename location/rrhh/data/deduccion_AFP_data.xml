@@ -1,0 +1,20 @@
+<odoo noupdate="0">
+    <data>
+<!--        <record id="estructura_salvador_employee" model="hr.payroll.structure">-->
+<!--            <field name="name">Estructura El Salvador - Empleado</field>-->
+<!--            <field name="type_id" search="[('name', '=', 'Worker Pay')]"/>-->
+<!--        </record>-->
+
+        <record id="afp_regla_employee" model="hr.salary.rule">
+            <field name="name">AFP (Empleado)</field>
+            <field name="code">AFP</field>
+            <field name="sequence">5</field>
+            <field name="category_id" ref="hr_payroll.DED"/>
+            <field name="amount_select">code</field>
+            <field name="amount_python_compute">result = contract.wage * 0.0725</field>
+            <field name="appears_on_payslip">True</field>
+            <field name="struct_id" search="[('name', '=', 'Worker Pay')]"/>
+
+        </record>
+    </data>
+</odoo>
