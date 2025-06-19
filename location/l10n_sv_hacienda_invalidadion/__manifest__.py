@@ -19,7 +19,6 @@
 
     # any module necessary for this one to work correctly
     'depends': ['base',
-        "common_utils",
         "l10n_sv_hacienda",   # webservice de Hacienda
         "base_sv",
         # "l10n_invoice_sv",

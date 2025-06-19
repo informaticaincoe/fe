@@ -22,13 +22,12 @@ from pytz import timezone, UTC
 
 ZONA_HORARIA = timezone('America/El_Salvador')
 
-#Error al importar si el modulo aun no se ha instalado
-#from common_utils.utils import config_utils
 try:
-    from common_utils.utils import config_utils
-except ImportError:
-    config_utils = None  # o alguna otra lógica de fallback
-
+    from odoo.addons.common_utils.utils import config_utils
+    _logger.info("SIT Modulo config_utils invalidacion ws")
+except ImportError as e:
+    _logger.error(f"Error al importar 'config_utils': {e}")
+    config_utils = None
 
 class AccountMove(models.Model):
     _inherit = "account.move"
