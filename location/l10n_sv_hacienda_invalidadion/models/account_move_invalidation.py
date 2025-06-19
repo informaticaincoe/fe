@@ -30,6 +30,13 @@ _logger = logging.getLogger(__name__)
 EXTRA_ADDONS = r'C:\Users\Admin\Documents\GitHub\fe\location\mnt\extra-addons\src'
 #EXTRA_ADDONS = r'C:\Users\INCOE\Documents\GitHub\fe\location\mnt\extra-addons\src'
 
+try:
+    from odoo.addons.common_utils.utils import config_utils
+    _logger.info("SIT Modulo config_utils invalidacion")
+except ImportError as e:
+    _logger.error(f"Error al importar 'config_utils': {e}")
+    config_utils = None
+
 class AccountMoveInvalidation(models.Model):
     _name = "account.move.invalidation"
     _rec_name = 'display_name'

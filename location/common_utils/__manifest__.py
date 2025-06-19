@@ -1,11 +1,9 @@
 {
-    'name': 'Common Utilities',
+    'name': 'Common Utils',
     'version': '1.0',
+    'summary': 'Utilidades compartidas',
     'category': 'Tools',
-    'summary': 'Funciones globales para todo el proyecto',
-    'author': 'incoe',
-    'depends': ['base'],
-    'data': [],
+    'depends': [],
     'installable': True,
     'application': False,
 }

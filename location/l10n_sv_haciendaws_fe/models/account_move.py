@@ -13,7 +13,6 @@ import os
 from PIL import Image
 import io
 
-
 base64.encodestring = base64.encodebytes
 import json
 import requests
@@ -24,8 +23,16 @@ import traceback
 from datetime import datetime, timedelta
 import pytz
 
+from functools import cached_property
 _logger = logging.getLogger(__name__)
 
+try:
+    from odoo.addons.common_utils.utils import config_utils
+    from odoo.addons.common_utils.utils import constants
+    _logger.info("SIT Modulo config_utils [hacienda ws-account_move]")
+except ImportError as e:
+    _logger.error(f"Error al importar 'config_utils': {e}")
+    config_utils = None
 
 class AccountMove(models.Model):
     _inherit = "account.move"
@@ -150,6 +157,25 @@ class AccountMove(models.Model):
     recibido_mh = fields.Boolean(string="Dte recibido por MH", copy=False)
     correo_enviado = fields.Boolean(string="Correo enviado en la creacion del dte", copy=False)
     invoice_time = fields.Char(string="Hora de Facturación", compute='_compute_invoice_time', store=True, readonly=True)
+
+    #-----Busquedas de configuracion
+
+    @property
+    def url_firma(self):
+        url = config_utils.get_config_value(self.env, 'url_firma', self.company_id.id)
+        if not url:
+            _logger.error("SIT | No se encontró 'url_firma' en la configuración para la compañía ID %s", self.company_id.id)
+            raise UserError(_("La URL de firma no está configurada en la empresa."))
+        return url
+
+    @property
+    def content_type(self):
+        content = config_utils.get_config_value(self.env, 'content_type', self.company_id.id)
+        if not content:
+            _logger.error("SIT | No se encontró 'content_type' en la configuración para la compañía ID %s", self.company_id.id)
+            raise UserError(_("El tipo de contenido[content_type] no está configurado en la empresa."))
+        return content
+    #-----FIN
 
     @api.depends('invoice_date')
     def _compute_invoice_time(self):
@@ -746,16 +772,16 @@ class AccountMove(models.Model):
                             if not invoice.partner_id.parent_id.codActividad:
                                 invoice.msg_error("Giro o Actividad Económica")
 
-                    ambiente = "00"
-                    if self._compute_validation_type_2() == 'production':
-                        ambiente = "01"
-                        _logger.info("SIT Factura de Producción")
+                    ambiente = None
+                    if config_utils:
+                        ambiente = config_utils.compute_validation_type_2(self.env)
+                        _logger.info("SIT Factura de Producción[Ambiente]: %s", ambiente)
 
                     # Generar json del DTE
-                    payload = invoice.obtener_payload('production', sit_tipo_documento)
+                    payload = invoice.obtener_payload(ambiente, sit_tipo_documento)
 
                     # Firmar el documento y generar el DTE
-                    documento_firmado = invoice.firmar_documento('production', payload)
+                    documento_firmado = invoice.firmar_documento(ambiente, payload)
 
                     if not documento_firmado:
                         raise UserError("Error en firma del documento")
@@ -766,7 +792,7 @@ class AccountMove(models.Model):
                         self.check_parametros_dte(payload_dte)
 
                         # Intentar generar el DTE
-                        Resultado = invoice.generar_dte('production', payload_dte, payload)
+                        Resultado = invoice.generar_dte(ambiente, payload_dte, payload)
                         _logger.warning("SIT Resultado. =%s, estado=%s", Resultado, Resultado.get('estado', ''))
 
                         # Si el resp es un rechazo por número de control
@@ -786,7 +812,7 @@ class AccountMove(models.Model):
                                 payload['dteJson']['identificacion']['numeroControl'] = nuevo_nombre
 
                                 # Volver a firmar con el nuevo número
-                                documento_firmado = invoice.firmar_documento('production', payload)
+                                documento_firmado = invoice.firmar_documento(ambiente, payload)
 
                                 if not documento_firmado:
                                     raise UserError(
@@ -795,7 +821,7 @@ class AccountMove(models.Model):
                                 # Intentar nuevamente generar el DTE
                                 payload_dte = invoice.sit_obtener_payload_dte_info(ambiente, documento_firmado)
                                 self.check_parametros_dte(payload_dte)
-                                Resultado = invoice.generar_dte('production', payload_dte, payload)
+                                Resultado = invoice.generar_dte(ambiente, payload_dte, payload)
 
                         # Guardar json generado
                         json_dte = payload['dteJson']
@@ -874,7 +900,7 @@ class AccountMove(models.Model):
                                 'datas': json_base64,
                                 'res_model': self._name,
                                 'res_id': invoice.id,
-                                'mimetype': 'application/json'
+                                'mimetype': str(config_utils.get_config_value(self.env, 'content_type', self.company_id.id))#'application/json'
                             })
                             _logger.info("SIT JSON creado y adjuntado.")
 
@@ -955,16 +981,14 @@ class AccountMove(models.Model):
         # 1) inicializar la lista donde acumularás status/cuerpo o errores
         resultado = []
 
-        if enviroment_type == 'homologation':
-            ambiente = "01"
-        else:
-            ambiente = "01"
         max_intentos = 3
         resultado = []
         # host = self.company_id.sit_firmador
-        url = "http://192.168.2.25:8113/firmardocumento/"  # host + '/firmardocumento/'
+        url = self.url_firma#"http://192.168.2.25:8113/firmardocumento/"  # host + '/firmardocumento/'
+        _logger.info("SIT Url firma: %s", url)
+
         headers = {
-            'Content-Type': 'application/json'
+            'Content-Type': str(self.content_type) #'application/json'
         }
 
         payload = {
@@ -1042,35 +1066,34 @@ class AccountMove(models.Model):
         _logger.info("SIT  Tipo de documento= %s", sit_tipo_documento)
         invoice_info = None
 
-        if enviroment_type == 'homologation':
-            ambiente = "00"
-        else:
-            ambiente = "01"
-        if sit_tipo_documento in ("01", "13"):
+        ambiente = None
+        if config_utils:
+            ambiente = config_utils.compute_validation_type_2(self.env)
+
+        if sit_tipo_documento in (constants.COD_DTE_FE, "13"):
             invoice_info = self.sit_base_map_invoice_info()
             _logger.info("SIT invoice_info FE = %s", invoice_info)
             self.check_parametros_firmado()
-        elif sit_tipo_documento == "03":
+        elif sit_tipo_documento == constants.COD_DTE_CCF:
             invoice_info = self.sit__ccf_base_map_invoice_info()
             _logger.info("SIT invoice_info CCF = %s", invoice_info)
             self.check_parametros_firmado()
-        elif sit_tipo_documento == "05":
+        elif sit_tipo_documento == constants.COD_DTE_NC:
             invoice_info = self.sit_base_map_invoice_info_ndc()
             self.check_parametros_firmado()
-        elif sit_tipo_documento == "06":
+        elif sit_tipo_documento == constants.COD_DTE_ND:
             invoice_info = self.sit_base_map_invoice_info_ndd()
             self.check_parametros_firmado()
-        elif sit_tipo_documento == "11":
+        elif sit_tipo_documento == constants.COD_DTE_FEX:
             invoice_info = self.sit_base_map_invoice_info_fex()
             _logger.info("SIT invoice_info FEX = %s", invoice_info)
             self.check_parametros_firmado()
-        elif sit_tipo_documento == "14":
+        elif sit_tipo_documento == constants.COD_DTE_FSE:
             invoice_info = self.sit_base_map_invoice_info_fse()
             _logger.info("SIT invoice_info FSE = %s", invoice_info)
             self.check_parametros_firmado()
         _logger.info("SIT payload_data =%s", invoice_info)
         return invoice_info
-
 
     # FRANCISCO # SE OBTIENE EL JWT Y SE ENVIA A HACIENDA PARA SU VALIDACION
     def generar_dte(self, environment_type, payload, payload_original):
@@ -1082,22 +1105,38 @@ class AccountMove(models.Model):
         """
         data = None
         max_intentos = 3
+        url_receive = None
         # ——— 1) Selección de URL de Hacienda ———
-        host = (
-            "https://apitest.dtes.mh.gob.sv"
-            if environment_type == "homologation"
-            else "https://api.dtes.mh.gob.sv"
+        # host = (
+        #     "https://apitest.dtes.mh.gob.sv"
+        #     if environment_type == "homologation"
+        #     else "https://api.dtes.mh.gob.sv"
+        # )
+        # url_receive = f"{host}/fesv/recepciondte1"
+
+        url_receive = (
+            config_utils.get_config_value(self.env, 'url_test_hacienda', self.company_id.id)
+            if environment_type == constants.AMBIENTE_TEST #Ambiente de prueba
+            else config_utils.get_config_value(self.env, 'url_prod_hacienda', self.company_id.id)
         )
-        url_receive = f"{host}/fesv/recepciondte"
+
+        if not url_receive:
+            _logger.error("SIT: Falta la URL de Hacienda en la configuración de la compañía [ID] %s", self.company_id.id)
+            raise UserError(_("La URL de hacienda no está configurada en la empresa."))
 
         # ——— 2) Refrescar token si hace falta ———
         today = fields.Date.context_today(self)
         if not self.company_id.sit_token_fecha or self.company_id.sit_token_fecha.date() < today:
             self.company_id.get_generar_token()
 
+        user_agent = str(config_utils.get_config_value(self.env, 'user_agent', self.company_id.id))
+        if not user_agent:
+            user_agent = "Odoo"
+            raise UserError(_("No se ha configurado el 'User-Agent' para esta compañía."))
+
         headers = {
-            "Content-Type": "application/json",
-            "User-Agent": "Odoo",
+            "Content-Type": str(self.content_type),
+            "User-Agent": user_agent, #"Odoo",
             "Authorization": f"Bearer {self.company_id.sit_token}",
         }
 
