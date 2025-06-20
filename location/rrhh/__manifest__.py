@@ -8,7 +8,8 @@
         "hr_payroll"
     ],
     "data": [
-        "data/deduccion_afp_data.xml"
+        "data/deduccion_afp_data.xml",
+        "data/deduccion_isss_data.xml"
     ],
     "installable": True,
     "auto_install": False
