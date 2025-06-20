@@ -1,0 +1,151 @@
+<odoo>
+    <data>
+        <record id="hr_payslip_report_incoe" model="ir.actions.report">
+            <field name="name">Recibo INCOE</field>
+            <field name="model">hr.payslip</field>
+            <field name="report_type">qweb-pdf</field>
+            <field name="report_name">rrhh.report_payslip_incoe_template</field>
+            <field name="print_report_name">'Recibo INCOE - Karen Arely Burgos'</field>
+            <field name="binding_model_id" ref="hr_payroll.model_hr_payslip"/>
+            <field name="binding_type">report</field>
+        </record>
+        <template id="report_payslip_incoe_template">
+            <t t-call="web.html_container">
+                <div class="page">
+                    <style>
+                        table {
+                            
+                        }
+
+                        table {
+                            border: 1px #EBEBEB solid;
+                        }
+                    </style>
+                    <h3 class="text-center fw-bold">INCOE S.A. DE C.V.</h3>
+                    <h5 class="text-center">Recibo de salario</h5>
+                    <table class="table table-borderless">
+                        <tbody>
+                            <tr>
+                                <td>Empleado: Karen Arely Burgos Sigüenza - EMP007</td>
+                                <td>Periodo: 01/06/25 - 15/06/25</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Sueldo base</th>
+                                <th>$000.00</th>
+                                <th>Días laborados</th>
+                                <th>0</th>
+                            </tr>
+                        </thead>
+                    </table>
+                    <div class="row">
+                        <div class="col-6">
+                            <h5>Ingresos</h5>
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Concepto</th>
+                                        <th>Monto</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>Horas Extra Diurnas</td>
+                                        <td>0</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Horas Extra Nocturnas</td>
+                                        <td>0</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Horas Feriado Diurno</td>
+                                        <td>0</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Horas Feriado Nocturno</td>
+                                        <td>0</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Salario a pagar</td>
+                                        <td>0</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Viaticos ordinarios</td>
+                                        <td>0</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Comisiones</td>
+                                        <td>0</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Total Ingresos</td>
+                                        <td>$ 000.00</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="col-6">
+                            <h5>Descuentos</h5>
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Conceptos</th>
+                                        <th>Monto</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>ISSS</td>
+                                        <td>$000.00</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Fondo de pensiones</td>
+                                        <td>0</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Renta</td>
+                                        <td>0</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Otros</td>
+                                        <td>0</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Bancos</td>
+                                        <td>0</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Venta a empleados</td>
+                                        <td>0</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Prestamos</td>
+                                        <td>0</td>
+                                    </tr>
+                                    <tr>
+                                        <td>FSV</td>
+                                        <td>0</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Total Descuentos</td>
+                                        <td>$ 000.00</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <h5>Sueldo liquido</h5>
+                    <table class="table">
+                        <tr>
+                            <td>Sueldo a pagar</td>
+                            <td>$ 000.00</td>
+                        </tr>
+                    </table>
+                </div>
+            </t>
+        </template>
+    </data>
+</odoo>
