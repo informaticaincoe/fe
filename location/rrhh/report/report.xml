@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <report
+            id="hr_payslip_report_incoe"
+            model="hr.payslip"
+            string="Recibo INCOE"
+            report_type="qweb-pdf"
+            name="rrhh.report_payslip_incoe"
+            file="rrhh.report_payslip_incoe"
+            print_report_name="'Recibo INCOE - %s' % object.employee_id.name"
+        />
+    </data>
+</odoo>
