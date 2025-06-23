@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!-- Asegura que el usuario admin tenga el grupo de Recursos Humanos / Usuario -->
+<!--        <record id="user_admin_hr_user_group" model="res.users">-->
+<!--            <field name="groups_id" eval="[(4, ref('hr.group_hr_user'))]"/>-->
+<!--        </record>-->
+
+    </data>
+</odoo>
