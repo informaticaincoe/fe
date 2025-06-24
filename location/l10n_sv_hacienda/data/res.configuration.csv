@@ -8,3 +8,4 @@ config_url_test_hacienda,base.main_company,,text,https://apitest.dtes.mh.gob.sv/
 config_url_prod_hacienda,base.main_company,,text,https://api.dtes.mh.gob.sv/fesv/recepciondte,Acceso a entorno de producción de Hacienda,True,url_prod_hacienda
 config_user_agent,base.main_company,,text,Odoo,User-Agent,True,user_agent
 config_ambiente,base.main_company,,text,01,Ambiente,True,ambiente
+config_mnt,base.main_company,,text,C:/Users/Admin/Documents/GitHub/fe/location/mnt,Carpeta mnt,True,mnt

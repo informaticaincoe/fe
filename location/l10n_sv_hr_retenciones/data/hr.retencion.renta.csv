@@ -1,0 +1,4 @@
+id,codigo,nombre
+ret_mensual,a,Remuneraciones gravadas pagaderas mensualmente
+ret_quincenal,b,Remuneraciones gravadas pagaderas quincenalmente
+ret_semanal,c,Remuneraciones gravadas pagaderas semanalmente

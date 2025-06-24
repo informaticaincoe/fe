@@ -1,0 +1,3 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_hr_retencion_renta_user,access_rem_grav_user,model_hr_retencion_renta,base.group_user,1,0,0,0
+access_hr_retencion_tramo_user,access_retencion_tramo_user,model_hr_retencion_tramo,base.group_user,1,0,0,0
