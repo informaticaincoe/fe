@@ -6,6 +6,24 @@ _logger = logging.getLogger(__name__)
 class HrContract(models.Model):
     _inherit = 'hr.contract'
 
+    def calcular_afp(self):
+        self.ensure_one()
+        salario = self.wage
+        porcentaje_afp = 0.0725  # Porcentaje estándar para empleado en El Salvador
+        deduccion = salario * porcentaje_afp
+        _logger.info("AFP para contrato ID %d: salario %.2f * %.4f = %.2f", self.id, salario, porcentaje_afp, deduccion)
+        return deduccion
+
+    def calcular_isss(self):
+        self.ensure_one()
+        salario = self.wage
+        techo_isss = 1000.00  # Techo legal ISSS en El Salvador
+        porcentaje_isss = 0.03  # 3% para el empleado
+        base = min(salario, techo_isss)
+        deduccion = base * porcentaje_isss
+        _logger.info("ISSS para contrato ID %d: base %.2f * %.4f = %.2f", self.id, base, porcentaje_isss, deduccion)
+        return deduccion
+
     def calcular_deduccion_renta(self, bruto=None):
         self.ensure_one()
         _logger.info("Cálculo de deducción de renta iniciado para contrato ID %s", self.id)
@@ -39,10 +57,9 @@ class HrContract(models.Model):
         for tramo in tramos:
             if (not tramo.hasta or bruto <= tramo.hasta) and bruto >= tramo.desde:
                 exceso = bruto - tramo.exceso_sobre
-                resultado = -(tramo.cuota_fija + (exceso * tramo.porcentaje_excedente / 100))
+                resultado = tramo.cuota_fija + (exceso * tramo.porcentaje_excedente / 100)
                 _logger.info("Deducción de renta calculada: %.2f (tramo aplicado)", resultado)
                 return resultado
 
         _logger.info("No se encontró tramo aplicable para el salario bruto.")
         return 0.0
-

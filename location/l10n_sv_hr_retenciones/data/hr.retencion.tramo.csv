@@ -13,3 +13,13 @@ tramo_retencion_semanal_I,ret_semanal,I,0.01,137.50,0,0,0
 tramo_retencion_semanal_II,ret_semanal,II,137.51,223.81,10,137.50,4.42
 tramo_retencion_semanal_III,ret_semanal,III,223.82,509.52,20,223.81,15.00
 tramo_retencion_semanal_IV,ret_semanal,IV,509.53,,30,509.52,72.14
+
+tramo_retencion_junio_I,ret_junio,I,0.01,3300.00,0,0,0
+tramo_retencion_junio_II,ret_junio,II,3300.01,5371.44,10,3300.00,106.20
+tramo_retencion_junio_III,ret_junio,III,5371.45,12228.60,20,5371.44,360.00
+tramo_retencion_junio_IV,ret_junio,IV,12228.61,,30,12228.60,1731.42
+
+tramo_retencion_diciembre_I,ret_diciembre,I,0.01,6600.00,0,0,0
+tramo_retencion_diciembre_II,ret_diciembre,II,6600.01,10742.86,10,6600.00,212.12
+tramo_retencion_diciembre_III,ret_diciembre,III,10742.87,24457.14,20,10742.86,720.00
+tramo_retencion_diciembre_IV,ret_diciembre,IV,24457.15,,30,24457.14,3462.86

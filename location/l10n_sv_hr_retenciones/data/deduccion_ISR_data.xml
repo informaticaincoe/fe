@@ -11,13 +11,13 @@
         <record id="salary_rule_deduccion_renta" model="hr.salary.rule">
             <field name="name">Deducción de Renta</field>
             <field name="code">RENTA</field>
-            <field name="sequence">150</field>
-            <field name="category_id" ref="hr_payroll.DED"/> <!-- Categoría Deducciones -->
-            <field name="struct_id" ref="hr_payroll.structure_002"/> <!-- Estructura Regular Pay -->
-            <field name="condition_select">none</field> <!-- Se aplica siempre -->
-<!--            <field name="amount_select">renta</field>-->
+            <field name="sequence">15</field>
+            <field name="category_id" ref="hr_payroll.DED"/>
+            <field name="struct_id" ref="hr_payroll.structure_002"/>
+            <field name="condition_select">none</field>
             <field name="amount_select">input</field>
-            <field name="input_type_id" ref="input_type_deduccion_renta"/> <!-- Asocia el tipo -->
+            <field name="input_type_id" ref="input_type_deduccion_renta"/>
+            <field name="amount_other_input_id" ref="input_type_deduccion_renta"/>
             <field name="appears_on_payslip" eval="True"/>
         </record>
 
