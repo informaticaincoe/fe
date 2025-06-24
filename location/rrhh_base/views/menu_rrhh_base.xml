@@ -8,6 +8,13 @@
             <field name="view_mode">list</field>
         </record>
 
+        <!-- Acción para mostrar tabla de Renta (puede cambiar a tu modelo futuro) -->
+<!--        <record id="action_retencion_isss" model="ir.actions.act_window">-->
+<!--            <field name="name">Retenciones ISSS</field>-->
+<!--            <field name="res_model">hr.</field>-->
+<!--            <field name="view_mode">list</field>-->
+<!--        </record>-->
+
         <!-- Submenú bajo el menú principal de Nómina -->
         <menuitem
             id="menu_retenciones_rrhh"

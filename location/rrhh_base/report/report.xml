@@ -1,20 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data>
-        <report
-            id="hr_payslip_report_incoe"
-            model="hr.payslip"
-            string="Recibo INCOE"
-            report_type="qweb-pdf"
-            name="rrhh_base.report_payslip_incoe"
-            file="rrhh_base.report_payslip_incoe"
-            print_report_name="'Recibo INCOE - %s' % object.employee_id.name"
-        />
-
         <record id="paperformat_payslip_recipe" model="report.paperformat">
             <field name="name">Recibo de salario</field>
             <field name="default" eval="True"/>
-            <field name="format">Letter</field>
+            <field name="format">A4</field>
             <field name="orientation">Portrait</field>
             <field name="margin_top">5</field>
             <field name="margin_bottom">8</field>
