@@ -1,0 +1,15 @@
+id,retencion_id/id,tramo,desde,hasta,porcentaje_excedente,exceso_sobre,cuota_fija
+tramo_retencion_mensual_I,ret_mensual,I,0.01,550.00,0,0,0
+tramo_retencion_mensual_II,ret_mensual,II,550.01,895.24,10,550.00,17.67
+tramo_retencion_mensual_III,ret_mensual,III,895.25,2038.10,20,895.24,60.00
+tramo_retencion_mensual_IV,ret_mensual,IV,2038.11,,30,2038.10,288.57
+
+tramo_retencion_quincenal_I,ret_quincenal,I,0.01,275.00,0,0,0
+tramo_retencion_quincenal_II,ret_quincenal,II,275.01,447.62,10,275.00,8.83
+tramo_retencion_quincenal_III,ret_quincenal,III,447.63,1019.05,20,447.62,30.00
+tramo_retencion_quincenal_IV,ret_quincenal,IV,1019.06,,30,1019.05,144.28
+
+tramo_retencion_semanal_I,ret_semanal,I,0.01,137.50,0,0,0
+tramo_retencion_semanal_II,ret_semanal,II,137.51,223.81,10,137.50,4.42
+tramo_retencion_semanal_III,ret_semanal,III,223.82,509.52,20,223.81,15.00
+tramo_retencion_semanal_IV,ret_semanal,IV,509.53,,30,509.52,72.14
