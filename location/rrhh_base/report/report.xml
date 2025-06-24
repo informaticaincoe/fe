@@ -6,8 +6,8 @@
             model="hr.payslip"
             string="Recibo INCOE"
             report_type="qweb-pdf"
-            name="rrhh.report_payslip_incoe"
-            file="rrhh.report_payslip_incoe"
+            name="rrhh_base.report_payslip_incoe"
+            file="rrhh_base.report_payslip_incoe"
             print_report_name="'Recibo INCOE - %s' % object.employee_id.name"
         />
 
@@ -18,8 +18,8 @@
             <field name="orientation">Portrait</field>
             <field name="margin_top">5</field>
             <field name="margin_bottom">8</field>
-            <field name="margin_left">3</field>
-            <field name="margin_right">3</field>
+            <field name="margin_left">10</field>
+            <field name="margin_right">10</field>
             <field name="header_line" eval="False"/>
             <field name="header_spacing">35</field>
             <field name="dpi">90</field>
