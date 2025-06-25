@@ -21,6 +21,12 @@ import logging
 
 _logger = logging.getLogger(__name__)
 
+try:
+    from odoo.addons.common_utils.utils import config_utils
+    _logger.info("SIT Modulo config_utils hacienda")
+except ImportError as e:
+    _logger.error(f"Error al importar 'config_utils': {e}")
+    config_utils = None
 
 class HaciendaCertificateAlias(models.Model):
     _name = "afipws.certificate_alias"
@@ -177,7 +183,8 @@ class HaciendaCertificateAlias(models.Model):
     def generate_key(self, key_length=2048):
         """ """
         # TODO reemplazar todo esto por las funciones nativas de pyafipws
-        directorio='C:/Users/Admin/Documents/GitHub/fe/location/mnt'
+        #directorio='C:/Users/Admin/Documents/GitHub/fe/location/mnt'
+        directorio=config_utils.get_config_value(self.env, 'mnt', self.company_id.id)
         listado_directorio = os.listdir( directorio) 
 
         # doc = minidom.parse( directorio + '/PrivateKey_06140902221032.key')
@@ -264,7 +271,8 @@ class HaciendaCertificateAlias(models.Model):
         # self.certificate_file_text.unlink()
 
 
-        directorio='C:/Users/Admin/Documents/GitHub/fe/location/mnt'
+        #directorio='C:/Users/Admin/Documents/GitHub/fe/location/mnt'
+        directorio = config_utils.get_config_value(self.env, 'mnt', self.company_id.id)
         listado_directorio = os.listdir( directorio) 
         _logger.info("SIT selfl %s, %s", self.id, self.ids)
         _logger.info("SIT directorio actual %s", directorio)

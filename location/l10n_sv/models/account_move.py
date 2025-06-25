@@ -23,6 +23,11 @@ class sit_account_move(models.Model):
     sit_json_respuesta = fields.Text("Json de Respuesta", default="")
     sit_regimen = fields.Many2one('account.move.regimen.field', string="Régimen de Exportación")
 
+    codigo_tipo_documento = fields.Char(
+        related='journal_id.sit_tipo_documento.codigo',
+        store=True
+    )
+
     def _get_condiciones_pago_selection(self):
         return [
             ('1', '1-Contado'),

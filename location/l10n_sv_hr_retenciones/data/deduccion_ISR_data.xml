@@ -1,0 +1,25 @@
+<odoo>
+    <data noupdate="1">
+
+        <!-- Crear tipo de entrada del recibo: Deducción Renta -->
+        <record id="input_type_deduccion_renta" model="hr.payslip.input.type">
+            <field name="name">Deducción Renta</field>
+            <field name="code">RENTA</field>
+        </record>
+
+        <!-- Crear regla salarial de deducción de renta -->
+        <record id="salary_rule_deduccion_renta" model="hr.salary.rule">
+            <field name="name">Deducción de Renta</field>
+            <field name="code">RENTA</field>
+            <field name="sequence">15</field>
+            <field name="category_id" ref="hr_payroll.DED"/>
+            <field name="struct_id" ref="hr_payroll.structure_002"/>
+            <field name="condition_select">none</field>
+            <field name="amount_select">input</field>
+            <field name="input_type_id" ref="input_type_deduccion_renta"/>
+            <field name="amount_other_input_id" ref="input_type_deduccion_renta"/>
+            <field name="appears_on_payslip" eval="True"/>
+        </record>
+
+    </data>
+</odoo>

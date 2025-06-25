@@ -1,0 +1,25 @@
+<odoo noupdate="0">
+    <data noupdate="1">
+        <!-- Definición de un tipo de entrada para deducción ISSS -->
+        <record id="input_type_deduccion_isss" model="hr.payslip.input.type">
+            <field name="name">Deducción ISSS</field>
+            <field name="code">ISSS</field>
+        </record>
+
+        <!-- Definición de una regla salarial relacionada con la deducción ISSS -->
+        <record id="isss_regla_employee" model="hr.salary.rule">
+            <field name="name">ISSS</field>
+            <field name="code">ISSS</field>
+            <field name="sequence">10</field>
+            <field name="category_id" ref="hr_payroll.DED"/>
+            <field name="amount_select">input</field>
+            <field name="amount_python_compute">none</field>
+            <field name="appears_on_payslip" eval="True"/>
+            <field name="struct_id" ref="hr_payroll.structure_002"/>
+            <field name="condition_select">none</field>
+            <field name="input_type_id" ref="input_type_deduccion_isss"/>
+            <field name="amount_other_input_id" ref="input_type_deduccion_isss"/>
+<!--            <field name="account_credit" search="[('code', '=', '230100')]"/>-->
+        </record>
+    </data>
+</odoo>

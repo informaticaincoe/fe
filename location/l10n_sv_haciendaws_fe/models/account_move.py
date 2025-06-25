@@ -1305,7 +1305,8 @@ class AccountMove(models.Model):
         )
         codigo_qr.add_data(texto_codigo_qr)
         #os.chdir('C:/Users/INCOE/PycharmProjects/fe/location/mnt/src')
-        os.chdir('C:/Users/admin/Documents/GitHub/fe/location/mnt/certificado')
+        #os.chdir('C:/Users/admin/Documents/GitHub/fe/location/mnt/certificado')
+        os.chdir(config_utils.get_config_value(self.env, 'mnt', self.company_id.id))
         directory = os.getcwd()
         _logger.info("SIT directory =%s", directory)
         basewidth = 100

@@ -1,0 +1,117 @@
+import logging
+from odoo import models
+
+_logger = logging.getLogger(__name__)
+
+try:
+    from odoo.addons.common_utils.utils import constants
+    _logger.info("SIT Modulo config_utils l10n_sv_haciendaws_fe")
+except ImportError as e:
+    _logger.error(f"Error al importar 'config_utils': {e}")
+    config_utils = None
+
+class HrContract(models.Model):
+    _inherit = 'hr.contract'
+
+    # Método para calcular la deducción AFP (Administradora de Fondos de Pensiones)
+    def calcular_afp(self):
+        self.ensure_one()  # Garantiza que el cálculo se realice solo en un solo registro
+        salario = self.wage  # Obtener el salario del contrato
+
+        # Buscar el porcentaje y techo configurado para el empleado
+        afp_empleado = self.env['hr.retencion.afp'].search([('tipo', '=', constants.DEDUCCION_EMPLEADO)], limit=1)
+        if not afp_empleado:
+            # Si no se encuentra configuración para AFP, se registra una advertencia y se retorna 0.0
+            _logger.warning("No se encontró configuración AFP para empleado.")
+            return 0.0
+
+        porcentaje_afp = afp_empleado.porcentaje or 0.0  # Porcentaje de deducción AFP
+        techo = afp_empleado.techo or 0.0  # Techo máximo de deducción AFP
+
+        # Si hay techo definido (> 0), se aplica como límite para la base de cálculo
+        base = min(salario, techo) if techo > 0 else salario
+        deduccion = base * (porcentaje_afp / 100.0)  # Cálculo de la deducción AFP
+
+        _logger.info("AFP para contrato ID %d: base %.2f * %.2f%% = %.2f", self.id, base, porcentaje_afp, deduccion)
+        return deduccion
+
+    # Método para calcular la deducción ISSS (Instituto Salvadoreño del Seguro Social)
+    def calcular_isss(self):
+        self.ensure_one()  # Garantiza que el cálculo se realice solo en un solo registro
+        salario = self.wage  # Se obtiene el salario del contrato
+
+        # Buscar la configuración de ISSS para el empleado
+        isss_empleado = self.env['hr.retencion.isss'].search([('tipo', '=', constants.DEDUCCION_EMPLEADO)], limit=1)
+        if not isss_empleado:
+            # Si no se encuentra configuración para ISSS, se registra una advertencia y se retorna 0.0
+            _logger.warning("No se encontró configuración ISSS para empleado.")
+            return 0.0
+
+        porcentaje = isss_empleado.porcentaje or 0.0  # Porcentaje de deducción ISSS
+        techo = isss_empleado.techo or 0.0  # Techo máximo de deducción ISSS
+
+        # Se aplica el techo si está definido
+        base = min(salario, techo) if techo > 0 else salario
+        deduccion = base * (porcentaje / 100.0)  # Cálculo de la deducción ISSS
+
+        # Registro de la información de la deducción para referencia
+        _logger.info("ISSS empleado para contrato ID %d: base %.2f * %.2f%% = %.2f", self.id, base, porcentaje, deduccion)
+        return deduccion
+
+    # Método para calcular la deducción de renta del empleado
+    def calcular_deduccion_renta(self, bruto=None):
+        self.ensure_one()  # Garantiza que el cálculo se realice solo en un solo registro
+        _logger.info("Cálculo de deducción de renta iniciado para contrato ID %s", self.id)
+
+        # Verifica si el contrato tiene definida la frecuencia de pago
+        if not self.schedule_pay:
+            # Si no tiene definida la frecuencia de pago, se registra una advertencia y se retorna 0.0
+            _logger.warning("El contrato no tiene definida la frecuencia de pago.")
+            return 0.0
+
+        # Mapeo de las frecuencias de pago a códigos para la tabla de retención de renta
+        codigo_mapeo = {
+            'monthly': 'a',       # Mensual
+            'bi-weekly': 'b',     # Quincenal
+            'weekly': 'c',        # Semanal
+        }
+
+        # Se obtiene el código de tabla correspondiente a la frecuencia de pago
+        codigo = codigo_mapeo.get(self.schedule_pay)
+        _logger.info("Frecuencia de pago: %s → Código tabla: %s", self.schedule_pay, codigo)
+
+        if not codigo:
+            # Si no se encuentra un código para la frecuencia de pago, se registra una advertencia y se retorna 0.0
+            _logger.warning("No se encontró código de tabla para la frecuencia de pago '%s'", self.schedule_pay)
+            return 0.0
+
+        # Buscar la tabla de remuneración gravada según el código
+        tabla = self.env['hr.retencion.renta'].search([('codigo', '=', codigo)], limit=1)
+        if not tabla:
+            # Si no se encuentra la tabla correspondiente, se registra una advertencia y se retorna 0.0
+            _logger.warning("No se encontró tabla de remuneración gravada con código '%s'", codigo)
+            return 0.0
+
+        # Si el valor 'bruto' no es proporcionado, se usa el salario del contrato
+        bruto = bruto if bruto is not None else self.wage or 0.0
+
+        # Calcular base imponible restando AFP e ISSS
+        afp = self.calcular_afp()
+        isss = self.calcular_isss()
+        base_imponible = bruto - afp - isss
+        _logger.info("Base imponible = %.2f - %.2f - %.2f = %.2f", bruto, afp, isss, base_imponible)
+
+        # Se itera sobre los tramos de la tabla para determinar el tramo aplicable
+        tramos = tabla.tramo_ids.sorted(key=lambda t: t.desde)
+        for tramo in tramos:
+            # Verificar si la base imponible cae dentro del tramo
+            if (not tramo.hasta or base_imponible <= tramo.hasta) and base_imponible >= tramo.desde:
+                # Si es así, calcular la deducción de renta basada en el tramo
+                exceso = base_imponible - tramo.exceso_sobre
+                resultado = tramo.cuota_fija + (exceso * tramo.porcentaje_excedente / 100)
+                _logger.info("Deducción de renta calculada: %.2f (tramo aplicado)", resultado)
+                return resultado
+
+        # Si no se encuentra un tramo aplicable, se registra un mensaje de información y se retorna 0.0
+        _logger.info("No se encontró tramo aplicable para la base imponible.")
+        return 0.0

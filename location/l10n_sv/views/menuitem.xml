@@ -137,7 +137,7 @@ t
 
     <menuitem name="Catalogos1" id="menu_catalogos" sequence="20" parent="account.menu_finance_configuration">
         <menuitem id="menu_action_tipo_documento" name="02-Tipo de Documento" action="action_tipo_documento" groups="base.group_system" sequence="1"/>
-        <menuitem id="menu_action_tipo_contingencia" name="05-Tipo de Contingencia" action="action_tipo_contingencia" groups="base.group_system" sequence="2"/>
+<!--        <menuitem id="menu_action_tipo_contingencia" name="05-Tipo de Contingencia" action="action_tipo_contingencia" groups="base.group_system" sequence="2"/>-->
         <menuitem id="menu_action_tipo_establecimiento" name="09-Tipo de Establecimiento" action="action_tipo_establecimiento" groups="base.group_system" sequence="3"/>
         <menuitem id="menu_action_tipo_item" name="11-Tipo de Item" action="action_tipo_item" groups="base.group_system" sequence="4"/>
         <menuitem id="menu_action_forma_pago" name="17-Forma de Pago" action="action_forma_pago" groups="base.group_system" sequence="5"/>
