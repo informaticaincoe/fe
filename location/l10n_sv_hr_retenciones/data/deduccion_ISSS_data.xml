@@ -1,12 +1,12 @@
 <odoo noupdate="0">
     <data noupdate="1">
-        <!-- Tipo de entrada -->
+        <!-- Definición de un tipo de entrada para deducción ISSS -->
         <record id="input_type_deduccion_isss" model="hr.payslip.input.type">
             <field name="name">Deducción ISSS</field>
             <field name="code">ISSS</field>
         </record>
 
-        <!-- Regla salarial -->
+        <!-- Definición de una regla salarial relacionada con la deducción ISSS -->
         <record id="isss_regla_employee" model="hr.salary.rule">
             <field name="name">ISSS</field>
             <field name="code">ISSS</field>
