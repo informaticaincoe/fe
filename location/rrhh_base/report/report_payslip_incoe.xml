@@ -15,14 +15,9 @@
             <t t-name="rrhh_base.report_boleta_pago_template">
                 <t t-call="web.html_container">
                     <t t-call-assets="web.assets_pdf" t-js="false"/>
-
+                    <t t-set="o" t-value="docs[0]"/>
                     <div class="page" style="display: relative;">
                         <style>
-                            @font-face {
-                            font-family: 'Inter';
-                            src: url('http://localhost:8069/rrhh_base/static/src/fonts/Inter.ttf') format('truetype');
-                            }
-
                             body {
                             font-family: 'Inter', sans-serif !important;
                             font-size: 11px;
@@ -82,14 +77,14 @@
 
                         </style>
                         <!-- Encabezado -->
-                        <div style="position: absolute; top: 30%; left: 15%; z-index: -1; opacity: 0.1;">
-                            <img src="/rrhh_base/static/src/img/watermark_incoe.jpg" style="width: 80%;"/>
+                        <div style="position: absolute; top: 17%; left: 22%; z-index: -1; border-color: #fff;">
+                            <img src="http://localhost:8069/rrhh_base/static/src/img/watermark_incoe.jpg"
+                                 style="width: 80%; border-color: #fff;"/>
                         </div>
-
                         <table class="header-table" style="margin-bottom: 5%;">
                             <tr>
-                                <td style="width: 30%; background-color: #232C6E; text-align: center;">
-                                    <img src="/rrhh_base/static/src/img/incoe-boletas-pago-icono.png"
+                                <td style="width: 30%; background-color: #232C6E; text-align: center; border-color: #fff;">
+                                    <img src="http://localhost:8069/rrhh_base/static/src/img/incoe-boletas-pago-icono.png"
                                          style="width: 80%; margin-top: 13%;"/>
                                 </td>
                                 <td style="width: 30%; border-color: #fff;"/>
@@ -98,13 +93,15 @@
                                     <div>
                                         <p style="margin: 0;">
                                             <span class="label">Empleado:</span>
-
-
+                                            <span t-esc="o.employee_id.name"/>
                                         </p>
                                         <p style="margin: 0;">
                                             <span class="label">Periodo:</span>
-                                            01/06/25 - 15/06/25
+                                            <span t-esc="o.date_from"/>
+                                            -
 
+
+                                            <span t-esc="o.date_to"/>
                                         </p>
                                     </div>
                                 </td>
@@ -114,9 +111,14 @@
                         <table style="margin-bottom: 3%; table-layout: auto; width: 100%;">
                             <tr style="background-color: #F1F1F1;">
                                 <td class="label border-clean" style="nowrap; width: 15%;">Sueldo base</td>
-                                <td class="labelborder-clean" style="text-align: start; width: 30%;">$000.00</td>
+                                <td class="labelborder-clean" style="text-align: start; width: 30%;">
+                                    <span t-esc="o.basic_wage"
+                                          t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
+                                </td>
                                 <td class="label border-clean" style="width: 20%;">Días laborados</td>
-                                <td class="label border-clean" style="width: 35%;">0</td>
+                                <td class="label border-clean" style="width: 35%;">
+                                    <span t-esc="o.sum_worked_hours / o.contract_id.resource_calendar_id.hours_per_day"/>
+                                </td>
                             </tr>
                         </table>
                         <!-- Ingresos y descuentos -->
@@ -167,6 +169,10 @@
                                                 <td class="border-clean py-1">0</td>
                                             </tr>
                                             <tr>
+                                                <td class="border-clean py-1">-</td>
+                                                <td class="border-clean py-1">-</td>
+                                            </tr>
+                                            <tr>
                                                 <td class="border-clean py-1" style="border-bottom-color: #475294;">-
                                                 </td>
                                                 <td class="border-clean py-1" style="border-bottom-color: #475294;">-
@@ -204,48 +210,63 @@
                                         <tbody>
                                             <tr>
                                                 <td class="border-clean py-1">ISSS</td>
-                                                <td class="border-clean py-1">$000.00</td>
-                                            </tr>
-                                            <tr>
-                                                <td class="border-clean py-1">Fondo de pensiones</td>
-                                                <td class="border-clean py-1">0</td>
-                                            </tr>
-                                            <tr>
-                                                <td class="border-clean py-1">Renta</td>
-                                                <td class="border-clean py-1">0</td>
-                                            </tr>
-                                            <tr>
-                                                <td class="border-clean py-1">Otros</td>
-                                                <td class="border-clean py-1">0</td>
-                                            </tr>
-                                            <tr>
-                                                <td class="border-clean py-1">Bancos</td>
-                                                <td class="border-clean py-1">0</td>
-                                            </tr>
-                                            <tr>
-                                                <td class="border-clean py-1">Venta a empleados</td>
-                                                <td class="border-clean py-1">0</td>
-                                            </tr>
-                                            <tr>
-                                                <td class="border-clean py-1">Préstamos</td>
-                                                <td class="border-clean py-1">0</td>
-                                            </tr>
-                                            <tr>
-                                                <td class="border-clean py-1" style="border-bottom-color: #475294;">
-                                                    FSV
+                                                <td class="border-clean py-1">
+                                                    <span t-esc="abs(o.line_ids.filtered(lambda l: l.code == 'ISSS')[0].total if o.line_ids.filtered(lambda l: l.code == 'ISSS') else 0)"
+                                                          t-options="{'widget': 'monetary', 'display_currency': o.currency_id}"/>
                                                 </td>
-                                                <td class="border-clean py-1" style="border-bottom-color: #475294;">0
-                                                </td>
-                                            </tr>
-                                            <tr class="highlight">
-                                                <td class="border-clean"
-                                                    style="border-top-color: #475294; border-bottom-color: #475294; ">
-                                                    Total Descuentos
-                                                </td>
-                                                <td class="border-clean"
-                                                    style="border-top-color: #475294; border-bottom-color: #475294;">$
-                                                    000.00
-                                                </td>
+                                                <tr>
+                                                    <td class="border-clean py-1">Renta</td>
+                                                    <td class="border-clean py-1">
+                                                        <span t-esc="abs(o.line_ids.filtered(lambda l: l.code == 'RENTA')[0].total if o.line_ids.filtered(lambda l: l.code == 'RENTA') else 0)"
+                                                              t-options="{'widget': 'monetary', 'display_currency': o.currency_id}"/>
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="border-clean py-1">AFP</td>
+                                                    <td class="border-clean py-1">
+                                                        <span t-esc="abs(o.line_ids.filtered(lambda l: l.code == 'AFP')[0].total if o.line_ids.filtered(lambda l: l.code == 'AFP') else 0)"
+                                                              t-options="{'widget': 'monetary', 'display_currency': o.currency_id}"/>
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="border-clean py-1">Fondo de pensiones</td>
+                                                    <td class="border-clean py-1">0</td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="border-clean py-1">Otros</td>
+                                                    <td class="border-clean py-1">0</td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="border-clean py-1">Bancos</td>
+                                                    <td class="border-clean py-1">0</td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="border-clean py-1">Venta a empleados</td>
+                                                    <td class="border-clean py-1">0</td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="border-clean py-1">Préstamos</td>
+                                                    <td class="border-clean py-1">0</td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="border-clean py-1" style="border-bottom-color: #475294;">
+                                                        FSV
+                                                    </td>
+                                                    <td class="border-clean py-1" style="border-bottom-color: #475294;">
+                                                        0
+                                                    </td>
+                                                </tr>
+                                                <tr class="highlight">
+                                                    <td class="border-clean"
+                                                        style="border-top-color: #475294; border-bottom-color: #475294; ">
+                                                        Total Descuentos
+                                                    </td>
+                                                    <td class="border-clean"
+                                                        style="border-top-color: #475294; border-bottom-color: #475294;">
+                                                        $
+                                                        000.00
+                                                    </td>
+                                                </tr>
                                             </tr>
                                         </tbody>
                                     </table>
@@ -260,7 +281,9 @@
                                     style="border-top-color: #D1AA7F; border-bottom-color: #D1AA7F;">Sueldo a pagar
                                 </td>
                                 <td class="border-clean"
-                                    style="border-top-color: #D1AA7F; border-bottom-color: #D1AA7F;">$ 000.00
+                                    style="border-top-color: #D1AA7F; border-bottom-color: #D1AA7F;">
+                                    <span t-esc="o.net_wage"
+                                          t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
                                 </td>
                             </tr>
                         </table>

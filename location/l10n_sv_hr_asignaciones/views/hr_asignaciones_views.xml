@@ -1,0 +1,31 @@
+<odoo>
+    <data>
+        <!-- Vista de tipo lista -->
+        <record id="view_hr_asignaciones_tree" model="ir.ui.view">
+            <field name="name">hr.asignaciones.tree</field>
+            <field name="model">hr.asignaciones</field>
+            <field name="arch" type="xml">
+                <list>
+                    <field name="tipo"/>
+                    <field name="periodo"/>
+                </list>
+            </field>
+        </record>
+
+        <!-- Vista de tipo form -->
+        <record id="view_hr_asignaciones_form" model="ir.ui.view">
+            <field name="name">hr.asignaciones.form</field>
+            <field name="model">hr.asignaciones</field>
+            <field name="arch" type="xml">
+                <form>
+                    <sheet>
+                        <group>
+                            <field name="tipo"/>
+                            <field name="periodo"/>
+                        </group>
+                    </sheet>
+                </form>
+            </field>
+        </record>
+    </data>
+</odoo>

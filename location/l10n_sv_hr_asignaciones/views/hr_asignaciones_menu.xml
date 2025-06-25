@@ -1,0 +1,35 @@
+<odoo>
+    <data>
+
+        <!-- Acción para mostrar contratos (puede cambiar a tu modelo futuro) -->
+        <record id="action_asignaciones" model="ir.actions.act_window">
+            <field name="name">Asignaciones Salariales</field>
+            <field name="res_model">hr.contract</field>
+            <field name="view_mode">list</field>
+        </record>
+
+        <!-- Acción para mostrar tabla de retencion ISSS -->
+        <record id="action_retencion_isss" model="ir.actions.act_window">
+            <field name="name">Asignaciones Salariales</field>
+            <field name="res_model">hr.salary.assigment</field>
+            <field name="view_mode">list,form</field>
+        </record>
+
+        <!-- Submenú bajo el menú principal de Nómina -->
+        <menuitem
+                id="menu_asignaciones_rrhh"
+                name="Asignaciones Salariales"
+                parent="hr_work_entry_contract_enterprise.menu_hr_payroll_configuration"
+                sequence="110"
+                groups="base.group_system"
+        />
+        <menuitem
+                id="menu_asignaciones"
+                name="Asignaciones salariales"
+                parent="menu_asignaciones_rrhh"
+                sequence="110"
+                action="action_retencion_isss"
+                groups="base.group_system"
+        />
+    </data>
+</odoo>
