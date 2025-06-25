@@ -1,0 +1,11 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_menu_payroll,access.menu.ir_ui_menu,base.model_ir_ui_menu,base.group_system,1,1,1,1
+access_action_window_payroll,access.act_window.ir_actions_act_window,base.model_ir_actions_act_window,base.group_system,1,1,1,1
+access_hr_retencion_isss_user,hr.retencion.isss.user,l10n_sv_hr_retenciones.model_hr_retencion_isss,base.group_user,1,0,0,0
+access_hr_retencion_isss_manager,hr.retencion.isss.manager,l10n_sv_hr_retenciones.model_hr_retencion_isss,base.group_system,1,1,1,1
+access_hr_retencion_afp_user,hr.retencion.afp.user,l10n_sv_hr_retenciones.model_hr_retencion_afp,base.group_user,1,0,0,0
+access_hr_retencion_afp_manager,hr.retencion.afp.manager,l10n_sv_hr_retenciones.model_hr_retencion_afp,base.group_system,1,1,1,1
+access_hr_retencion_renta_user,hr.retencion.renta.user,l10n_sv_hr_retenciones.model_hr_retencion_renta,base.group_user,1,0,0,0
+access_hr_retencion_renta_manager,hr.retencion.renta.manager,l10n_sv_hr_retenciones.model_hr_retencion_renta,base.group_system,1,1,1,1
+access_hr_retencion_tramo_user,hr.retencion.tramo.user,l10n_sv_hr_retenciones.model_hr_retencion_tramo,base.group_user,1,0,0,0
+access_hr_retencion_tramo_manager,hr.retencion.tramo.manager,l10n_sv_hr_retenciones.model_hr_retencion_tramo,base.group_system,1,1,1,1

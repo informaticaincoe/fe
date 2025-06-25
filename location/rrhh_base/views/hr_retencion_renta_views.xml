@@ -1,0 +1,31 @@
+<odoo>
+    <data>
+        <!-- Vista de lista para retencion renta -->
+        <record id="view_hr_retencion_renta_tree" model="ir.ui.view">
+            <field name="name">hr.retencion.renta.tree</field>
+            <field name="model">hr.retencion.renta</field>
+            <field name="arch" type="xml">
+                <list>
+                    <field name="nombre"/>
+                    <field name="codigo"/>
+                </list>
+            </field>
+        </record>
+
+        <!-- Vista de formulario para retencion renta -->
+        <record id="view_hr_retencion_renta_form" model="ir.ui.view">
+            <field name="name">hr.retencion.renta.form</field>
+            <field name="model">hr.retencion.renta</field>
+            <field name="arch" type="xml">
+                <form>
+                    <sheet>
+                        <group>
+                            <field name="nombre"/>
+                            <field name="codigo"/>
+                        </group>
+                    </sheet>
+                </form>
+            </field>
+        </record>
+    </data>
+</odoo>

@@ -1,0 +1,9 @@
+@font-face {
+    font-family: 'Inter';
+    src: url('http://localhost:8069/rrhh_base/static/src/fonts/Inter.ttf') format('truetype');
+}
+
+@font-face {
+    font-family: 'sevillana';
+    src: url('http://localhost:8069/rrhh_base/static/src/fonts/Sevillana-Regular.ttf') format('truetype');
+}
