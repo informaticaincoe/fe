@@ -26,6 +26,8 @@
         "data/deduccion_ISSS_data.xml",
         "data/deduccion_afp_data.xml",
         "data/deduccion_ISR_data.xml",
+        "views/hr_payslip_form_inherit.xml",
+        "views/hr_payslip_report_inherit.xml",
     ],
     "installable": True,
     "auto_install": False,

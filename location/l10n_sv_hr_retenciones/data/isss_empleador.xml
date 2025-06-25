@@ -1,0 +1,29 @@
+<odoo noupdate="0">
+    <data noupdate="1">
+
+        <!-- Tipo de entrada para ISSS Patronal -->
+        <record id="input_type_deduccion_isss_patronal" model="hr.payslip.input.type">
+            <field name="name">ISSS Patronal</field>
+            <field name="code">ISSSPATR</field>
+        </record>
+
+        <!-- Regla salarial ISSS Patronal -->
+        <record id="isss_patronal_rule" model="hr.salary.rule">
+            <field name="name">ISSS Patronal</field>
+            <field name="code">ISSSPATR</field>
+            <field name="sequence">20</field>
+            <field name="category_id" ref="hr_payroll.COMP"/>
+            <field name="amount_select">input</field>
+            <field name="amount_python_compute">none</field>
+            <field name="appears_on_payslip" eval="False"/>
+            <field name="reporting_view" eval="False"/>
+            <field name="struct_id" ref="hr_payroll.structure_002"/>
+            <field name="condition_select">none</field>
+            <field name="input_type_id" ref="input_type_deduccion_isss_patronal"/>
+            <field name="amount_other_input_id" ref="input_type_deduccion_isss_patronal"/>
+            <field name="account_debit" search="[('code', '=', '630000')]"/>
+            <field name="account_credit" search="[('code', '=', '230200')]"/>
+        </record>
+
+    </data>
+</odoo>

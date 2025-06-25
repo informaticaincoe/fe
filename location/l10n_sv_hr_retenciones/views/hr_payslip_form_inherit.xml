@@ -1,0 +1,16 @@
+<odoo>
+    <data>
+
+        <record id="view_hr_payslip_form_inherit" model="ir.ui.view">
+            <field name="name">hr.payslip.form.inherit</field>
+            <field name="model">hr.payslip</field>
+            <field name="inherit_id" ref="hr_payroll.view_hr_payslip_form"/>
+            <field name="arch" type="xml">
+                <xpath expr="//field[@name='line_ids']" position="attributes">
+                    <attribute name="domain">[('salary_rule_id.appears_on_payslip','=',True)]</attribute>
+                </xpath>
+            </field>
+        </record>
+
+    </data>
+</odoo>

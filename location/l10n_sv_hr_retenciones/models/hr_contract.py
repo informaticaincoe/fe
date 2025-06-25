@@ -115,3 +115,37 @@ class HrContract(models.Model):
         # Si no se encuentra un tramo aplicable, se registra un mensaje de información y se retorna 0.0
         _logger.info("No se encontró tramo aplicable para la base imponible.")
         return 0.0
+
+    # Método para calcular el aporte patronal ISSS (empleador)
+    def calcular_aporte_patronal(self, tipo):
+        """
+        Calcula el aporte patronal (ISSS o AFP) según el salario y los techos definidos.
+        """
+        self.ensure_one()
+        salario = self.wage
+        _logger.info("Cálculo de aporte patronal para contrato ID %s. Tipo: %s. Salario base: %.2f", self.id, tipo,
+                     salario)
+
+        if tipo == 'isss':
+            tipo_isss = self.env['hr.retencion.isss'].search([('es_patron', '=', True)], limit=1)
+            if tipo_isss:
+                base = min(salario, tipo_isss.techo)
+                resultado = base * tipo_isss.porcentaje
+                _logger.info("ISSS Patronal: base=%.2f, porcentaje=%.2f%%, resultado=%.2f", base,
+                             tipo_isss.porcentaje * 100, resultado)
+                return resultado
+            _logger.warning("No se encontró configuración ISSS para empleador.")
+
+        elif tipo == 'afp':
+            tipo_afp = self.env['hr.retencion.afp'].search([('es_patron', '=', True)], limit=1)
+            if tipo_afp:
+                base = min(salario, tipo_afp.techo)
+                resultado = base * tipo_afp.porcentaje
+                _logger.info("AFP Patronal: base=%.2f, porcentaje=%.2f%%, resultado=%.2f", base,
+                             tipo_afp.porcentaje * 100, resultado)
+                return resultado
+            _logger.warning("No se encontró configuración AFP para empleador.")
+
+        _logger.warning("Tipo de aporte patronal desconocido o sin configuración.")
+        return 0.0
+
