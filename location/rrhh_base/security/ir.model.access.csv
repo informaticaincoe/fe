@@ -7,3 +7,5 @@ access_hr_retencion_afp_user,hr.retencion.afp.user,l10n_sv_hr_retenciones.model_
 access_hr_retencion_afp_manager,hr.retencion.afp.manager,l10n_sv_hr_retenciones.model_hr_retencion_afp,base.group_system,1,1,1,1
 access_hr_retencion_renta_user,hr.retencion.renta.user,l10n_sv_hr_retenciones.model_hr_retencion_renta,base.group_user,1,0,0,0
 access_hr_retencion_renta_manager,hr.retencion.renta.manager,l10n_sv_hr_retenciones.model_hr_retencion_renta,base.group_system,1,1,1,1
+access_hr_retencion_tramo_user,hr.retencion.tramo.user,l10n_sv_hr_retenciones.model_hr_retencion_tramo,base.group_user,1,0,0,0
+access_hr_retencion_tramo_manager,hr.retencion.tramo.manager,l10n_sv_hr_retenciones.model_hr_retencion_tramo,base.group_system,1,1,1,1

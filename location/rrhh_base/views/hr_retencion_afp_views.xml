@@ -23,6 +23,7 @@
                         <group>
                             <field name="tipo"/>
                             <field name="porcentaje"/>
+                            <field name="techo"/>
                         </group>
                     </sheet>
                 </form>

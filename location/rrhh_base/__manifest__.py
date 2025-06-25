@@ -18,6 +18,7 @@
         'views/hr_retencion_isss_views.xml',
         'views/hr_retencion_afp_views.xml',
         'views/hr_retencion_renta_views.xml',
+        'views/hr_retencion_renta_tramos_views.xml',
         'views/menu_rrhh_base.xml',
         "report/report.xml",
         "report/report_payslip_incoe.xml",
