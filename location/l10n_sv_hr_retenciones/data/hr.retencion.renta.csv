@@ -2,3 +2,5 @@ id,codigo,nombre
 ret_mensual,a,Remuneraciones gravadas pagaderas mensualmente
 ret_quincenal,b,Remuneraciones gravadas pagaderas quincenalmente
 ret_semanal,c,Remuneraciones gravadas pagaderas semanalmente
+ret_junio,d,Recalculo ISR mes de junio
+ret_diciembre,e,Recalculo ISR mes de diciembre

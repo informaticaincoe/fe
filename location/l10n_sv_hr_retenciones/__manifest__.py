@@ -23,6 +23,7 @@
         #"views/hr_retencion_view.xml",
         #"views/hr_retencion_tramo_view.xml",
 
+        "data/deduccion_ISSS_data.xml",
         "data/deduccion_afp_data.xml",
         "data/deduccion_ISR_data.xml",
     ],
@@ -30,4 +31,5 @@
     "auto_install": False,
     "summary": "Deducciones de Renta, ISSS y AFP para planilla",
     "description": "Gestiona deducciones automáticas de ISR, AFP e ISR según tramos.",
+    'post_init_hook': 'post_init_configuracion_reglas',
 }
