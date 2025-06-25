@@ -1,12 +1,12 @@
 <odoo noupdate="0">
     <data noupdate="1">
-        <!-- Tipo de entrada -->
+        <!-- Definición de un tipo de entrada para deducción AFP -->
         <record id="input_type_deduccion_afp" model="hr.payslip.input.type">
             <field name="name">Deducción AFP</field>
             <field name="code">AFP</field>
         </record>
 
-        <!-- Regla salarial -->
+        <!-- Definición de una regla salarial relacionada con la deducción AFP -->
         <record id="afp_regla_employee" model="hr.salary.rule">
             <field name="name">AFP (Empleado)</field>
             <field name="code">AFP</field>
