@@ -1,0 +1,38 @@
+<odoo>
+    <data>
+
+        <!-- Vista tipo lista -->
+        <record id="view_hr_salary_assignment_tree" model="ir.ui.view">
+            <field name="name">hr.salary.assignment.tree</field>
+            <field name="model">hr.salary.assignment</field>
+            <field name="arch" type="xml">
+                <list
+
+                >
+                    <field name="employee_id" widget="many2one_avatar_employee"/>
+                    <field name="tipo" widget="badge" class="tipo_badge"/>
+                    <field name="monto"/>
+                    <field name="periodo"/>
+                </list>
+            </field>
+        </record>
+
+        <!-- Vista tipo formulario -->
+        <record id="view_hr_salary_assignment_form" model="ir.ui.view">
+            <field name="name">hr.salary.assignment.form</field>
+            <field name="model">hr.salary.assignment</field>
+            <field name="arch" type="xml">
+                <form>
+                    <sheet>
+                        <group>
+                            <field name="employee_id" widget="many2one_avatar_employee"/>
+                            <field name="tipo"/>
+                            <field name="monto"/>
+                            <field name="periodo"/>
+                        </group>
+                    </sheet>
+                </form>
+            </field>
+        </record>
+    </data>
+</odoo>

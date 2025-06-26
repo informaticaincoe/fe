@@ -6,8 +6,9 @@
     'author': 'Intracoe',
     'depends': ['base', 'hr', 'hr_payroll'],
     'data': [
-        'security/ir.model.access.csv'
-        # 'views/hr_salary_assignment_views.xml',
+        'security/ir.model.access.csv',
+        'views/hr_salary_assignment_views.xml',
+        'views/hr_salary_assignment_menu.xml',
     ],
     'installable': True,
     'application': False,
