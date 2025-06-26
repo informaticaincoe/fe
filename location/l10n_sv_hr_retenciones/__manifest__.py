@@ -3,15 +3,13 @@
     "version": "1.0",
     "license": "LGPL-3",
     "author": "Intracoe",
-    "category": "Human Resources",
+    "category": "Human Resources - Deducciones",
     "depends": [
         "hr", "hr_payroll"
     ],
     "data": [
         "report/report.xml",
         "report/report_payslip_incoe.xml",
-        "data/deduccion_afp_data.xml",
-        "data/deduccion_isss_data.xml",
 
         "data/hr.retencion.isss.csv",
         "data/hr.retencion.afp.csv",
@@ -20,12 +18,12 @@
 
         "security/ir.model.access.csv",
 
-        #"views/hr_retencion_view.xml",
-        #"views/hr_retencion_tramo_view.xml",
-
+        "data/estructura_salarial_incoe.xml",
         "data/deduccion_ISSS_data.xml",
-        "data/deduccion_afp_data.xml",
+        "data/deduccion_AFP_data.xml",
         "data/deduccion_ISR_data.xml",
+
+        "views/hr_payslip_form_inherit.xml",
     ],
     "installable": True,
     "auto_install": False,

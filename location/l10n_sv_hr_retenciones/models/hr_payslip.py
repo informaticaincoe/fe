@@ -1,11 +1,66 @@
-from odoo import models, api, _
+from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 import logging
 
 _logger = logging.getLogger(__name__)
 
+
 class HrPayslip(models.Model):
     _inherit = 'hr.payslip'
+
+    # Filtrado líneas salariales (solo las reglas que aparecen en payslip)
+    line_ids_filtered = fields.One2many(
+        comodel_name='hr.payslip.line',
+        compute='_compute_line_ids_filtered',
+        string='Cálculo del salario (filtrado)',
+        store=False,
+    )
+
+    # Filtrado líneas de inputs según códigos de reglas visibles
+    input_line_ids_filtered = fields.One2many(
+        comodel_name='hr.payslip.input',
+        compute='_compute_input_line_ids_filtered',
+        string='Entradas filtradas',
+        store=False,
+    )
+
+    @api.depends('line_ids.salary_rule_id.appears_on_payslip')
+    def _compute_line_ids_filtered(self):
+        """
+        Computa las líneas de la nómina (`line_ids_filtered`) que deben mostrarse en el recibo de pago.
+
+        Este campo computado filtra las líneas de salario (`hr.payslip.line`) cuya regla salarial
+        asociada (`salary_rule_id`) tenga el campo `appears_on_payslip=True`.
+
+        Esto permite separar visualmente, por ejemplo, descuentos patronales u otras reglas técnicas
+        que no deben mostrarse al empleado en el recibo.
+        """
+        for rec in self:
+            rec.line_ids_filtered = rec.line_ids.filtered(
+                lambda l: l.salary_rule_id and l.salary_rule_id.appears_on_payslip
+            )
+
+    @api.depends('input_line_ids', 'line_ids.salary_rule_id.appears_on_payslip')
+    def _compute_input_line_ids_filtered(self):
+        """
+        Computa las entradas (inputs) filtradas (`input_line_ids_filtered`) que deben mostrarse.
+
+        Se basa en los códigos de las reglas salariales visibles (definidas por `appears_on_payslip=True`).
+        Solo los inputs (`hr.payslip.input`) cuyo código coincida con una regla visible serán incluidos.
+
+        Esto permite que, por ejemplo, los aportes del empleador (que no deben mostrarse) también
+        se filtren de la vista de otras entradas.
+        """
+        for rec in self:
+            # Obtiene los códigos de las líneas de nómina visibles
+            visible_codes = rec.line_ids.filtered(
+                lambda l: l.salary_rule_id and l.salary_rule_id.appears_on_payslip
+            ).mapped('code')
+
+            # Filtra las líneas de input que coinciden con esos códigos
+            rec.input_line_ids_filtered = rec.input_line_ids.filtered(
+                lambda i: i.code in visible_codes
+            )
 
     # Método sobrescrito para calcular la nómina (payslip) personalizada
     def compute_sheet(self):
@@ -17,7 +72,7 @@ class HrPayslip(models.Model):
             contract = payslip.contract_id  # Se obtiene el contrato asociado a la nómina
 
             # Eliminar entradas previas (inputs) para evitar duplicados en el cálculo
-            for code in ['RENTA', 'AFP', 'ISSS']:
+            for code in ['RENTA', 'AFP', 'ISSS', 'ISSS_EMP', 'AFP_EMP']:
                 # Filtra las líneas de input existentes con los códigos específicos
                 old_inputs = payslip.input_line_ids.filtered(lambda l: l.code == code)
                 if old_inputs:
@@ -31,10 +86,11 @@ class HrPayslip(models.Model):
                 renta = contract.calcular_deduccion_renta()
                 afp = contract.calcular_afp()
                 isss = contract.calcular_isss()
+                afp_patronal = contract.calcular_aporte_patronal('afp')
+                isss_patronal = contract.calcular_aporte_patronal('isss')
             except Exception as e:
-                # Log del error técnico para desarrolladores
                 _logger.error("Error al calcular deducciones para nómina %d: %s", payslip.id, e)
-                renta = afp = isss = 0.0
+                renta = afp = isss = afp_patronal = isss_patronal = 0.0
 
                 # Mostrar error al usuario en pantalla
                 raise UserError(
@@ -43,16 +99,26 @@ class HrPayslip(models.Model):
             # Busca los tipos de inputs en Odoo usando el código correspondiente (RENTA, AFP, ISSS)
             tipos = {
                 code: self.env['hr.payslip.input.type'].search([('code', '=', code)], limit=1)
-                for code in ['RENTA', 'AFP', 'ISSS']
+                for code in ['RENTA', 'AFP', 'ISSS', 'ISSS_EMP', 'AFP_EMP']
             }
+
+            _logger.info("Tipos de entradas: %s", tipos)
 
             # Si no se encuentra el tipo de input, lanzamos un error
             for code, tipo in tipos.items():
                 if not tipo:
-                    raise UserError(_("No se encontró el tipo de input para %s. Por favor, asegúrese de que los tipos de deducción estén configurados correctamente.", code))
+                    raise UserError(
+                        _("No se encontró el tipo de input para %s. Por favor, asegúrese de que los tipos de deducción estén configurados correctamente.",
+                          code))
 
             # Definir los valores a ser añadidos como inputs a la nómina (con signo negativo, ya que son deducciones)
-            valores = [('RENTA', -abs(renta)), ('AFP', -abs(afp)), ('ISSS', -abs(isss))]
+            valores = [
+                ('RENTA', -abs(renta)),
+                ('AFP', -abs(afp)),
+                ('ISSS', -abs(isss)),
+                ('ISSS_EMP', abs(isss_patronal)),
+                ('AFP_EMP', abs(afp_patronal)),
+            ]
             _logger.error("Valores: %s", valores)
 
             # Crear nuevas entradas para cada tipo de deducción
@@ -70,6 +136,7 @@ class HrPayslip(models.Model):
                     # Registra en el log la adición de un input para la nómina
                     _logger.info("Input %s agregado a nómina %d con monto %.2f", code, payslip.id, valor)
 
+        _logger.info("Inputs generados: %s", payslip.input_line_ids.mapped(lambda l: (l.code, l.amount)))
         # Llama al método original para completar el cálculo de la nómina
         res = super().compute_sheet()
         # Registra el fin del cálculo personalizado de la nómina

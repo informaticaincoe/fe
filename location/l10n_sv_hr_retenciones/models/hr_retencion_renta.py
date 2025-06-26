@@ -7,6 +7,7 @@ _logger = logging.getLogger(__name__)
 class HrRetencionRenta(models.Model):
     _name = 'hr.retencion.renta'
     _description = 'Retenciones'
+    _rec_name = 'nombre'
 
     codigo = fields.Char("Código", required=True)
     nombre = fields.Char("Tipo de retencion", required=True)

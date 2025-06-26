@@ -36,21 +36,61 @@ class HrSalaryRule(models.Model):
         """
         # Diccionario que mapea el código de la regla salarial con la clave de configuración correspondiente
         reglas = {
-            'AFP': 'cuenta_salarial_deducciones',
-            'ISSS': 'cuenta_salarial_deducciones',
-            'RENTA': 'cuenta_salarial_deducciones',
+            # Deducciones del empleado
+            'AFP': {
+                'cuenta_salarial_deducciones_credito': 'cuenta_salarial_deducciones',
+                'cuenta_salarial_deducciones_debito': 'cuenta_salarial_debito',
+            },
+            'ISSS': {
+                'cuenta_salarial_deducciones_credito': 'cuenta_salarial_deducciones',
+                'cuenta_salarial_deducciones_debito': 'cuenta_salarial_debito',
+            },
+            'RENTA': {
+                'cuenta_salarial_deducciones_credito': 'cuenta_salarial_deducciones',
+                'cuenta_salarial_deducciones_debito': 'cuenta_salarial_debito',
+            },
+            # Aportes patronales
+            'AFP_EMP': {
+                'cuenta_salarial_deducciones_credito': 'cuenta_empleador_credito',
+                'cuenta_salarial_deducciones_debito': 'cuenta_salarial_debito',
+            },
+            'ISSS_EMP': {
+                'cuenta_salarial_deducciones_credito': 'cuenta_empleador_credito',
+                'cuenta_salarial_deducciones_debito': 'cuenta_salarial_debito',
+            },
         }
 
         # Itera sobre cada código de regla y clave de configuración
-        for codigo_regla, clave_config in reglas.items():
+        for codigo_regla, claves_config in reglas.items():
             # Buscar la regla salarial por su código
             regla = self.env['hr.salary.rule'].search([('code', '=', codigo_regla)], limit=1)
 
             # Si la regla existe y no tiene configurada una cuenta contable de crédito, actualizarla
-            if regla and not regla.account_credit:
+            if regla:
                 # Obtener la cuenta contable utilizando la configuración asociada
-                cuenta = regla.obtener_cuenta_desde_codigo_config(clave_config)
+                cuenta_credito = regla.obtener_cuenta_desde_codigo_config(claves_config['cuenta_salarial_deducciones_credito'])
+                if cuenta_credito:
+                    regla.write({'account_credit': cuenta_credito.id})  # Actualiza la cuenta contable de crédito
 
-                # Si se encuentra la cuenta, se actualiza la regla con la cuenta encontrada
-                if cuenta:
-                    regla.write({'account_credit': cuenta.id})  # Actualiza la cuenta contable en la regla salarial
+                # Obtener la cuenta de débito utilizando la configuración asociada
+                cuenta_debito = regla.obtener_cuenta_desde_codigo_config(claves_config['cuenta_salarial_deducciones_debito'])
+                if cuenta_debito:
+                    regla.write({'account_debit': cuenta_debito.id})  # Actualiza la cuenta contable de débito
+
+    @api.model
+    def compute_rule_amount(self, rule, contract):
+        _logger.warning("⚠️ compute_rule_amount ejecutado para regla: %s", rule.code)
+        _logger.info("Cálculo de regla salarial '%s' para contrato ID %s", rule.code, contract.id)
+
+        if rule.code == 'ISSS_EMP':
+            resultado = contract.calcular_aporte_patronal('isss')
+            _logger.info("Resultado del cálculo ISSS_EMP: %.2f", resultado)
+            return resultado
+
+        elif rule.code == 'AFP_EMP':
+            resultado = contract.calcular_aporte_patronal('afp')
+            _logger.info("Resultado del cálculo AFP_EMP: %.2f", resultado)
+            return resultado
+
+        _logger.info("Regla sin cálculo personalizado. Retornando 0.0")
+        return 0.0

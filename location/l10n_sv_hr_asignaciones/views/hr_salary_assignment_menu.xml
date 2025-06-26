@@ -1,0 +1,25 @@
+<odoo>
+    <data>
+
+        <record id="action_payment_assignment" model="ir.actions.act_window">
+            <field name="name">Asignaciones Salariales</field>
+            <field name="res_model">hr.contract</field>
+            <field name="view_mode">list</field>
+        </record>
+
+        <record id="action_asignaciones" model="ir.actions.act_window">
+            <field name="name">Asignaciones Salariales</field>
+            <field name="res_model">hr.salary.assignment</field>
+            <field name="view_mode">list,form</field>
+        </record>
+
+        <menuitem
+                id="menu_isss"
+                name="Asignaciones salariales"
+                parent="hr_payroll.menu_hr_payroll_employees_root"
+                sequence="30"
+                action="action_asignaciones"
+                groups="hr_contract.group_hr_contract_employee_manager"
+        />
+    </data>
+</odoo>

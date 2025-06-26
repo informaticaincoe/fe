@@ -12,13 +12,33 @@
             <field name="code">AFP</field>
             <field name="sequence">5</field>
             <field name="category_id" ref="hr_payroll.DED"/>
-            <field name="struct_id" ref="hr_payroll.structure_002"/>
+            <field name="struct_id" ref="l10n_sv_hr_retenciones.structure_incoe"/>
             <field name="condition_select">none</field>
             <field name="amount_select">input</field>
             <field name="input_type_id" ref="input_type_deduccion_afp"/>
             <field name="amount_other_input_id" ref="input_type_deduccion_afp"/>
             <field name="appears_on_payslip" eval="True"/>
 <!--            <field name="account_credit" search="[('code', '=', '230100')]"/>-->
+        </record>
+
+        <!-- Tipo de entrada para AFP Empleador -->
+        <record id="input_type_afp_empleador" model="hr.payslip.input.type">
+            <field name="name">AFP Empleador</field>
+            <field name="code">AFP_EMP</field>
+        </record>
+
+        <!-- Regla salarial para AFP Empleador -->
+        <record id="afp_empleador_regla" model="hr.salary.rule">
+            <field name="name">AFP Empleador</field>
+            <field name="code">AFP_EMP</field>
+            <field name="sequence">20</field>
+            <field name="category_id" ref="hr_payroll.COMP"/>
+            <field name="amount_select">input</field>
+            <field name="struct_id" ref="l10n_sv_hr_retenciones.structure_incoe"/>
+            <field name="condition_select">none</field>
+            <field name="input_type_id" ref="input_type_afp_empleador"/>
+            <field name="amount_other_input_id" ref="input_type_afp_empleador"/>
+            <field name="appears_on_payslip" eval="False"/>
         </record>
     </data>
 </odoo>

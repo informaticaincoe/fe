@@ -7,6 +7,7 @@
             <field name="arch" type="xml">
                 <list>
                     <field name="tramo"/>
+                    <field name="retencion_id"/>
                     <field name="desde"/>
                     <field name="hasta"/>
                     <field name="porcentaje_excedente"/>
@@ -24,12 +25,13 @@
                 <form>
                     <sheet>
                         <group>
-                            <field name="tramo" />
-                            <field name="desde" />
-                            <field name="hasta" />
-                            <field name="porcentaje_excedente" />
-                            <field name="exceso_sobre" />
-                            <field name="cuota_fija" />
+                            <field name="tramo"/>
+                            <field name="retencion_id"/>
+                            <field name="desde"/>
+                            <field name="hasta"/>
+                            <field name="porcentaje_excedente"/>
+                            <field name="exceso_sobre"/>
+                            <field name="cuota_fija"/>
                         </group>
                     </sheet>
                 </form>
