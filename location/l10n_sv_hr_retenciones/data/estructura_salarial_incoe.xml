@@ -1,0 +1,17 @@
+<odoo>
+    <data noupdate="0">
+
+        <!-- Definición de un nuevo tipo de estructura salarial, se utilizara para las deducciones personalizadas(isss, afp y renta) -->
+        <record id="structure_type_incoe" model="hr.payroll.structure.type">
+            <field name="name">INCOE</field>
+        </record>
+
+        <!-- Creación de nueva estructura salarial(Incoe Pay) asociada al nuevo tipo de estructura salarial(INCOE) -->
+        <record id="structure_incoe" model="hr.payroll.structure">
+            <field name="name">Incoe Pay</field>
+            <field name="code">INCOE</field>
+            <field name="type_id" ref="l10n_sv_hr_retenciones.structure_type_incoe"/>
+        </record>
+
+    </data>
+</odoo>
