@@ -1,0 +1,39 @@
+<odoo>
+    <data>
+        <!-- Vista en lista -->
+        <record id="view_hr_retencion_renta_tramos_tree" model="ir.ui.view">
+            <field name="name">hr.retencion.renta.tramos.tree</field>
+            <field name="model">hr.retencion.tramo</field>
+            <field name="arch" type="xml">
+                <list>
+                    <field name="tramo"/>
+                    <field name="desde"/>
+                    <field name="hasta"/>
+                    <field name="porcentaje_excedente"/>
+                    <field name="exceso_sobre"/>
+                    <field name="cuota_fija"/>
+                </list>
+            </field>
+        </record>
+
+        <!-- Vista formulario -->
+        <record id="view_hr_retencion_renta_tramos_form" model="ir.ui.view">
+            <field name="name">hr.retencion.renta.tramos.form</field>
+            <field name="model">hr.retencion.tramo</field>
+            <field name="arch" type="xml">
+                <form>
+                    <sheet>
+                        <group>
+                            <field name="tramo" />
+                            <field name="desde" />
+                            <field name="hasta" />
+                            <field name="porcentaje_excedente" />
+                            <field name="exceso_sobre" />
+                            <field name="cuota_fija" />
+                        </group>
+                    </sheet>
+                </form>
+            </field>
+        </record>
+    </data>
+</odoo>

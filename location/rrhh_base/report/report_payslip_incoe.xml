@@ -1,0 +1,272 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <record id="hr_payslip_report" model="ir.actions.report">
+            <field name="name">Recibo INCOE</field>
+            <field name="model">hr.payslip</field>
+            <field name="report_type">qweb-pdf</field>
+            <field name="report_name">rrhh_base.report_boleta_pago_template</field>
+            <field name="print_report_name">'Recibo INCOE - Karen Arely Burgos'</field>
+            <field name="binding_model_id" ref="hr_payroll.model_hr_payslip"/>
+            <field name="binding_type">report</field>
+            <field name="paperformat_id" ref="rrhh_base.paperformat_payslip_recipe"/>
+        </record>
+        <template id="report_boleta_pago_template">
+            <t t-name="rrhh_base.report_boleta_pago_template">
+                <t t-call="web.html_container">
+                    <t t-call-assets="web.assets_pdf" t-js="false"/>
+
+                    <div class="page" style="display: relative;">
+                        <style>
+                            @font-face {
+                            font-family: 'Inter';
+                            src: url('http://localhost:8069/rrhh_base/static/src/fonts/Inter.ttf') format('truetype');
+                            }
+
+                            body {
+                            font-family: 'Inter', sans-serif !important;
+                            font-size: 11px;
+                            margin: 0;
+                            padding: 0;
+                            }
+                            h1 {
+                            font-size: 18px;
+                            font-weight: bold;
+                            }
+                            h2 {
+                            font-size: 13px;
+                            font-weight: bold;
+                            margin: 5px 0;
+                            }
+                            table {
+                            width: 100%;
+                            border-collapse: collapse;
+                            }
+                            th, td {
+                            padding: 1% 2%;
+                            border: 1px solid #ccc;
+                            text-align: left;
+                            }
+                            .py-1{
+                            padding: 2% 2%;
+                            }
+                            .no-border {
+                            border: none !important;
+                            }
+                            .header-table td {
+                            vertical-align: top;
+                            }
+                            .label {
+                            font-weight: bold;
+                            }
+                            .highlight {
+                            background-color: #EAEDFF;
+                            font-weight: bold;
+                            font-size: 0.8rem;
+                            padding: 4% 2%;
+                            }
+                            .footer {
+                            background-color: #FFF2E4;
+                            font-weight: bold;
+                            }
+                            .section-title {
+                            font-weight: bold;
+                            font-size: 14px;
+                            margin-top: 10px;
+                            margin-bottom: 5px;
+                            }
+                            .border-clean {
+                            border-left-color: transparent;
+                            border-right-color: transparent;
+                            }
+
+                        </style>
+                        <!-- Encabezado -->
+                        <div style="position: absolute; top: 30%; left: 15%; z-index: -1; opacity: 0.1;">
+                            <img src="/rrhh_base/static/src/img/watermark_incoe.jpg" style="width: 80%;"/>
+                        </div>
+
+                        <table class="header-table" style="margin-bottom: 5%;">
+                            <tr>
+                                <td style="width: 30%; background-color: #232C6E; text-align: center;">
+                                    <img src="/rrhh_base/static/src/img/incoe-boletas-pago-icono.png"
+                                         style="width: 80%; margin-top: 13%;"/>
+                                </td>
+                                <td style="width: 30%; border-color: #fff;"/>
+                                <td style="width: 40%; border-color: #fff; text-align:start; padding-top: 4%;">
+                                    <h1 style="font-weight: bolder; font-size: 1.5rem; margin:0;">RECIBO DE SALARIO</h1>
+                                    <div>
+                                        <p style="margin: 0;">
+                                            <span class="label">Empleado:</span>
+
+
+                                        </p>
+                                        <p style="margin: 0;">
+                                            <span class="label">Periodo:</span>
+                                            01/06/25 - 15/06/25
+
+                                        </p>
+                                    </div>
+                                </td>
+                            </tr>
+                        </table>
+                        <!-- Sueldo base y días -->
+                        <table style="margin-bottom: 3%; table-layout: auto; width: 100%;">
+                            <tr style="background-color: #F1F1F1;">
+                                <td class="label border-clean" style="nowrap; width: 15%;">Sueldo base</td>
+                                <td class="labelborder-clean" style="text-align: start; width: 30%;">$000.00</td>
+                                <td class="label border-clean" style="width: 20%;">Días laborados</td>
+                                <td class="label border-clean" style="width: 35%;">0</td>
+                            </tr>
+                        </table>
+                        <!-- Ingresos y descuentos -->
+                        <table style="margin-bottom: 3%;">
+                            <tr>
+                                <td style="width: 45%; vertical-align: top; border-color: transparent;">
+                                    <h2 stle="font-size: 1rem">Ingresos</h2>
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th class="border-clean border-bold py-1"
+                                                    style="border-top-color: #000; border-bottom-color: #000; font-weight: bold; font-size: 0.9rem;">
+                                                    Concepto
+                                                </th>
+                                                <th class="border-clean border-bold py-1"
+                                                    style="border-top-color: #000; border-bottom-color: #000; font-weight: bold; font-size: 0.9rem">
+                                                    Monto
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td class="border-clean py-1">Horas Extra Diurnas</td>
+                                                <td class="border-clean py-1">0</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="border-clean py-1">Horas Extra Nocturnas</td>
+                                                <td class="border-clean py-1">0</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="border-clean py-1">Horas Feriado Diurno</td>
+                                                <td class="border-clean py-1">0</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="border-clean py-1">Horas Feriado Nocturno</td>
+                                                <td class="border-clean py-1">0</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="border-clean py-1">Salario a pagar</td>
+                                                <td class="border-clean py-1">0</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="border-clean py-1">Viáticos ordinarios</td>
+                                                <td class="border-clean py-1">0</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="border-clean py-1">Comisiones</td>
+                                                <td class="border-clean py-1">0</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="border-clean py-1" style="border-bottom-color: #475294;">-
+                                                </td>
+                                                <td class="border-clean py-1" style="border-bottom-color: #475294;">-
+                                                </td>
+                                            </tr>
+                                            <tr class="highlight">
+                                                <td class="border-clean"
+                                                    style="border-top-color: #475294; border-bottom-color: #475294;">
+                                                    Total Ingresos
+                                                </td>
+                                                <td class="border-clean"
+                                                    style="border-top-color: #475294; border-bottom-color: #475294;">$
+                                                    000.00
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </td>
+                                <td style="width: 5%; border-color: transparent;"/>
+                                <td style="width: 45%; vertical-align: top; border-color: #fff;">
+                                    <h2 stle="font-size: 1rem">Descuentos</h2>
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th class="border-clean py-1"
+                                                    style="border-top-color: #000; border-bottom-color: #000; font-weight: bold; font-size: 0.9rem;">
+                                                    Concepto
+                                                </th>
+                                                <th class="border-clean py-1"
+                                                    style="border-top-color: #000; border-bottom-color: #000; font-weight: bold; font-size: 0.9rem;">
+                                                    Monto
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td class="border-clean py-1">ISSS</td>
+                                                <td class="border-clean py-1">$000.00</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="border-clean py-1">Fondo de pensiones</td>
+                                                <td class="border-clean py-1">0</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="border-clean py-1">Renta</td>
+                                                <td class="border-clean py-1">0</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="border-clean py-1">Otros</td>
+                                                <td class="border-clean py-1">0</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="border-clean py-1">Bancos</td>
+                                                <td class="border-clean py-1">0</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="border-clean py-1">Venta a empleados</td>
+                                                <td class="border-clean py-1">0</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="border-clean py-1">Préstamos</td>
+                                                <td class="border-clean py-1">0</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="border-clean py-1" style="border-bottom-color: #475294;">
+                                                    FSV
+                                                </td>
+                                                <td class="border-clean py-1" style="border-bottom-color: #475294;">0
+                                                </td>
+                                            </tr>
+                                            <tr class="highlight">
+                                                <td class="border-clean"
+                                                    style="border-top-color: #475294; border-bottom-color: #475294; ">
+                                                    Total Descuentos
+                                                </td>
+                                                <td class="border-clean"
+                                                    style="border-top-color: #475294; border-bottom-color: #475294;">$
+                                                    000.00
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </td>
+                            </tr>
+                        </table>
+                        <!-- Sueldo líquido -->
+                        <h2>Sueldo líquido</h2>
+                        <table>
+                            <tr class="footer">
+                                <td class="border-clean"
+                                    style="border-top-color: #D1AA7F; border-bottom-color: #D1AA7F;">Sueldo a pagar
+                                </td>
+                                <td class="border-clean"
+                                    style="border-top-color: #D1AA7F; border-bottom-color: #D1AA7F;">$ 000.00
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                </t>
+            </t>
+        </template>
+    </data>
+</odoo>
