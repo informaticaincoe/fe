@@ -8,20 +8,12 @@
         "hr", "hr_payroll"
     ],
     "data": [
-        # "report/report.xml",
-        # "report/report_payslip_incoe.xml",
-        "data/deduccion_afp_data.xml",
-        "data/deduccion_isss_data.xml",
-
         "data/hr.retencion.isss.csv",
         "data/hr.retencion.afp.csv",
         "data/hr.retencion.renta.csv",
         "data/hr.retencion.tramo.csv",
 
         "security/ir.model.access.csv",
-
-        #"views/hr_retencion_view.xml",
-        #"views/hr_retencion_tramo_view.xml",
 
         "data/deduccion_ISSS_data.xml",
         "data/deduccion_afp_data.xml",
