@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <!-- Vista heredada del formulario de la nómina para mostrar solo líneas filtradas -->
+    <record id="view_hr_payslip_form_filtered_lines" model="ir.ui.view">
+        <field name="name">hr.payslip.form.filtered.lines</field>
+        <field name="model">hr.payslip</field>
+        <field name="inherit_id" ref="hr_payroll.view_hr_payslip_form"/>
+        <field name="arch" type="xml">
+
+        <!-- ============================
+                 REEMPLAZAR LÍNEAS DE SALARIO
+                 ============================ -->
+            <!-- Se reemplaza el campo 'line_ids' para usar el campo computado 'line_ids_filtered',
+                 que muestra solo las líneas que deben aparecer en el recibo del empleado
+                 (es decir, aquellas con appears_on_payslip=True en la regla salarial). -->
+        <xpath expr="//field[@name='line_ids']" position="replace">
+            <field name="line_ids_filtered" readonly="1" widget="one2many_list" options="{'no_create': True}">
+                <list>
+                    <field name="name"/>
+                    <field name="category_id"/>
+                    <field name="quantity"/>
+                    <field name="rate"/>
+                    <field name="amount"/>
+                    <field name="total"/>
+                </list>
+            </field>
+        </xpath>
+
+        <!-- ==================================
+                 REEMPLAZAR OTRAS ENTRADAS (INPUTS)
+                 ================================== -->
+            <!-- Se reemplaza el campo 'input_line_ids' para usar el campo computado 'input_line_ids_filtered',
+                 que filtra las entradas visibles al empleado (por código, en base a las líneas filtradas). -->
+        <xpath expr="//field[@name='input_line_ids']" position="replace">
+            <field name="input_line_ids_filtered" readonly="1" widget="one2many_list" options="{'no_create': True}">
+                <list>
+                <field name="name"/>
+                <field name="code"/>
+                <field name="amount"/>
+                </list>
+            </field>
+        </xpath>
+        </field>
+    </record>
+</odoo>
