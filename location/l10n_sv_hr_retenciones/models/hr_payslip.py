@@ -1,6 +1,7 @@
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 import logging
+from odoo.tools import float_round
 
 _logger = logging.getLogger(__name__)
 
@@ -129,7 +130,7 @@ class HrPayslip(models.Model):
                     payslip.input_line_ids.create({
                         'name': tipo.name,  # Nombre del tipo de deducción
                         'code': code,       # Código de la deducción (RENTA, AFP, ISSS)
-                        'amount': valor,     # Monto de la deducción (valor negativo)
+                        'amount': float_round(valor, precision_digits=2),     # Monto de la deducción (valor negativo)
                         'payslip_id': payslip.id,  # ID de la nómina
                         'input_type_id': tipo.id,  # ID del tipo de input en el sistema
                     })

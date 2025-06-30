@@ -1,0 +1,14 @@
+<odoo>
+<!--  <record id="input_type_comision" model="hr.payslip.input.type">-->
+<!--    <field name="name">Comisión</field>-->
+<!--    <field name="code">COMISION</field>-->
+<!--  </record>-->
+<!--  <record id="input_type_viaticos" model="hr.payslip.input.type">-->
+<!--    <field name="name">Viáticos</field>-->
+<!--    <field name="code">VIATICOS</field>-->
+<!--  </record>-->
+<!--  <record id="input_type_bono" model="hr.payslip.input.type">-->
+<!--    <field name="name">Bono</field>-->
+<!--    <field name="code">BONO</field>-->
+<!--  </record>-->
+</odoo>
