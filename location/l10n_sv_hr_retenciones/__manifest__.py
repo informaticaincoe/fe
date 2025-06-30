@@ -20,6 +20,11 @@
         "data/deduccion_ISSS_data.xml",
         "data/deduccion_AFP_data.xml",
         "data/deduccion_ISR_data.xml",
+        "data/deduccion_FSV_data.xml",
+        "data/deduccion_fondo_pensiones_data.xml",
+        "data/deduccion_venta_empleados.xml",
+        "data/deduccion_prestamos.xml",
+        "data/deduccion_otras.xml",
 
         "views/hr_payslip_form_inherit.xml",
     ],
