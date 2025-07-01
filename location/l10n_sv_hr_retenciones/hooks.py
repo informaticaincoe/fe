@@ -22,4 +22,4 @@ def post_init_configuracion_reglas(env):
     ejecute automáticamente una vez que el módulo es instalado o actualizado.
 
     """
-    env['hr.salary.rule'].sudo().actualizar_cuentas_reglas()
+    env['hr.salary.rule'].sudo().actualizar_cuentas_reglas_generico()

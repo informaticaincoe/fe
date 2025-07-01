@@ -9,6 +9,30 @@ import logging
 from odoo import models
 _logger = logging.getLogger(__name__)
 
+def post_init_configuracion_reglas(env):
+    """
+    Hook que se ejecuta automáticamente después de instalar o actualizar el módulo.
+
+    Esta función crea un entorno Odoo con permisos de superusuario y llama al método
+    'actualizar_cuentas_reglas' del modelo 'hr.salary.rule', que se encarga de asignar
+    las cuentas contables configuradas en 'res.configuration' a las reglas salariales
+    (Comnisiones, Horas extras, Viaticos) sólo si estas no tienen ya una cuenta asignada.
+
+    Parámetros:
+    -----------
+    cr : psycopg2.extensions.cursor
+        Cursor de base de datos para ejecutar consultas SQL.
+    registry : odoo.registry.Registry
+        Registro de modelos de Odoo.
+
+    Uso:
+    ----
+    Se define como post_init_hook en el archivo __manifest__.py del módulo, para que se
+    ejecute automáticamente una vez que el módulo es instalado o actualizado.
+
+    """
+    env['hr.salary.rule'].sudo().actualizar_cuentas_asignaciones()
+
 # def crear_asistencias_faltantes(env):
 #     _logger.warning("🔧 [HOOK] Se ejecutó crear_asistencias_faltantes")
 #     _logger.info("Inicio creación de asistencias faltantes.")

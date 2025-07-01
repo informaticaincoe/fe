@@ -1,6 +1,16 @@
 from odoo import models, fields, api
 from datetime import datetime, timedelta
 from odoo.exceptions import UserError
+import logging
+
+_logger = logging.getLogger(__name__)
+
+try:
+    from odoo.addons.common_utils.utils import constants
+    _logger.info("SIT Modulo config_utils [Asignaciones[]")
+except ImportError as e:
+    _logger.error(f"Error al importar 'config_utils': {e}")
+    config_utils = None
 
 class HrSalaryAssignment(models.Model):
     _name = 'hr.salary.assignment'
@@ -9,12 +19,13 @@ class HrSalaryAssignment(models.Model):
     employee_id = fields.Many2one('hr.employee', string='Empleado')
     tipo = fields.Selection([
         ('hora_extra', 'Hora extra'),
-        ('comision', 'Comisión'),
-        ('viaticos', 'Viáticos'),
-        ('bono', 'Bono'),
+        ('COMISION', 'Comisión'),
+        ('VIATICO', 'Viáticos'),
+        ('BONO', 'Bono'),
     ], string='Tipo')
     monto = fields.Float("Monto", required=False)
     periodo = fields.Date("Periodo", required=True)
+    description = fields.Text(string="Descripción", help="Descripción")
     payslip_id = fields.Many2one('hr.payslip', string='Histórico (Boleta)', help="Si se desea vincular con un recibo de pago.")
 
     horas_diurnas = fields.Float("Horas extras diurnas", invisible=False)
