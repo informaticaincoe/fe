@@ -1,5 +1,6 @@
 from odoo import models, fields, api
 
+
 class HrSalaryRule(models.Model):
     _inherit = 'hr.salary.rule'
 
@@ -57,6 +58,27 @@ class HrSalaryRule(models.Model):
             'ISSS_EMP': {
                 'cuenta_salarial_deducciones_credito': 'cuenta_empleador_credito',
                 'cuenta_salarial_deducciones_debito': 'cuenta_salarial_debito',
+
+            },
+            'FSV': {
+                'cuenta_salarial_deducciones_credito': 'cuenta_salarial_deducciones',
+                'cuenta_salarial_deducciones_debito': 'cuenta_salarial_debito',
+            },
+            'FONDO_PENSIONES': {
+                'cuenta_salarial_deducciones_credito': 'cuenta_salarial_deducciones',
+                'cuenta_salarial_deducciones_debito': 'cuenta_salarial_debito',
+            },
+            'PRESTAMOS': {
+                'cuenta_salarial_deducciones_credito': 'cuenta_salarial_deducciones',
+                'cuenta_salarial_deducciones_debito': 'cuenta_salarial_debito',
+            },
+            'VENTA_EMPLEADOS': {
+                'cuenta_salarial_deducciones_credito': 'cuenta_salarial_deducciones',
+                'cuenta_salarial_deducciones_debito': 'cuenta_salarial_debito',
+            },
+            'OTROS': {
+                'cuenta_salarial_deducciones_credito': 'cuenta_salarial_deducciones',
+                'cuenta_salarial_deducciones_debito': 'cuenta_salarial_debito',
             },
         }
 
@@ -68,12 +90,14 @@ class HrSalaryRule(models.Model):
             # Si la regla existe y no tiene configurada una cuenta contable de crédito, actualizarla
             if regla:
                 # Obtener la cuenta contable utilizando la configuración asociada
-                cuenta_credito = regla.obtener_cuenta_desde_codigo_config(claves_config['cuenta_salarial_deducciones_credito'])
+                cuenta_credito = regla.obtener_cuenta_desde_codigo_config(
+                    claves_config['cuenta_salarial_deducciones_credito'])
                 if cuenta_credito:
                     regla.write({'account_credit': cuenta_credito.id})  # Actualiza la cuenta contable de crédito
 
                 # Obtener la cuenta de débito utilizando la configuración asociada
-                cuenta_debito = regla.obtener_cuenta_desde_codigo_config(claves_config['cuenta_salarial_deducciones_debito'])
+                cuenta_debito = regla.obtener_cuenta_desde_codigo_config(
+                    claves_config['cuenta_salarial_deducciones_debito'])
                 if cuenta_debito:
                     regla.write({'account_debit': cuenta_debito.id})  # Actualiza la cuenta contable de débito
 

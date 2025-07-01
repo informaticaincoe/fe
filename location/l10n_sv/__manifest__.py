@@ -83,6 +83,8 @@
         'data/account.move.tipo_operacion.field.csv',
         'data/account.move.regimen.field.csv',
 
+        'views/anexos_report_views.xml'
+
     ],
     'demo': [
         # 'demo.xml',
