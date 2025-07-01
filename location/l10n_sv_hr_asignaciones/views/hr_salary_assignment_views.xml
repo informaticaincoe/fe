@@ -24,21 +24,24 @@
                 <form>
                     <sheet>
                         <group>
-                            <field name="employee_id" widget="many2one_avatar_employee"/>
-                            <field name="tipo"/>
-                            <field name="monto"/>
-                            <field name="periodo"/>
-                            <field name="payslip_id" readonly="1"/>
+                            <group>
+                                <field name="employee_id" widget="many2one_avatar_employee"/>
+                                <field name="tipo"/>
+                            </group>
+                            <group>
+                                <field name="monto"/>
+                                <field name="periodo"/>
+                            </group>
+                        </group>
+                        <group string="Detalle de horas extras" col="2" invisible="tipo != 'hora_extra'">
+                            <field name="horas_diurnas"/>
+                            <field name="horas_nocturnas"/>
+                            <field name="horas_diurnas_descanso"/>
+                            <field name="horas_nocturnas_descanso"/>
+                            <field name="horas_diurnas_asueto"/>
+                            <field name="horas_nocturnas_asueto"/>
                         </group>
                     </sheet>
-
-                    <footer>
-                        <button name="action_liberar_asignacion"
-                                string="Liberar asignación"
-                                type="object"
-                                class="btn-secondary"/>
-                        <button string="Cerrar" class="btn-secondary" special="cancel"/>
-                    </footer>
                 </form>
             </field>
         </record>
