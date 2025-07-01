@@ -1,0 +1,9 @@
+<odoo>
+  <data noupdate="1">
+    <record id="work300" model="hr.work.entry.type">
+      <field name="id" eval="45"/>
+      <field name="name">Extra Hours</field>
+      <field name="code">WORK300</field>
+    </record>
+  </data>
+</odoo>

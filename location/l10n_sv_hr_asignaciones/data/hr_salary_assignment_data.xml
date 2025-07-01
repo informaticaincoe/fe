@@ -1,0 +1,24 @@
+<odoo>
+    <data noupdate="0">
+        <!-- Tipos de entrada personalizados para asignaciones -->
+<!--        <record id="input_type_extra_hours" model="hr.payslip.input.type">-->
+<!--            <field name="name">Horas Extra</field>-->
+<!--            <field name="code">EXTRA</field>-->
+<!--        </record>-->
+
+        <record id="input_type_bonus" model="hr.payslip.input.type">
+            <field name="name">Bono</field>
+            <field name="code">BONO</field>
+        </record>
+
+        <record id="input_type_viaticos" model="hr.payslip.input.type">
+            <field name="name">Viáticos</field>
+            <field name="code">VIATICO</field>
+        </record>
+
+        <record id="input_type_comision" model="hr.payslip.input.type">
+            <field name="name">Comisión</field>
+            <field name="code">COMISION</field>
+        </record>
+    </data>
+</odoo>
