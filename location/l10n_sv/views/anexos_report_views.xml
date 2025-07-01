@@ -1,0 +1,17 @@
+<odoo>
+    <data>
+        <record id="view_anexos_tree" model="ir.ui.view">
+            <field name="name">account.move.anexo.simple.tree</field>
+            <field name="model">account.move</field>
+            <field name="arch" type="xml">
+                <list string="Anexos Consumidor Final" create="false" edit="false" delete="false">
+                    <field name="invoice_date" string="Fecha de emisión"/>
+                    <field name="name" string=""/>
+                    <field name="amount_total"/>
+                    <field name="codigo_tipo_documento"/>
+                    <field name="codigo_tipo_documento"/>
+                </list>
+            </field>
+        </record>
+    </data>
+</odoo>
