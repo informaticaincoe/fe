@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!-- Tipo de entrada para Horas Extra -->
+        <record id="input_type_overtime" model="hr.payslip.input.type">
+            <field name="name">Horas Extra</field>
+            <field name="code">OVERTIME</field>
+        </record>
+
+        <!-- Categoría para Horas Extra -->
+        <record id="salary_rule_category_overtime" model="hr.salary.rule.category">
+            <field name="name">Horas Extra</field>
+            <field name="code">OVERTIME</field>
+            <!-- Esto indica que es categoría que se suma al sueldo imponible -->
+            <field name="parent_id" ref="hr_payroll.BASIC"/>
+        </record>
+
+         <!-- Regla salarial para Horas Extra (usa input) -->
+        <record id="salary_rule_overtime" model="hr.salary.rule">
+            <field name="name">Horas Extra</field>
+            <field name="code">OVERTIME</field>
+            <field name="sequence">10</field>
+            <field name="category_id" ref="l10n_sv_hr_asignaciones.salary_rule_category_overtime"/>
+            <field name="amount_select">input</field>
+            <field name="appears_on_payslip" eval="True"/>
+            <field name="struct_id" ref="l10n_sv_hr_retenciones.structure_incoe"/>
+            <field name="condition_select">none</field>
+            <field name="input_type_id" ref="l10n_sv_hr_asignaciones.input_type_overtime"/>
+            <field name="amount_other_input_id" ref="l10n_sv_hr_asignaciones.input_type_overtime"/>
+        </record>
+
+    </data>
+</odoo>

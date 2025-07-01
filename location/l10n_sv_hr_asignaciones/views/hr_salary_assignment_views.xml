@@ -6,13 +6,12 @@
             <field name="name">hr.salary.assignment.tree</field>
             <field name="model">hr.salary.assignment</field>
             <field name="arch" type="xml">
-                <list
-
-                >
+                <list>
                     <field name="employee_id" widget="many2one_avatar_employee"/>
                     <field name="tipo" widget="badge" class="tipo_badge"/>
                     <field name="monto"/>
                     <field name="periodo"/>
+                    <field name="payslip_id"/>
                 </list>
             </field>
         </record>
@@ -29,8 +28,17 @@
                             <field name="tipo"/>
                             <field name="monto"/>
                             <field name="periodo"/>
+                            <field name="payslip_id" readonly="1"/>
                         </group>
                     </sheet>
+
+                    <footer>
+                        <button name="action_liberar_asignacion"
+                                string="Liberar asignación"
+                                type="object"
+                                class="btn-secondary"/>
+                        <button string="Cerrar" class="btn-secondary" special="cancel"/>
+                    </footer>
                 </form>
             </field>
         </record>
