@@ -1,58 +1,36 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data>
-        <!-- Acción: Ventas a Consumidor Final (DTE 01) -->
-        <record id="view_anexo_move_list" model="ir.ui.view">
-            <field name="name">account.move.anexos.list</field>
-            <field name="model">account.move</field>
-            <field name="priority">1</field>
-            <field name="arch" type="xml">
-                <tree string="Facturas" create="false" edit="false" delete="false">
-                    <field name="name"/>
-                    <field name="invoice_date"/>
-                    <field name="state"/>
-                    <field name="codigo_tipo_documento"/>
-                    <field name="amount_total"/>
-                    <button name="action_download_anexo"
-                            type="object"
-                            string="Descargar"
-                            class="btn-primary"
-                            icon="fa-download"/>
-                </tree>
-            </field>
-        </record>
-
-        <!-- Acción: Ventas a Contribuyentes -->
-        <record id="action_anexo_cons_final" model="ir.actions.act_window">
-            <field name="name">Ventas a Consumidor Final</field>
+        <record id="action_anexos" model="ir.actions.act_window">
+            <field name="name">Anexos</field>
             <field name="res_model">account.move</field>
             <field name="view_mode">list</field>
-            <field name="domain">[('codigo_tipo_documento','=','01'), ('move_type','=','out_invoice')]</field>
-            <field name="context">{}</field>
-            <field name="view_id" ref="view_anexo_move_list"/>
         </record>
 
-        <!-- Acción: Compras -->
-<!--        <record id="action_anexo_compras" model="ir.actions.act_window">-->
-<!--            <field name="name">Compras</field>-->
-<!--            <field name="res_model">account.move</field>-->
-<!--            <field name="view_mode">tree,form</field>-->
-<!--            <field name="domain">[('move_type','=','in_invoice')]</field>-->
-<!--            <field name="context">{}</field>-->
-<!--        </record>-->
+        <!-- Acción para mostrar tabla de retencion ISSS -->
+        <record id="anexo_fcf" model="ir.actions.act_window">
+            <field name="name">Anexo consumidor final</field>
+            <field name="res_model">account.move</field>
+            <field name="view_mode">list</field>
+            <field name="view_id" ref="view_anexos_tree"/>
+            <field name="domain">[('codigo_tipo_documento','=','01')]</field>
+        </record>
 
-        <!-- Menú principal -->
-        <menuitem id="menu_anexos_report_tabs"
-                  name="Anexos Tributarios"
-                  parent="account.menu_finance_reports"
-                  sequence="1"/>
-
-        <!-- Submenús -->
-        <menuitem id="menu_anexo_ventas_cf"
-                  name="Ventas a Consumidor Final"
-                  parent="menu_anexos_report_tabs"
-                  action="action_anexo_cons_final"
-                  sequence="1"/>
+        <menuitem
+                id="menu_anexos_hacienda"
+                name="Anexos"
+                parent="account.menu_finance_reports"
+                sequence="110"
+                groups="account.group_account_user,account.group_account_manager"
+        />
+        <menuitem
+                id="menu_anexos_hacienda_fcf"
+                name="anexos fcf"
+                parent="menu_anexos_hacienda"
+                sequence="110"
+                action="anexo_fcf"
+                groups="account.group_account_user,account.group_account_manager"
+        />
 
     </data>
 </odoo>
