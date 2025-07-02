@@ -1,13 +1,20 @@
-from odoo import models, fields
+from odoo import models, fields, api, SUPERUSER_ID
 
-class ResourceCalendarAttendance(models.Model):
-    _inherit = 'resource.calendar.attendance'
-
-    # vigente = fields.Boolean(string="Vigente", default=True)
+import base64
+import os
 
 import logging
 from odoo import models
 _logger = logging.getLogger(__name__)
+
+from odoo import api, SUPERUSER_ID
+
+def ejecutar_hooks_post_init(env):
+    from .hooks import post_init_configuracion_reglas, cargar_archivo_excel
+
+    post_init_configuracion_reglas(env)
+    cargar_archivo_excel(env)
+
 
 def post_init_configuracion_reglas(env):
     """
@@ -32,6 +39,30 @@ def post_init_configuracion_reglas(env):
 
     """
     env['hr.salary.rule'].sudo().actualizar_cuentas_asignaciones()
+
+def cargar_archivo_excel(env):
+    # __file__ es el archivo actual (hooks.py), que está en:
+    # .../l10n_sv_hr_asignaciones/hooks.py
+    # Queremos llegar a:
+    # .../l10n_sv_hr_asignaciones/static/src/plantilla/plantilla_horas_extra.xlsx
+
+    ruta_archivo = os.path.join(os.path.dirname(__file__), 'static', 'src', 'plantilla', 'plantilla_horas_extra.xlsx')
+    ruta_absoluta = os.path.abspath(ruta_archivo)
+
+    if not os.path.exists(ruta_absoluta):
+        raise FileNotFoundError(f"No se encontró el archivo: {ruta_absoluta}")
+
+    with open(ruta_absoluta, 'rb') as f:
+        contenido = base64.b64encode(f.read()).decode('utf-8')
+
+    env['ir.attachment'].create({
+        'name': 'Plantilla de Horas extras',
+        'datas': contenido,
+        'mimetype': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'public': True,
+    })
+
+    _logger.info("✅ Archivo Excel de plantilla de horas extra creado en ir.attachment.")
 
 # def crear_asistencias_faltantes(env):
 #     _logger.warning("🔧 [HOOK] Se ejecutó crear_asistencias_faltantes")

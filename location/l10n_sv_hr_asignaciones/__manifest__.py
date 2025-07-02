@@ -14,10 +14,11 @@
 
         'views/hr_salary_assignment_views.xml',
         'views/hr_salary_assignment_menu.xml',
+        'views/hr_salary_assignment_views_inherit.xml',
     ],
     'installable': True,
     'application': False,
-    'post_init_hook': 'post_init_configuracion_reglas',
+    'post_init_hook': 'ejecutar_hooks_post_init',
     #'post_init_hook': 'crear_asistencias_faltantes', #se ejecuta solo al instalar el módulo.
     #'post_load': 'crear_asistencias_faltantes', #se ejecuta solo al actualizar el módulo.
 }

@@ -1,6 +1,7 @@
 from . import models
 #from .hooks import crear_asistencias_faltantes
-from .hooks import post_init_configuracion_reglas
+#from .hooks import post_init_configuracion_reglas
+from .hooks import ejecutar_hooks_post_init
 
 import logging
 _logger = logging.getLogger(__name__)
