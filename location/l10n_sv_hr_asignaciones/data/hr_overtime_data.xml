@@ -20,7 +20,7 @@
         <record id="salary_rule_overtime" model="hr.salary.rule">
             <field name="name">Horas Extra</field>
             <field name="code">OVERTIME</field>
-            <field name="sequence">10</field>
+            <field name="sequence">3</field>
             <field name="category_id" ref="l10n_sv_hr_asignaciones.salary_rule_category_overtime"/>
             <field name="amount_select">input</field>
             <field name="appears_on_payslip" eval="True"/>
