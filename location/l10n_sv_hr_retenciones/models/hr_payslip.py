@@ -73,7 +73,7 @@ class HrPayslip(models.Model):
             contract = payslip.contract_id  # Se obtiene el contrato asociado a la nómina
 
             # Eliminar entradas previas (inputs) para evitar duplicados en el cálculo
-            for code in ['RENTA', 'AFP', 'ISSS', 'ISSS_EMP', 'AFP_EMP']:
+            for code in ['RENTA', 'AFP', 'ISSS', 'ISSS_EMP', 'AFP_EMP', 'INCAF']:
                 # Filtra las líneas de input existentes con los códigos específicos
                 old_inputs = payslip.input_line_ids.filtered(lambda l: l.code == code)
                 if old_inputs:
@@ -89,9 +89,10 @@ class HrPayslip(models.Model):
                 isss = contract.calcular_isss()
                 afp_patronal = contract.calcular_aporte_patronal('afp')
                 isss_patronal = contract.calcular_aporte_patronal('isss')
+                incaf = contract.calcular_incaf()
             except Exception as e:
                 _logger.error("Error al calcular deducciones para nómina %d: %s", payslip.id, e)
-                renta = afp = isss = afp_patronal = isss_patronal = 0.0
+                renta = afp = isss = afp_patronal = isss_patronal = incaf = 0.0
 
                 # Mostrar error al usuario en pantalla
                 raise UserError(
@@ -100,7 +101,7 @@ class HrPayslip(models.Model):
             # Busca los tipos de inputs en Odoo usando el código correspondiente (RENTA, AFP, ISSS)
             tipos = {
                 code: self.env['hr.payslip.input.type'].search([('code', '=', code)], limit=1)
-                for code in ['RENTA', 'AFP', 'ISSS', 'ISSS_EMP', 'AFP_EMP']
+                for code in ['RENTA', 'AFP', 'ISSS', 'ISSS_EMP', 'AFP_EMP', 'INCAF']
             }
 
             _logger.info("Tipos de entradas: %s", tipos)
@@ -119,6 +120,7 @@ class HrPayslip(models.Model):
                 ('ISSS', -abs(isss)),
                 ('ISSS_EMP', abs(isss_patronal)),
                 ('AFP_EMP', abs(afp_patronal)),
+                ('INCAF', -abs(incaf)),
             ]
             _logger.error("Valores: %s", valores)
 

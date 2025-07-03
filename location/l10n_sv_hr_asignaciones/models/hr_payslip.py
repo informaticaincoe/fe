@@ -15,7 +15,7 @@ except ImportError as e:
 class HrPayslip(models.Model):
     _inherit = 'hr.payslip'
 
-    @api.model
+    @api.model_create_multi
     def create(self, vals):
         _logger.info(f"Create de Asignaciones")
         # Guardar el ID del payslip en el contexto para usarlo en la asignación

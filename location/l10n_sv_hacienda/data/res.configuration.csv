@@ -12,3 +12,4 @@ config_mnt,base.main_company,,text,C:/Users/Admin/Documents/GitHub/fe/location/m
 config_cuenta_cont_salarial,base.main_company,,text,230100,Cuenta contable para el Impuestos de nómina del empleado,True,cuenta_salarial_deducciones
 config_cuenta_cont_salarial_debito,base.main_company,,text,630000,Cuenta contable de débito: Gastos de sueldo,True,cuenta_salarial_debito
 config_cuenta_cont_empleador_credito,base.main_company,,text,230200,Cuenta contable de crédito: Aporte del empleador,True,cuenta_empleador_credito
+config_porcentaje_he,base.main_company,,int,50,Recargo por horas extra en día de descanso,True,porcentaje_horas_extras

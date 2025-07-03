@@ -1,4 +1,4 @@
-from odoo import models, fields, api
+from odoo import models, fields, api, _
 from datetime import datetime, timedelta
 from odoo.exceptions import UserError
 import logging
@@ -8,10 +8,12 @@ _logger = logging.getLogger(__name__)
 
 try:
     from odoo.addons.common_utils.utils import constants
+    from odoo.addons.common_utils.utils import config_utils
     _logger.info("SIT Modulo config_utils [Asignaciones[]")
 except ImportError as e:
     _logger.error(f"Error al importar 'config_utils': {e}")
     constants = None
+    config_utils = None
 
 class HrSalaryAssignment(models.Model):
     _name = 'hr.salary.assignment'
@@ -38,96 +40,131 @@ class HrSalaryAssignment(models.Model):
 
     codigo_empleado = fields.Char(string="Código de empleado", store=False)
 
-    @api.model
-    def create(self, vals):
-        _logger.info("=== Entradas vals: %s ===", vals)
+    @api.model_create_multi
+    def create(self, vals_list):
+        records = []
+        empleado = None
+        codigo_empleado = None
+        contrato = None
+        empresa = None
+        dias_mes = 30
+        horas_laboradas = 8
+        recargo = constants.RECARGO_HE
 
-        tipo = vals.get("tipo", "OVERTIME").upper()
-        vals["tipo"] = tipo
-        _logger.info("Procesando asignación tipo: %s", tipo)
+        for vals in vals_list:
+            try:
+                _logger.info("=== Entradas vals: %s ===", vals)
 
-        if tipo == "OVERTIME":
-            codigo_empleado = vals.get('codigo_empleado')
-            if not codigo_empleado:
-                raise UserError("Debe proporcionar el código de empleado (codigo_empleado) para importar la asignación.")
+                tipo = vals.get("tipo", "OVERTIME").upper()
+                vals["tipo"] = tipo
+                _logger.info("Procesando asignación tipo: %s", tipo)
 
-            codigo_empleado = str(codigo_empleado).strip()
-            empleado = self.env['hr.employee'].search([('barcode', '=', codigo_empleado)], limit=1)
-            if not empleado:
-                raise UserError(f"No se encontró un empleado con código: {codigo_empleado}")
+                if tipo == constants.HORAS_EXTRAS.upper() or tipo == constants.ASIGNACION_VIATICOS.upper():
+                    codigo_empleado = vals.get('codigo_empleado')
+                    if not codigo_empleado:
+                        raise UserError(
+                            "Debe proporcionar el código de empleado (codigo_empleado) para importar la asignación.")
 
-            vals['employee_id'] = empleado.id
+                    codigo_empleado = str(codigo_empleado).strip()
+                    empleado = self.env['hr.employee'].search([('barcode', '=', codigo_empleado)], limit=1)
+                    if not empleado:
+                        raise UserError(f"No se encontró un empleado con código: {codigo_empleado}")
 
-            _logger.info("Procesando asignación de horas extra")
+                    vals['employee_id'] = empleado.id
 
-            if not empleado.contract_id:
-                raise UserError("No se encontró contrato para calcular horas extra.")
+                    _logger.info("Procesando asignación de horas extra")
 
-            contrato = empleado.contract_id
+                    if not empleado.contract_id:
+                        raise UserError("No se encontró contrato para calcular horas extra.")
 
-            # Convertir el salario a mensual
-            # salario_base = empleado.contract_id.wage
-            salario_base = contrato.wage
-            if contrato.schedule_pay in ['bi-weekly', 'semi-monthly']:
-                salario_base *= 2
-            elif contrato.schedule_pay == 'weekly':
-                salario_base *= 4.33
+                    contrato = empleado.contract_id
 
-            salario_hora = salario_base / 30.0 / 8.0  # Jornada de 240h/mes
-            _logger.info("Salario hora calculado: %s", salario_hora)
+                    # Convertir el salario a mensual
+                    # salario_base = empleado.contract_id.wage
+                    salario_base = contrato.wage
+                    if contrato.schedule_pay in ['bi-weekly', 'semi-monthly']:
+                        salario_base *= 2
+                    elif contrato.schedule_pay == 'weekly':
+                        salario_base *= 4.33
 
-            # Obtener horas desde vals
-            horas_diurnas = vals.get('horas_diurnas', 0.0)
-            horas_nocturnas = vals.get('horas_nocturnas', 0.0)
-            horas_diurnas_descanso = vals.get('horas_diurnas_descanso', 0.0)
-            horas_nocturnas_descanso = vals.get('horas_nocturnas_descanso', 0.0)
-            horas_diurnas_asueto = vals.get('horas_diurnas_asueto', 0.0)
-            horas_nocturnas_asueto = vals.get('horas_nocturnas_asueto', 0.0)
-            _logger.info("Horas diurnas: %s, horas nocturnas: %s", horas_diurnas, horas_nocturnas)
+                    salario_hora = round((salario_base / dias_mes / horas_laboradas), 4)  # Jornada de 240h/mes
+                    _logger.info("Salario hora calculado: %s", salario_hora)
 
-            # monto_diurno = horas_diurnas * salario_hora * 2.0
-            # monto_nocturno = horas_nocturnas * salario_hora * 2.15
-            # _logger.info("Monto diurno: %s, monto nocturno: %s", monto_diurno, monto_nocturno)
+                    # Obtener horas desde vals
+                    horas_diurnas = self._parse_horas(vals.get('horas_diurnas', 0.0))
+                    horas_nocturnas = self._parse_horas(vals.get('horas_nocturnas', 0.0))
+                    horas_diurnas_descanso = self._parse_horas(vals.get('horas_diurnas_descanso', 0.0))
+                    horas_nocturnas_descanso = self._parse_horas(vals.get('horas_nocturnas_descanso', 0.0))
+                    horas_diurnas_asueto = self._parse_horas(vals.get('horas_diurnas_asueto', 0.0))
+                    horas_nocturnas_asueto = self._parse_horas(vals.get('horas_nocturnas_asueto', 0.0))
+                    _logger.info("Horas diurnas: %s, horas nocturnas: %s", horas_diurnas, horas_nocturnas)
 
-            # Validar que al menos una hora haya sido ingresada
-            total_horas = (
-                horas_diurnas + horas_nocturnas +
-                horas_diurnas_descanso + horas_nocturnas_descanso +
-                horas_diurnas_asueto + horas_nocturnas_asueto
-            )
-            if total_horas <= 0:
-                raise UserError("Debe ingresar al menos una hora extra.")
+                    # Validar que al menos una hora haya sido ingresada
+                    total_horas = (
+                            horas_diurnas + horas_nocturnas +
+                            horas_diurnas_descanso + horas_nocturnas_descanso +
+                            horas_diurnas_asueto + horas_nocturnas_asueto
+                    )
+                    if total_horas <= 0:
+                        raise UserError("Debe ingresar al menos una hora extra.")
 
-            # Calcular monto total aplicando recargos
-            monto = (
-                horas_diurnas * salario_hora * 2.0 +
-                horas_nocturnas * salario_hora * 2.5 +
-                horas_diurnas_descanso * salario_hora * 2.5 +
-                horas_diurnas_descanso * salario_hora * 0.5 +
-                horas_nocturnas_descanso * salario_hora * 3.125 +
-                horas_diurnas_asueto * salario_hora * 4.0 +
-                horas_nocturnas_asueto * salario_hora * 5.0
-            )
+                    # Obtener empresa del empleado
+                    empresa = empleado.company_id
+                    porcentaje_base = empresa.overtime_percentage or 1.0
+                    porcentaje_nocturno = salario_hora * (porcentaje_base / 100)  # 25% recargo nocturno
 
-            # total_monto = monto_diurno + monto_nocturno
-            # _logger.info("Total monto horas extra: %s", total_monto)
+                    valor_config = config_utils.get_config_value(self.env, 'porcentaje_horas_extras', empleado.company_id.id)
+                    porcentaje_descanso = 0.0
+                    try:
+                        valor_config_float = float(valor_config)
+                        porcentaje_descanso = (valor_config_float or 50) / 100.0
+                    except (TypeError, ValueError):
+                        porcentaje_descanso = 0.0
+                    porcentaje_dia_descanso = salario_hora * porcentaje_descanso # Valor por defecto: 50%
 
-            # Asignar valores calculados
-            vals['monto'] = round(monto, 2)  # vals['monto'] = total_monto
-            vals['description'] = vals.get('description', '')
-            _logger.info("Vals actualizado con monto y description: %s", {
-                'monto': vals['monto'],
-                'description': vals['description'],
-            })
-        else:
-            # Para otros tipos que no sean horas extra
-            if not vals.get("monto"):
-                _logger.error("No se proporcionó 'monto' para tipo distinto de horas extra")
-                raise UserError("Debe indicar el monto para este tipo de asignación.")
+                    # Cálculo monto según fórmulas
+                    monto_total = 0.0
 
-        record = super().create(vals)
-        _logger.info("Registro creado (ID=%s) con vals finales: %s", record.id, record.read()[0])
-        return record
+                    # Hora extra diurna 200%
+                    monto_total += round(horas_diurnas * salario_hora * recargo, 4)
+
+                    # Hora extra nocturna 250%
+                    monto_total += round(horas_nocturnas * (salario_hora + porcentaje_nocturno) * recargo, 4)
+
+                    # Hora extra diurna en día de descanso 400% (2 * salario + 50% salario)
+                    monto_total += round(horas_diurnas_descanso * (salario_hora * recargo + porcentaje_dia_descanso), 4)
+
+                    # Hora extra nocturna en día de descanso 475%
+                    unidad_nocturna_descanso = (salario_hora + porcentaje_nocturno) * recargo + (
+                                (salario_hora + porcentaje_nocturno) * porcentaje_dia_descanso)
+                    monto_total += round(horas_nocturnas_descanso * unidad_nocturna_descanso, 4)
+
+                    # Hora diurna en día de asueto/festivo 500%
+                    monto_total += round(horas_diurnas_asueto * salario_hora * constants.RECARGO_HED_FEST, 4)
+
+                    # Hora nocturna en día de asueto/festivo 600%
+                    monto_total += round(horas_nocturnas_asueto * (salario_hora + porcentaje_nocturno) * constants.RECARGO_HEN_FEST,4)
+
+                    # Asignar valores calculados
+                    vals['monto'] = round(monto_total, 2)  # vals['monto'] = total_monto
+                    vals['description'] = vals.get('description', '')
+                    _logger.info("Vals actualizado con monto y description: %s", {
+                        'monto': vals['monto'],
+                        'description': vals['description'],
+                    })
+                else:
+                    # Para otros tipos que no sean horas extra
+                    if not vals.get("monto"):
+                        _logger.error("No se proporcionó 'monto' para tipo distinto de horas extra")
+                        raise UserError("Debe indicar el monto para este tipo de asignación.")
+
+                record = super().create(vals)
+                _logger.info("Registro creado (ID=%s) con vals finales: %s", record.id, record.read()[0])
+                records.append(record)
+            except Exception as e:
+                _logger.error("Error al crear asignación con datos %s: %s", vals, str(e))
+                raise UserError(_("Error al procesar asignación para el código '%s': %s") % (vals.get('codigo_empleado', 'N/D'), str(e)))
+        return self.browse([r.id for r in records])
 
     def action_descargar_plantilla(self):
         # Busca el archivo adjunto con la plantilla
@@ -149,3 +186,19 @@ class HrSalaryAssignment(models.Model):
             'url': f'/web/content/{attachment.id}?download=true',
             'target': 'self',
         }
+
+    def _parse_horas(self, valor):
+        """Convierte valores tipo HH:MM (string) o float a decimal"""
+        if isinstance(valor, str) and ':' in valor:
+            try:
+                horas, minutos = valor.split(':')
+                return round(int(horas) + int(minutos) / 60.0, 4)
+            except Exception as e:
+                _logger.warning("Error al convertir horas: %s (%s)", valor, e)
+                return 0.0
+        try:
+            return round(float(valor), 4)
+        except Exception as e:
+            _logger.warning("Error al interpretar valor de horas: %s (%s)", valor, e)
+            return 0.0
+
