@@ -2,6 +2,7 @@ from odoo import models, fields, api
 from datetime import datetime, timedelta
 from odoo.exceptions import UserError
 import logging
+import unicodedata
 
 _logger = logging.getLogger(__name__)
 
@@ -35,44 +36,7 @@ class HrSalaryAssignment(models.Model):
     horas_diurnas_asueto = fields.Float("Horas diurnas dia de asueto", invisible=False)
     horas_nocturnas_asueto = fields.Float("Horas nocturnas dia de asueto", invisible=False)
 
-    # def generar_work_entry_overtime(self):
-    #     work_entry_type = self.env['hr.work.entry.type'].search([('code', '=', 'OVERTIME')], limit=1)
-    #     if not work_entry_type:
-    #         raise UserError("No se encontró el tipo de entrada 'OVERTIME'.")
-    #
-    #     for asignacion in self.filtered(lambda a: a.tipo == 'hora_extra' and not a.payslip_id):
-    #         # Buscar el contrato actual
-    #         contrato = asignacion.employee_id.contract_id
-    #         if not contrato:
-    #             raise UserError(f"No se encontró contrato para {asignacion.employee_id.name}")
-    #
-    #         # Buscar el recibo de nómina activo en el contexto
-    #         payslip_id = self.env.context.get('payslip_id')
-    #         payslip = self.env['hr.payslip'].browse(payslip_id) if payslip_id else None
-    #         if not payslip or not payslip.exists():
-    #             raise UserError("No se proporcionó un recibo de nómina válido en el contexto.")
-    #
-    #         # Verificar si ya existe una línea similar
-    #         existe = payslip.worked_days_line_ids.filtered(
-    #             lambda l: l.work_entry_type_id == work_entry_type
-    #         )
-    #         if not existe:
-    #             payslip.worked_days_line_ids.create({
-    #                 'name': work_entry_type.name,
-    #                 'work_entry_type_id': work_entry_type.id,
-    #                 'payslip_id': payslip.id,
-    #                 'number_of_days': 1,
-    #                 'number_of_hours': asignacion.monto,
-    #                 'amount': 0.0,
-    #             })
-    #
-    #         asignacion.payslip_id = payslip.id
-
-    # def action_liberar_asignacion(self):
-    #     for asignacion in self:
-    #         if not asignacion.payslip_id:
-    #             raise UserError("La asignación ya está liberada.")
-    #         asignacion.payslip_id = False
+    codigo_empleado = fields.Char(string="Código de empleado", store=False)
 
     @api.model
     def create(self, vals):
@@ -82,29 +46,28 @@ class HrSalaryAssignment(models.Model):
         vals["tipo"] = tipo
         _logger.info("Procesando asignación tipo: %s", tipo)
 
-        barcode = vals.get('barcode')
-        if not barcode:
-            raise UserError("Debe proporcionar el código de empleado (barcode) para importar la asignación.")
-
-        barcode = barcode.strip()
-        empleado = self.env['hr.employee'].search([('barcode', '=', barcode)], limit=1)
-        if not empleado:
-            raise UserError(f"No se encontró un empleado con código: {barcode}")
-
-        vals['employee_id'] = empleado.id
-        _logger.info("Empleado encontrado por código: %s => ID: %s", barcode, empleado.id)
-
         if tipo == "OVERTIME":
+            codigo_empleado = vals.get('codigo_empleado')
+            if not codigo_empleado:
+                raise UserError("Debe proporcionar el código de empleado (codigo_empleado) para importar la asignación.")
+
+            codigo_empleado = str(codigo_empleado).strip()
+            empleado = self.env['hr.employee'].search([('barcode', '=', codigo_empleado)], limit=1)
+            if not empleado:
+                raise UserError(f"No se encontró un empleado con código: {codigo_empleado}")
+
+            vals['employee_id'] = empleado.id
+
             _logger.info("Procesando asignación de horas extra")
 
             if not empleado.contract_id:
                 raise UserError("No se encontró contrato para calcular horas extra.")
 
+            contrato = empleado.contract_id
+
             # Convertir el salario a mensual
             # salario_base = empleado.contract_id.wage
-            contrato = empleado.contract_id
             salario_base = contrato.wage
-
             if contrato.schedule_pay in ['bi-weekly', 'semi-monthly']:
                 salario_base *= 2
             elif contrato.schedule_pay == 'weekly':
@@ -157,7 +120,7 @@ class HrSalaryAssignment(models.Model):
                 'description': vals['description'],
             })
         else:
-            # Para tipos como COMISION, BONO, etc.
+            # Para otros tipos que no sean horas extra
             if not vals.get("monto"):
                 _logger.error("No se proporcionó 'monto' para tipo distinto de horas extra")
                 raise UserError("Debe indicar el monto para este tipo de asignación.")

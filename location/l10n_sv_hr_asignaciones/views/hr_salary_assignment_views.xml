@@ -34,6 +34,8 @@
                                 <field name="monto"/>
                                 <field name="periodo"/>
                             </group>
+
+                            <field name="codigo_empleado" invisible="1"/>
                         </group>
                         <group string="Detalle de horas extras" col="2" invisible="tipo != 'hora_extra'">
                             <field name="horas_diurnas"/>
