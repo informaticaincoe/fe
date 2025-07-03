@@ -6,19 +6,64 @@
 <!--            <field name="code">EXTRA</field>-->
 <!--        </record>-->
 
+        <!-- Definición de un tipo de entrada para Bonos -->
         <record id="input_type_bonus" model="hr.payslip.input.type">
             <field name="name">Bono</field>
             <field name="code">BONO</field>
         </record>
 
+        <!-- Definición de una regla salarial relacionada con los Bonos -->
+        <record id="salary_rule_bonus" model="hr.salary.rule">
+            <field name="name">Bono</field>
+            <field name="code">BONO</field>
+            <field name="sequence">4</field>
+            <field name="category_id" ref="hr_payroll.BASIC"/>
+            <field name="amount_select">input</field>
+            <field name="appears_on_payslip" eval="True"/>
+            <field name="struct_id" ref="l10n_sv_hr_retenciones.structure_incoe"/>
+            <field name="condition_select">none</field>
+            <field name="input_type_id" ref="l10n_sv_hr_asignaciones.input_type_bonus"/>
+            <field name="amount_other_input_id" ref="l10n_sv_hr_asignaciones.input_type_bonus"/>
+        </record>
+
+        <!-- Definición de un tipo de entrada para Viaticos -->
         <record id="input_type_viaticos" model="hr.payslip.input.type">
             <field name="name">Viáticos</field>
             <field name="code">VIATICO</field>
         </record>
 
+        <!-- Definición de una regla salarial relacionada con los Viaticos -->
+        <record id="salary_rule_viaticos" model="hr.salary.rule">
+            <field name="name">Viáticos</field>
+            <field name="code">VIATICO</field>
+            <field name="sequence">1</field>
+            <field name="category_id" ref="hr_payroll.BASIC"/>
+            <field name="amount_select">input</field>
+            <field name="appears_on_payslip" eval="True"/>
+            <field name="struct_id" ref="l10n_sv_hr_retenciones.structure_incoe"/>
+            <field name="condition_select">none</field>
+            <field name="input_type_id" ref="l10n_sv_hr_asignaciones.input_type_viaticos"/>
+            <field name="amount_other_input_id" ref="l10n_sv_hr_asignaciones.input_type_viaticos"/>
+        </record>
+
+        <!-- Definición de un tipo de entrada para Comisiones -->
         <record id="input_type_comision" model="hr.payslip.input.type">
             <field name="name">Comisión</field>
             <field name="code">COMISION</field>
+        </record>
+
+        <!-- Definición de una regla salarial relacionada con las Comisiones -->
+        <record id="salary_rule_comision" model="hr.salary.rule">
+            <field name="name">Comisión</field>
+            <field name="code">COMISION</field>
+            <field name="sequence">2</field>
+            <field name="category_id" ref="hr_payroll.BASIC"/>
+            <field name="amount_select">input</field>
+            <field name="appears_on_payslip" eval="True"/>
+            <field name="struct_id" ref="l10n_sv_hr_retenciones.structure_incoe"/>
+            <field name="condition_select">none</field>
+            <field name="input_type_id" ref="l10n_sv_hr_asignaciones.input_type_comision"/>
+            <field name="amount_other_input_id" ref="l10n_sv_hr_asignaciones.input_type_comision"/>
         </record>
     </data>
 </odoo>
