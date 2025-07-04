@@ -8,15 +8,53 @@ try:
     _logger.info("SIT Modulo config_utils l10n_sv_haciendaws_fe")
 except ImportError as e:
     _logger.error(f"Error al importar 'config_utils': {e}")
-    config_utils = None
+    constants = None
 
 class HrContract(models.Model):
     _inherit = 'hr.contract'
 
+    def get_salario_bruto_total(self):
+        """
+        Retorna el salario base + total de asignaciones sujetas a retención,
+        incluyendo horas extra, comisiones y bonos.
+        """
+        self.ensure_one()
+
+        bruto = self.wage or 0.0  #Define salario base
+
+        if not self.employee_id:
+            _logger.warning("Contrato %s no tiene empleado asignado. Retornando solo salario base.", self.id)
+            return bruto  # ✅ Ya está definido
+
+        tipos_incluidos = [
+            constants.HORAS_EXTRAS,
+            constants.ASIGNACION_BONOS.upper(),
+            constants.ASIGNACION_COMISIONES.upper(),
+        ]
+
+        try:
+            asignaciones = self.env['hr.salary.assignment'].search([
+                ('employee_id', '=', self.employee_id.id),
+                ('tipo', 'in', tipos_incluidos),
+            ])
+        except Exception as e:
+            _logger.error("Error al buscar asignaciones para contrato %s: %s", self.id, e)
+            asignaciones = []
+
+        monto_extra = sum(asignacion.monto for asignacion in asignaciones)
+        bruto_total = bruto + monto_extra
+
+        _logger.info(
+            "Bruto total para contrato ID %s: salario base %.2f + asignaciones %.2f = %.2f",
+            self.id, bruto, monto_extra, bruto_total
+        )
+        return bruto_total
+
     # Método para calcular la deducción AFP (Administradora de Fondos de Pensiones)
     def calcular_afp(self):
         self.ensure_one()  # Garantiza que el cálculo se realice solo en un solo registro
-        salario = self.wage  # Obtener el salario del contrato
+        salario = self.get_salario_bruto_total()
+        # Obtener el salario del contrato
 
         # Buscar el porcentaje y techo configurado para el empleado
         afp_empleado = self.env['hr.retencion.afp'].search([('tipo', '=', constants.DEDUCCION_EMPLEADO)], limit=1)
@@ -38,7 +76,9 @@ class HrContract(models.Model):
     # Método para calcular la deducción ISSS (Instituto Salvadoreño del Seguro Social)
     def calcular_isss(self):
         self.ensure_one()  # Garantiza que el cálculo se realice solo en un solo registro
-        salario = self.wage  # Se obtiene el salario del contrato
+        salario =         salario = self.get_salario_bruto_total()
+          # Se obtiene el salario del contrato
+          # Se obtiene el salario del contrato
 
         # Buscar la configuración de ISSS para el empleado
         isss_empleado = self.env['hr.retencion.isss'].search([('tipo', '=', constants.DEDUCCION_EMPLEADO)], limit=1)
@@ -93,12 +133,13 @@ class HrContract(models.Model):
             return 0.0
 
         # Si el valor 'bruto' no es proporcionado, se usa el salario del contrato
-        bruto = bruto if bruto is not None else self.wage or 0.0
+        bruto = bruto if bruto is not None else self.get_salario_bruto_total()
 
         # Calcular base imponible restando AFP e ISSS
         afp = self.calcular_afp()
         isss = self.calcular_isss()
-        base_imponible = bruto - afp - isss
+        incaf = self.calcular_incaf()
+        base_imponible = bruto - afp - isss - incaf
         _logger.info("Base imponible = %.2f - %.2f - %.2f = %.2f", bruto, afp, isss, base_imponible)
 
         # Se itera sobre los tramos de la tabla para determinar el tramo aplicable
@@ -122,7 +163,8 @@ class HrContract(models.Model):
         Calcula el aporte patronal (ISSS o AFP) según el salario y los techos definidos.
         """
         self.ensure_one()
-        salario = self.wage
+        salario = self.get_salario_bruto_total()
+
         _logger.info("Cálculo de aporte patronal para contrato ID %s. Tipo: %s. Salario base: %.2f", self.id, tipo, salario)
 
         if tipo == constants.TIPO_DED_ISSS:
@@ -146,4 +188,23 @@ class HrContract(models.Model):
 
         _logger.warning("Tipo de aporte patronal desconocido o sin configuración.")
         return 0.0
+
+    def calcular_incaf(self):
+        """
+        Calcula la deducción del INCAF (1% del salario bruto total del empleado).
+        Retorna 0.0 si ocurre cualquier error.
+        """
+        self.ensure_one()
+
+        try:
+            salario = self.get_salario_bruto_total()
+            porcentaje = 1.0  # 1%
+            resultado = salario * (porcentaje / 100.0)
+
+            _logger.info("INCAF para contrato ID %s: %.2f * 1%% = %.2f", self.id, salario, resultado)
+            return resultado
+
+        except Exception as e:
+            _logger.error("Error general al calcular INCAF para contrato ID %s: %s", self.id, e)
+            return 0.0  # Fallback seguro
 
