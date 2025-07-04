@@ -201,7 +201,7 @@ class sit_account_contingencia(models.Model):
             else:
                 return False
 
-    @api.model
+    @api.model_create_multi
     def create(self, vals):
         # Crear el registro de contingencia
         record = super().create(vals)

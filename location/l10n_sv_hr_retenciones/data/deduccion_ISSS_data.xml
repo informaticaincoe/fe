@@ -41,5 +41,25 @@
             <field name="amount_other_input_id" ref="input_type_isss_empleador"/>
             <field name="appears_on_payslip" eval="False"/>
         </record>
+
+        <!-- Tipo de entrada para INCAF Empleador -->
+        <record id="input_type_incaf" model="hr.payslip.input.type">
+            <field name="name">INCAF</field>
+            <field name="code">INCAF</field>
+        </record>
+
+        <!-- Regla salarial para INCAF(isss) -->
+        <record id="incaf_empleador_regla" model="hr.salary.rule">
+            <field name="name">INCAF</field>
+            <field name="code">INCAF</field>
+            <field name="sequence">20</field>
+            <field name="category_id" ref="hr_payroll.COMP"/>
+            <field name="amount_select">input</field>
+            <field name="struct_id" ref="l10n_sv_hr_retenciones.structure_incoe"/>
+            <field name="condition_select">none</field>
+            <field name="input_type_id" ref="input_type_incaf"/>
+            <field name="amount_other_input_id" ref="input_type_incaf"/>
+            <field name="appears_on_payslip" eval="False"/>
+        </record>
     </data>
 </odoo>
