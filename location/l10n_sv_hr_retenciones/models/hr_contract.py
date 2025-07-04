@@ -19,7 +19,12 @@ class HrContract(models.Model):
         incluyendo horas extra, comisiones y bonos.
         """
         self.ensure_one()
-        bruto = self.wage or 0.0
+
+        bruto = self.wage or 0.0  #Define salario base
+
+        if not self.employee_id:
+            _logger.warning("Contrato %s no tiene empleado asignado. Retornando solo salario base.", self.id)
+            return bruto  # ✅ Ya está definido
 
         tipos_incluidos = [
             constants.HORAS_EXTRAS,
@@ -27,10 +32,14 @@ class HrContract(models.Model):
             constants.ASIGNACION_COMISIONES.upper(),
         ]
 
-        asignaciones = self.env['hr.salary.assignment'].search([
-            ('employee_id', '=', self.employee_id.id),
-            ('tipo', 'in', tipos_incluidos),
-        ])
+        try:
+            asignaciones = self.env['hr.salary.assignment'].search([
+                ('employee_id', '=', self.employee_id.id),
+                ('tipo', 'in', tipos_incluidos),
+            ])
+        except Exception as e:
+            _logger.error("Error al buscar asignaciones para contrato %s: %s", self.id, e)
+            asignaciones = []
 
         monto_extra = sum(asignacion.monto for asignacion in asignaciones)
         bruto_total = bruto + monto_extra
@@ -183,11 +192,19 @@ class HrContract(models.Model):
     def calcular_incaf(self):
         """
         Calcula la deducción del INCAF (1% del salario bruto total del empleado).
+        Retorna 0.0 si ocurre cualquier error.
         """
         self.ensure_one()
-        salario = self.get_salario_bruto_total()
-        porcentaje = 1.0  # 1%
 
-        resultado = salario * (porcentaje / 100.0)
-        _logger.info("INCAF para contrato ID %s: %.2f * 1%% = %.2f", self.id, salario, resultado)
-        return resultado
+        try:
+            salario = self.get_salario_bruto_total()
+            porcentaje = 1.0  # 1%
+            resultado = salario * (porcentaje / 100.0)
+
+            _logger.info("INCAF para contrato ID %s: %.2f * 1%% = %.2f", self.id, salario, resultado)
+            return resultado
+
+        except Exception as e:
+            _logger.error("Error general al calcular INCAF para contrato ID %s: %s", self.id, e)
+            return 0.0  # Fallback seguro
+

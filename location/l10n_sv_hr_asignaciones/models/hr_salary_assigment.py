@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from odoo.exceptions import UserError
 import logging
 import unicodedata
+import re
 
 _logger = logging.getLogger(__name__)
 
@@ -31,12 +32,12 @@ class HrSalaryAssignment(models.Model):
     description = fields.Text(string="Descripción", help="Descripción")
     payslip_id = fields.Many2one('hr.payslip', string='Histórico (Boleta)', help="Si se desea vincular con un recibo de pago.")
 
-    horas_diurnas = fields.Float("Horas extras diurnas", invisible=False)
-    horas_nocturnas = fields.Float("Horas extras nocturnas", invisible=False)
-    horas_diurnas_descanso = fields.Float("Horas extras diurnas dia descanso", invisible=False)
-    horas_nocturnas_descanso = fields.Float("Horas extras nocturnas dia descanso", invisible=False)
-    horas_diurnas_asueto = fields.Float("Horas diurnas dia de asueto", invisible=False)
-    horas_nocturnas_asueto = fields.Float("Horas nocturnas dia de asueto", invisible=False)
+    horas_diurnas = fields.Char("Horas extras diurnas", invisible=False)
+    horas_nocturnas = fields.Char("Horas extras nocturnas", invisible=False)
+    horas_diurnas_descanso = fields.Char("Horas extras diurnas dia descanso", invisible=False)
+    horas_nocturnas_descanso = fields.Char("Horas extras nocturnas dia descanso", invisible=False)
+    horas_diurnas_asueto = fields.Char("Horas diurnas dia de asueto", invisible=False)
+    horas_nocturnas_asueto = fields.Char("Horas nocturnas dia de asueto", invisible=False)
 
     codigo_empleado = fields.Char(string="Código de empleado", store=False)
 
@@ -188,17 +189,54 @@ class HrSalaryAssignment(models.Model):
         }
 
     def _parse_horas(self, valor):
-        """Convierte valores tipo HH:MM (string) o float a decimal"""
-        if isinstance(valor, str) and ':' in valor:
-            try:
-                horas, minutos = valor.split(':')
-                return round(int(horas) + int(minutos) / 60.0, 4)
-            except Exception as e:
-                _logger.warning("Error al convertir horas: %s (%s)", valor, e)
-                return 0.0
-        try:
-            return round(float(valor), 4)
-        except Exception as e:
-            _logger.warning("Error al interpretar valor de horas: %s (%s)", valor, e)
+        """
+        Convierte un valor tipo '9:05' o '1.5' en un número decimal de horas.
+        Soporta strings con formato 'HH:MM', decimales, enteros y valores vacíos.
+        """
+
+        _logger.info("Intentando convertir valor de horas: %s", valor)
+
+        if not valor:
+            _logger.info("Valor vacío o nulo recibido, se interpreta como 0.0 horas.")
             return 0.0
 
+        # Si ya es float o int
+        if isinstance(valor, (float, int)):
+            _logger.info("Valor numérico directo detectado: %.4f", float(valor))
+            return round(float(valor), 4)
+
+        # Si es texto
+        if isinstance(valor, str):
+            valor = valor.strip()
+
+            # Si viene en formato HH:MM
+            if re.match(r'^\d{1,2}:\d{1,2}$', valor):
+                partes = valor.split(':')
+                try:
+                    horas = int(partes[0])
+                    minutos = int(partes[1])
+
+                    if minutos >= 60:
+                        _logger.warning("Minutos inválidos detectados en valor '%s' (>= 60)", valor)
+                        raise UserError(_("Minutos no pueden ser iguales o mayores a 60: '%s'" % valor))
+
+                    total = round(horas + (minutos / 60.0), 4)
+                    _logger.info("Valor '%s' convertido a %.4f horas decimales", valor, total)
+                    return total
+
+                except Exception as e:
+                    _logger.error("Error al convertir valor '%s' a horas decimales: %s", valor, str(e))
+                    raise UserError(_("Error al interpretar el valor de horas: '%s'" % valor))
+
+            # Si es un decimal en texto (ej. "1.25")
+            try:
+                decimal = round(float(valor), 4)
+                _logger.info("Valor decimal string '%s' convertido a %.4f horas", valor, decimal)
+                return decimal
+            except ValueError:
+                _logger.warning("Valor inválido para horas: '%s'", valor)
+                raise UserError(_("Valor inválido para horas: '%s'" % valor))
+
+        # Si llegó aquí es un tipo no soportado
+        _logger.error("Tipo de dato no soportado para horas: %s (%s)", valor, type(valor))
+        raise UserError(_("Formato de horas no reconocido: %s" % valor))
