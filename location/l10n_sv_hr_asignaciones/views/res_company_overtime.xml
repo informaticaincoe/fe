@@ -8,7 +8,7 @@
             <field name="inherit_id" ref="base.view_company_form"/>
             <field name="arch" type="xml">
                 <xpath expr="//field[@name='currency_id']" position="after">
-                    <field name="overtime_percentage"/>
+                    <field name="pago_incaf"/>
                 </xpath>
             </field>
         </record>
