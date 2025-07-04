@@ -1,0 +1,7 @@
+id,company_id:id,pwd,value_type,value_text,description,active,clave
+config_he_diurna,base.main_company,,int,200,Recargo por horas extras diurna,True,he_diurna
+config_he_nocturna,base.main_company,,int,250,Recargo por horas extras nocturna,True,he_nocturna
+config_he_diurna_dia_descanso,base.main_company,,int,400,Recargo por horas extras diurna en día de descanso,True,he_diurna_dia_descanso
+config_he_nocturna_dia_descanso,base.main_company,,int,475,Recargo por horas extras nocturna en día de descanso,True,he_nocturna_dia_descanso
+config_he_diurna_dia_festivo,base.main_company,,int,500,Recargo por horas extras diurna en día festivo,True,he_diurna_dia_festivo
+config_he_nocturna_dia_festivo,base.main_company,,int,600,Recargo por horas extras nocturna en día festivo,True,he_nocturna_dia_festivo

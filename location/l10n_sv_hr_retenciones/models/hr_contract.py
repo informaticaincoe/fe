@@ -53,8 +53,7 @@ class HrContract(models.Model):
     # Método para calcular la deducción AFP (Administradora de Fondos de Pensiones)
     def calcular_afp(self):
         self.ensure_one()  # Garantiza que el cálculo se realice solo en un solo registro
-        salario = self.get_salario_bruto_total()
-        # Obtener el salario del contrato
+        salario = self.get_salario_bruto_total() # Obtener el salario del contrato
 
         # Buscar el porcentaje y techo configurado para el empleado
         afp_empleado = self.env['hr.retencion.afp'].search([('tipo', '=', constants.DEDUCCION_EMPLEADO)], limit=1)
@@ -76,9 +75,7 @@ class HrContract(models.Model):
     # Método para calcular la deducción ISSS (Instituto Salvadoreño del Seguro Social)
     def calcular_isss(self):
         self.ensure_one()  # Garantiza que el cálculo se realice solo en un solo registro
-        salario =         salario = self.get_salario_bruto_total()
-          # Se obtiene el salario del contrato
-          # Se obtiene el salario del contrato
+        salario = self.get_salario_bruto_total() # Se obtiene el salario del contrato
 
         # Buscar la configuración de ISSS para el empleado
         isss_empleado = self.env['hr.retencion.isss'].search([('tipo', '=', constants.DEDUCCION_EMPLEADO)], limit=1)
@@ -204,7 +201,15 @@ class HrContract(models.Model):
                 return 0.0
 
             salario = self.get_salario_bruto_total()
-            porcentaje = 1.0  # 1%
+
+            # Buscar la configuración de ISSS para el incaf
+            isss_incaf = self.env['hr.retencion.isss'].search([('tipo', '=', constants.DEDUCCION_INCAF)], limit=1)
+            if not isss_incaf:
+                # Si no se encuentra configuración para INCAF, se registra una advertencia y se retorna 0.0
+                _logger.warning("No se encontró configuración INCAF para empleado.")
+                return 0.0
+
+            porcentaje = isss_incaf.porcentaje or 0.0  # Porcentaje de deducción INCAF
             resultado = salario * (porcentaje / 100.0)
 
             _logger.info("INCAF para contrato ID %s: %.2f * 1%% = %.2f", self.id, salario, resultado)
@@ -212,6 +217,6 @@ class HrContract(models.Model):
 
         except Exception as e:
             _logger.error("Error general al calcular INCAF para contrato ID %s: %s", self.id, e)
-            return 0.0  # Fallback seguro
+            return 0.0
 
 

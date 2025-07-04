@@ -44,156 +44,144 @@ class HrSalaryAssignment(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         records = []
-        empleado = None
-        codigo_empleado = None
-        contrato = None
-        empresa = None
         dias_mes = 30
         horas_laboradas = 8
-        recargo = constants.RECARGO_HE if constants else 1.0
-
-        # Mapeo texto externo a código interno
-        tipo_map = {
-            "horas extras": constants.ASIGNACION_HORAS_EXTRA.upper(),
-            "hora extra": constants.ASIGNACION_HORAS_EXTRA.upper(),
-            "viáticos": constants.ASIGNACION_VIATICOS.upper(),
-            "viaticos": constants.ASIGNACION_VIATICOS.upper(),
-        }
 
         valid_tipos = [x[0] for x in self._fields['tipo'].selection]
 
         for vals in vals_list:
             try:
                 tipo_raw = (vals.get("tipo") or "").strip()
+                tipo_map = {
+                    "horas extras": constants.ASIGNACION_HORAS_EXTRA.upper(),
+                    "hora extra": constants.ASIGNACION_HORAS_EXTRA.upper(),
+                    "viáticos": constants.ASIGNACION_VIATICOS.upper(),
+                    "viaticos": constants.ASIGNACION_VIATICOS.upper(),
+                }
 
-                # Normalizar a código interno
-                tipo = None
-                if tipo_raw.upper() in valid_tipos:
-                    tipo = tipo_raw.upper()
-                else:
-                    tipo = tipo_map.get(tipo_raw.lower())
+                # tipo = tipo_raw.upper() if tipo_raw.upper() in valid_tipos else tipo_map.get(tipo_raw.lower())
+                tipo = tipo_map.get(tipo_raw, tipo_raw.upper())
+                vals["tipo"] = tipo
+                _logger.info("Procesando asignación tipo: %s", tipo)
 
-                if tipo:
-                    vals["tipo"] = tipo
-                    _logger.info("Procesando asignación tipo: %s", tipo)
-                else:
-                    tipo_original = vals.get("tipo", "N/D")
-                    _logger.info("Tipo no es horas extra ni viático: %s, se crea normal", vals.get("tipo"))
+                codigo_empleado = vals.get('codigo_empleado')
+                empleado = None
+                _logger.info("Codigo del empleado: %s", codigo_empleado)
 
-                if tipo in (constants.ASIGNACION_HORAS_EXTRA.upper(), constants.ASIGNACION_VIATICOS.upper()):
-                    _logger.info("=== Entradas vals: %s ===", vals)
+                # Si viene de importación (usa código de empleado)
+                if codigo_empleado:
+                    if isinstance(codigo_empleado, str):
+                        codigo_empleado = codigo_empleado.strip()
 
-                    codigo_empleado = vals.get('codigo_empleado')
                     if not codigo_empleado:
-                        raise UserError(
-                            "Debe proporcionar el código de empleado (codigo_empleado) para importar la asignación.")
+                        raise UserError("Debe proporcionar el código de empleado (codigo_empleado).")
 
-                    codigo_empleado = str(codigo_empleado).strip()
                     empleado = self.env['hr.employee'].search([('barcode', '=', codigo_empleado)], limit=1)
                     if not empleado:
                         raise UserError(f"No se encontró un empleado con código: {codigo_empleado}")
-
                     vals['employee_id'] = empleado.id
 
-                    _logger.info("Procesando asignación de horas extra o viáticos")
+                # Si viene del formulario (usa employee_id directo)
+                elif vals.get('employee_id'):
+                    empleado = self.env['hr.employee'].browse(vals['employee_id'])
 
-                    if not empleado.contract_id:
-                        raise UserError("No se encontró contrato para calcular horas extra.")
+                else:
+                    raise UserError("Debe seleccionar un empleado.")
+
+                if tipo == constants.ASIGNACION_HORAS_EXTRA.upper() or (tipo == constants.ASIGNACION_VIATICOS.upper() and  codigo_empleado):
+                    _logger.info("=== Entradas vals: %s ===", vals)
 
                     contrato = empleado.contract_id
+                    if not contrato:
+                        raise UserError("No se encontró contrato para el empleado.")
 
-                    # Convertir el salario a mensual
-                    # salario_base = empleado.contract_id.wage
-                    salario_base = contrato.wage
+                    salario_base = float(contrato.wage or 0.0)
                     if contrato.schedule_pay in ['bi-weekly', 'semi-monthly']:
                         salario_base *= 2
                     elif contrato.schedule_pay == 'weekly':
                         salario_base *= 4.33
 
-                    salario_hora = round((salario_base / dias_mes / horas_laboradas), 4)  # Jornada de 240h/mes
-                    _logger.info("Salario hora calculado: %s", salario_hora)
+                    salario_hora = round((salario_base / dias_mes) / horas_laboradas, 4)
+                    _logger.info("Salario hora calculado: %.4f", salario_hora)
 
-                    # Obtener horas desde vals
-                    horas_diurnas = self._parse_horas(vals.get('horas_diurnas', 0.0))
-                    horas_nocturnas = self._parse_horas(vals.get('horas_nocturnas', 0.0))
-                    horas_diurnas_descanso = self._parse_horas(vals.get('horas_diurnas_descanso', 0.0))
-                    horas_nocturnas_descanso = self._parse_horas(vals.get('horas_nocturnas_descanso', 0.0))
-                    horas_diurnas_asueto = self._parse_horas(vals.get('horas_diurnas_asueto', 0.0))
-                    horas_nocturnas_asueto = self._parse_horas(vals.get('horas_nocturnas_asueto', 0.0))
-                    _logger.info("Horas diurnas: %s, horas nocturnas: %s", horas_diurnas, horas_nocturnas)
+                    # Convertir y actualizar campos de horas como float
+                    horas_diurnas = self._parse_horas(vals.get('horas_diurnas'))
+                    horas_nocturnas = self._parse_horas(vals.get('horas_nocturnas'))
+                    horas_diurnas_descanso = self._parse_horas(vals.get('horas_diurnas_descanso'))
+                    horas_nocturnas_descanso = self._parse_horas(vals.get('horas_nocturnas_descanso'))
+                    horas_diurnas_asueto = self._parse_horas(vals.get('horas_diurnas_asueto'))
+                    horas_nocturnas_asueto = self._parse_horas(vals.get('horas_nocturnas_asueto'))
 
-                    # Validar que al menos una hora haya sido ingresada
-                    total_horas = (
-                            horas_diurnas + horas_nocturnas +
-                            horas_diurnas_descanso + horas_nocturnas_descanso +
-                            horas_diurnas_asueto + horas_nocturnas_asueto
-                    )
+                    # Guardar los valores convertidos para evitar errores posteriores
+                    vals['horas_diurnas'] = horas_diurnas
+                    vals['horas_nocturnas'] = horas_nocturnas
+                    vals['horas_diurnas_descanso'] = horas_diurnas_descanso
+                    vals['horas_nocturnas_descanso'] = horas_nocturnas_descanso
+                    vals['horas_diurnas_asueto'] = horas_diurnas_asueto
+                    vals['horas_nocturnas_asueto'] = horas_nocturnas_asueto
+
+                    total_horas = sum([
+                        horas_diurnas, horas_nocturnas,
+                        horas_diurnas_descanso, horas_nocturnas_descanso,
+                        horas_diurnas_asueto, horas_nocturnas_asueto
+                    ])
                     if total_horas <= 0:
                         raise UserError("Debe ingresar al menos una hora extra.")
 
-                    # Obtener empresa del empleado
-                    empresa = empleado.company_id
-                    porcentaje_base = 1.0 #empresa.overtime_percentage or 1.0
-                    porcentaje_nocturno = salario_hora * (porcentaje_base / 100)  # 25% recargo nocturno
-
+                    # Recargos
                     valor_config = None
+                    recargo_he_diurna = 0.0
+                    recargo_he_nocturna = 0.0
+                    recargo_he_diurna_dia_descanso = 0.0
+                    recargo_he_nocturno_dia_descanso = 0.0
+                    recargo_he_diurna_dia_festivo = 0.0
+                    recargo_he_nocturna_dia_festivo = 0.0
+
                     if config_utils:
-                        valor_config = config_utils.get_config_value(self.env, 'porcentaje_horas_extras',
-                                                                     empleado.company_id.id)
-                    porcentaje_descanso = 0.0
-                    try:
-                        valor_config_float = float(valor_config)
-                        porcentaje_descanso = (valor_config_float or 50) / 100.0
-                    except (TypeError, ValueError):
-                        porcentaje_descanso = 0.0
-                    porcentaje_dia_descanso = salario_hora * porcentaje_descanso # Valor por defecto: 50%
+                        recargo_he_diurna = float(
+                            config_utils.get_config_value(self.env, 'he_diurna', empleado.company_id.id) or 0.0)
+                        recargo_he_nocturna = float(
+                            config_utils.get_config_value(self.env, 'he_nocturna', empleado.company_id.id) or 0.0)
+                        recargo_he_diurna_dia_descanso = float(
+                            config_utils.get_config_value(self.env, 'he_diurna_dia_descanso',
+                                                          empleado.company_id.id) or 0.0)
+                        recargo_he_nocturno_dia_descanso = float(
+                            config_utils.get_config_value(self.env, 'he_nocturna_dia_descanso',
+                                                          empleado.company_id.id) or 0.0)
+                        recargo_he_diurna_dia_festivo = float(
+                            config_utils.get_config_value(self.env, 'he_diurna_dia_festivo',
+                                                          empleado.company_id.id) or 0.0)
+                        recargo_he_nocturna_dia_festivo = float(
+                            config_utils.get_config_value(self.env, 'he_nocturna_dia_festivo',
+                                                          empleado.company_id.id) or 0.0)
 
-                    # Cálculo monto según fórmulas
                     monto_total = 0.0
+                    monto_total += horas_diurnas * salario_hora * (recargo_he_diurna / 100.0)
+                    monto_total += horas_nocturnas * salario_hora * (recargo_he_nocturna / 100.0)
+                    monto_total += horas_diurnas_descanso * salario_hora * (recargo_he_diurna_dia_descanso / 100.0)
+                    monto_total += horas_nocturnas_descanso * salario_hora * (recargo_he_nocturno_dia_descanso / 100.0)
+                    monto_total += horas_diurnas_asueto * salario_hora * (recargo_he_diurna_dia_festivo / 100.0)
+                    monto_total += horas_nocturnas_asueto * salario_hora * (recargo_he_nocturna_dia_festivo / 100.0)
 
-                    # Hora extra diurna 200%
-                    monto_total += round(horas_diurnas * salario_hora * recargo, 4)
-
-                    # Hora extra nocturna 250%
-                    monto_total += round(horas_nocturnas * (salario_hora + porcentaje_nocturno) * recargo, 4)
-
-                    # Hora extra diurna en día de descanso 400% (2 * salario + 50% salario)
-                    monto_total += round(horas_diurnas_descanso * (salario_hora * recargo + porcentaje_dia_descanso), 4)
-
-                    # Hora extra nocturna en día de descanso 475%
-                    unidad_nocturna_descanso = (salario_hora + porcentaje_nocturno) * recargo + (
-                            (salario_hora + porcentaje_nocturno) * porcentaje_dia_descanso)
-                    monto_total += round(horas_nocturnas_descanso * unidad_nocturna_descanso, 4)
-
-                    # Hora diurna en día de asueto/festivo 500%
-                    monto_total += round(horas_diurnas_asueto * salario_hora * constants.RECARGO_HED_FEST, 4)
-
-                    # Hora nocturna en día de asueto/festivo 600%
-                    monto_total += round(
-                        horas_nocturnas_asueto * (salario_hora + porcentaje_nocturno) * constants.RECARGO_HEN_FEST, 4)
-
-                    # Asignar valores calculados
-                    vals['monto'] = round(monto_total, 2)  # vals['monto'] = total_monto
-                    vals['description'] = vals.get('description', '')
-                    _logger.info("Vals actualizado con monto y description: %s", {
-                        'monto': vals['monto'],
-                        'description': vals['description'],
-                    })
+                    vals['monto'] = round(monto_total, 2)
+                    _logger.info("Monto total calculado: %s", monto_total)
                 else:
-                    # Para otros tipos solo aseguramos que monto exista
-                    if not vals.get("monto"):
-                        vals['monto'] = 0.0
-                    if 'employee_id' not in vals or not vals.get('employee_id'):
-                        vals['employee_id'] = False
+                    # Para otros tipos, asegurarse que haya monto
+                    vals['monto'] = float(vals.get('monto', 0.0))
+                    vals['employee_id'] = vals.get('employee_id') or False
 
+                vals['description'] = vals.get('description', '')
                 record = super().create(vals)
                 _logger.info("Registro creado (ID=%s) con vals finales: %s", record.id, record.read()[0])
                 records.append(record)
+
             except Exception as e:
                 _logger.error("Error al crear asignación con datos %s: %s", vals, str(e))
                 raise UserError(
-                    _("Error al procesar asignación para el código '%s': %s") % (vals.get('codigo_empleado', 'N/D'),
-                                                                                 str(e)))
+                    _("Error al procesar asignación para el código '%s': %s") % (
+                        vals.get('codigo_empleado', 'N/D'), str(e))
+                )
+
         return self.browse([r.id for r in records])
 
     def action_descargar_plantilla(self):
