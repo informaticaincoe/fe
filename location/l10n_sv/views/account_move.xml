@@ -13,7 +13,7 @@
                 </xpath>
                 <xpath expr="//label[@for='journal_id']" position="before">
 <!--                    <field name="invoice_payment_term_name" invisible="1"/>-->
-                    <group string="Pago Hacienda">
+                    <group string="Pago Hacienda" invisible="journal_id == 9">
                         <field name="invoice_payment_term_id" string="Términos de Pago" />
                         <field name="condiciones_pago" string="Condiciones de Pago"
                                options="{'no_open': True, 'no_create': True}"/>

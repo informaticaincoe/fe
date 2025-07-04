@@ -1,6 +1,5 @@
 <odoo>
     <data>
-
         <!-- Acción para mostrar contratos (puede cambiar a tu modelo futuro) -->
         <record id="action_retenciones" model="ir.actions.act_window">
             <field name="name">Retenciones Salariales</field>

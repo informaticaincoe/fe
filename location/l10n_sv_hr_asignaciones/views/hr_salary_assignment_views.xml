@@ -1,6 +1,5 @@
 <odoo>
     <data>
-
         <!-- Vista tipo lista -->
         <record id="view_hr_salary_assignment_tree" model="ir.ui.view">
             <field name="name">hr.salary.assignment.tree</field>
@@ -28,16 +27,16 @@
                             <group>
                                 <field name="employee_id" widget="many2one_avatar_employee"/>
                                 <field name="tipo"/>
-                                <field name="description"/>
+                                <field name="description" />
                             </group>
                             <group>
-                                <field name="monto"/>
+                                <field name="monto" invisible="tipo == 'OVERTIME'"/>
                                 <field name="periodo"/>
                             </group>
 
                             <field name="codigo_empleado" invisible="1"/>
                         </group>
-                        <group string="Detalle de horas extras" col="2" invisible="tipo != 'hora_extra'">
+                        <group string="Detalle de horas extras" col="2" invisible="tipo != 'OVERTIME'">
                             <field name="horas_diurnas"/>
                             <field name="horas_nocturnas"/>
                             <field name="horas_diurnas_descanso"/>
