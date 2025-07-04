@@ -22,7 +22,7 @@ class HrSalaryAssignment(models.Model):
 
     employee_id = fields.Many2one('hr.employee', string='Empleado')
     tipo = fields.Selection([
-        ('OVERTIME', 'Hora extra'),
+        ('OVERTIME', 'Horas extras'),
         ('COMISION', 'Comisión'),
         ('VIATICO', 'Viáticos'),
         ('BONO', 'Bono'),
@@ -50,17 +50,39 @@ class HrSalaryAssignment(models.Model):
         empresa = None
         dias_mes = 30
         horas_laboradas = 8
-        recargo = constants.RECARGO_HE
+        recargo = constants.RECARGO_HE if constants else 1.0
+
+        # Mapeo texto externo a código interno
+        tipo_map = {
+            "horas extras": constants.ASIGNACION_HORAS_EXTRA.upper(),
+            "hora extra": constants.ASIGNACION_HORAS_EXTRA.upper(),
+            "viáticos": constants.ASIGNACION_VIATICOS.upper(),
+            "viaticos": constants.ASIGNACION_VIATICOS.upper(),
+        }
+
+        valid_tipos = [x[0] for x in self._fields['tipo'].selection]
 
         for vals in vals_list:
             try:
-                _logger.info("=== Entradas vals: %s ===", vals)
+                tipo_raw = (vals.get("tipo") or "").strip()
 
-                tipo = vals.get("tipo", "OVERTIME").upper()
-                vals["tipo"] = tipo
-                _logger.info("Procesando asignación tipo: %s", tipo)
+                # Normalizar a código interno
+                tipo = None
+                if tipo_raw.upper() in valid_tipos:
+                    tipo = tipo_raw.upper()
+                else:
+                    tipo = tipo_map.get(tipo_raw.lower())
 
-                if tipo == constants.HORAS_EXTRAS.upper() or tipo == constants.ASIGNACION_VIATICOS.upper():
+                if tipo:
+                    vals["tipo"] = tipo
+                    _logger.info("Procesando asignación tipo: %s", tipo)
+                else:
+                    tipo_original = vals.get("tipo", "N/D")
+                    _logger.info("Tipo no es horas extra ni viático: %s, se crea normal", vals.get("tipo"))
+
+                if tipo in (constants.ASIGNACION_HORAS_EXTRA.upper(), constants.ASIGNACION_VIATICOS.upper()):
+                    _logger.info("=== Entradas vals: %s ===", vals)
+
                     codigo_empleado = vals.get('codigo_empleado')
                     if not codigo_empleado:
                         raise UserError(
@@ -73,7 +95,7 @@ class HrSalaryAssignment(models.Model):
 
                     vals['employee_id'] = empleado.id
 
-                    _logger.info("Procesando asignación de horas extra")
+                    _logger.info("Procesando asignación de horas extra o viáticos")
 
                     if not empleado.contract_id:
                         raise UserError("No se encontró contrato para calcular horas extra.")
@@ -111,10 +133,13 @@ class HrSalaryAssignment(models.Model):
 
                     # Obtener empresa del empleado
                     empresa = empleado.company_id
-                    porcentaje_base = empresa.overtime_percentage or 1.0
+                    porcentaje_base = 1.0 #empresa.overtime_percentage or 1.0
                     porcentaje_nocturno = salario_hora * (porcentaje_base / 100)  # 25% recargo nocturno
 
-                    valor_config = config_utils.get_config_value(self.env, 'porcentaje_horas_extras', empleado.company_id.id)
+                    valor_config = None
+                    if config_utils:
+                        valor_config = config_utils.get_config_value(self.env, 'porcentaje_horas_extras',
+                                                                     empleado.company_id.id)
                     porcentaje_descanso = 0.0
                     try:
                         valor_config_float = float(valor_config)
@@ -137,14 +162,15 @@ class HrSalaryAssignment(models.Model):
 
                     # Hora extra nocturna en día de descanso 475%
                     unidad_nocturna_descanso = (salario_hora + porcentaje_nocturno) * recargo + (
-                                (salario_hora + porcentaje_nocturno) * porcentaje_dia_descanso)
+                            (salario_hora + porcentaje_nocturno) * porcentaje_dia_descanso)
                     monto_total += round(horas_nocturnas_descanso * unidad_nocturna_descanso, 4)
 
                     # Hora diurna en día de asueto/festivo 500%
                     monto_total += round(horas_diurnas_asueto * salario_hora * constants.RECARGO_HED_FEST, 4)
 
                     # Hora nocturna en día de asueto/festivo 600%
-                    monto_total += round(horas_nocturnas_asueto * (salario_hora + porcentaje_nocturno) * constants.RECARGO_HEN_FEST,4)
+                    monto_total += round(
+                        horas_nocturnas_asueto * (salario_hora + porcentaje_nocturno) * constants.RECARGO_HEN_FEST, 4)
 
                     # Asignar valores calculados
                     vals['monto'] = round(monto_total, 2)  # vals['monto'] = total_monto
@@ -154,17 +180,20 @@ class HrSalaryAssignment(models.Model):
                         'description': vals['description'],
                     })
                 else:
-                    # Para otros tipos que no sean horas extra
+                    # Para otros tipos solo aseguramos que monto exista
                     if not vals.get("monto"):
-                        _logger.error("No se proporcionó 'monto' para tipo distinto de horas extra")
-                        raise UserError("Debe indicar el monto para este tipo de asignación.")
+                        vals['monto'] = 0.0
+                    if 'employee_id' not in vals or not vals.get('employee_id'):
+                        vals['employee_id'] = False
 
                 record = super().create(vals)
                 _logger.info("Registro creado (ID=%s) con vals finales: %s", record.id, record.read()[0])
                 records.append(record)
             except Exception as e:
                 _logger.error("Error al crear asignación con datos %s: %s", vals, str(e))
-                raise UserError(_("Error al procesar asignación para el código '%s': %s") % (vals.get('codigo_empleado', 'N/D'), str(e)))
+                raise UserError(
+                    _("Error al procesar asignación para el código '%s': %s") % (vals.get('codigo_empleado', 'N/D'),
+                                                                                 str(e)))
         return self.browse([r.id for r in records])
 
     def action_descargar_plantilla(self):

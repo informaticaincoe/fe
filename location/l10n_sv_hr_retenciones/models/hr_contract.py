@@ -27,7 +27,7 @@ class HrContract(models.Model):
             return bruto  # ✅ Ya está definido
 
         tipos_incluidos = [
-            constants.HORAS_EXTRAS,
+            constants.ASIGNACION_HORAS_EXTRA.upper(),
             constants.ASIGNACION_BONOS.upper(),
             constants.ASIGNACION_COMISIONES.upper(),
         ]
@@ -191,12 +191,18 @@ class HrContract(models.Model):
 
     def calcular_incaf(self):
         """
-        Calcula la deducción del INCAF (1% del salario bruto total del empleado).
-        Retorna 0.0 si ocurre cualquier error.
+        Calcula la deducción del INCAF (1% del salario bruto total del empleado),
+        solo si la empresa tiene activado el campo 'paga_incaf'.
+        Retorna 0.0 si no aplica o si ocurre un error.
         """
         self.ensure_one()
 
         try:
+            empresa = self.company_id or self.employee_id.company_id
+            if not empresa or not empresa.paga_incaf:
+                _logger.info("Empresa no paga INCAF, se omite deducción para contrato ID %s.", self.id)
+                return 0.0
+
             salario = self.get_salario_bruto_total()
             porcentaje = 1.0  # 1%
             resultado = salario * (porcentaje / 100.0)
@@ -207,4 +213,5 @@ class HrContract(models.Model):
         except Exception as e:
             _logger.error("Error general al calcular INCAF para contrato ID %s: %s", self.id, e)
             return 0.0  # Fallback seguro
+
 
