@@ -7,14 +7,16 @@
             <field name="inherit_id" ref="account.view_move_form"/>
             <field name="arch" type="xml">
                 <xpath expr="//field[@name='invoice_vendor_bill_id']" position="after">
-                    <field name="sit_referencia" invisible="0"/>
-                    <field name="sit_observaciones" invisible="0"/>
-                    <field name="sit_regimen" string="Régimen Fiscal" invisible="0"/>
+                    <group invisible="journal_code == 'SLR'">
+                        <field name="sit_referencia" invisible="journal_code == 'SLR'"/>
+                        <field name="sit_observaciones" invisible="0"/>
+                        <field name="sit_regimen" string="Régimen Fiscal" invisible="0"/>
+                    </group>
                 </xpath>
                 <xpath expr="//label[@for='journal_id']" position="before">
-<!--                    <field name="invoice_payment_term_name" invisible="1"/>-->
-                    <group string="Pago Hacienda" invisible="journal_id == 9">
-                        <field name="invoice_payment_term_id" string="Términos de Pago" />
+                    <!--                    <field name="invoice_payment_term_name" invisible="1"/>-->
+                    <group string="Pago Hacienda" invisible="journal_code == 'SLR'">
+                        <field name="invoice_payment_term_id" string="Términos de Pago"/>
                         <field name="condiciones_pago" string="Condiciones de Pago"
                                options="{'no_open': True, 'no_create': True}"/>
                         <field name="forma_pago" string="Forma de Pago" options="{'no_open': True, 'no_create': True}"/>
@@ -24,7 +26,7 @@
                     </group>
                 </xpath>
                 <notebook>
-                    <page string="FEL" name="certificados2">
+                    <page string="FEL" name="certificados2" invisible="journal_code == 'SLR'">
                         <group>
                             <field name="sit_qr_hacienda" widget="image" invisible="0"/>
                             <field name="sit_json_respuesta" invisible="1"/>
