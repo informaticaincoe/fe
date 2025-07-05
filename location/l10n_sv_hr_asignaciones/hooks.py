@@ -41,7 +41,7 @@ def post_init_configuracion_reglas(env):
     env['hr.salary.rule'].sudo().actualizar_cuentas_asignaciones()
 
 def cargar_archivo_excel(env):
-    ruta_archivo = os.path.join(os.path.dirname(__file__), 'static', 'src', 'plantilla', 'plantilla_horas_extra.xlsx')
+    ruta_archivo = os.path.join(os.path.dirname(__file__), 'static', 'src', 'plantilla', 'plantilla_asignaciones.xlsx')
     ruta_absoluta = os.path.abspath(ruta_archivo)
 
     if not os.path.exists(ruta_absoluta):
@@ -51,7 +51,7 @@ def cargar_archivo_excel(env):
         contenido = base64.b64encode(f.read()).decode('utf-8')
 
     env['ir.attachment'].create({
-        'name': 'Plantilla de Horas extras',
+        'name': 'Plantilla de Asignaciones',
         'datas': contenido,
         'mimetype': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'public': True,

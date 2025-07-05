@@ -41,11 +41,156 @@ class HrSalaryAssignment(models.Model):
 
     codigo_empleado = fields.Char(string="Código de empleado", store=False)
 
+    def unlink(self):
+        # raise UserError("El método unlink fue llamado.")
+        for asignacion in self:
+            payslip = asignacion.payslip_id
+            if payslip and payslip.state in ['done', 'paid']:
+                raise UserError(_(
+                    "No puede eliminar la asignación porque está vinculada a una boleta que ya fue procesada o pagada."
+                ))
+        return super(HrSalaryAssignment, self).unlink()
+
+    @api.model
+    def create_or_update_assignment(self, vals):
+        existing = self.search([
+            ('employee_id', '=', vals.get('employee_id')),
+            ('tipo', '=', vals.get('tipo')),
+            ('periodo', '=', vals.get('periodo')),
+        ], limit=1)
+
+        def suma_horas(valor1, valor2):
+            return str(self._parse_horas(valor1) + self._parse_horas(valor2))
+
+        if existing:
+            updated_vals = {
+                'horas_diurnas': suma_horas(existing.horas_diurnas, vals.get('horas_diurnas')),
+                'horas_nocturnas': suma_horas(existing.horas_nocturnas, vals.get('horas_nocturnas')),
+                'horas_diurnas_descanso': suma_horas(existing.horas_diurnas_descanso,
+                                                     vals.get('horas_diurnas_descanso')),
+                'horas_nocturnas_descanso': suma_horas(existing.horas_nocturnas_descanso,
+                                                       vals.get('horas_nocturnas_descanso')),
+                'horas_diurnas_asueto': suma_horas(existing.horas_diurnas_asueto, vals.get('horas_diurnas_asueto')),
+                'horas_nocturnas_asueto': suma_horas(existing.horas_nocturnas_asueto,
+                                                     vals.get('horas_nocturnas_asueto')),
+                'monto': existing.monto + float(vals.get('monto', 0.0)),
+            }
+            existing.write(updated_vals)
+            return existing
+        else:
+            return super(HrSalaryAssignment, self).create(vals)
+
     @api.model_create_multi
     def create(self, vals_list):
+        from collections import defaultdict
+
+        # Consolidar si viene de importación (varias filas)
+        if len(vals_list) > 1:
+            _logger.info("Agrupando filas duplicadas por empleado, tipo y periodo...")
+
+            agrupados = defaultdict(list)
+
+            for vals in vals_list:
+                empleado = None
+                tipo_raw = (vals.get("tipo") or "").strip().lower()
+                periodo = vals.get("periodo")
+
+                periodo_date = self._parse_periodo(periodo)
+                if periodo_date:
+                    periodo_key = periodo_date.isoformat()
+                    vals['periodo'] = periodo_date  # Actualiza para que sea fecha
+                else:
+                    if hasattr(periodo, 'isoformat'):
+                        periodo_key = periodo.isoformat()
+                    else:
+                        periodo_key = str(periodo)
+
+                codigo_empleado = vals.get('codigo_empleado')
+                _logger.info("Codigo del empleado: %s", codigo_empleado)
+
+                # Mapear tipo desde texto plano
+                tipo_map = {
+                    "horas extras": constants.ASIGNACION_HORAS_EXTRA.upper(),
+                    "hora extra": constants.ASIGNACION_HORAS_EXTRA.upper(),
+                    "viáticos": constants.ASIGNACION_VIATICOS.upper(),
+                    "viaticos": constants.ASIGNACION_VIATICOS.upper(),
+                }
+                tipo = tipo_map.get(tipo_raw, tipo_raw.upper())
+                vals["tipo"] = tipo
+                _logger.info("Procesando asignación tipo: %s", tipo)
+
+                # Si viene de importación (usa código de empleado)
+                if codigo_empleado:
+                    if isinstance(codigo_empleado, str):
+                        codigo_empleado = codigo_empleado.strip()
+
+                    if not codigo_empleado:
+                        raise UserError("Debe proporcionar el código de empleado (codigo_empleado).")
+
+                    empleado = self.env['hr.employee'].search([('barcode', '=', codigo_empleado)], limit=1)
+                    if not empleado:
+                        raise UserError(f"No se encontró un empleado con código: {codigo_empleado}")
+                    vals['employee_id'] = empleado.id
+
+                # Si viene del formulario (usa employee_id directo)
+                elif vals.get('employee_id'):
+                    empleado = self.env['hr.employee'].browse(vals['employee_id'])
+
+                else:
+                    raise UserError("Debe proporcionar un código de empleado válido.")
+
+                if not empleado or not tipo or not periodo:
+                    raise UserError("Cada fila debe tener empleado, tipo y periodo para consolidar correctamente.")
+
+                _logger.info("Agrupando fila con empleado_id=%s, tipo=%s, periodo=%s (str: %s)", empleado.id, tipo,
+                             periodo, str(periodo))
+                key = (empleado.id, tipo, periodo_key)
+                agrupados[key].append(vals)
+
+            # Consolidación
+            consolidados = []
+            for key, items in agrupados.items():
+                base = items[0].copy()
+                tipo = key[1]
+
+                if tipo == constants.ASIGNACION_HORAS_EXTRA.upper():
+                    _logger.info("Procesando horas extras para consolidación: %s", tipo)
+                    for campo in [
+                        'horas_diurnas', 'horas_nocturnas',
+                        'horas_diurnas_descanso', 'horas_nocturnas_descanso',
+                        'horas_diurnas_asueto', 'horas_nocturnas_asueto'
+                    ]:
+                        total = 0.0
+                        for item in items:
+                            valor = item.get(campo)
+                            try:
+                                total += self._parse_horas(valor)
+                            except Exception as e:
+                                _logger.info("Error al convertir horas en campo %s: %s", campo, e)
+                        base[campo] = str(total)
+                        _logger.info("Total consolidado en campo %s: %s", campo, base[campo])
+                else:
+                    _logger.info("Consolidación por monto para tipo: %s", tipo)
+                    total_monto = 0.0
+                    for item in items:
+                        try:
+                            total_monto += float(item.get('monto') or 0.0)
+                        except Exception as e:
+                            _logger.info("Monto inválido para consolidar en %s: %s", key, e)
+                    base['monto'] = total_monto
+
+                descripciones = [str(item.get('description', '')).strip() for item in items if item.get('description')]
+                base['description'] = " | ".join(descripciones)
+                base['codigo_empleado'] = self.env['hr.employee'].browse(key[0]).barcode or ''  # Por consistencia
+                consolidados.append(base)
+
+            vals_list = consolidados
+            _logger.info("Consolidación completada. Total de registros: %d", len(vals_list))
+
         records = []
         dias_mes = 30
         horas_laboradas = 8
+        empleado = None
 
         valid_tipos = [x[0] for x in self._fields['tipo'].selection]
 
@@ -58,14 +203,11 @@ class HrSalaryAssignment(models.Model):
                     "viáticos": constants.ASIGNACION_VIATICOS.upper(),
                     "viaticos": constants.ASIGNACION_VIATICOS.upper(),
                 }
-
-                # tipo = tipo_raw.upper() if tipo_raw.upper() in valid_tipos else tipo_map.get(tipo_raw.lower())
                 tipo = tipo_map.get(tipo_raw, tipo_raw.upper())
                 vals["tipo"] = tipo
                 _logger.info("Procesando asignación tipo: %s", tipo)
 
                 codigo_empleado = vals.get('codigo_empleado')
-                empleado = None
                 _logger.info("Codigo del empleado: %s", codigo_empleado)
 
                 # Si viene de importación (usa código de empleado)
@@ -88,7 +230,12 @@ class HrSalaryAssignment(models.Model):
                 else:
                     raise UserError("Debe seleccionar un empleado.")
 
-                if tipo == constants.ASIGNACION_HORAS_EXTRA.upper() or (tipo == constants.ASIGNACION_VIATICOS.upper() and  codigo_empleado):
+                if tipo == constants.ASIGNACION_HORAS_EXTRA.upper() or any(
+                        vals.get(campo) not in [None, '', '0', 0] for campo in [
+                            'horas_diurnas', 'horas_nocturnas',
+                            'horas_diurnas_descanso', 'horas_nocturnas_descanso',
+                            'horas_diurnas_asueto', 'horas_nocturnas_asueto'
+                        ]):
                     _logger.info("=== Entradas vals: %s ===", vals)
 
                     contrato = empleado.contract_id
@@ -129,7 +276,6 @@ class HrSalaryAssignment(models.Model):
                         raise UserError("Debe ingresar al menos una hora extra.")
 
                     # Recargos
-                    valor_config = None
                     recargo_he_diurna = 0.0
                     recargo_he_nocturna = 0.0
                     recargo_he_diurna_dia_descanso = 0.0
@@ -171,22 +317,36 @@ class HrSalaryAssignment(models.Model):
                     vals['employee_id'] = vals.get('employee_id') or False
 
                 vals['description'] = vals.get('description', '')
-                record = super().create(vals)
-                _logger.info("Registro creado (ID=%s) con vals finales: %s", record.id, record.read()[0])
+
+                # Validación: tipo obligatorio
+                if not vals.get("tipo"):
+                    raise UserError(
+                        "Debe seleccionar un tipo de asignación (Ej: Horas extra, Viáticos, Comisión, etc.).")
+
+                # Validación: periodo obligatorio
+                if not vals.get('periodo'):
+                    raise UserError("Debe seleccionar el periodo para la asignación.")
+
+                # Validación: monto no puede ser cero
+                if vals.get('monto', 0.0) <= 0:
+                    raise UserError("El monto no puede ser cero. Verifique los datos ingresados.")
+
+                record = self.create_or_update_assignment(vals) #record = super().create(vals)
+                _logger.info("Registro creado o actualizado (ID=%s) con vals finales: %s", record.id, record.read()[0])
                 records.append(record)
 
             except Exception as e:
                 _logger.error("Error al crear asignación con datos %s: %s", vals, str(e))
                 raise UserError(
-                    _("Error al procesar asignación para el código '%s': %s") % (
-                        vals.get('codigo_empleado', 'N/D'), str(e))
+                    _("Error al procesar asignación para el empleado '%s' (código: %s): %s") % (
+                        empleado.name, empleado.barcode, str(e))
                 )
 
         return self.browse([r.id for r in records])
 
     def action_descargar_plantilla(self):
         # Busca el archivo adjunto con la plantilla
-        attachment = self.env['ir.attachment'].search([('name', '=', 'Plantilla de Horas extras')], limit=1)
+        attachment = self.env['ir.attachment'].search([('name', '=', 'Plantilla de Asignaciones')], limit=1)
         if not attachment:
             return {
                 'type': 'ir.actions.client',
@@ -213,8 +373,8 @@ class HrSalaryAssignment(models.Model):
 
         _logger.info("Intentando convertir valor de horas: %s", valor)
 
-        if not valor:
-            _logger.info("Valor vacío o nulo recibido, se interpreta como 0.0 horas.")
+        if valor is None or (isinstance(valor, str) and not valor.strip()):
+            _logger.info("Valor vacío o string en blanco recibido, se interpreta como 0.0 horas.")
             return 0.0
 
         # Si ya es float o int
@@ -257,3 +417,19 @@ class HrSalaryAssignment(models.Model):
         # Si llegó aquí es un tipo no soportado
         _logger.error("Tipo de dato no soportado para horas: %s (%s)", valor, type(valor))
         raise UserError(_("Formato de horas no reconocido: %s" % valor))
+
+
+    def _parse_periodo(self, valor):
+        """
+        Convierte valor tipo '2 06 2025' o similar en un objeto date,
+        o retorna None si no es válido.
+        """
+        if not valor or not isinstance(valor, str):
+            return None
+        formatos = ["%d %m %Y", "%d-%m-%Y", "%d/%m/%Y", "%Y-%m-%d"]
+        for fmt in formatos:
+            try:
+                return datetime.strptime(valor.strip(), fmt).date()
+            except Exception:
+                continue
+        return None

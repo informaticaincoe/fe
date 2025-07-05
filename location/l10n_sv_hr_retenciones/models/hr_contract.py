@@ -189,14 +189,14 @@ class HrContract(models.Model):
     def calcular_incaf(self):
         """
         Calcula la deducción del INCAF (1% del salario bruto total del empleado),
-        solo si la empresa tiene activado el campo 'paga_incaf'.
+        solo si la empresa tiene activado el campo 'pago_incaf'.
         Retorna 0.0 si no aplica o si ocurre un error.
         """
         self.ensure_one()
 
         try:
             empresa = self.company_id or self.employee_id.company_id
-            if not empresa or not empresa.paga_incaf:
+            if not empresa or not empresa.pago_incaf:
                 _logger.info("Empresa no paga INCAF, se omite deducción para contrato ID %s.", self.id)
                 return 0.0
 
