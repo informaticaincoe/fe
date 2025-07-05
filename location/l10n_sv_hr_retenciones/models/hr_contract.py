@@ -135,8 +135,8 @@ class HrContract(models.Model):
         # Calcular base imponible restando AFP e ISSS
         afp = self.calcular_afp()
         isss = self.calcular_isss()
-        incaf = self.calcular_incaf()
-        base_imponible = bruto - afp - isss - incaf
+        #incaf = self.calcular_incaf()
+        base_imponible = bruto - afp - isss #- incaf
         _logger.info("Base imponible = %.2f - %.2f - %.2f = %.2f", bruto, afp, isss, base_imponible)
 
         # Se itera sobre los tramos de la tabla para determinar el tramo aplicable

@@ -46,7 +46,7 @@
         "views/account_catalogos.xml",
         "data/catalogos.xml",
         "views/menuitem.xml",
-        #'views/anexos_report_tabbed.xml',
+        'views/anexos_report_tabbed.xml',
         "views/product_template.xml",
         'views/view_res_company.xml',
         'views/view_res_partner.xml',

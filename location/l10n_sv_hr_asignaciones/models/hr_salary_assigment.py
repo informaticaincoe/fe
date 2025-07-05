@@ -42,151 +42,87 @@ class HrSalaryAssignment(models.Model):
     codigo_empleado = fields.Char(string="Código de empleado", store=False)
 
     def unlink(self):
-        # raise UserError("El método unlink fue llamado.")
         for asignacion in self:
             payslip = asignacion.payslip_id
             if payslip and payslip.state in ['done', 'paid']:
-                raise UserError(_(
-                    "No puede eliminar la asignación porque está vinculada a una boleta que ya fue procesada o pagada."
-                ))
+                raise UserError(_("No puede eliminar la asignación porque está vinculada a una boleta que ya fue procesada o pagada."))
         return super(HrSalaryAssignment, self).unlink()
 
-    @api.model
-    def create_or_update_assignment(self, vals):
-        existing = self.search([
-            ('employee_id', '=', vals.get('employee_id')),
-            ('tipo', '=', vals.get('tipo')),
-            ('periodo', '=', vals.get('periodo')),
-        ], limit=1)
-
-        def suma_horas(valor1, valor2):
-            return str(self._parse_horas(valor1) + self._parse_horas(valor2))
-
-        if existing:
-            updated_vals = {
-                'horas_diurnas': suma_horas(existing.horas_diurnas, vals.get('horas_diurnas')),
-                'horas_nocturnas': suma_horas(existing.horas_nocturnas, vals.get('horas_nocturnas')),
-                'horas_diurnas_descanso': suma_horas(existing.horas_diurnas_descanso,
-                                                     vals.get('horas_diurnas_descanso')),
-                'horas_nocturnas_descanso': suma_horas(existing.horas_nocturnas_descanso,
-                                                       vals.get('horas_nocturnas_descanso')),
-                'horas_diurnas_asueto': suma_horas(existing.horas_diurnas_asueto, vals.get('horas_diurnas_asueto')),
-                'horas_nocturnas_asueto': suma_horas(existing.horas_nocturnas_asueto,
-                                                     vals.get('horas_nocturnas_asueto')),
-                'monto': existing.monto + float(vals.get('monto', 0.0)),
-            }
-            existing.write(updated_vals)
-            return existing
-        else:
-            return super(HrSalaryAssignment, self).create(vals)
+    # @api.model
+    # def create_or_update_assignment(self, vals):
+    #     existing = self.search([
+    #         ('employee_id', '=', vals.get('employee_id')),
+    #         ('tipo', '=', vals.get('tipo')),
+    #         ('periodo', '=', vals.get('periodo')),
+    #     ], limit=1)
+    #
+    #     def _as_float(val):
+    #         try:
+    #             return round(float(val or 0.0), 4)
+    #         except Exception:
+    #             return 0.0
+    #
+    #     def _horas_iguales(v1, v2):
+    #         return _as_float(v1) == _as_float(v2)
+    #
+    #     # Convertir horas a float para comparar correctamente
+    #     for campo in [
+    #         'horas_diurnas', 'horas_nocturnas',
+    #         'horas_diurnas_descanso', 'horas_nocturnas_descanso',
+    #         'horas_diurnas_asueto', 'horas_nocturnas_asueto'
+    #     ]:
+    #         if campo in vals:
+    #             try:
+    #                 vals[campo] = round(float(vals[campo]), 4)
+    #             except Exception:
+    #                 vals[campo] = 0.0
+    #
+    #     if existing:
+    #         # Verificar si el registro existente es idéntico al nuevo
+    #         iguales = (
+    #                 _horas_iguales(existing.horas_diurnas, vals.get('horas_diurnas')) and
+    #                 _horas_iguales(existing.horas_nocturnas, vals.get('horas_nocturnas')) and
+    #                 _horas_iguales(existing.horas_diurnas_descanso, vals.get('horas_diurnas_descanso')) and
+    #                 _horas_iguales(existing.horas_nocturnas_descanso, vals.get('horas_nocturnas_descanso')) and
+    #                 _horas_iguales(existing.horas_diurnas_asueto, vals.get('horas_diurnas_asueto')) and
+    #                 _horas_iguales(existing.horas_nocturnas_asueto, vals.get('horas_nocturnas_asueto')) and
+    #                 _as_float(existing.monto) == _as_float(vals.get('monto'))
+    #         )
+    #         desc_actual = (existing.description or '').strip()
+    #         desc_nueva = (vals.get('description') or '').strip()
+    #         desc_contiene = desc_nueva in desc_actual or desc_actual in desc_nueva
+    #
+    #         if iguales and desc_contiene:
+    #             _logger.info("Asignación idéntica ya existe (ignorada): %s", existing)
+    #             return existing  # Ignorar duplicado idéntico
+    #
+    #         # Si no son idénticos, consolidar sumando montos y concatenando descripciones
+    #         monto_total = _as_float(existing.monto) + _as_float(vals.get('monto'))
+    #
+    #         if desc_nueva and desc_nueva not in desc_actual:
+    #             descripcion_final = f"{desc_actual} | {desc_nueva}".strip(" |")
+    #         else:
+    #             descripcion_final = desc_actual
+    #
+    #         update_vals = {
+    #             'horas_diurnas': vals.get('horas_diurnas', existing.horas_diurnas),
+    #             'horas_nocturnas': vals.get('horas_nocturnas', existing.horas_nocturnas),
+    #             'horas_diurnas_descanso': vals.get('horas_diurnas_descanso', existing.horas_diurnas_descanso),
+    #             'horas_nocturnas_descanso': vals.get('horas_nocturnas_descanso', existing.horas_nocturnas_descanso),
+    #             'horas_diurnas_asueto': vals.get('horas_diurnas_asueto', existing.horas_diurnas_asueto),
+    #             'horas_nocturnas_asueto': vals.get('horas_nocturnas_asueto', existing.horas_nocturnas_asueto),
+    #             'monto': monto_total,
+    #             'description': descripcion_final,
+    #         }
+    #
+    #         _logger.info("Actualizando asignación consolidando diferencias en ID %s con valores: %s", existing.id, update_vals)
+    #         existing.write(update_vals)
+    #         return existing
+    #     else:
+    #         return super(HrSalaryAssignment, self).create(vals)
 
     @api.model_create_multi
     def create(self, vals_list):
-        from collections import defaultdict
-
-        # Consolidar si viene de importación (varias filas)
-        if len(vals_list) > 1:
-            _logger.info("Agrupando filas duplicadas por empleado, tipo y periodo...")
-
-            agrupados = defaultdict(list)
-
-            for vals in vals_list:
-                empleado = None
-                tipo_raw = (vals.get("tipo") or "").strip().lower()
-                periodo = vals.get("periodo")
-
-                periodo_date = self._parse_periodo(periodo)
-                if periodo_date:
-                    periodo_key = periodo_date.isoformat()
-                    vals['periodo'] = periodo_date  # Actualiza para que sea fecha
-                else:
-                    if hasattr(periodo, 'isoformat'):
-                        periodo_key = periodo.isoformat()
-                    else:
-                        periodo_key = str(periodo)
-
-                codigo_empleado = vals.get('codigo_empleado')
-                _logger.info("Codigo del empleado: %s", codigo_empleado)
-
-                # Mapear tipo desde texto plano
-                tipo_map = {
-                    "horas extras": constants.ASIGNACION_HORAS_EXTRA.upper(),
-                    "hora extra": constants.ASIGNACION_HORAS_EXTRA.upper(),
-                    "viáticos": constants.ASIGNACION_VIATICOS.upper(),
-                    "viaticos": constants.ASIGNACION_VIATICOS.upper(),
-                }
-                tipo = tipo_map.get(tipo_raw, tipo_raw.upper())
-                vals["tipo"] = tipo
-                _logger.info("Procesando asignación tipo: %s", tipo)
-
-                # Si viene de importación (usa código de empleado)
-                if codigo_empleado:
-                    if isinstance(codigo_empleado, str):
-                        codigo_empleado = codigo_empleado.strip()
-
-                    if not codigo_empleado:
-                        raise UserError("Debe proporcionar el código de empleado (codigo_empleado).")
-
-                    empleado = self.env['hr.employee'].search([('barcode', '=', codigo_empleado)], limit=1)
-                    if not empleado:
-                        raise UserError(f"No se encontró un empleado con código: {codigo_empleado}")
-                    vals['employee_id'] = empleado.id
-
-                # Si viene del formulario (usa employee_id directo)
-                elif vals.get('employee_id'):
-                    empleado = self.env['hr.employee'].browse(vals['employee_id'])
-
-                else:
-                    raise UserError("Debe proporcionar un código de empleado válido.")
-
-                if not empleado or not tipo or not periodo:
-                    raise UserError("Cada fila debe tener empleado, tipo y periodo para consolidar correctamente.")
-
-                _logger.info("Agrupando fila con empleado_id=%s, tipo=%s, periodo=%s (str: %s)", empleado.id, tipo,
-                             periodo, str(periodo))
-                key = (empleado.id, tipo, periodo_key)
-                agrupados[key].append(vals)
-
-            # Consolidación
-            consolidados = []
-            for key, items in agrupados.items():
-                base = items[0].copy()
-                tipo = key[1]
-
-                if tipo == constants.ASIGNACION_HORAS_EXTRA.upper():
-                    _logger.info("Procesando horas extras para consolidación: %s", tipo)
-                    for campo in [
-                        'horas_diurnas', 'horas_nocturnas',
-                        'horas_diurnas_descanso', 'horas_nocturnas_descanso',
-                        'horas_diurnas_asueto', 'horas_nocturnas_asueto'
-                    ]:
-                        total = 0.0
-                        for item in items:
-                            valor = item.get(campo)
-                            try:
-                                total += self._parse_horas(valor)
-                            except Exception as e:
-                                _logger.info("Error al convertir horas en campo %s: %s", campo, e)
-                        base[campo] = str(total)
-                        _logger.info("Total consolidado en campo %s: %s", campo, base[campo])
-                else:
-                    _logger.info("Consolidación por monto para tipo: %s", tipo)
-                    total_monto = 0.0
-                    for item in items:
-                        try:
-                            total_monto += float(item.get('monto') or 0.0)
-                        except Exception as e:
-                            _logger.info("Monto inválido para consolidar en %s: %s", key, e)
-                    base['monto'] = total_monto
-
-                descripciones = [str(item.get('description', '')).strip() for item in items if item.get('description')]
-                base['description'] = " | ".join(descripciones)
-                base['codigo_empleado'] = self.env['hr.employee'].browse(key[0]).barcode or ''  # Por consistencia
-                consolidados.append(base)
-
-            vals_list = consolidados
-            _logger.info("Consolidación completada. Total de registros: %d", len(vals_list))
-
         records = []
         dias_mes = 30
         horas_laboradas = 8
@@ -195,6 +131,7 @@ class HrSalaryAssignment(models.Model):
         valid_tipos = [x[0] for x in self._fields['tipo'].selection]
 
         for vals in vals_list:
+            empleado = None
             try:
                 tipo_raw = (vals.get("tipo") or "").strip()
                 tipo_map = {
@@ -331,7 +268,8 @@ class HrSalaryAssignment(models.Model):
                 if vals.get('monto', 0.0) <= 0:
                     raise UserError("El monto no puede ser cero. Verifique los datos ingresados.")
 
-                record = self.create_or_update_assignment(vals) #record = super().create(vals)
+                record = super().create(vals)
+
                 _logger.info("Registro creado o actualizado (ID=%s) con vals finales: %s", record.id, record.read()[0])
                 records.append(record)
 
