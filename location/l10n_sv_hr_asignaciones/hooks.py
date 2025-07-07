@@ -8,6 +8,7 @@ from odoo import models
 _logger = logging.getLogger(__name__)
 
 from odoo import api, SUPERUSER_ID
+from odoo.modules import get_module_path
 
 # Intentamos importar constantes definidas en un módulo utilitario común.
 try:
@@ -48,9 +49,26 @@ def post_init_configuracion_reglas(env):
     """
     env['hr.salary.rule'].sudo().actualizar_cuentas_asignaciones()
 
+
 def cargar_archivo_excel(env):
-    ruta_archivo = os.path.join(os.path.dirname(__file__), 'static', 'src', 'plantilla', 'plantilla_asignaciones.xlsx')
-    ruta_absoluta = os.path.abspath(ruta_archivo)
+    """
+    Carga la plantilla Excel desde la ruta configurada en `res.configuration`
+    (clave='ruta_plantilla_asignaciones') y la guarda como archivo público en `ir.attachment`.
+    """
+    # ruta_archivo = os.path.join(os.path.dirname(__file__), 'static', 'src', 'plantilla', 'plantilla_asignaciones.xlsx')
+    # ruta_absoluta = os.path.abspath(ruta_archivo)
+
+    param_obj = env['ir.config_parameter'].sudo()
+    ruta_relativa = param_obj.get_param('ruta_plantilla_asignaciones')
+
+    if not ruta_relativa:
+        # Poner valor default para la instalación
+        ruta_relativa = 'static/src/plantilla/plantilla_asignaciones.xlsx'
+        param_obj.set_param('ruta_plantilla_asignaciones', ruta_relativa)
+
+    # Obtener ruta absoluta del módulo
+    module_path = get_module_path('l10n_sv_hr_asignaciones')
+    ruta_absoluta = os.path.join(module_path, ruta_relativa)
 
     if not os.path.exists(ruta_absoluta):
         raise FileNotFoundError(f"No se encontró el archivo: {ruta_absoluta}")
@@ -65,4 +83,4 @@ def cargar_archivo_excel(env):
         'public': True,
     })
 
-    _logger.info("✅ Archivo Excel de plantilla de horas extra creado en ir.attachment.")
+    _logger.info("Archivo Excel de plantilla de asignaciones cargado en ir.attachment desde %s", ruta_absoluta)

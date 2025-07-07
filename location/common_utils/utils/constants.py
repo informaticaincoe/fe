@@ -35,7 +35,7 @@ HORAS_DIURNAS_DESCANSO = "horas_diurnas_descanso"
 HORAS_NOCTURNAS_DESCANSO = "horas_nocturnas_descanso"
 HORAS_DIURNAS_ASUETO = "horas_diurnas_asueto"
 HORAS_NOCTURNAS_ASUETO = "horas_nocturnas_asueto"
-PERIODO_PAGO = "periodo_pago"
+PERIODO = "periodo"
 NOMBRE_PLANTILLA_ASIGNACIONES = "Plantilla de Asignaciones"
 
 CUENTAS_ASIGNACIONES = {

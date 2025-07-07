@@ -44,30 +44,32 @@ class HrPayslip(models.Model):
         como comisiones, viáticos, bonos y horas extra. También elimina entradas
         anteriores incluso si la asignación fue eliminada.
         """
-        tipos_asignacion = {
-            constants.ASIGNACION_COMISIONES.upper(): constants.ASIGNACION_COMISIONES.upper(),
-            constants.ASIGNACION_VIATICOS.upper(): constants.ASIGNACION_VIATICOS.upper(),
-            constants.ASIGNACION_BONOS.upper(): constants.ASIGNACION_BONOS.upper(),
-            constants.ASIGNACION_HORAS_EXTRA.upper(): constants.ASIGNACION_HORAS_EXTRA.upper(),
-        }
+        tipos_asignacion = [
+            constants.ASIGNACION_COMISIONES.upper(),
+            constants.ASIGNACION_VIATICOS.upper(),
+            constants.ASIGNACION_BONOS.upper(),
+            constants.ASIGNACION_HORAS_EXTRA.upper(),
+        ]
 
         for slip in self:
-            #Paso adicional: limpiar cualquier línea input de tipos definidos
-            codigos_inputs = list(tipos_asignacion.values())
-            tipos_inputs = self.env['hr.payslip.input.type'].search(
-                [('code', 'in', [code.upper() for code in codigos_inputs])])
+            # Buscar los tipos de entrada hr.payslip.input.type según los códigos en la lista
+            tipos_inputs = self.env['hr.payslip.input.type'].search([
+                ('code', 'in', tipos_asignacion)
+            ])
+
+            # Eliminar entradas anteriores que sean de los tipos definidos
             entradas_a_borrar = slip.input_line_ids.filtered(lambda l: l.input_type_id in tipos_inputs)
             if entradas_a_borrar:
                 _logger.info("Eliminando %s líneas de input antiguas", len(entradas_a_borrar))
                 entradas_a_borrar.unlink()
 
             #Ahora procesamos cada tipo normalmente
-            for tipo, xml_id in tipos_asignacion.items():
+            for tipo in tipos_asignacion:
                 # Buscar el tipo de entrada usando el campo técnico 'code', evitando dependencia de XML ID
                 # input_type = self.env.ref(f'l10n_sv_hr_asignaciones.{xml_id}', raise_if_not_found=False)
-                input_type = self.env['hr.payslip.input.type'].search([('code', '=', xml_id.upper())], limit=1)
+                input_type = self.env['hr.payslip.input.type'].search([('code', '=', tipo)], limit=1)
                 if not input_type:
-                    _logger.warning(f"[{tipo}] Tipo de entrada '{xml_id}' no encontrado, se omite.")
+                    _logger.warning(f"[{tipo}] Tipo de entrada '{tipo}' no encontrado, se omite.")
                     continue
 
                 # 1. Liberar asignaciones previas
@@ -83,8 +85,8 @@ class HrPayslip(models.Model):
                     ('employee_id', '=', slip.employee_id.id),
                     ('tipo', '=', tipo),
                     ('payslip_id', '=', False),
-                    ('periodo_pago', '>=', slip.date_from),
-                    ('periodo_pago', '<=', slip.date_to),
+                    ('periodo', '>=', slip.date_from),
+                    ('periodo', '<=', slip.date_to),
                 ])
                 _logger.info(f"[{tipo}] Asignaciones encontradas: {len(asignaciones)}")
 
