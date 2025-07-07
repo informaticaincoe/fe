@@ -8,10 +8,12 @@
     'data': [
         'data/hr_overtime_data.xml',
         'data/hr_salary_assignment_data.xml',
+        'data/res.configuration.csv',
         # 'data/work_entry_type_overtime.xml',
         'security/ir.model.access.csv',
         'views/hr_salary_assignment_views.xml',
         'views/hr_salary_assignment_menu.xml',
+        'views/res_company_contribution_view.xml',
         # 'views/hr_salary_assignment_views_inherit.xml',
         'views/res_company_overtime.xml',
     ],

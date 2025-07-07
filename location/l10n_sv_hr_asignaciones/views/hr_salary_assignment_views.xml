@@ -13,6 +13,7 @@
                     <field name="tipo" widget="badge" class="tipo_badge"/>
                     <field name="monto"/>
                     <field name="periodo"/>
+                    <field name="periodo_pago"/>
                     <field name="description"/>
                     <field name="payslip_id"/>
                 </list>
@@ -35,6 +36,7 @@
                             <group>
                                 <field name="monto" invisible="tipo == 'OVERTIME'"/>
                                 <field name="periodo"/>
+                                <field name="periodo_pago"/>
                             </group>
 
                             <field name="codigo_empleado" invisible="1"/>
