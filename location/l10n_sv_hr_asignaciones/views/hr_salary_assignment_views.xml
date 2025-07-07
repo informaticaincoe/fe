@@ -39,13 +39,18 @@
 
                             <field name="codigo_empleado" invisible="1"/>
                         </group>
-                        <group string="Detalle de horas extras" col="2" invisible="tipo != 'OVERTIME'">
-                            <field name="horas_diurnas"/>
-                            <field name="horas_nocturnas"/>
-                            <field name="horas_diurnas_descanso"/>
-                            <field name="horas_nocturnas_descanso"/>
-                            <field name="horas_diurnas_asueto"/>
-                            <field name="horas_nocturnas_asueto"/>
+                        <group string="Detalle de horas extras" invisible="tipo != 'OVERTIME'">
+                            <field name="horas_extras_ids">
+                                <list editable="bottom">
+                                    <field name="horas_diurnas"/>
+                                    <field name="horas_nocturnas"/>
+                                    <field name="horas_diurnas_descanso"/>
+                                    <field name="horas_nocturnas_descanso"/>
+                                    <field name="horas_diurnas_asueto"/>
+                                    <field name="horas_nocturnas_asueto"/>
+                                    <field name="descripcion"/>
+                                </list>
+                            </field>
                         </group>
                     </sheet>
                 </form>
