@@ -15,7 +15,7 @@
         'views/hr_salary_assignment_menu.xml',
         'views/res_company_contribution_view.xml',
         # 'views/hr_salary_assignment_views_inherit.xml',
-        'views/res_company_overtime.xml',
+        # 'views/res_company_overtime.xml',
     ],
     'installable': True,
     'application': False,
