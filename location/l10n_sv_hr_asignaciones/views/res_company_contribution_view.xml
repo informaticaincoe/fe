@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <odoo>
     <data>
-        <!-- Vista heredada para agregar porcentaje de horas extra en la empresa -->
-        <record id="view_company_form_inherit_overtime" model="ir.ui.view">
-            <field name="name">res.company.form.overtime</field>
+        <!-- Vista heredada para agregar la opcion del pago a INCAF en la empresa -->
+        <record id="view_company_form_inherit_contribution" model="ir.ui.view">
+            <field name="name">res.company.form.contribution</field>
             <field name="model">res.company</field>
             <field name="inherit_id" ref="base.view_company_form"/>
             <field name="arch" type="xml">
                 <xpath expr="//field[@name='currency_id']" position="after">
-                    <field name="overtime_percentage"/>
+                    <field name="pago_incaf"/>
                 </xpath>
             </field>
         </record>

@@ -8,5 +8,6 @@ class HrRetencionISSS(models.Model):
     techo = fields.Float("Techo", required=True)
     tipo = fields.Selection([
         ('empleado', 'Empleado'),
-        ('patron', 'Patrón')
+        ('patron', 'Patrón'),
+        ('incaf', 'INCAF')
     ], string="Tipo de Aportante", required=True)
