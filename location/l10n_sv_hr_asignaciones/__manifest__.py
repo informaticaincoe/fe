@@ -5,22 +5,14 @@
     'category': 'Human Resources',
     'author': 'Intracoe',
     'depends': ['web', 'base', 'hr', 'hr_payroll', 'l10n_sv_hr_retenciones', 'hr_work_entry_contract', 'resource'],
-    "assets": {
-        "web.assets_backend": [
-            "l10n_sv_hr_asignaciones/static/src/js/hr_salary_assignment_button.js",
-        ],
-    },
-
     'data': [
         'data/hr_overtime_data.xml',
         'data/hr_salary_assignment_data.xml',
         # 'data/work_entry_type_overtime.xml',
-
         'security/ir.model.access.csv',
-
         'views/hr_salary_assignment_views.xml',
         'views/hr_salary_assignment_menu.xml',
-        'views/hr_salary_assignment_views_inherit.xml',
+        # 'views/hr_salary_assignment_views_inherit.xml',
         'views/res_company_overtime.xml',
     ],
     'installable': True,

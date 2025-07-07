@@ -6,6 +6,9 @@
             <field name="model">hr.salary.assignment</field>
             <field name="arch" type="xml">
                 <list>
+                    <header>
+                        <button name="action_descargar_plantilla" type="object" icon="fa-download" string="Plantilla" display="always"/>
+                    </header>
                     <field name="employee_id" widget="many2one_avatar_employee"/>
                     <field name="tipo" widget="badge" class="tipo_badge"/>
                     <field name="monto"/>
@@ -27,7 +30,7 @@
                             <group>
                                 <field name="employee_id" widget="many2one_avatar_employee"/>
                                 <field name="tipo"/>
-                                <field name="description" />
+                                <field name="description"/>
                             </group>
                             <group>
                                 <field name="monto" invisible="tipo == 'OVERTIME'"/>

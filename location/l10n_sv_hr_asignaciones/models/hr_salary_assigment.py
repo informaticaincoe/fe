@@ -270,10 +270,5 @@ class HrSalaryAssignment(models.Model):
         _logger.error("Tipo de dato no soportado para horas: %s (%s)", valor, type(valor))
         raise UserError(_("Formato de horas no reconocido: %s" % valor))
 
-    def action_descargar_plantilla(self):
-        return {
-            "type": "ir.actions.act_url",
-            "url": "/l10n_sv_hr_asignaciones/static/src/plantilla/plantilla_horas-extras.xls",
-            "target": "new",
-        }
-
+    def test(self):
+        print("PRUEBA", self)
