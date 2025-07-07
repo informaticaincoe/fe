@@ -30,10 +30,7 @@ class HrSalaryAssignment(models.Model):
         ('BONO', 'Bono'),
     ], string='Tipo')
     monto = fields.Float("Monto", required=False)
-    periodo = fields.Date("Periodo", required=True,
-                          help="Fecha efectiva en la que ocurrió la asignación, por ejemplo el día que se generó la comisión o se trabajó una hora extra.") #Fecha efectiva (día real de la asignacion: hora extra, comision, etc...)
-    periodo_pago = fields.Date(string="Período de pago", required=True,
-                               help="Fecha que representa el período de corte para la nómina donde se debe pagar esta asignación.") #Fecha de corte/quincena que paga esa asignación
+    periodo = fields.Date("Periodo", required=True)
     description = fields.Text(string="Descripción", help="Descripción")
     payslip_id = fields.Many2one('hr.payslip', string='Histórico (Boleta)', help="Si se desea vincular con un recibo de pago.")
 
@@ -169,9 +166,9 @@ class HrSalaryAssignment(models.Model):
                 else:
                     raise UserError("Debe seleccionar un empleado.")
 
-                # Convertir periodo_pago si viene como string
-                if constants.PERIODO_PAGO in vals and isinstance(vals[constants.PERIODO_PAGO], str):
-                    vals[constants.PERIODO_PAGO] = self._parse_periodo(vals[constants.PERIODO_PAGO])
+                # Convertir periodo si viene como string
+                if constants.PERIODO in vals and isinstance(vals[constants.PERIODO], str):
+                    vals[constants.PERIODO] = self._parse_periodo(vals[constants.PERIODO])
 
                 if tipo == constants.ASIGNACION_HORAS_EXTRA.upper() or any(
                         vals.get(campo) not in [None, '', '0', 0] for campo in [
@@ -270,10 +267,6 @@ class HrSalaryAssignment(models.Model):
                 # Validación: periodo obligatorio
                 if not vals.get('periodo'):
                     raise UserError("Debe seleccionar el periodo para la asignación.")
-
-                # Validación: periodo de pago obligatorio
-                if not vals.get(constants.PERIODO_PAGO):
-                    raise UserError("Debe seleccionar el periodo de pago para la asignación.")
 
                 # Validación: monto no puede ser cero
                 if vals.get('monto', 0.0) <= 0:
