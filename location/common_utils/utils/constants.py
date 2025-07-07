@@ -14,6 +14,8 @@ TIPO_VENTA_PROD_GRAV = "gravado"
 TIPO_VENTA_PROD_EXENTO = "exento"
 TIPO_VENTA_PROD_NO_SUJETO = "no_sujeto"
 AMBIENTE_TEST = "00"
+
+#Modulo de retenciones
 DEDUCCION_EMPLEADO = "empleado"
 RET_MENSUAL = "a"
 RET_QUINCENAL = "b"
@@ -21,7 +23,23 @@ RET_SEMANAL = "c"
 TIPO_DED_ISSS = "isss"
 DEDUCCION_EMPLEADOR = "patron"
 DEDUCCION_INCAF = "incaf"
+
+#Modulo de asignaciones salariales
 ASIGNACION_COMISIONES = "comision"
 ASIGNACION_VIATICOS = "viatico"
 ASIGNACION_BONOS = "bono"
 ASIGNACION_HORAS_EXTRA = "overtime"
+HORAS_DIURNAS = "horas_diurnas"
+HORAS_NOCTURNAS = "horas_nocturnas"
+HORAS_DIURNAS_DESCANSO = "horas_diurnas_descanso"
+HORAS_NOCTURNAS_DESCANSO = "horas_nocturnas_descanso"
+HORAS_DIURNAS_ASUETO = "horas_diurnas_asueto"
+HORAS_NOCTURNAS_ASUETO = "horas_nocturnas_asueto"
+PERIODO_PAGO = "periodo_pago"
+NOMBRE_PLANTILLA_ASIGNACIONES = "Plantilla de Asignaciones"
+
+CUENTAS_ASIGNACIONES = {
+    'cuenta_salarial_deducciones_credito': 'cuenta_salarial_deducciones',
+    'cuenta_salarial_deducciones_debito': 'cuenta_salarial_debito',
+}
+CODIGOS_REGLAS_ASIGNACIONES = ['COMISION', 'VIATICO', 'BONO', 'OVERTIME']

@@ -9,6 +9,14 @@ _logger = logging.getLogger(__name__)
 
 from odoo import api, SUPERUSER_ID
 
+# Intentamos importar constantes definidas en un módulo utilitario común.
+try:
+    from odoo.addons.common_utils.utils import constants
+    _logger.info("SIT Modulo common_utils [Asignaciones -payslip]")
+except ImportError as e:
+    _logger.error(f"Error al importar 'common_utils': {e}")
+    constants = None
+
 def ejecutar_hooks_post_init(env):
     from .hooks import post_init_configuracion_reglas, cargar_archivo_excel
 
@@ -51,7 +59,7 @@ def cargar_archivo_excel(env):
         contenido = base64.b64encode(f.read()).decode('utf-8')
 
     env['ir.attachment'].create({
-        'name': 'Plantilla de Asignaciones',
+        'name': constants.NOMBRE_PLANTILLA_ASIGNACIONES,
         'datas': contenido,
         'mimetype': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'public': True,
