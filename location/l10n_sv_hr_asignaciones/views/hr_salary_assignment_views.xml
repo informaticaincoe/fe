@@ -1,12 +1,14 @@
 <odoo>
     <data>
-
         <!-- Vista tipo lista -->
         <record id="view_hr_salary_assignment_tree" model="ir.ui.view">
             <field name="name">hr.salary.assignment.tree</field>
             <field name="model">hr.salary.assignment</field>
             <field name="arch" type="xml">
                 <list>
+                    <header>
+                        <button name="action_descargar_plantilla" type="object" icon="fa-download" string="Plantilla" display="always"/>
+                    </header>
                     <field name="employee_id" widget="many2one_avatar_employee"/>
                     <field name="tipo" widget="badge" class="tipo_badge"/>
                     <field name="monto"/>
@@ -32,14 +34,14 @@
                                 <field name="description"/>
                             </group>
                             <group>
-                                <field name="monto"/>
+                                <field name="monto" invisible="tipo == 'OVERTIME'"/>
                                 <field name="periodo"/>
                                 <field name="periodo_pago"/>
                             </group>
 
                             <field name="codigo_empleado" invisible="1"/>
                         </group>
-                        <group string="Detalle de horas extras" col="2" invisible="tipo != 'hora_extra'">
+                        <group string="Detalle de horas extras" col="2" invisible="tipo != 'OVERTIME'">
                             <field name="horas_diurnas"/>
                             <field name="horas_nocturnas"/>
                             <field name="horas_diurnas_descanso"/>

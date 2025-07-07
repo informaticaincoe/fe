@@ -29,10 +29,10 @@
             <field name="name">sit_contingencia_account_move_data_id</field>
             <field name="model">account.move</field>
             <field name="inherit_id" ref="account.view_move_form"/>
-            <field name="arch" type="xml">
+            <field name="arch" type="xml" >
                 <xpath expr="//field[@name='name']" position="after">
-                    <field name="sit_es_configencia"  widget="boolean_toggle" invisible="0" placeholder="Contingencia"/>
-                    <label for="sit_es_configencia"></label>
+                    <field name="sit_es_configencia"  widget="boolean_toggle" invisible="journal_code == 'SLR'" placeholder="Contingencia" />
+                    <label for="sit_es_configencia" invisible="journal_code == 'SLR'"></label>
                     <!-- <field name="sit_es_configencia"  widget="boolean_toggle" invisible="0" /> -->
                     <field name="sit_factura_de_contingencia"  invisible="sit_es_configencia == 'False'"  options="{'no_open': True, 'no_create': True}"/>
                 </xpath>
