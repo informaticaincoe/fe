@@ -1,5 +1,5 @@
 <odoo>
-    <data noupdate="1">
+    <data noupdate="0">
 
         <!-- Crear tipo de entrada del recibo: Deducción Renta -->
         <record id="input_type_deduccion_renta" model="hr.payslip.input.type">

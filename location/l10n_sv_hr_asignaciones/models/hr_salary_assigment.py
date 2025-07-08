@@ -213,20 +213,36 @@ class HrSalaryAssignment(models.Model):
                     _logger.info("Salario hora calculado: %.4f", salario_hora)
 
                     # Convertir y actualizar campos de horas como float
-                    horas_diurnas = self._parse_horas(vals.get(constants.HORAS_DIURNAS))
-                    horas_nocturnas = self._parse_horas(vals.get(constants.HORAS_NOCTURNAS))
-                    horas_diurnas_descanso = self._parse_horas(vals.get(constants.HORAS_DIURNAS_DESCANSO))
-                    horas_nocturnas_descanso = self._parse_horas(vals.get(constants.HORAS_NOCTURNAS_DESCANSO))
-                    horas_diurnas_asueto = self._parse_horas(vals.get(constants.HORAS_DIURNAS_ASUETO))
-                    horas_nocturnas_asueto = self._parse_horas(vals.get(constants.HORAS_NOCTURNAS_ASUETO))
+                    # horas_diurnas = self._parse_horas(vals.get(constants.HORAS_DIURNAS))
+                    # horas_nocturnas = self._parse_horas(vals.get(constants.HORAS_NOCTURNAS))
+                    # horas_diurnas_descanso = self._parse_horas(vals.get(constants.HORAS_DIURNAS_DESCANSO))
+                    # horas_nocturnas_descanso = self._parse_horas(vals.get(constants.HORAS_NOCTURNAS_DESCANSO))
+                    # horas_diurnas_asueto = self._parse_horas(vals.get(constants.HORAS_DIURNAS_ASUETO))
+                    # horas_nocturnas_asueto = self._parse_horas(vals.get(constants.HORAS_NOCTURNAS_ASUETO))
 
                     # Guardar los valores convertidos para evitar errores posteriores
-                    vals[constants.HORAS_DIURNAS] = horas_diurnas
-                    vals[constants.HORAS_NOCTURNAS] = horas_nocturnas
-                    vals[constants.HORAS_DIURNAS_DESCANSO] = horas_diurnas_descanso
-                    vals[constants.HORAS_NOCTURNAS_DESCANSO] = horas_nocturnas_descanso
-                    vals[constants.HORAS_DIURNAS_ASUETO] = horas_diurnas_asueto
-                    vals[constants.HORAS_NOCTURNAS_ASUETO] = horas_nocturnas_asueto
+                    # vals[constants.HORAS_DIURNAS] = horas_diurnas
+                    # vals[constants.HORAS_NOCTURNAS] = horas_nocturnas
+                    # vals[constants.HORAS_DIURNAS_DESCANSO] = horas_diurnas_descanso
+                    # vals[constants.HORAS_NOCTURNAS_DESCANSO] = horas_nocturnas_descanso
+                    # vals[constants.HORAS_DIURNAS_ASUETO] = horas_diurnas_asueto
+                    # vals[constants.HORAS_NOCTURNAS_ASUETO] = horas_nocturnas_asueto
+
+                    # Extraer horas desde horas_extras_ids si no están en vals
+                    horas_dict = {}
+                    if vals.get('horas_extras_ids'):
+                        comando = vals['horas_extras_ids'][0]
+                        if isinstance(comando, (list, tuple)) and len(comando) == 3:
+                            horas_dict = comando[2]
+
+                    # Parsear valores usando horas_dict
+                    horas_diurnas = self._parse_horas(horas_dict.get("horas_diurnas"))
+                    horas_nocturnas = self._parse_horas(horas_dict.get("horas_nocturnas"))
+                    horas_diurnas_descanso = self._parse_horas(horas_dict.get("horas_diurnas_descanso"))
+                    horas_nocturnas_descanso = self._parse_horas(horas_dict.get("horas_nocturnas_descanso"))
+                    horas_diurnas_asueto = self._parse_horas(horas_dict.get("horas_diurnas_asueto"))
+                    horas_nocturnas_asueto = self._parse_horas(horas_dict.get("horas_nocturnas_asueto"))
+
 
                     total_horas = sum([
                         horas_diurnas, horas_nocturnas,
