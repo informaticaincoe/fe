@@ -22,6 +22,7 @@ class sit_account_move(models.Model):
     sit_qr_hacienda = fields.Binary("QR Hacienda", default=False) 
     sit_json_respuesta = fields.Text("Json de Respuesta", default="")
     sit_regimen = fields.Many2one('account.move.regimen.field', string="Régimen de Exportación")
+    journal_code = fields.Char(related='journal_id.code', string='Journal Code')
 
     codigo_tipo_documento = fields.Char(
         related='journal_id.sit_tipo_documento.codigo',

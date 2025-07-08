@@ -16,7 +16,7 @@
             </button>
             <!-- <field name="l10n_ar_afip_concept" position="after"> -->
             <group name="sale_info_group" position="after">
-                <group string="Factura Hacienda" name="sale_hacienda_info_group" >
+                <group string="Factura Hacienda" name="sale_hacienda_info_group" invisible="journal_code == 'SLR'">
                     <field name="afip_fce_es_anulacion"/>
                     <label for="afip_auth_code" string="HACIENDA associated period" options="{'invisible': [('move_type', 'not in', ['out_refund'])]}"/>
                     <field name="afip_auth_code" invisible="1" class="oe_inline" options="{'required': [('afip_auth_mode', '!=', False)]}" placeholder="Code"/>

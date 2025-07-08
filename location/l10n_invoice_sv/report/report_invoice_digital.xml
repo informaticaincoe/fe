@@ -140,7 +140,7 @@
                     Condiciones de pago: <span t-field="o.invoice_payment_term_id"/>
                   </td>
                   <td>
-                    Fecha de Vencimiento: <span t-field="o.invoice_date_due"/>
+<!--                    Fecha de Vencimiento: <span t-field="o.invoice_date_due"/>-->
                   </td>
                 </tr>
               </table>
