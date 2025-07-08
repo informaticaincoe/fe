@@ -10,12 +10,13 @@
         'data/hr_salary_assignment_data.xml',
         'data/res.configuration.csv',
 
-        'security/ir.model.access.csv',
-
         'views/hr_salary_assignment_views.xml',
         'views/hr_salary_assignment_menu.xml',
         'views/hr_salary_assignment_views_inherit.xml',
         'views/res_company_contribution_view.xml',
+
+        'security/hr_asignacion_groups.xml',
+        'security/ir.model.access.csv',
     ],
     'installable': True,
     'application': False,

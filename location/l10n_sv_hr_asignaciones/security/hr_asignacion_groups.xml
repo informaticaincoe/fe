@@ -1,0 +1,26 @@
+<odoo>
+    <!-- Categoría personalizada para Asignaciones -->
+    <record id="module_category_hr_asignaciones" model="ir.module.category">
+        <field name="name">Asignaciones</field>
+        <field name="sequence">35</field>
+    </record>
+
+    <!-- Grupo solo lectura -->
+    <record id="group_hr_asignacion_user" model="res.groups">
+        <field name="name">Usuario de Asignaciones (Solo Lectura)</field>
+        <field name="category_id" ref="l10n_sv_hr_asignaciones.module_category_hr_asignaciones"/>
+        <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <!-- Grupo crear/editar -->
+    <record id="group_hr_asignacion_editor" model="res.groups">
+        <field name="name">Usuario Asignaciones Crear/Editar</field>
+        <field name="category_id" ref="l10n_sv_hr_asignaciones.module_category_hr_asignaciones"/>
+    </record>
+
+    <!-- Grupo administrador -->
+    <record id="group_hr_asignacion_config" model="res.groups">
+        <field name="name">Configuración de Asignaciones (Administrador)</field>
+        <field name="category_id" ref="l10n_sv_hr_asignaciones.module_category_hr_asignaciones"/>
+    </record>
+</odoo>
