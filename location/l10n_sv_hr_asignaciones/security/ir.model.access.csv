@@ -1,2 +1,4 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-access_hr_salary_assignment_user,access.salary.assignment.user,model_hr_salary_assignment,base.group_user,1,1,1,1
+access_hr_salary_assignment_user,access.salary.assignment.user,model_hr_salary_assignment,l10n_sv_hr_asignaciones.group_hr_asignacion_user,1,0,0,0
+access_hr_salary_assignment_editor,access.salary.assignment.editor,model_hr_salary_assignment,l10n_sv_hr_asignaciones.group_hr_asignacion_editor,1,1,1,0
+access_hr_salary_assignment_admin,access.salary.assignment.admin,model_hr_salary_assignment,l10n_sv_hr_asignaciones.group_hr_asignacion_config,1,1,1,1
