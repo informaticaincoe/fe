@@ -1,0 +1,26 @@
+<odoo>
+    <!-- Categoría personalizada para Retenciones -->
+    <record id="module_category_hr_retenciones" model="ir.module.category">
+        <field name="name">Retenciones</field>
+        <field name="sequence">30</field>
+    </record>
+
+    <!-- Grupo solo lectura -->
+    <record id="group_hr_retencion_user" model="res.groups">
+        <field name="name">Usuario de Retenciones (Solo Lectura)</field>
+        <field name="category_id" ref="l10n_sv_hr_retenciones.module_category_hr_retenciones"/>
+        <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <!-- Grupo crear/editar -->
+    <record id="group_hr_retencion_editor" model="res.groups">
+        <field name="name">Usuario Retenciones Crear/Editar</field>
+        <field name="category_id" ref="l10n_sv_hr_retenciones.module_category_hr_retenciones"/>
+    </record>
+
+    <!-- Grupo administrador -->
+    <record id="group_hr_retencion_config" model="res.groups">
+        <field name="name">Configuración de Retenciones (Administrador)</field>
+        <field name="category_id" ref="l10n_sv_hr_retenciones.module_category_hr_retenciones"/>
+    </record>
+</odoo>

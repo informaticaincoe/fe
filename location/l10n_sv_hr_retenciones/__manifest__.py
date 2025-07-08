@@ -13,8 +13,6 @@
         "data/hr.retencion.renta.csv",
         "data/hr.retencion.tramo.csv",
 
-        "security/ir.model.access.csv",
-
         "data/estructura_salarial_incoe.xml",
 
         "data/deduccion_ISSS_data.xml",
@@ -25,6 +23,9 @@
         "data/deduccion_venta_empleados.xml",
         "data/deduccion_prestamos.xml",
         "data/deduccion_otras.xml",
+
+        "security/hr_retencion_groups.xml",
+        "security/ir.model.access.csv",
 
         "views/hr_payslip_form_inherit.xml",
     ],
