@@ -1,5 +1,5 @@
 import logging
-from odoo import models
+from odoo import models, fields
 
 _logger = logging.getLogger(__name__)
 
@@ -12,6 +12,12 @@ except ImportError as e:
 
 class HrContract(models.Model):
     _inherit = 'hr.contract'
+
+    #Opcion de servicios profesionales en campo tipo de salario del contrato
+    wage_type = fields.Selection(
+        selection_add=[('professional_services', 'Salario por servicios profesionales')],
+        string='Tipo de salario'
+    )
 
     def get_salario_bruto_total(self):
         """
@@ -53,6 +59,10 @@ class HrContract(models.Model):
     # Método para calcular la deducción AFP (Administradora de Fondos de Pensiones)
     def calcular_afp(self):
         self.ensure_one()  # Garantiza que el cálculo se realice solo en un solo registro
+        if self.wage_type == constants.SERVICIOS_PROFESIONALES:
+            _logger.info("Contrato con servicios profesionales, no se aplica AFP.")
+            return 0.0
+
         salario = self.get_salario_bruto_total() # Obtener el salario del contrato
 
         # Buscar el porcentaje y techo configurado para el empleado
@@ -75,6 +85,10 @@ class HrContract(models.Model):
     # Método para calcular la deducción ISSS (Instituto Salvadoreño del Seguro Social)
     def calcular_isss(self):
         self.ensure_one()  # Garantiza que el cálculo se realice solo en un solo registro
+        if self.wage_type == constants.SERVICIOS_PROFESIONALES:
+            _logger.info("Contrato con servicios profesionales, no se aplica ISSS.")
+            return 0.0
+
         salario = self.get_salario_bruto_total() # Se obtiene el salario del contrato
 
         # Buscar la configuración de ISSS para el empleado
@@ -99,6 +113,13 @@ class HrContract(models.Model):
     def calcular_deduccion_renta(self, bruto=None):
         self.ensure_one()  # Garantiza que el cálculo se realice solo en un solo registro
         _logger.info("Cálculo de deducción de renta iniciado para contrato ID %s", self.id)
+
+        # Si es servicios profesionales: 10% directo
+        if self.wage_type == constants.SERVICIOS_PROFESIONALES:
+            bruto = bruto if bruto is not None else self.get_salario_bruto_total()
+            resultado = bruto * 0.10
+            _logger.info("Contrato de servicios profesionales: renta fija 10%% sobre %.2f = %.2f", bruto, resultado)
+            return resultado
 
         # Verifica si el contrato tiene definida la frecuencia de pago
         if not self.schedule_pay:
@@ -160,6 +181,10 @@ class HrContract(models.Model):
         Calcula el aporte patronal (ISSS o AFP) según el salario y los techos definidos.
         """
         self.ensure_one()
+        if self.wage_type == constants.SERVICIOS_PROFESIONALES:
+            _logger.info("Contrato con servicios profesionales, no se aplica INCAF.")
+            return 0.0
+
         salario = self.get_salario_bruto_total()
 
         _logger.info("Cálculo de aporte patronal para contrato ID %s. Tipo: %s. Salario base: %.2f", self.id, tipo, salario)
@@ -172,7 +197,6 @@ class HrContract(models.Model):
                 _logger.info("ISSS Patronal: base=%.2f, porcentaje=%.2f%%, resultado=%.2f", base, tipo_isss.porcentaje * 100, resultado)
                 return resultado
             _logger.warning("No se encontró configuración ISSS para empleador.")
-
         elif tipo != constants.TIPO_DED_ISSS:#afp
             tipo_afp = self.env['hr.retencion.afp'].search([('tipo', '=', constants.DEDUCCION_EMPLEADOR)], limit=1)
             if tipo_afp:
@@ -193,6 +217,9 @@ class HrContract(models.Model):
         Retorna 0.0 si no aplica o si ocurre un error.
         """
         self.ensure_one()
+        if self.wage_type == constants.SERVICIOS_PROFESIONALES:
+            _logger.info("Contrato con servicios profesionales, no se aplica INCAF.")
+            return 0.0
 
         try:
             empresa = self.company_id or self.employee_id.company_id

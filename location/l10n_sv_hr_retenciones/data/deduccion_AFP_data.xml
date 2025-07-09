@@ -1,4 +1,4 @@
-<odoo noupdate="0">
+<odoo>
     <data noupdate="1">
         <!-- Definición de un tipo de entrada para deducción AFP -->
         <record id="input_type_deduccion_afp" model="hr.payslip.input.type">
