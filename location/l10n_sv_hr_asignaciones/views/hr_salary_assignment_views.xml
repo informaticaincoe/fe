@@ -38,8 +38,9 @@
                             </group>
 
                             <field name="codigo_empleado" invisible="1"/>
+                            <field string="Agregar como horas extras" name="mostrar_horas_extras" invisible="tipo != 'VIATICO'" widget="boolean"/>
                         </group>
-                        <group string="Detalle de horas extras" invisible="tipo != 'OVERTIME'">
+                        <group string="Detalle de horas extras" invisible="not ((tipo == 'OVERTIME') or (tipo == 'VIATICO' and mostrar_horas_extras))">
                             <field name="horas_extras_ids">
                                 <list editable="bottom">
                                     <field name="horas_diurnas"/>
