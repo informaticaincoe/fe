@@ -1,5 +1,5 @@
 <odoo>
-    <data noupdate="1">
+    <data noupdate="0">
 
         <!-- Tipo de entrada: Calculo -->
         <record id="input_type_deduccion_fondo_pensiones" model="hr.payslip.input.type">
@@ -30,13 +30,13 @@
             <field name="appears_on_payslip" eval="True"/>
         </record>
 
-        <record id="salary_type_deduccion_fondo_pensiones" model="hr.payslip.input.type">
-            <field name="name">Fondo de pensiones</field>
-            <field name="code">FONDO_PENSIONES</field>
-            <field name="active">true</field>
-            <field name="available_in_attachments">true</field>
-            <field name="is_quantity">true</field>
-        </record>
+<!--        <record id="salary_type_deduccion_fondo_pensiones" model="hr.payslip.input.type">-->
+<!--            <field name="name">Fondo de pensiones</field>-->
+<!--            <field name="code">FONDO_PENSIONES</field>-->
+<!--            <field name="active">true</field>-->
+<!--            <field name="available_in_attachments">true</field>-->
+<!--            <field name="is_quantity">true</field>-->
+<!--        </record>-->
 
     </data>
 </odoo>

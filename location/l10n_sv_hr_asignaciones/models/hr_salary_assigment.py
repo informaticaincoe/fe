@@ -23,6 +23,11 @@ class HrSalaryAssignment(models.Model):
 
     # Campos principales de la asignación
     employee_id = fields.Many2one('hr.employee', string='Empleado')
+    horas_extras_ids = fields.One2many(
+        'hr.horas.extras',
+        'salary_assignment_id',
+        string='Horas Extras'
+    )
     tipo = fields.Selection([
         ('OVERTIME', 'Horas extras'),
         ('COMISION', 'Comisión'),
@@ -34,14 +39,20 @@ class HrSalaryAssignment(models.Model):
     description = fields.Text(string="Descripción", help="Descripción")
     payslip_id = fields.Many2one('hr.payslip', string='Histórico (Boleta)', help="Si se desea vincular con un recibo de pago.")
 
-    horas_diurnas = fields.Char("Horas extras diurnas", invisible=False)
-    horas_nocturnas = fields.Char("Horas extras nocturnas", invisible=False)
-    horas_diurnas_descanso = fields.Char("Horas extras diurnas dia descanso", invisible=False)
-    horas_nocturnas_descanso = fields.Char("Horas extras nocturnas dia descanso", invisible=False)
-    horas_diurnas_asueto = fields.Char("Horas diurnas dia de asueto", invisible=False)
-    horas_nocturnas_asueto = fields.Char("Horas nocturnas dia de asueto", invisible=False)
+
+    # horas_diurnas = fields.Char("Horas extras diurnas", invisible=False)
+    # horas_nocturnas = fields.Char("Horas extras nocturnas", invisible=False)
+    # horas_diurnas_descanso = fields.Char("Horas extras diurnas dia descanso", invisible=False)
+    # horas_nocturnas_descanso = fields.Char("Horas extras nocturnas dia descanso", invisible=False)
+    # horas_diurnas_asueto = fields.Char("Horas diurnas dia de asueto", invisible=False)
+    # horas_nocturnas_asueto = fields.Char("Horas nocturnas dia de asueto", invisible=False)
+
+    mostrar_horas_extras = fields.Boolean(string="Mostrar Horas Extras", store=False)
+
+
 
     codigo_empleado = fields.Char(string="Código de empleado", store=False)
+
 
     def unlink(self):
         for asignacion in self:
@@ -204,20 +215,36 @@ class HrSalaryAssignment(models.Model):
                     _logger.info("Salario hora calculado: %.4f", salario_hora)
 
                     # Convertir y actualizar campos de horas como float
-                    horas_diurnas = self._parse_horas(vals.get(constants.HORAS_DIURNAS))
-                    horas_nocturnas = self._parse_horas(vals.get(constants.HORAS_NOCTURNAS))
-                    horas_diurnas_descanso = self._parse_horas(vals.get(constants.HORAS_DIURNAS_DESCANSO))
-                    horas_nocturnas_descanso = self._parse_horas(vals.get(constants.HORAS_NOCTURNAS_DESCANSO))
-                    horas_diurnas_asueto = self._parse_horas(vals.get(constants.HORAS_DIURNAS_ASUETO))
-                    horas_nocturnas_asueto = self._parse_horas(vals.get(constants.HORAS_NOCTURNAS_ASUETO))
+                    # horas_diurnas = self._parse_horas(vals.get(constants.HORAS_DIURNAS))
+                    # horas_nocturnas = self._parse_horas(vals.get(constants.HORAS_NOCTURNAS))
+                    # horas_diurnas_descanso = self._parse_horas(vals.get(constants.HORAS_DIURNAS_DESCANSO))
+                    # horas_nocturnas_descanso = self._parse_horas(vals.get(constants.HORAS_NOCTURNAS_DESCANSO))
+                    # horas_diurnas_asueto = self._parse_horas(vals.get(constants.HORAS_DIURNAS_ASUETO))
+                    # horas_nocturnas_asueto = self._parse_horas(vals.get(constants.HORAS_NOCTURNAS_ASUETO))
 
                     # Guardar los valores convertidos para evitar errores posteriores
-                    vals[constants.HORAS_DIURNAS] = horas_diurnas
-                    vals[constants.HORAS_NOCTURNAS] = horas_nocturnas
-                    vals[constants.HORAS_DIURNAS_DESCANSO] = horas_diurnas_descanso
-                    vals[constants.HORAS_NOCTURNAS_DESCANSO] = horas_nocturnas_descanso
-                    vals[constants.HORAS_DIURNAS_ASUETO] = horas_diurnas_asueto
-                    vals[constants.HORAS_NOCTURNAS_ASUETO] = horas_nocturnas_asueto
+                    # vals[constants.HORAS_DIURNAS] = horas_diurnas
+                    # vals[constants.HORAS_NOCTURNAS] = horas_nocturnas
+                    # vals[constants.HORAS_DIURNAS_DESCANSO] = horas_diurnas_descanso
+                    # vals[constants.HORAS_NOCTURNAS_DESCANSO] = horas_nocturnas_descanso
+                    # vals[constants.HORAS_DIURNAS_ASUETO] = horas_diurnas_asueto
+                    # vals[constants.HORAS_NOCTURNAS_ASUETO] = horas_nocturnas_asueto
+
+                    # Extraer horas desde horas_extras_ids si no están en vals
+                    horas_dict = {}
+                    if vals.get('horas_extras_ids'):
+                        comando = vals['horas_extras_ids'][0]
+                        if isinstance(comando, (list, tuple)) and len(comando) == 3:
+                            horas_dict = comando[2]
+
+                    # Parsear valores usando horas_dict
+                    horas_diurnas = self._parse_horas(horas_dict.get("horas_diurnas"))
+                    horas_nocturnas = self._parse_horas(horas_dict.get("horas_nocturnas"))
+                    horas_diurnas_descanso = self._parse_horas(horas_dict.get("horas_diurnas_descanso"))
+                    horas_nocturnas_descanso = self._parse_horas(horas_dict.get("horas_nocturnas_descanso"))
+                    horas_diurnas_asueto = self._parse_horas(horas_dict.get("horas_diurnas_asueto"))
+                    horas_nocturnas_asueto = self._parse_horas(horas_dict.get("horas_nocturnas_asueto"))
+
 
                     total_horas = sum([
                         horas_diurnas, horas_nocturnas,
@@ -272,12 +299,28 @@ class HrSalaryAssignment(models.Model):
                 if vals.get('monto', 0.0) <= 0:
                     raise UserError("El monto no puede ser cero. Verifique los datos ingresados.")
 
-                record = self.create_or_update_assignment(vals)  # record = super().create(vals)
+                # record = self.create_or_update_assignment(vals)  # record = super().create(vals)
+                record = self.create_or_update_assignment(vals)
+
+                # Crear el registro en hr.horas.extras si el tipo es OVERTIME
+                if tipo == constants.ASIGNACION_HORAS_EXTRA.upper() and record:
+                    self.env['hr.horas.extras'].create({
+                        'salary_assignment_id': record.id,
+                        'horas_diurnas': horas_diurnas,
+                        'horas_nocturnas': horas_nocturnas,
+                        'horas_diurnas_descanso': horas_diurnas_descanso,
+                        'horas_nocturnas_descanso': horas_nocturnas_descanso,
+                        'horas_diurnas_asueto': horas_diurnas_asueto,
+                        'horas_nocturnas_asueto': horas_nocturnas_asueto,
+                        'descripcion': vals.get('description', ''),
+                    })
+
                 _logger.info("Registro creado o actualizado (ID=%s) con vals finales: %s", record.id, record.read()[0])
                 records.append(record)
             except Exception as e:
                 _logger.error("Error al crear asignación con datos %s: %s", vals, str(e))
                 raise UserError(_("Error al procesar asignación para el empleado '%s' (código: %s): %s") % (empleado.name, empleado.barcode, str(e)))
+
 
         return self.browse([r.id for r in records])
 

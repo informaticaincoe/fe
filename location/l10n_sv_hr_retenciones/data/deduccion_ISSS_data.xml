@@ -1,5 +1,5 @@
 <odoo noupdate="0">
-    <data noupdate="1">
+    <data noupdate="0">
         <!-- Definición de un tipo de entrada para deducción ISSS -->
         <record id="input_type_deduccion_isss" model="hr.payslip.input.type">
             <field name="name">Deducción ISSS</field>
