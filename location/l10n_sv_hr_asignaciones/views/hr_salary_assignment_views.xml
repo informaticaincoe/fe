@@ -7,7 +7,8 @@
             <field name="arch" type="xml">
                 <list>
                     <header>
-                        <button name="action_descargar_plantilla" type="object" icon="fa-download" string="Plantilla" display="always"/>
+                        <button name="action_descargar_plantilla" type="object" icon="fa-download" string="Plantilla"
+                                display="always"/>
                     </header>
                     <field name="employee_id" widget="many2one_avatar_employee"/>
                     <field name="tipo" widget="badge" class="tipo_badge"/>
@@ -33,14 +34,21 @@
                                 <field name="description"/>
                             </group>
                             <group>
-                                <field name="monto" invisible="tipo == 'OVERTIME'"/>
+                                <field name="monto"
+                                       invisible="(tipo == 'OVERTIME') or (tipo == 'VIATICO' and mostrar_horas_extras)"/>
                                 <field name="periodo"/>
                             </group>
 
                             <field name="codigo_empleado" invisible="1"/>
-                            <field string="Agregar como horas extras" name="mostrar_horas_extras" invisible="tipo != 'VIATICO'" widget="boolean"/>
+                            <group>
+                                <field name="mostrar_horas_extras" string="Agregar como horas extras" widget="boolean"
+                                       invisible="tipo != 'VIATICO'"/>
+                            </group>
+
+
                         </group>
-                        <group string="Detalle de horas extras" invisible="not ((tipo == 'OVERTIME') or (tipo == 'VIATICO' and mostrar_horas_extras))">
+                        <group string="Detalle de horas extras"
+                               invisible="not ((tipo == 'OVERTIME') or (tipo == 'VIATICO' and mostrar_horas_extras))">
                             <field name="horas_extras_ids">
                                 <list editable="bottom">
                                     <field name="horas_diurnas"/>
