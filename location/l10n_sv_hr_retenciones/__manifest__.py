@@ -5,7 +5,7 @@
     "author": "Intracoe",
     "category": "Human Resources - Deducciones",
     "depends": [
-        "hr", "hr_payroll"
+        "hr", "hr_payroll", "hr_contract"
     ],
     "data": [
         "data/hr.retencion.isss.csv",
@@ -23,6 +23,7 @@
         "data/deduccion_venta_empleados.xml",
         "data/deduccion_prestamos.xml",
         "data/deduccion_otras.xml",
+        "data/hr_contract_type_data.xml",
 
         "security/hr_retencion_groups.xml",
         "security/ir.model.access.csv",

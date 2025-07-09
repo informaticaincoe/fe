@@ -5,6 +5,12 @@ from odoo.tools import float_round
 
 _logger = logging.getLogger(__name__)
 
+try:
+    from odoo.addons.common_utils.utils import constants
+    _logger.info("SIT Modulo config_utils")
+except ImportError as e:
+    _logger.error(f"Error al importar 'config_utils': {e}")
+    constants = None
 
 class HrPayslip(models.Model):
     _inherit = 'hr.payslip'
@@ -113,16 +119,26 @@ class HrPayslip(models.Model):
                         _("No se encontró el tipo de input para %s. Por favor, asegúrese de que los tipos de deducción estén configurados correctamente.",
                           code))
 
+            # Verificar si el contrato es de servicios profesionales
+            is_professional = contract.wage_type == constants.SERVICIOS_PROFESIONALES
+            _logger.info("Contrato tipo '%s'. ¿Es servicios profesionales? %s", contract.wage_type, is_professional)
+
+            valores = []
+
             # Definir los valores a ser añadidos como inputs a la nómina (con signo negativo, ya que son deducciones)
-            valores = [
-                ('RENTA', -abs(renta)),
-                ('AFP', -abs(afp)),
-                ('ISSS', -abs(isss)),
-                ('ISSS_EMP', abs(isss_patronal)),
-                ('AFP_EMP', abs(afp_patronal)),
-                ('INCAF', -abs(incaf)),
-            ]
-            _logger.error("Valores: %s", valores)
+            if is_professional:
+                valores.append(('RENTA', -abs(renta)))
+                _logger.info("Contrato de servicios profesionales: solo se agregará RENTA")
+            else:
+                valores = [
+                    ('RENTA', -abs(renta)),
+                    ('AFP', -abs(afp)),
+                    ('ISSS', -abs(isss)),
+                    ('ISSS_EMP', abs(isss_patronal)),
+                    ('AFP_EMP', abs(afp_patronal)),
+                    ('INCAF', -abs(incaf)),
+                ]
+                _logger.error("Valores: %s", valores)
 
             # Crear nuevas entradas para cada tipo de deducción
             for code, valor in valores:
