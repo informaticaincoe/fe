@@ -24,6 +24,7 @@
         "data/deduccion_prestamos.xml",
         "data/deduccion_otras.xml",
         "data/hr_contract_type_data.xml",
+        "data/deduccion_banco.xml",
 
         "security/hr_retencion_groups.xml",
         "security/ir.model.access.csv",

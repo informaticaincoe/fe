@@ -45,7 +45,6 @@ class HrSalaryRule(models.Model):
         except Exception as e:
             _logger.exception("Error actualizando cuentas de asignaciones: %s", str(e))
 
-
     @api.model
     def compute_rule_amount(self, rule, contract):
         _logger.warning("⚠️ compute_rule_amount ejecutado para regla: %s", rule.code)

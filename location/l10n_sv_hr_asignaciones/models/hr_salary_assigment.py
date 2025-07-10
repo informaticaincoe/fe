@@ -48,11 +48,7 @@ class HrSalaryAssignment(models.Model):
     # horas_nocturnas_asueto = fields.Char("Horas nocturnas dia de asueto", invisible=False)
 
     mostrar_horas_extras = fields.Boolean(string="Mostrar Horas Extras", store=False)
-
-
-
     codigo_empleado = fields.Char(string="Código de empleado", store=False)
-
 
     def unlink(self):
         for asignacion in self:
