@@ -1,5 +1,5 @@
 <odoo>
-    <data noupdate="0">
+    <data noupdate="1">
 
         <!-- Tipo de entrada: Calculo -->
         <record id="input_type_deduccion_prestamos" model="hr.payslip.input.type">
