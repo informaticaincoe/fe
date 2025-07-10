@@ -1,0 +1,8 @@
+<odoo>
+  <data noupdate="1">
+    <record id="hr_contract_type_part_time" model="hr.contract.type">
+      <field name="name">Medio tiempo</field>
+      <field name="code">part_time</field>
+    </record>
+  </data>
+</odoo>

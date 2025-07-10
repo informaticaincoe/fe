@@ -63,8 +63,18 @@ class HrPayslip(models.Model):
                 _logger.info("Eliminando %s líneas de input antiguas", len(entradas_a_borrar))
                 entradas_a_borrar.unlink()
 
+            contract = slip.contract_id
+            is_professional = contract.wage_type == constants.SERVICIOS_PROFESIONALES
+            _logger.info("Contrato tipo '%s'. ¿Es servicios profesionales? %s", contract.wage_type, is_professional)
+
+            # Si el contrato es de servicios profesionales, excluimos comisiones
+            tipos_asignacion_final = tipos_asignacion.copy()
+            if is_professional and constants.ASIGNACION_COMISIONES.upper() in tipos_asignacion_final:
+                tipos_asignacion_final.remove(constants.ASIGNACION_COMISIONES.upper())
+                _logger.info("Contrato de servicios profesionales: se omite asignación de COMISIONES")
+
             #Ahora procesamos cada tipo normalmente
-            for tipo in tipos_asignacion:
+            for tipo in tipos_asignacion_final:
                 # Buscar el tipo de entrada usando el campo técnico 'code', evitando dependencia de XML ID
                 # input_type = self.env.ref(f'l10n_sv_hr_asignaciones.{xml_id}', raise_if_not_found=False)
                 input_type = self.env['hr.payslip.input.type'].search([('code', '=', tipo)], limit=1)

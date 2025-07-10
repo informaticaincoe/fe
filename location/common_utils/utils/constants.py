@@ -23,6 +23,7 @@ RET_SEMANAL = "c"
 TIPO_DED_ISSS = "isss"
 DEDUCCION_EMPLEADOR = "patron"
 DEDUCCION_INCAF = "incaf"
+SERVICIOS_PROFESIONALES = "professional_services"
 
 #Modulo de asignaciones salariales
 ASIGNACION_COMISIONES = "comision"
