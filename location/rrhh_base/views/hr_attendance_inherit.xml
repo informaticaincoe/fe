@@ -1,0 +1,15 @@
+<odoo>
+    <record id="hr_attendance_form_inherit_tipo" model="ir.ui.view">
+        <field name="name">hr.attendance.form</field>
+        <field name="model">hr.attendance</field>
+        <field name="inherit_id" ref="hr_attendance.hr_attendance_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//group" position="inside">
+                <group>
+                    <field name="attendance_type" string="Tipo de Asistencia"/>
+                    <field name="descontar" string="Descontar"/>
+                </group>
+            </xpath>
+        </field>
+    </record>
+</odoo>
