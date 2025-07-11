@@ -1,5 +1,6 @@
 from odoo import models, fields, api, _
 import logging
+import traceback
 _logger = logging.getLogger(__name__)
 
 class HrHorasExtras(models.Model):
@@ -40,33 +41,37 @@ class HrHorasExtras(models.Model):
         return records
 
     def _notify_parent_recompute(self):
-        for record in self:
-            asignacion = record.salary_assignment_id
-            if asignacion:
-                _logger.info("Recomputando asignación ID=%s para empleado: %s", asignacion.id,
-                             asignacion.employee_id.name)
+        try:
+            for record in self:
+                asignacion = record.salary_assignment_id
+                if asignacion:
+                    _logger.info("Recomputando asignación ID=%s para empleado: %s", asignacion.id,
+                                 asignacion.employee_id.name)
 
-                horas_totales = {
-                    'horas_diurnas': 0.0,
-                    'horas_nocturnas': 0.0,
-                    'horas_diurnas_descanso': 0.0,
-                    'horas_nocturnas_descanso': 0.0,
-                    'horas_diurnas_asueto': 0.0,
-                    'horas_nocturnas_asueto': 0.0
-                }
+                    horas_totales = {
+                        'horas_diurnas': 0.0,
+                        'horas_nocturnas': 0.0,
+                        'horas_diurnas_descanso': 0.0,
+                        'horas_nocturnas_descanso': 0.0,
+                        'horas_diurnas_asueto': 0.0,
+                        'horas_nocturnas_asueto': 0.0
+                    }
 
-                for linea in asignacion.horas_extras_ids:
-                    _logger.debug("Procesando línea ID=%s para asignación ID=%s", linea.id, asignacion.id)
-                    horas_totales['horas_diurnas'] += linea._parse_horas(linea.horas_diurnas)
-                    horas_totales['horas_nocturnas'] += linea._parse_horas(linea.horas_nocturnas)
-                    horas_totales['horas_diurnas_descanso'] += linea._parse_horas(linea.horas_diurnas_descanso)
-                    horas_totales['horas_nocturnas_descanso'] += linea._parse_horas(linea.horas_nocturnas_descanso)
-                    horas_totales['horas_diurnas_asueto'] += linea._parse_horas(linea.horas_diurnas_asueto)
-                    horas_totales['horas_nocturnas_asueto'] += linea._parse_horas(linea.horas_nocturnas_asueto)
+                    for linea in asignacion.horas_extras_ids:
+                        _logger.debug("Procesando línea ID=%s para asignación ID=%s", linea.id, asignacion.id)
+                        horas_totales['horas_diurnas'] += linea._parse_horas(linea.horas_diurnas)
+                        horas_totales['horas_nocturnas'] += linea._parse_horas(linea.horas_nocturnas)
+                        horas_totales['horas_diurnas_descanso'] += linea._parse_horas(linea.horas_diurnas_descanso)
+                        horas_totales['horas_nocturnas_descanso'] += linea._parse_horas(linea.horas_nocturnas_descanso)
+                        horas_totales['horas_diurnas_asueto'] += linea._parse_horas(linea.horas_diurnas_asueto)
+                        horas_totales['horas_nocturnas_asueto'] += linea._parse_horas(linea.horas_nocturnas_asueto)
 
-                _logger.info("Totales horas extra para asignación ID=%s: %s", asignacion.id, horas_totales)
+                    _logger.info("Totales horas extra para asignación ID=%s: %s", asignacion.id, horas_totales)
 
-                nuevo_monto = asignacion._calcular_monto_horas_extras(asignacion.employee_id, horas_totales)
-                _logger.info("Nuevo monto calculado: %.2f (Asignación ID=%s)", nuevo_monto, asignacion.id)
+                    nuevo_monto = asignacion._calcular_monto_horas_extras(asignacion.employee_id, horas_totales)
+                    _logger.info("Nuevo monto calculado: %.2f (Asignación ID=%s)", nuevo_monto, asignacion.id)
 
-                asignacion.monto = nuevo_monto
+                    asignacion.monto = nuevo_monto
+        except Exception as e:
+            _logger.error("Error procesando descripción: %s", traceback.format_exc())
+            raise

@@ -1,6 +1,7 @@
 {
     'name': 'Asignaciones Dinámicas de Salario',
     'version': '1.1',
+    'license': 'LGPL-3',
     'summary': 'Permite gestionar horas extra, comisiones y otros ingresos por empleado',
     'category': 'Human Resources',
     'author': 'Intracoe',
