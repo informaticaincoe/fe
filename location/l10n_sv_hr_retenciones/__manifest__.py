@@ -25,11 +25,13 @@
         "data/deduccion_otras.xml",
         "data/hr_contract_type_data.xml",
         "data/deduccion_banco.xml",
+        "data/salary_rules_attendance.xml",
 
         "security/hr_retencion_groups.xml",
         "security/ir.model.access.csv",
 
         "views/hr_payslip_form_inherit.xml",
+        "views/hr_attendance_inherit.xml",
     ],
     "installable": True,
     "auto_install": False,

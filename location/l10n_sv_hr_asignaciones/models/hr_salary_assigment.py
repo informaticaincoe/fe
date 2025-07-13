@@ -185,7 +185,7 @@ class HrSalaryAssignment(models.Model):
                                 val = cmd[2].get(campo)
                                 if val:
                                     try:
-                                        horas_nuevas[campo] += float(val)
+                                        horas_nuevas[campo] += self._parse_horas(val)
                                     except Exception:
                                         pass
                 _logger.info(f"Comparando horas existentes: {horas_existentes} con nuevas: {horas_nuevas}")
@@ -402,11 +402,14 @@ class HrSalaryAssignment(models.Model):
                         if 'horas_extras_ids' in vals:
                             for cmd in vals['horas_extras_ids']:
                                 if cmd[0] == 0:
-                                    horas_dict = {campo: round(float(cmd[2].get(campo, 0) or 0), 4) for campo in [
-                                        constants.HORAS_DIURNAS, constants.HORAS_NOCTURNAS,
-                                        constants.HORAS_DIURNAS_DESCANSO, constants.HORAS_NOCTURNAS_DESCANSO,
-                                        constants.HORAS_DIURNAS_ASUETO, constants.HORAS_NOCTURNAS_ASUETO
-                                    ]}
+                                    horas_dict = {
+                                        campo: self._parse_horas(cmd[2].get(campo, 0))
+                                        for campo in [
+                                            constants.HORAS_DIURNAS, constants.HORAS_NOCTURNAS,
+                                            constants.HORAS_DIURNAS_DESCANSO, constants.HORAS_NOCTURNAS_DESCANSO,
+                                            constants.HORAS_DIURNAS_ASUETO, constants.HORAS_NOCTURNAS_ASUETO
+                                        ]
+                                    }
                                     break
                         else:
                             for campo in [
