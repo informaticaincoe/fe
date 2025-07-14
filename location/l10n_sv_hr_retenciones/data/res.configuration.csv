@@ -1,0 +1,3 @@
+id,company_id:id,pwd,value_type,value_text,description,active,clave
+config_cuenta_cont_debito_salario_fin_semana,base.main_company,,text,962000,Cuenta contable de débito: Gastos de salario,True,cuenta_salarial_debito_fs
+config_cuenta_cont_credito_salario_fin_semana,base.main_company,,text,230000,Cuenta contable de crédito: Sueldo por pagar,True,cuenta_salarial_credito_fs

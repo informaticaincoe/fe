@@ -6,3 +6,4 @@ from . import hr_retencion_tramo
 from . import hr_contract
 from . import hr_salary_rule
 from . import res_company
+from . import hr_attendance
