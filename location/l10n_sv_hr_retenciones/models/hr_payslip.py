@@ -2,6 +2,7 @@ from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 import logging
 from odoo.tools import float_round
+from datetime import timedelta
 
 _logger = logging.getLogger(__name__)
 
@@ -166,6 +167,7 @@ class HrPayslip(models.Model):
         _logger.info("Inputs generados: %s", payslip.input_line_ids.mapped(lambda l: (l.code, l.amount)))
 
         # Dentro del método compute_sheet, al final:
+        self._agregar_inputs_sabado_y_domingos()
         self._asignar_importe_asistencia()
         # Llama al método original para completar el cálculo de la nómina
         res = super().compute_sheet()
@@ -177,7 +179,8 @@ class HrPayslip(models.Model):
     def _asignar_importe_asistencia(self):
         """
         Asigna el importe proporcional en la línea de worked_days con código 'WORK100',
-        calculando en base al salario quincenal y 88 horas como jornada completa.
+        calculando en base al salario mensual dividido entre 30 días y 8 horas por día.
+        También agrega 8 horas por domingo y 4 horas por sábado si hubo asistencia.
         """
         _logger.info(">>> Iniciando cálculo de importe por asistencia (WORK100) en %d nóminas", len(self))
 
@@ -187,28 +190,95 @@ class HrPayslip(models.Model):
                 _logger.warning("Nómina %s sin contrato. Se omite.", payslip.name)
                 continue
 
+            salario_mensual = (contract.wage * 2) or 0.0
+            salario_por_hora = salario_mensual / 30.0 / 8.0
+
             for worked_day in payslip.worked_days_line_ids:
-                _logger.debug("Evaluando línea worked_day: Código=%s, Horas=%.2f, Días=%.2f",
-                              worked_day.code, worked_day.number_of_hours, worked_day.number_of_days)
+                if worked_day.code != 'WORK100':
+                    continue
 
-                if worked_day.code == 'WORK100':
-                    salario_mensual = contract.wage or 0.0
-                    horas_trabajadas = worked_day.number_of_hours or 0.0
+                horas_trabajadas = worked_day.number_of_hours or 0.0
+                importe_trabajadas = horas_trabajadas * salario_por_hora
+                importe_total = float_round(importe_trabajadas, precision_digits=2)
 
-                    salario_por_hora = salario_mensual / 30.0 / 8.0
-                    importe = float_round(horas_trabajadas * salario_por_hora, precision_digits=2)
-                    worked_day.amount = importe
+                worked_day.amount = importe_total
 
-                    _logger.info(
-                        "Empleado: %s | Salario mensual: $%.2f | Valor/hora: $%.4f | Horas: %.2f | Importe: $%.2f",
-                        payslip.employee_id.name,
-                        salario_mensual,
-                        salario_por_hora,
-                        horas_trabajadas,
-                        importe
-                    )
+                _logger.info(
+                    "[%s] Horas trabajadas: %.2f | $/h: %.4f | Monto asistencia: $%.2f | Total: $%.2f",
+                    payslip.employee_id.name,
+                    horas_trabajadas,
+                    salario_por_hora,
+                    importe_trabajadas,
+                    importe_total
+                )
 
-        _logger.info(">>> Fin del cálculo de asistencia.")
+        _logger.info(">>> Fin del cálculo de asistencia (WORK100)")
+
+    def _agregar_inputs_sabado_y_domingos(self):
+        """
+        Crea entradas automáticas para sábados (4h) y domingos (8h) según el periodo de la nómina.
+        Elimina entradas anteriores para evitar duplicados.
+        """
+        _logger.info(">>> Generando inputs SAB_TARDE y DOMINGO")
+
+        input_type_model = self.env['hr.payslip.input.type']
+        tipo_sab = input_type_model.search([('code', '=', 'SAB_TARDE')], limit=1)
+        tipo_dom = input_type_model.search([('code', '=', 'DOMINGO')], limit=1)
+
+        if not tipo_sab or not tipo_dom:
+            _logger.warning("No se encontraron tipos de entrada para SAB_TARDE o DOMINGO")
+            return
+
+        for payslip in self:
+            contrato = payslip.contract_id
+            if not contrato:
+                continue
+
+            # 🔴 Eliminar entradas previas para evitar duplicación
+            payslip.input_line_ids.filtered(lambda l: l.code in ['SAB_TARDE', 'DOMINGO']).unlink()
+
+            # Calcular salario por hora
+            salario_mensual = (contrato.wage * 2) or 0.0
+            salario_por_hora = salario_mensual / 30.0 / 8.0
+
+            fecha_actual = payslip.date_from
+            fecha_fin = payslip.date_to
+
+            total_domingos = 0
+            total_sabados = 0
+
+            while fecha_actual <= fecha_fin:
+                dia_semana = fecha_actual.weekday()
+                if dia_semana == 6:
+                    total_domingos += 1
+                elif dia_semana == 5:
+                    total_sabados += 1
+                fecha_actual += timedelta(days=1)
+
+            monto_dom = float_round(total_domingos * 8.0 * salario_por_hora, 2)
+            monto_sab = float_round(total_sabados * 4.0 * salario_por_hora, 2)
+
+            if monto_dom > 0:
+                payslip.input_line_ids.create({
+                    'name': 'Domingo',
+                    'code': 'DOMINGO',
+                    'amount': monto_dom,
+                    'payslip_id': payslip.id,
+                    'input_type_id': tipo_dom.id,
+                })
+
+            if monto_sab > 0:
+                payslip.input_line_ids.create({
+                    'name': 'Sábado tarde',
+                    'code': 'SAB_TARDE',
+                    'amount': monto_sab,
+                    'payslip_id': payslip.id,
+                    'input_type_id': tipo_sab.id,
+                })
+
+            _logger.info("[%s] Domingos: %d ($%.2f) | Sábados: %d ($%.2f)",
+                         payslip.employee_id.name, total_domingos, monto_dom,
+                         total_sabados, monto_sab)
 
     # def _generar_inputs_asistencia(self):
     #     """

@@ -30,15 +30,25 @@ class HrSalaryRule(models.Model):
             'cuenta_salarial_deducciones_debito': 'cuenta_salarial_debito',
         }
 
+        # Cuentas para salario de fin de semana
+        cuentas_fin_semana = {
+            'cuenta_salarial_deducciones_credito': 'cuenta_salarial_credito_fs',
+            'cuenta_salarial_deducciones_debito': 'cuenta_salarial_debito_fs',
+        }
+
+        # Códigos de reglas salariales
         deducciones_empleado = [
             'AFP', 'ISSS', 'RENTA', 'FSV', 'FONDO_PENSIONES', 'PRESTAMOS', 'VENTA_EMPLEADOS', 'OTROS'
         ]
 
         aportes_patronales = ['AFP_EMP', 'ISSS_EMP', 'INCAF']
+        salario_fin_semana = ['SAB_TARDE', 'DOMINGO']
 
+        # Armar diccionario de reglas y cuentas
         reglas = {codigo: default_cuentas.copy() for codigo in deducciones_empleado}
         reglas.update({codigo: cuentas_empleador.copy() for codigo in aportes_patronales})
-        
+        reglas.update({codigo: cuentas_fin_semana.copy() for codigo in salario_fin_semana})
+
         try:
             config_utils.actualizar_cuentas_reglas_generico(self.env, reglas)
             _logger.info("Actualización de cuentas de asignaciones completada correctamente.")

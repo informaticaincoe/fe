@@ -12,6 +12,7 @@
         "data/hr.retencion.afp.csv",
         "data/hr.retencion.renta.csv",
         "data/hr.retencion.tramo.csv",
+        "data/res.configuration.csv",
 
         "data/estructura_salarial_incoe.xml",
 
