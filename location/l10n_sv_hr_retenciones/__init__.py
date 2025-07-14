@@ -1,2 +1,2 @@
 from . import models
-from .hooks import post_init_configuracion_reglas
+from .hooks import ejecutar_hooks_post_init
