@@ -15,12 +15,12 @@ except ImportError as e:
     constants = None
 
 TIPOS_AUSENCIA = {
+    #'ASISTENCIA': 'WORK100',
     'PERMISO_SG': 'PERMISO_SG',
     'VACACIONES': 'VACACIONES',
     'INCAPACIDAD': 'INCAPACIDAD',
     'FALTA_INJ': 'FALTA_INJ',
 }
-
 
 class HrPayslip(models.Model):
     _inherit = 'hr.payslip'
@@ -163,9 +163,10 @@ class HrPayslip(models.Model):
                     })
                     # Registra en el log la adición de un input para la nómina
                     _logger.info("Input %s agregado a nómina %d con monto %.2f", code, payslip.id, valor)
-
         _logger.info("Inputs generados: %s", payslip.input_line_ids.mapped(lambda l: (l.code, l.amount)))
 
+        # ✅ Agregar entradas por asistencias como permisos sin goce, vacaciones, etc.
+        self._generar_worked_days_asistencia()
         # Dentro del método compute_sheet, al final:
         self._agregar_inputs_sabado_y_domingos()
         self._asignar_importe_asistencia()
@@ -194,9 +195,12 @@ class HrPayslip(models.Model):
             salario_por_hora = salario_mensual / 30.0 / 8.0
 
             for worked_day in payslip.worked_days_line_ids:
+                _logger.info(">>> Worker day %d: ", worked_day.code)
+
                 if worked_day.code != 'WORK100':
                     continue
 
+                _logger.info(">>> Worker day number %d: ", worked_day.number_of_hours)
                 horas_trabajadas = worked_day.number_of_hours or 0.0
                 importe_trabajadas = horas_trabajadas * salario_por_hora
                 importe_total = float_round(importe_trabajadas, precision_digits=2)
@@ -280,6 +284,111 @@ class HrPayslip(models.Model):
                          payslip.employee_id.name, total_domingos, monto_dom,
                          total_sabados, monto_sab)
 
+    def _generar_worked_days_asistencia(self):
+        """
+        Genera líneas de worked_days para todos los tipos de asistencia,
+        asignando importes positivos (Asistencia y permisos sin goce) o negativos (otras inasistencias).
+        El permiso sin goce se cuenta como asistencia (horas positivas) pero con monto negativo para descontar.
+        """
+        _logger.info(">>> Generando worked_days por asistencia")
+
+        attendance_obj = self.env['hr.attendance']
+        entry_type_model = self.env['hr.work.entry.type']
+
+        for payslip in self:
+            employee = payslip.employee_id
+            contract = payslip.contract_id
+
+            if not contract or contract.state != 'open':
+                _logger.warning("Contrato no válido para %s", employee.name)
+                continue
+
+            _logger.info("Procesando nómina %s | Empleado %s | Contrato %s",
+                         payslip.name, employee.name, contract.name)
+
+            # Eliminar líneas previas para códigos que usamos aquí
+            codigos_a_borrar = ['WORK100', 'PERMISO_SG', 'VACACIONES', 'INCAPACIDAD', 'FALTA_INJ']
+            lines_to_remove = payslip.worked_days_line_ids.filtered(lambda l: l.code in codigos_a_borrar)
+            if lines_to_remove:
+                _logger.info("Eliminando líneas previas worked_days: %s", lines_to_remove.mapped('code'))
+                lines_to_remove.unlink()
+
+            salario_mensual = contract.wage * 2 or 0.0
+            salario_por_hora = salario_mensual / 30.0 / 8.0
+            _logger.info("Salario mensual: %.2f, Salario por hora: %.4f", salario_mensual, salario_por_hora)
+
+            # Inicializar acumuladores de horas
+            horas_asistencia = 0.0
+            horas_por_tipo = {k: 0.0 for k in codigos_a_borrar if k != 'WORK100'}
+
+            # Buscar asistencias del periodo
+            asistencias = attendance_obj.search([
+                ('employee_id', '=', employee.id),
+                ('check_in', '>=', payslip.date_from),
+                ('check_in', '<=', payslip.date_to),
+            ])
+
+            _logger.info("Encontradas %d asistencias para %s", len(asistencias), employee.name)
+
+            for asistencia in asistencias:
+                tipo = (asistencia.tipo_asistencia or '').upper()
+                horas = 8.0
+                if asistencia.check_in and asistencia.check_out:
+                    horas = (asistencia.check_out - asistencia.check_in).total_seconds() / 3600.0
+
+                if tipo == 'ASISTENCIA':
+                    horas_asistencia += horas
+                elif tipo in ('PERMISO SIN GOCE', 'PERMISO_SG'):
+                    horas_por_tipo['PERMISO_SG'] += horas
+                elif tipo in ['VACACIONES', 'INCAPACIDAD', 'FALTA_INJ']:
+                    horas_por_tipo[tipo] += horas
+                else:
+                    _logger.warning("Tipo de asistencia desconocido: %s", tipo)
+
+            _logger.info("Horas acumuladas: Asistencia normal=%.2f, ausencias=%s",
+                         horas_asistencia, horas_por_tipo)
+
+            # Crear línea worked_days para ASISTENCIA (WORK100)
+            if horas_asistencia > 0:
+                work_entry = entry_type_model.search([('code', '=', 'WORK100')], limit=1)
+                payslip.env['hr.payslip.worked_days'].create({
+                    'name': 'Asistencia',
+                    'code': 'WORK100',
+                    'number_of_days': round(horas_asistencia / 8.0, 2),
+                    'number_of_hours': round(horas_asistencia, 2),
+                    'contract_id': contract.id,
+                    'payslip_id': payslip.id,
+                    'work_entry_type_id': work_entry.id,
+                    'amount': float_round(horas_asistencia * salario_por_hora, 2),
+                })
+                _logger.info("Línea WORK100 creada: %.2f horas, monto %.2f",
+                             horas_asistencia, horas_asistencia * salario_por_hora)
+
+            # Crear línea worked_days para otras ausencias con monto negativo
+            for codigo, horas in horas_por_tipo.items():
+                if horas <= 0:
+                    continue
+
+                tipo_entry = entry_type_model.search([('code', '=', codigo)], limit=1)
+                if not tipo_entry:
+                    _logger.warning("No se encontró work_entry_type para código %s", codigo)
+                    continue
+
+                payslip.env['hr.payslip.worked_days'].create({
+                    'name': tipo_entry.name,
+                    'code': codigo,
+                    'number_of_days': round(horas / 8.0, 2),
+                    'number_of_hours': round(horas, 2),
+                    'contract_id': contract.id,
+                    'payslip_id': payslip.id,
+                    'work_entry_type_id': tipo_entry.id,
+                    'amount': float_round(-horas * salario_por_hora, 2),
+                })
+                _logger.info("❌ Línea ausencia %s creada: %.2f horas, monto descontado %.2f",
+                             codigo, horas, -horas * salario_por_hora)
+
+        _logger.info("<<< Finalizado worked_days por asistencia")
+
     # def _generar_inputs_asistencia(self):
     #     """
     #     Genera entradas personalizadas en la nómina en base a las asistencias del empleado,
@@ -307,7 +416,8 @@ class HrPayslip(models.Model):
     #             _logger.info("→ Contrato inválido o cerrado para %s. Se omite.", employee.name)
     #             continue
     #
-    #         monto_por_hora = round(contract.wage / 240.0, 4)
+    #         salario_mensual = (contract.wage * 2) or 0.0
+    #         monto_por_hora = salario_mensual / 30.0 / 8.0
     #         _logger.info("→ Salario mensual: %.2f | Monto por hora (unificado): %.4f", contract.wage, monto_por_hora)
     #
     #         for tipo_asistencia, input_code in TIPOS_AUSENCIA.items():
@@ -325,13 +435,34 @@ class HrPayslip(models.Model):
     #             horas_no_pagadas = 0.0
     #             for a in asistencias:
     #                 if not a.se_paga and a.check_in and a.check_out:
-    #                     horas_no_pagadas += (a.check_out - a.check_in).total_seconds() / 3600.0
+    #                     horas_no_pagadas = 8.0  # si es solo para permisos sin goce
+    #                     #horas_no_pagadas += (a.check_out - a.check_in).total_seconds() / 3600.0
     #
     #             monto = 0.0
     #
     #             if tipo_asistencia == 'PERMISO_SG':
     #                 monto = -horas_no_pagadas * monto_por_hora
     #                 _logger.info("→ PERMISO_SG | Horas no pagadas: %.2f | Monto: %.2f", horas_no_pagadas, monto)
+    #
+    #                 if horas_no_pagadas > 0:
+    #                     # Eliminar cualquier línea previa PERMISO_SG
+    #                     payslip.worked_days_line_ids.filtered(lambda w: w.code == 'PERMISO_SG').unlink()
+    #
+    #                     # Buscar el tipo de entrada de trabajo (work entry type)
+    #                     entry_type = self.env['hr.work.entry.type'].search([('code', '=', 'PERMISO_SG')], limit=1)
+    #                     if not entry_type:
+    #                         raise UserError(_("No se encontró el tipo de entrada de trabajo para PERMISO_SG"))
+    #
+    #                     # Crear la línea de días trabajados manualmente
+    #                     self.env['hr.payslip.worked_days'].create({
+    #                         'name': 'Permiso sin goce',
+    #                         'code': 'PERMISO_SG',
+    #                         'number_of_days': horas_no_pagadas / 8.0,
+    #                         'number_of_hours': horas_no_pagadas,
+    #                         'contract_id': contract.id,
+    #                         'payslip_id': payslip.id,
+    #                         'work_entry_type_id': entry_type.id,
+    #                     })
     #
     #             elif tipo_asistencia == 'VACACIONES':
     #                 monto = -horas_no_pagadas * monto_por_hora * 0.30
