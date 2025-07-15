@@ -1,5 +1,30 @@
 from odoo.api import Environment, SUPERUSER_ID
 
+import base64
+import os
+
+import logging
+from odoo import models
+_logger = logging.getLogger(__name__)
+
+from odoo import api, SUPERUSER_ID
+from odoo.modules import get_module_path
+
+# Intentamos importar constantes definidas en un módulo utilitario común.
+try:
+    from odoo.addons.common_utils.utils import constants
+    _logger.info("SIT Modulo common_utils [Asignaciones -payslip]")
+except ImportError as e:
+    _logger.error(f"Error al importar 'common_utils': {e}")
+    constants = None
+
+def ejecutar_hooks_post_init(env):
+    from .hooks import post_init_configuracion_reglas, cargar_archivo_excel
+
+    post_init_configuracion_reglas(env)
+    cargar_archivo_excel(env)
+
+
 def post_init_configuracion_reglas(env):
     """
     Hook que se ejecuta automáticamente después de instalar o actualizar el módulo.
@@ -23,3 +48,37 @@ def post_init_configuracion_reglas(env):
 
     """
     env['hr.salary.rule'].sudo().actualizar_cuentas_retenciones()
+
+def cargar_archivo_excel(env):
+    _logger.info("[HOOK] Iniciando carga de archivo Excel de asistencia")
+
+    try:
+        param_obj = env['ir.config_parameter'].sudo()
+        ruta_relativa = param_obj.get_param('ruta_plantilla_asistencia')
+
+        if not ruta_relativa:
+            ruta_relativa = 'static/src/plantilla/plantilla_asistencia.xlsx'
+            param_obj.set_param('ruta_plantilla_asistencia', ruta_relativa)
+
+        module_path = get_module_path('l10n_sv_hr_retenciones')
+        ruta_absoluta = os.path.join(module_path, ruta_relativa)
+
+        _logger.info("[HOOK] Ruta absoluta calculada: %s", ruta_absoluta)
+
+        if not os.path.exists(ruta_absoluta):
+            raise FileNotFoundError(f"No se encontró el archivo: {ruta_absoluta}")
+
+        with open(ruta_absoluta, 'rb') as f:
+            contenido = base64.b64encode(f.read()).decode('utf-8')
+
+        env['ir.attachment'].create({
+            'name': 'plantilla_asistencia.xlsx',
+            'datas': contenido,
+            'mimetype': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'public': True,
+        })
+
+        _logger.info("[HOOK] Archivo Excel de asistencia cargado correctamente.")
+
+    except Exception as e:
+        _logger.error("[HOOK] Error al cargar el archivo Excel de asistencia: %s", e, exc_info=True)
