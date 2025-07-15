@@ -110,3 +110,4 @@ class HrPayslip(models.Model):
                     })
                     asignacion.payslip_id = slip.id  # Marcamos como ya utilizada en este recibo
                     _logger.info(f"[{tipo}] Asignación {asignacion.id} aplicada con monto: {asignacion.monto}")
+
