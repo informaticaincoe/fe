@@ -1,15 +1,35 @@
 <odoo>
-    <record id="hr_attendance_form_inherit_tipo" model="ir.ui.view">
-        <field name="name">hr.attendance.form</field>
-        <field name="model">hr.attendance</field>
-        <field name="inherit_id" ref="hr_attendance.hr_attendance_view_form"/>
-        <field name="arch" type="xml">
-            <xpath expr="//group" position="inside">
-                <group>
-                    <field name="attendance_type" string="Tipo de Asistencia"/>
-                    <field name="descontar" string="Descontar"/>
-                </group>
-            </xpath>
-        </field>
-    </record>
+    <!-- Agregar campo de tipo y descuento -->
+<!--    <record id="hr_attendance_form_inherit_tipo" model="ir.ui.view">-->
+<!--        <field name="name">hr.attendance.form</field>-->
+<!--        <field name="model">hr.attendance</field>-->
+<!--        <field name="inherit_id" ref="hr_attendance.hr_attendance_view_form"/>-->
+<!--        <field name="arch" type="xml">-->
+<!--            <xpath expr="//group" position="inside">-->
+<!--                <group>-->
+<!--                    <field name="attendance_type" string="Tipo de Asistencia"/>-->
+<!--                    <field name="descontar" string="Descontar"/>-->
+<!--                </group>-->
+<!--            </xpath>-->
+<!--        </field>-->
+<!--    </record>-->
+
+    <!-- Agregar boton para descargar plantilla -->
+<!--    <record id="hr_attendance_tree_inherit_button" model="ir.ui.view">-->
+<!--            <field name="name">hr.attendance.tree.inherit.download_button</field>-->
+<!--            <field name="model">hr.attendance</field>-->
+<!--            <field name="inherit_id" ref="hr_attendance.view_attendance_tree"/>-->
+<!--            <field name="arch" type="xml">-->
+<!--                <xpath expr="/list" position="before">-->
+<!--                    <header>-->
+<!--                        <button name="action_descargar_plantilla_asistencia"-->
+<!--                                type="object"-->
+<!--                                icon="fa-download"-->
+<!--                                string="Plantilla"-->
+<!--                                display="always"/>-->
+<!--                    </header>-->
+<!--                </xpath>-->
+<!--            </field>-->
+<!--        </record>-->
+
 </odoo>

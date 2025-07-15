@@ -38,9 +38,11 @@ HORAS_DIURNAS_ASUETO = "horas_diurnas_asueto"
 HORAS_NOCTURNAS_ASUETO = "horas_nocturnas_asueto"
 PERIODO = "periodo"
 NOMBRE_PLANTILLA_ASIGNACIONES = "Plantilla de Asignaciones"
+NOMBRE_PLANTILLA_ASISTENCIA = "Plantilla de Asistencia"
 
 CUENTAS_ASIGNACIONES = {
     'cuenta_salarial_deducciones_credito': 'cuenta_salarial_deducciones',
     'cuenta_salarial_deducciones_debito': 'cuenta_salarial_debito',
 }
 CODIGOS_REGLAS_ASIGNACIONES = ['COMISION', 'VIATICO', 'BONO', 'OVERTIME']
+
