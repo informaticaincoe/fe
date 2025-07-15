@@ -2,7 +2,8 @@ from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 import logging
 from odoo.tools import float_round
-from datetime import timedelta
+from datetime import time, timedelta
+import pytz
 
 _logger = logging.getLogger(__name__)
 
@@ -166,7 +167,7 @@ class HrPayslip(models.Model):
         _logger.info("Inputs generados: %s", payslip.input_line_ids.mapped(lambda l: (l.code, l.amount)))
 
         # ✅ Agregar entradas por asistencias como permisos sin goce, vacaciones, etc.
-        self._generar_worked_days_asistencia()
+        #self._generar_worked_days_asistencia()
         # Dentro del método compute_sheet, al final:
         self._agregar_inputs_sabado_y_domingos()
         self._asignar_importe_asistencia()
@@ -179,11 +180,15 @@ class HrPayslip(models.Model):
     # ==========ASISTENCIAS
     def _asignar_importe_asistencia(self):
         """
-        Asigna el importe proporcional en la línea de worked_days con código 'WORK100',
-        calculando en base al salario mensual dividido entre 30 días y 8 horas por día.
-        También agrega 8 horas por domingo y 4 horas por sábado si hubo asistencia.
+        WORK100 = asistencia + permiso con goce + incapacidad pagada (máx 3 días)
+        INCAPACIDAD_SIN_PAGO = incapacidad desde día 4, monto siempre 0
         """
-        _logger.info(">>> Iniciando cálculo de importe por asistencia (WORK100) en %d nóminas", len(self))
+        _logger.info(">>> Iniciando cálculo de días trabajados para %d nóminas", len(self))
+
+        tz_local = pytz.timezone('America/El_Salvador')
+        almuerzo_inicio = time(12, 0)
+        almuerzo_fin = time(13, 0)
+        duracion_almuerzo = 1.0  # horas de almuerzo a descontar si aplica
 
         for payslip in self:
             contract = payslip.contract_id
@@ -191,32 +196,176 @@ class HrPayslip(models.Model):
                 _logger.warning("Nómina %s sin contrato. Se omite.", payslip.name)
                 continue
 
+            empleado = payslip.employee_id
+            if not empleado:
+                _logger.warning("Nómina %s sin empleado asignado. Se omite.", payslip.name)
+                continue
+
+            fecha_inicio = payslip.date_from
+            fecha_fin = payslip.date_to
+            if not fecha_inicio or not fecha_fin:
+                _logger.warning("Nómina %s no tiene rango de fechas definido, se omite.", payslip.name)
+                continue
+
+            _logger.info("#########################################################################")
             salario_mensual = (contract.wage * 2) or 0.0
+            _logger.info("SALARIO MENSUAL:%s ",salario_mensual)
+
             salario_por_hora = salario_mensual / 30.0 / 8.0
+            _logger.info("SALARIO HORA:%s ",salario_por_hora)
 
-            for worked_day in payslip.worked_days_line_ids:
-                _logger.info(">>> Worker day %d: ", worked_day.code)
+            _logger.info("#########################################################################")
 
-                if worked_day.code != 'WORK100':
-                    continue
+            # 🔄 Limpiar líneas anteriores
+            for code in ['WORK100', 'INCAPACIDAD_SIN_PAGO', 'INCAPACIDAD_PAGADA']:
+                payslip.worked_days_line_ids.filtered(lambda l: l.code == code).unlink()
 
-                _logger.info(">>> Worker day number %d: ", worked_day.number_of_hours)
-                horas_trabajadas = worked_day.number_of_hours or 0.0
-                importe_trabajadas = horas_trabajadas * salario_por_hora
-                importe_total = float_round(importe_trabajadas, precision_digits=2)
+            # ======================================================
+            # ✅ 1) Calcular ASISTENCIA + PERMISO_CG
+            # ======================================================
+            asistencias = self.env['hr.attendance'].search([
+                ('employee_id', '=', empleado.id),
+                ('check_in', '>=', fecha_inicio),
+                ('check_out', '<=', fecha_fin),
+                ('tipo_asistencia', 'in', ['ASISTENCIA', 'PERMISO_CG']),
+                ('se_paga', '=', True)
+            ])
 
-                worked_day.amount = importe_total
+            horas_asistencia = 0.0
+            for att in asistencias:
+                if att.check_in and att.check_out:
+                    ci = att.check_in.astimezone(tz_local)
+                    _logger.info("HORA DE ENTRADA:%s ", ci)
+                    co = att.check_out.astimezone(tz_local)
+                    _logger.info("HORA DE SALIDA:%s ", co)
+                    diff = (co - ci).total_seconds() / 3600.0
+                    _logger.info("HORA DE DIFERENCIA:%s ", diff)
 
-                _logger.info(
-                    "[%s] Horas trabajadas: %.2f | $/h: %.4f | Monto asistencia: $%.2f | Total: $%.2f",
-                    payslip.employee_id.name,
-                    horas_trabajadas,
-                    salario_por_hora,
-                    importe_trabajadas,
-                    importe_total
-                )
+                    # Descuento de almuerzo
+                    cruza_almuerzo = (ci.time() < almuerzo_fin and co.time() > almuerzo_inicio)
+                    if diff >= 5.0 and cruza_almuerzo:
+                        diff -= duracion_almuerzo
 
-        _logger.info(">>> Fin del cálculo de asistencia (WORK100)")
+                    horas_asistencia += round(diff, 2)
+
+            # ======================================================
+            # ✅ 2) Calcular INCAPACIDAD
+            # ======================================================
+            incapacidad = self.env['hr.attendance'].search([
+                ('employee_id', '=', empleado.id),
+                ('check_in', '>=', fecha_inicio),
+                ('check_out', '<=', fecha_fin),
+                ('tipo_asistencia', '=', 'INCAPACIDAD'),
+                ('se_paga', '=', True),
+            ])
+
+            horas_incap_total = 0.0
+            for att in incapacidad:
+                if att.check_in and att.check_out:
+                    ci = att.check_in.astimezone(tz_local)
+                    co = att.check_out.astimezone(tz_local)
+                    diff = (co - ci).total_seconds() / 3600.0
+
+                    cruza_almuerzo = (ci.time() < almuerzo_fin and co.time() > almuerzo_inicio)
+                    if diff >= 5.0 and cruza_almuerzo:
+                        diff -= duracion_almuerzo
+
+                    horas_incap_total += round(diff, 2)
+
+            dias_incapacidad = horas_incap_total / 8.0
+            # Máx 3 días pagados por empresa
+            dias_pagados = min(dias_incapacidad, 3.0)
+            horas_pagadas = dias_pagados * 8.0
+
+            # El resto es sin pago
+            dias_sin_pago = max(dias_incapacidad - 3.0, 0.0)
+            horas_sin_pago = dias_sin_pago * 8.0
+
+            _logger.info("[%s] Incapacidad %.2f días -> %.2f pagados, %.2f sin pago",
+                         empleado.name, dias_incapacidad, dias_pagados, dias_sin_pago)
+
+            # ======================================================
+            # ✅ 3) Crear línea única WORK100 (asistencia + permiso con goce) sin incapacidad pagada
+            # ======================================================
+            if horas_asistencia > 0:
+                tipo_work_entry = self.env['hr.work.entry.type'].search([('code', '=', 'WORK100')], limit=1)
+                if not tipo_work_entry:
+                    tipo_work_entry = self.env['hr.work.entry.type'].create({
+                        'name': 'Asistencia',
+                        'code': 'WORK100',
+                        'sequence': 10,
+                        'is_leave': False,
+                        'is_unforeseen': False,
+                    })
+
+                self.env['hr.payslip.worked_days'].create({
+                    'name': 'Asistencia',
+                    'code': 'WORK100',
+                    'number_of_days': round(horas_asistencia / 8.0, 2),
+                    'number_of_hours': horas_asistencia,
+                    'contract_id': contract.id,
+                    'payslip_id': payslip.id,
+                    'work_entry_type_id': tipo_work_entry.id,
+                    'amount': float_round(horas_asistencia * salario_por_hora, 2),
+                })
+                _logger.info("[%s] WORK100: %.2f h asistencia -> %.2f",
+                             empleado.name, horas_asistencia, horas_asistencia * salario_por_hora)
+
+            # ======================================================
+            # ✅ 4) Crear línea única INCAPACIDAD PAGADA (máx 3 días)
+            # ======================================================
+            if horas_pagadas > 0:
+                tipo_incap_pagada = self.env['hr.work.entry.type'].search([('code', '=', 'INCAPACIDAD_PAGADA')],
+                                                                          limit=1)
+                if not tipo_incap_pagada:
+                    tipo_incap_pagada = self.env['hr.work.entry.type'].create({
+                        'name': 'Incapacidad pagada por empresa',
+                        'code': 'INCAPACIDAD_PAGADA',
+                        'sequence': 20,
+                        'is_leave': True,
+                        'is_unforeseen': False,
+                    })
+
+                self.env['hr.payslip.worked_days'].create({
+                    'name': 'Incapacidad pagada por empresa (máx 3 días)',
+                    'code': 'INCAPACIDAD_PAGADA',
+                    'number_of_days': round(horas_pagadas / 8.0, 2),
+                    'number_of_hours': horas_pagadas,
+                    'contract_id': contract.id,
+                    'payslip_id': payslip.id,
+                    'work_entry_type_id': tipo_incap_pagada.id,
+                    'amount': float_round(horas_pagadas * salario_por_hora, 2),
+                })
+                _logger.info("[%s] INCAPACIDAD_PAGADA: %.2f h -> %.2f",
+                             empleado.name, horas_pagadas, horas_pagadas * salario_por_hora)
+
+            # ======================================================
+            # ✅ 5) Crear línea incapacidad SIN PAGO (si hay más de 3 días)
+            # ======================================================
+            if horas_sin_pago > 0:
+                tipo_incap_sp = self.env['hr.work.entry.type'].search([('code', '=', 'INCAPACIDAD_SIN_PAGO')], limit=1)
+                if not tipo_incap_sp:
+                    tipo_incap_sp = self.env['hr.work.entry.type'].create({
+                        'name': 'Incapacidad sin pago',
+                        'code': 'INCAPACIDAD_SIN_PAGO',
+                        'sequence': 31,
+                        'is_leave': True,
+                        'is_unforeseen': True,
+                    })
+
+                self.env['hr.payslip.worked_days'].create({
+                    'name': 'Incapacidad sin pago',
+                    'code': 'INCAPACIDAD_SIN_PAGO',
+                    'number_of_days': dias_sin_pago,
+                    'number_of_hours': horas_sin_pago,
+                    'contract_id': contract.id,
+                    'payslip_id': payslip.id,
+                    'work_entry_type_id': tipo_incap_sp.id,
+                    'amount': 0.0,  # nunca suma
+                })
+                _logger.info("[%s] INCAPACIDAD sin pago: %.2f h -> $0", empleado.name, horas_sin_pago)
+
+        _logger.info(">>> Fin del cálculo de WORK100 + incapacidad pagada y sin pago")
 
     def _agregar_inputs_sabado_y_domingos(self):
         """
@@ -286,14 +435,16 @@ class HrPayslip(models.Model):
 
     def _generar_worked_days_asistencia(self):
         """
-        Genera líneas de worked_days para todos los tipos de asistencia,
-        asignando importes positivos (Asistencia y permisos sin goce) o negativos (otras inasistencias).
-        El permiso sin goce se cuenta como asistencia (horas positivas) pero con monto negativo para descontar.
+        Genera líneas de worked_days para:
+        - Asistencia normal (WORK100) → solo horas ASISTENCIA
+        - Permiso con goce (PERMISO_CG) → horas separadas, línea propia
+        - Permiso sin goce (PERMISO_SG) → línea propia, sin pago
         """
-        _logger.info(">>> Generando worked_days por asistencia")
+        _logger.info(">>> Generando worked_days por asistencia y permisos con/sin goce")
 
         attendance_obj = self.env['hr.attendance']
         entry_type_model = self.env['hr.work.entry.type']
+        tz_local = pytz.timezone('America/El_Salvador')
 
         for payslip in self:
             employee = payslip.employee_id
@@ -306,8 +457,8 @@ class HrPayslip(models.Model):
             _logger.info("Procesando nómina %s | Empleado %s | Contrato %s",
                          payslip.name, employee.name, contract.name)
 
-            # Eliminar líneas previas para códigos que usamos aquí
-            codigos_a_borrar = ['WORK100', 'PERMISO_SG', 'VACACIONES', 'INCAPACIDAD', 'FALTA_INJ']
+            # Eliminar líneas previas WORK100, PERMISO_CG, PERMISO_SG
+            codigos_a_borrar = ['WORK100', 'PERMISO_CG', 'PERMISO_SG']
             lines_to_remove = payslip.worked_days_line_ids.filtered(lambda l: l.code in codigos_a_borrar)
             if lines_to_remove:
                 _logger.info("Eliminando líneas previas worked_days: %s", lines_to_remove.mapped('code'))
@@ -315,42 +466,45 @@ class HrPayslip(models.Model):
 
             salario_mensual = contract.wage * 2 or 0.0
             salario_por_hora = salario_mensual / 30.0 / 8.0
-            _logger.info("Salario mensual: %.2f, Salario por hora: %.4f", salario_mensual, salario_por_hora)
+            _logger.info("Salario mensual: %.2f, por hora: %.4f", salario_mensual, salario_por_hora)
 
-            # Inicializar acumuladores de horas
-            horas_asistencia = 0.0
-            horas_por_tipo = {k: 0.0 for k in codigos_a_borrar if k != 'WORK100'}
-
-            # Buscar asistencias del periodo
+            # Buscar asistencias en rango fecha
             asistencias = attendance_obj.search([
                 ('employee_id', '=', employee.id),
                 ('check_in', '>=', payslip.date_from),
-                ('check_in', '<=', payslip.date_to),
+                ('check_out', '<=', payslip.date_to),
             ])
-
             _logger.info("Encontradas %d asistencias para %s", len(asistencias), employee.name)
 
+            horas_asistencia = 0.0  # Solo 'ASISTENCIA'
+            horas_permiso_cg = 0.0  # 'PERMISO_CG'
+            horas_permiso_sg = 0.0  # 'PERMISO_SG'
+
             for asistencia in asistencias:
-                tipo = (asistencia.tipo_asistencia or '').upper()
-                horas = 8.0
+
+                tipo = asistencia.tipo_asistencia or 'N/A'
                 if asistencia.check_in and asistencia.check_out:
-                    horas = (asistencia.check_out - asistencia.check_in).total_seconds() / 3600.0
+                    check_in_local = asistencia.check_in.astimezone(tz_local)
+                    check_out_local = asistencia.check_out.astimezone(tz_local)
+                    horas = (check_out_local - check_in_local).total_seconds() / 3600.0
+                else:
+                    horas = 0.0
 
                 if tipo == 'ASISTENCIA':
                     horas_asistencia += horas
-                elif tipo in ('PERMISO SIN GOCE', 'PERMISO_SG'):
-                    horas_por_tipo['PERMISO_SG'] += horas
-                elif tipo in ['VACACIONES', 'INCAPACIDAD', 'FALTA_INJ']:
-                    horas_por_tipo[tipo] += horas
+                elif tipo == 'PERMISO_CG':
+                    horas_permiso_cg += horas
+                elif tipo == 'PERMISO_SG':
+                    horas_permiso_sg += horas
                 else:
-                    _logger.warning("Tipo de asistencia desconocido: %s", tipo)
+                    _logger.warning("[%s] Tipo de asistencia no manejado: %s", employee.name, tipo)
 
-            _logger.info("Horas acumuladas: Asistencia normal=%.2f, ausencias=%s",
-                         horas_asistencia, horas_por_tipo)
+            _logger.info("[%s] Horas ASISTENCIA=%.2f | PERMISO_CG=%.2f | PERMISO_SG=%.2f",
+                         employee.name, horas_asistencia, horas_permiso_cg, horas_permiso_sg)
 
-            # Crear línea worked_days para ASISTENCIA (WORK100)
+            # Crear línea WORK100 solo para horas de ASISTENCIA
             if horas_asistencia > 0:
-                work_entry = entry_type_model.search([('code', '=', 'WORK100')], limit=1)
+                tipo_work = entry_type_model.search([('code', '=', 'WORK100')], limit=1)
                 payslip.env['hr.payslip.worked_days'].create({
                     'name': 'Asistencia',
                     'code': 'WORK100',
@@ -358,36 +512,60 @@ class HrPayslip(models.Model):
                     'number_of_hours': round(horas_asistencia, 2),
                     'contract_id': contract.id,
                     'payslip_id': payslip.id,
-                    'work_entry_type_id': work_entry.id,
+                    'work_entry_type_id': tipo_work.id if tipo_work else False,
                     'amount': float_round(horas_asistencia * salario_por_hora, 2),
                 })
-                _logger.info("Línea WORK100 creada: %.2f horas, monto %.2f",
+                _logger.info("✅ WORK100 creada con %.2f horas y monto %.2f",
                              horas_asistencia, horas_asistencia * salario_por_hora)
 
-            # Crear línea worked_days para otras ausencias con monto negativo
-            for codigo, horas in horas_por_tipo.items():
-                if horas <= 0:
-                    continue
-
-                tipo_entry = entry_type_model.search([('code', '=', codigo)], limit=1)
-                if not tipo_entry:
-                    _logger.warning("No se encontró work_entry_type para código %s", codigo)
-                    continue
-
+            # Crear línea PERMISO_CG solo para horas permiso con goce
+            if horas_permiso_cg > 0:
+                tipo_permiso_cg = entry_type_model.search([('code', '=', 'PERMISO_CG')], limit=1)
+                if not tipo_permiso_cg:
+                    tipo_permiso_cg = entry_type_model.create({
+                        'name': 'Permiso con goce',
+                        'code': 'PERMISO_CG',
+                        'sequence': 26,
+                        'is_leave': True,
+                        'is_unforeseen': True,
+                    })
                 payslip.env['hr.payslip.worked_days'].create({
-                    'name': tipo_entry.name,
-                    'code': codigo,
-                    'number_of_days': round(horas / 8.0, 2),
-                    'number_of_hours': round(horas, 2),
+                    'name': 'Permiso con goce',
+                    'code': 'PERMISO_CG',
+                    'number_of_days': round(horas_permiso_cg / 8.0, 2),
+                    'number_of_hours': round(horas_permiso_cg, 2),
                     'contract_id': contract.id,
                     'payslip_id': payslip.id,
-                    'work_entry_type_id': tipo_entry.id,
-                    'amount': float_round(-horas * salario_por_hora, 2),
+                    'work_entry_type_id': tipo_permiso_cg.id,
+                    'amount': float_round(horas_permiso_cg * salario_por_hora, 2),
                 })
-                _logger.info("❌ Línea ausencia %s creada: %.2f horas, monto descontado %.2f",
-                             codigo, horas, -horas * salario_por_hora)
+                _logger.info("✅ PERMISO_CG creada con %.2f horas y monto %.2f",
+                             horas_permiso_cg, horas_permiso_cg * salario_por_hora)
 
-        _logger.info("<<< Finalizado worked_days por asistencia")
+            # Crear línea PERMISO_SG solo informativa, sin pago
+            if horas_permiso_sg > 0:
+                tipo_permiso_sg = entry_type_model.search([('code', '=', 'PERMISO_SG')], limit=1)
+                if not tipo_permiso_sg:
+                    tipo_permiso_sg = entry_type_model.create({
+                        'name': 'Permiso sin goce',
+                        'code': 'PERMISO_SG',
+                        'sequence': 25,
+                        'is_leave': True,
+                        'is_unforeseen': True,
+                    })
+                payslip.env['hr.payslip.worked_days'].create({
+                    'name': 'Permiso sin goce',
+                    'code': 'PERMISO_SG',
+                    'number_of_days': round(horas_permiso_sg / 8.0, 2),
+                    'number_of_hours': round(horas_permiso_sg, 2),
+                    'contract_id': contract.id,
+                    'payslip_id': payslip.id,
+                    'work_entry_type_id': tipo_permiso_sg.id,
+                    'amount': 0.0,
+                })
+                _logger.info("ℹ️ PERMISO_SG creada con %.2f horas y monto $0.00", horas_permiso_sg)
+
+        _logger.info("<<< Finalizado generación worked_days por asistencia y permisos")
 
     # def _generar_inputs_asistencia(self):
     #     """
