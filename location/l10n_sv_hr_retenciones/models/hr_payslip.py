@@ -719,33 +719,3 @@ class HrPayslip(models.Model):
     #             vals.update({'payslip_id': payslip.id})
     #             self.env['hr.payslip.worked_days'].create(vals)
     #
-
-    # def _get_worked_day_lines(self, domain=None):
-    #     res = super()._get_worked_day_lines(domain=domain)
-    #     WorkEntryType = self.env['hr.work.entry.type']
-    #     work_entry_type = WorkEntryType.search([('code', '=', 'FALTA_INJ')], limit=1)
-    #
-    #     for payslip in self:
-    #         employee = payslip.employee_id
-    #         contract = payslip.contract_id
-    #         if not contract:
-    #             continue
-    #
-    #         faltas = self.env['hr.attendance'].search_count([
-    #             ('employee_id', '=', employee.id),
-    #             ('check_in', '>=', payslip.date_from),
-    #             ('check_in', '<=', payslip.date_to),
-    #             ('tipo_asistencia', '=', 'FALTA_INJ')
-    #         ])
-    #
-    #         if faltas and work_entry_type:
-    #             res += [{
-    #                 'name': 'Falta Injustificada',
-    #                 'sequence': 100,
-    #                 'code': 'FALTA_INJ',
-    #                 'number_of_days': faltas,
-    #                 'number_of_hours': faltas * 8,
-    #                 'contract_id': contract.id,
-    #                 'work_entry_type_id': work_entry_type.id,
-    #             }]
-    #     return res

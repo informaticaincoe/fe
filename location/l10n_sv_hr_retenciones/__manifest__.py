@@ -29,9 +29,6 @@
         "data/deduccion_banco.xml",
         "data/salary_rules_attendance.xml",
         "views/hr_payslip_form_inherit.xml",
-        # REVISAR -------------------------------------------
-        # 'data/hr_falta_injustificada.xml',
-        # ----------------------------------------------------
         "security/hr_retencion_groups.xml",
         "security/ir.model.access.csv",
 
