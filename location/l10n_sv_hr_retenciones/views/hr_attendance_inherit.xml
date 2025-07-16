@@ -20,10 +20,18 @@
         <field name="model">hr.attendance</field>
         <field name="inherit_id" ref="hr_attendance.view_attendance_tree"/>
         <field name="arch" type="xml">
-            <xpath expr="//list" position="inside">
+<!--            <xpath expr="//list" position="inside">-->
+<!--                <field name="tipo_asistencia"/>-->
+<!--                <field name="se_paga"/>-->
+<!--            </xpath>-->
+
+            <list>
+                <header>
+                    <button name="action_descargar_plantilla" type="object" icon="fa-download" string="Plantilla" context="{}" display="always"/>
+                </header>
                 <field name="tipo_asistencia"/>
                 <field name="se_paga"/>
-            </xpath>
+            </list>
         </field>
     </record>
 </odoo>

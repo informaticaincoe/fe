@@ -7,19 +7,24 @@
 
 <!--    &lt;!&ndash; Regla Salarial para descontar faltas injustificadas &ndash;&gt;-->
 <!--    <record id="salary_rule_falta_injustificada" model="hr.salary.rule">-->
-<!--        <field name="name">Descuento por Falta injustificada</field>-->
+<!--        <field name="name">Falta injustificada</field>-->
 <!--        <field name="code">FALTA_INJ</field>-->
 <!--        <field name="sequence">10</field>-->
 <!--        <field name="struct_id" ref="l10n_sv_hr_retenciones.structure_incoe"/>-->
-<!--        <field name="category_id" ref="hr_payroll.DED"/> &lt;!&ndash; Deducciones &ndash;&gt;-->
-<!--         <field name="condition_select">none</field>-->
+<!--        <field name="category_id" ref="hr_payroll.DED"/>-->
+<!--        <field name="condition_select">python</field>-->
 <!--        <field name="condition_python">-->
-<!--            result = worked_days_lines.FALTA_INJ.number_of_days &gt; 0-->
+<!--            result = worked_days_lines.get('FALTA_INJ') and worked_days_lines['FALTA_INJ'].number_of_days > 0-->
 <!--        </field>-->
-<!--        <field name="amount_select">input</field>-->
+<!--        <field name="amount_select">code</field>-->
 <!--        <field name="amount_python_compute">-->
-<!--            contract and -(contract.wage / 30.0) * worked_days_lines.FALTA_INJ.number_of_days or 0.0-->
+<!--            result = 0.0-->
+<!--            line = worked_days_lines.get('FALTA_INJ')-->
+<!--            if line:-->
+<!--            dias_falta = line.number_of_days-->
+<!--            result = -((contract.wage * 2) / 30.0) * dias_falta-->
 <!--        </field>-->
 <!--        <field name="appears_on_payslip" eval="True"/>-->
 <!--    </record>-->
+
 </odoo>

@@ -16,12 +16,13 @@ except ImportError as e:
     constants = None
 
 TIPOS_AUSENCIA = {
-    #'ASISTENCIA': 'WORK100',
+    # 'ASISTENCIA': 'WORK100',
     'PERMISO_SG': 'PERMISO_SG',
     'VACACIONES': 'VACACIONES',
     'INCAPACIDAD': 'INCAPACIDAD',
     'FALTA_INJ': 'FALTA_INJ',
 }
+
 
 class HrPayslip(models.Model):
     _inherit = 'hr.payslip'
@@ -173,6 +174,7 @@ class HrPayslip(models.Model):
         self._agregar_inputs_sabado_y_domingos()
         self._asignar_importe_asistencia()
         # Llama al método original para completar el cálculo de la nómina
+
         res = super().compute_sheet()
         # Registra el fin del cálculo personalizado de la nómina
         _logger.info(">>> [FIN] compute_sheet personalizado completado")
@@ -717,8 +719,6 @@ class HrPayslip(models.Model):
     #             vals.update({'payslip_id': payslip.id})
     #             self.env['hr.payslip.worked_days'].create(vals)
     #
-
-
 
     # def _get_worked_day_lines(self, domain=None):
     #     res = super()._get_worked_day_lines(domain=domain)

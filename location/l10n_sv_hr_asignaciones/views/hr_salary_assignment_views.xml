@@ -7,7 +7,7 @@
             <field name="arch" type="xml">
                 <list>
                     <header>
-                        <button name="action_descargar_plantilla" type="object" icon="fa-download" string="Plantilla" display="always"/>
+                        <button name="action_descargar_plantilla" type="always" icon="fa-download" string="Plantilla" display="always"/>
                     </header>
                     <field name="employee_id" widget="many2one_avatar_employee"/>
                     <field name="tipo" widget="badge" class="tipo_badge"/>

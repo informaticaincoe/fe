@@ -21,7 +21,7 @@ except ImportError as e:
 def ejecutar_hooks_post_init(env):
     from .hooks import post_init_configuracion_reglas, cargar_archivo_excel
 
-    post_init_configuracion_reglas(env)
+    # post_init_configuracion_reglas(env)
     cargar_archivo_excel(env)
 
 

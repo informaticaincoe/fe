@@ -1,6 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data>
+        <record id="hr_payroll.action_report_payslip" model="ir.actions.report">
+            <field name="name">Recibo boleta de pago</field>
+            <field name="model">hr.payslip</field>
+            <field name="report_type">qweb-pdf</field>
+            <field name="report_name">rrhh_base.report_boleta_pago_template</field>
+            <field name="print_report_name">'Recibo INCOE'</field>
+            <field name="paperformat_id" ref="rrhh_base.paperformat_payslip_recipe"/>
+        </record>
+
         <record id="paperformat_payslip_recipe" model="report.paperformat">
             <field name="name">Recibo de salario</field>
             <field name="default" eval="True"/>
