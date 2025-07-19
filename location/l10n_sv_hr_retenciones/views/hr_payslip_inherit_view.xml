@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <data>
+
+        <!-- Heredar vista formulario de hr.payslip para agregar campo payslip_principal_id -->
+        <record id="view_hr_payslip_form_inherit_principal" model="ir.ui.view">
+            <field name="name">hr.payslip.form.inherit.principal</field>
+            <field name="model">hr.payslip</field>
+            <field name="inherit_id" ref="hr_payroll.view_hr_payslip_form"/>
+            <field name="arch" type="xml">
+
+                <xpath expr="//field[@name='employee_id']" position="after">
+                    <field name="payslip_principal_id"
+                        options="{'no_create': True}"
+                        widget="many2one"
+                        placeholder="Seleccionar nómina principal"
+                        />
+                </xpath>
+
+            </field>
+        </record>
+
+       <!-- Heredar formulario de hr.payslip -->
+        <record id="view_hr_payslip_form_skip_deductions" model="ir.ui.view">
+            <field name="name">hr.payslip.form.skip.deductions</field>
+            <field name="model">hr.payslip</field>
+            <field name="inherit_id" ref="hr_payroll.view_hr_payslip_form"/>
+            <field name="arch" type="xml">
+
+                <xpath expr="//field[@name='company_id']" position="after">
+                    <field name="skip_deductions"/>
+                </xpath>
+
+            </field>
+        </record>
+
+    </data>
+</odoo>
