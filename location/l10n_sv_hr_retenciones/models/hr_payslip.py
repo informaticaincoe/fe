@@ -149,7 +149,7 @@ class HrPayslip(models.Model):
             self._crear_inputs_deducciones(payslip, contract, base_imponible)
 
         # Una vez generadas las deducciones → agregamos sabados/domingos y descuentos séptimo
-        #self._agregar_inputs_sabado_y_domingos()
+        # self._agregar_inputs_sabado_y_domingos()
         # Aplicar descuento de séptimo por faltas injustificadas
         self._aplicar_descuento_septimo_por_faltas()
 
@@ -318,27 +318,33 @@ class HrPayslip(models.Model):
                                  lp.name, lp.number_of_days, lp.number_of_hours, lp.amount)
             else:
                 _logger.info("❌ No se incluye nómina principal para este cálculo")
+        # ✅ Agregar entradas por asistencias como permisos sin goce, vacaciones, etc.
+        # self._generar_worked_days_asistencia()
+        # Dentro del método compute_sheet, al final:
+        # self._agregar_inputs_sabado_y_domingos()
+        self._asignar_importe_asistencia()
+        # Llama al método original para completar el cálculo de la nómina
 
-            # ===================== BASE FINAL ======================
-            base_total = importe_actual + importe_principal if include_principal else importe_actual
-            _logger.info("💵 Base imponible VACACIONES calculada = %.2f (actual %.2f + principal %.2f)",
-                         base_total, importe_actual, importe_principal)
+        # ===================== BASE FINAL ======================
+        base_total = importe_actual + importe_principal if include_principal else importe_actual
+        _logger.info("💵 Base imponible VACACIONES calculada = %.2f (actual %.2f + principal %.2f)",
+                     base_total, importe_actual, importe_principal)
 
-            # Log en chatter para que quede registrado en la nómina
-            slip.message_post(body=_(
-                "🔎 Cálculo de deducciones vacaciones:\n"
-                "- Principal incluido: %s\n"
-                "- Importe principal: %.2f\n"
-                "- Importe actual: %.2f\n"
-                "- Base total: %.2f"
-            ) % (
-                                       "✅ Sí" if include_principal else "❌ No",
-                                       importe_principal, importe_actual, base_total
-                                   ))
+        # Log en chatter para que quede registrado en la nómina
+        slip.message_post(body=_(
+            "🔎 Cálculo de deducciones vacaciones:\n"
+            "- Principal incluido: %s\n"
+            "- Importe principal: %.2f\n"
+            "- Importe actual: %.2f\n"
+            "- Base total: %.2f"
+        ) % (
+           "✅ Sí" if include_principal else "❌ No",
+           importe_principal, importe_actual, base_total
+       ))
 
-            _logger.info(">>> Ahora se llamará a _crear_inputs_deducciones con base %.2f", base_total)
-            self._crear_inputs_deducciones(slip, contract, base_total)
-            _logger.info("===== FIN cálculo deducciones vacaciones para %s =====", slip.name)
+        _logger.info(">>> Ahora se llamará a _crear_inputs_deducciones con base %.2f", base_total)
+        self._crear_inputs_deducciones(slip, contract, base_total)
+        _logger.info("===== FIN cálculo deducciones vacaciones para %s =====", slip.name)
 
     def _asignar_importe_asistencia(self):
         """
@@ -371,10 +377,10 @@ class HrPayslip(models.Model):
 
             _logger.info("#########################################################################")
             salario_mensual = (contract.wage * 2) or 0.0
-            _logger.info("SALARIO MENSUAL:%s ",salario_mensual)
+            _logger.info("SALARIO MENSUAL:%s ", salario_mensual)
 
             salario_por_hora = salario_mensual / 30.0 / 8.0
-            _logger.info("SALARIO HORA:%s ",salario_por_hora)
+            _logger.info("SALARIO HORA:%s ", salario_por_hora)
 
             _logger.info("#########################################################################")
 
@@ -529,6 +535,7 @@ class HrPayslip(models.Model):
 
         _logger.info(">>> Fin del cálculo de WORK100 + incapacidad pagada y sin pago")
 
+
     def _agregar_inputs_sabado_y_domingos(self):
         """
         Crea entradas automáticas para sábados (4h) y domingos (8h) según el periodo de la nómina.
@@ -594,6 +601,7 @@ class HrPayslip(models.Model):
             _logger.info("[%s] Domingos: %d ($%.2f) | Sábados: %d ($%.2f)",
                          payslip.employee_id.name, total_domingos, monto_dom,
                          total_sabados, monto_sab)
+
 
     # ==========FALTAS INJUSTIFICADAS
     def _aplicar_descuento_septimo_por_faltas(self):
@@ -667,6 +675,7 @@ class HrPayslip(models.Model):
                 })
                 _logger.info("[%s] Creado input DESC_FALTA_SEPTIMO con %.2f", slip.employee_id.name, monto_descuento)
 
+
     # ==========VACACIONES
     def calcular_vacaciones(self, salario_mensual, meses_trabajados):
         """
@@ -707,12 +716,13 @@ class HrPayslip(models.Model):
             "motivo_pago": motivo_pago
         }
 
+
     def _agregar_regla_vacaciones(self, slip):
         contract = slip.contract_id
         if not contract:
             return
 
-        salario_mensual = (contract.wage *2) or 0.0
+        salario_mensual = (contract.wage * 2) or 0.0
 
         # Calcular meses trabajados
         meses_trabajados = 0
@@ -776,5 +786,3 @@ class HrPayslip(models.Model):
     #                 'amount': ded.amount,
     #                 'total': ded.total,
     #             })
-
-    

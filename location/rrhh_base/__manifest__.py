@@ -20,9 +20,10 @@
         'views/hr_retencion_renta_views.xml',
         'views/hr_retencion_renta_tramos_views.xml',
         'views/menu_rrhh_base.xml',
-        #'views/hr_attendance_inherit.xml',
+        # 'views/hr_attendance_inherit.xml',
         "report/report.xml",
         "report/report_payslip_incoe.xml",
+
     ],
     'installable': True,
     # "auto_install": True,  #  Consider removing this
