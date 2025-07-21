@@ -57,6 +57,10 @@ class HrContract(models.Model):
             "Bruto total para contrato ID %s: salario base %.2f + asignaciones %.2f = %.2f",
             self.id, bruto, monto_extra, bruto_total
         )
+
+        _logger.info(
+            "Bruto total %.2f",bruto_total
+        )
         return bruto_total
 
     # Método para calcular la deducción AFP (Administradora de Fondos de Pensiones)
@@ -83,10 +87,20 @@ class HrContract(models.Model):
         porcentaje_afp = afp_empleado.porcentaje or 0.0  # Porcentaje de deducción AFP
         techo = afp_empleado.techo or 0.0  # Techo máximo de deducción AFP
 
+        _logger.info(
+            "salario %.2f", salario
+        )
         # Si hay techo definido (> 0), se aplica como límite para la base de cálculo
         base = min(salario, techo) if techo > 0 else salario
         deduccion = base * (porcentaje_afp / 100.0)  # Cálculo de la deducción AFP
         _logger.info("AFP base calculada = %.2f", base)
+
+        _logger.info(
+            "base %.2f", base
+        )
+        _logger.info(
+            "deduccion %.2f", deduccion
+        )
 
         _logger.info("AFP para contrato ID %d: base %.2f * %.2f%% = %.2f", self.id, base, porcentaje_afp, deduccion)
         return deduccion

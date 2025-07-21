@@ -16,12 +16,13 @@ except ImportError as e:
     constants = None
 
 TIPOS_AUSENCIA = {
-    #'ASISTENCIA': 'WORK100',
+    # 'ASISTENCIA': 'WORK100',
     'PERMISO_SG': 'PERMISO_SG',
     'VACACIONES': 'VACACIONES',
     'INCAPACIDAD': 'INCAPACIDAD',
     'FALTA_INJ': 'FALTA_INJ',
 }
+
 
 class HrPayslip(models.Model):
     _inherit = 'hr.payslip'
@@ -153,6 +154,7 @@ class HrPayslip(models.Model):
         self._aplicar_descuento_septimo_por_faltas()
 
         # Llama al método original para completar el cálculo de la nómina
+
         res = super().compute_sheet()
         # Registra el fin del cálculo personalizado de la nómina
         _logger.info(">>> [FIN] compute_sheet personalizado completado")
@@ -774,3 +776,5 @@ class HrPayslip(models.Model):
     #                 'amount': ded.amount,
     #                 'total': ded.total,
     #             })
+
+    

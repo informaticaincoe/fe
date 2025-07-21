@@ -28,9 +28,6 @@
         "data/hr_contract_type_data.xml",
         "data/deduccion_banco.xml",
         "data/salary_rules_attendance.xml",
-        # REVISAR -------------------------------------------
-        # 'data/hr_falta_injustificada.xml',
-        # ----------------------------------------------------
         "data/hr_leave_type_data.xml",
 
         "security/hr_retencion_groups.xml",
@@ -41,6 +38,7 @@
         #"views/hr_contract_form_inherit_pagos.xml",
         "views/hr_leave_vacation_type.xml",
         "views/hr_payslip_inherit_view.xml",
+
     ],
     "installable": True,
     "auto_install": False,
