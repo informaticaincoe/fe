@@ -1,0 +1,70 @@
+<odoo>
+    <data noupdate="1">
+
+        <!-- Tipo de entrada de trabajo Falta Injustificada -->
+        <record id="work_entry_type_falta_injustificada" model="hr.work.entry.type">
+            <field name="name">Falta Injustificada</field>
+            <field name="code">FALTA</field>
+            <field name="is_leave" eval="True"/>
+            <field name="color" eval="2"/>
+            <!-- Se marca como NO pagado en la estructura INCOE -->
+            <field name="unpaid_structure_ids" eval="[(6,0,[ref('l10n_sv_hr_retenciones.structure_incoe')])]"/>
+        </record>
+
+        <!-- Tiempo personal Falta Injustificada -->
+        <record id="leave_type_falta_injustificada" model="hr.leave.type">
+            <field name="name">Falta Injustificada</field>
+            <field name="requires_allocation">no</field>
+            <field name="request_unit">day</field>
+            <field name="time_type">leave</field>
+            <field name="unpaid" eval="True"/>
+            <field name="color" eval="2"/>
+            <field name="work_entry_type_id" ref="l10n_sv_hr_retenciones.work_entry_type_falta_injustificada"/>
+        </record>
+
+        <!-- Tipo de entrada para el descuento séptimo -->
+        <record id="input_type_desc_falta_septimo" model="hr.payslip.input.type">
+            <field name="name">Descuento Séptimo por Falta...</field>
+            <field name="code">DESC_FALTA_SEPTIMO</field>
+        </record>
+
+        <!-- Regla salarial para Falta Injustificada -->
+        <record id="hr_salary_rule_descuento_septimo_falta" model="hr.salary.rule">
+            <field name="name">Desc. Séptimo por Falta Injustificada</field>
+            <field name="code">DESC_FALTA_SEPTIMO</field>
+            <field name="sequence">30</field>
+            <field name="category_id" ref="hr_payroll.DED"/>
+            <field name="amount_select">input</field>
+            <field name="amount_python_compute">none</field>
+            <field name="appears_on_payslip" eval="True"/>
+            <field name="struct_id" ref="l10n_sv_hr_retenciones.structure_incoe"/>
+            <field name="input_type_id" ref="input_type_desc_falta_septimo"/>
+            <field name="amount_other_input_id" ref="input_type_desc_falta_septimo"/>
+            <field name="condition_select">none</field>
+        </record>
+
+
+        <!--        Vacaciones-->
+        <!-- Tipo de entrada de trabajo para Vacaciones -->
+        <record id="work_entry_type_vacaciones" model="hr.work.entry.type">
+          <field name="name">Vacaciones</field>
+          <field name="code">VACACIONES</field>
+          <field name="is_leave" eval="True"/>
+          <field name="color" eval="10"/>
+        </record>
+
+        <!-- Tipo de tiempo personal Vacaciones -->
+        <record id="leave_type_vacaciones" model="hr.leave.type">
+            <field name="name">Vacaciones</field>
+            <field name="requires_allocation">no</field>
+            <field name="request_unit">day</field>
+            <field name="time_type">leave</field>
+            <field name="unpaid" eval="False"/>
+            <field name="show_on_dashboard" eval="True"/>
+            <field name="work_entry_type_id" ref="work_entry_type_vacaciones"/>
+            <field name="is_vacation" eval="True"/> <!-- nuestro campo custom -->
+            <field name="color" eval="10"/>
+        </record>
+
+    </data>
+</odoo>
