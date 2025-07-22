@@ -60,6 +60,45 @@ class HrPayslip(models.Model):
         help="Si se marca, no se aplicarán deducciones automáticas en este recibo."
     )
 
+    @api.onchange('worked_days_line_ids')
+    def _onchange_worked_days_vacations(self):
+        """
+        Si en los días trabajados hay vacaciones y el tiempo personal tiene
+        vacation_full=False → activamos is_vacation_payslip para mostrar el campo en la vista.
+        """
+        for slip in self:
+            _logger.info("=== ONCHANGE worked_days_line_ids para nómina %s ===", slip.name)
+            vacaciones_parciales = False
+
+            # Buscar licencias del empleado en el período del payslip
+            leaves = self.env['hr.leave'].search([
+                ('employee_id', '=', slip.employee_id.id),
+                ('request_date_from', '<=', slip.date_to),
+                ('request_date_to', '>=', slip.date_from),
+                ('holiday_status_id.is_vacation', '=', True),  # Campo que identifica vacaciones
+            ])
+
+            _logger.info("Licencias encontradas en período: %s", leaves.mapped('name'))
+
+            for leave in leaves:
+                _logger.info("Revisando licencia: %s | vacation_full=%s", leave.name, leave.vacation_full)
+                if not leave.vacation_full:
+                    _logger.info("Vacaciones PARCIALES detectadas en licencia %s", leave.name)
+                    vacaciones_parciales = True
+                    break
+                else:
+                    _logger.info("Vacaciones COMPLETAS en licencia %s", leave.name)
+
+            # Si hay vacaciones parciales → mostramos el campo
+            slip.is_vacation_payslip = vacaciones_parciales
+            _logger.info("Resultado final: is_vacation_payslip=%s", vacaciones_parciales)
+
+            # Si no hay vacaciones parciales → limpiamos payslip_principal_id
+            if not vacaciones_parciales:
+                if slip.payslip_principal_id:
+                    _logger.info("No hay vacaciones parciales → limpiando payslip_principal_id")
+                slip.payslip_principal_id = False
+
     @api.depends('line_ids.salary_rule_id.appears_on_payslip')
     def _compute_line_ids_filtered(self):
         """
@@ -108,6 +147,26 @@ class HrPayslip(models.Model):
             # Si está marcado "Omitir deducciones", solo calcula lo demás
             if payslip.skip_deductions:
                 _logger.info("Saltando deducciones en nómina %s (marcada como omitir)", payslip.name)
+
+                # Eliminar líneas de deducción ya creadas
+                deduction_lines = payslip.line_ids.filtered(
+                    lambda l: l.category_id and l.category_id.code in ['DED']
+                )
+                if deduction_lines:
+                    _logger.info("Eliminando %d líneas de deducción en %s por skip_deductions=True",
+                                 len(deduction_lines), payslip.name)
+                    deduction_lines.unlink()
+
+                # Eliminar inputs de deducciones ya creados
+                deduction_inputs = payslip.input_line_ids.filtered(
+                    lambda i: i.code in ['RENTA', 'AFP', 'ISSS', 'ISSS_EMP', 'AFP_EMP', 'INCAF']
+                )
+                if deduction_inputs:
+                    _logger.info("Eliminando %d inputs de deducción en %s por skip_deductions=True",
+                                 len(deduction_inputs), payslip.name)
+                    deduction_inputs.unlink()
+
+                # Calcular solo líneas normales, sin agregar deducciones
                 super(HrPayslip, payslip).compute_sheet()
                 continue  # seguimos con la siguiente nómina
 
