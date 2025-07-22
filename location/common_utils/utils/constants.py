@@ -47,3 +47,17 @@ CUENTAS_ASIGNACIONES = {
 }
 CODIGOS_REGLAS_ASIGNACIONES = ['COMISION', 'VIATICO', 'BONO', 'OVERTIME']
 
+# Conversión de schedule_pay → factor para convertir a salario mensual
+SCHEDULE_PAY_CONVERSION = {
+    'monthly': 1,
+    'semi-monthly': 2,        # quincenal
+    'bi-weekly': 52 / 12 / 2,   # 26 pagos/año → mensual ≈ 2.1666
+    'weekly': 52 / 12,          # 4.3333 semanas por mes
+    'daily': 30,              # 30 días promedio en un mes
+    'bimonthly': 0.5,           # cada 2 meses
+    'quarterly': 1 / 3,
+    'semi-annually': 1 / 6,
+    'annually': 1 / 12,
+}
+
+
