@@ -1,38 +1,37 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <odoo>
-    <data>
+  <data>
 
-        <record id="view_hr_payslip_form_skip_deductions" model="ir.ui.view">
-            <field name="name">hr.payslip.form.skip.deductions</field>
-            <field name="model">hr.payslip</field>
-            <field name="inherit_id" ref="hr_payroll.view_hr_payslip_form"/>
-            <field name="arch" type="xml">
-                <xpath expr="//field[@name='struct_id']" position="after">
-                    <field name="skip_deductions"/>
-                </xpath>
-            </field>
-        </record>
-
-        <record id="view_hr_payslip_form_inherit_vacation" model="ir.ui.view">
-        <field name="name">hr.payslip.form.inherit.vacation</field>
+    <record id="view_hr_payslip_form_skip_deductions" model="ir.ui.view">
+        <field name="name">hr.payslip.form.skip.deductions</field>
         <field name="model">hr.payslip</field>
         <field name="inherit_id" ref="hr_payroll.view_hr_payslip_form"/>
         <field name="arch" type="xml">
-            <xpath expr="//field[@name='date_to']" position="after">
-            <group>
-                <group colspan="2">
-                    <field name="is_vacation_payslip" invisible="not is_vacation_payslip"/>
-                </group>
-                <group invisible="not is_vacation_payslip">
-                    <field name="payslip_principal_id"
-                        invisible="not is_vacation_payslip"
-                        options="{'no_create': True}"
-                        placeholder="Seleccionar nómina principal"/>
-                </group>
-            </group>
+            <xpath expr="//field[@name='struct_id']" position="after">
+                <field name="skip_deductions"/>
             </xpath>
         </field>
-        </record>
+    </record>
+
+    <record id="view_hr_payslip_form_inherit_vacation" model="ir.ui.view">
+      <field name="name">hr.payslip.form.inherit.vacation</field>
+      <field name="model">hr.payslip</field>
+      <field name="inherit_id" ref="hr_payroll.view_hr_payslip_form"/>
+      <field name="arch" type="xml">
+        <xpath expr="//field[@name='date_to']" position="after">
+          <group>
+            <group colspan="2">
+              <field name="is_vacation_payslip"/>
+            </group>
+            <group invisible="not is_vacation_payslip">
+              <field name="payslip_principal_id"
+                     options="{'no_create': True}"
+                     placeholder="Seleccionar nómina principal"/>
+            </group>
+          </group>
+        </xpath>
+      </field>
+    </record>
 
   </data>
 </odoo>

@@ -17,6 +17,8 @@ class HrLeave(models.Model):
         help="Si está marcado, las vacaciones son completas; si no, son parciales."
     )
 
+    from odoo.exceptions import ValidationError
+
     @api.constrains('vacation_full', 'request_date_from', 'request_date_to', 'number_of_days')
     def _check_partial_vacation_days(self):
         for leave in self:
