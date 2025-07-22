@@ -414,6 +414,7 @@ class HrPayslip(models.Model):
             self._crear_inputs_deducciones(slip, contract, base_total)
             _logger.info("===== FIN cálculo deducciones vacaciones para %s =====", slip.name)
 
+
     def _asignar_importe_asistencia(self):
         """
         WORK100 = asistencia + permiso con goce + incapacidad pagada (máx 3 días)
@@ -445,10 +446,10 @@ class HrPayslip(models.Model):
 
             _logger.info("#########################################################################")
             salario_mensual = (contract.wage * 2) or 0.0
-            _logger.info("SALARIO MENSUAL:%s ",salario_mensual)
+            _logger.info("SALARIO MENSUAL:%s ", salario_mensual)
 
             salario_por_hora = salario_mensual / 30.0 / 8.0
-            _logger.info("SALARIO HORA:%s ",salario_por_hora)
+            _logger.info("SALARIO HORA:%s ", salario_por_hora)
 
             _logger.info("#########################################################################")
 
@@ -599,6 +600,7 @@ class HrPayslip(models.Model):
 
         _logger.info(">>> Fin del cálculo de WORK100 + incapacidad pagada y sin pago")
 
+
     def _agregar_inputs_sabado_y_domingos(self):
         """
         Crea entradas automáticas para sábados (4h) y domingos (8h) según el periodo de la nómina.
@@ -664,6 +666,7 @@ class HrPayslip(models.Model):
             _logger.info("[%s] Domingos: %d ($%.2f) | Sábados: %d ($%.2f)",
                          payslip.employee_id.name, total_domingos, monto_dom,
                          total_sabados, monto_sab)
+
 
     # ==========FALTAS INJUSTIFICADAS
     def _aplicar_descuento_septimo_por_faltas(self):
@@ -734,6 +737,7 @@ class HrPayslip(models.Model):
                 })
                 _logger.info("[%s] Creado input DESC_FALTA_SEPTIMO con %.2f", slip.employee_id.name, monto_descuento)
 
+
     # ==========VACACIONES
     def calcular_vacaciones(self, salario_mensual, meses_trabajados):
         """
@@ -772,12 +776,13 @@ class HrPayslip(models.Model):
             "motivo_pago": motivo_pago
         }
 
+
     def _agregar_regla_vacaciones(self, slip):
         contract = slip.contract_id
         if not contract:
             return
 
-        salario_mensual = (contract.wage *2) or 0.0
+        salario_mensual = (contract.wage * 2) or 0.0
 
         # Calcular meses trabajados
         meses_trabajados = 0
@@ -875,4 +880,3 @@ class HrPayslip(models.Model):
                     _logger.info("Línea actualizada: days=%.2f amount=%.2f", line.number_of_days, line.amount)
             else:
                 _logger.warning("No se encontró línea de asistencia para actualizar en %s", slip.name)
-

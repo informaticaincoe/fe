@@ -1,5 +1,5 @@
 <odoo>
-    <data noupdate="1">
+    <data noupdate="0">
 
         <!-- Definición de un nuevo tipo de estructura salarial, se utilizara para las deducciones personalizadas(isss, afp y renta) -->
         <record id="structure_type_incoe" model="hr.payroll.structure.type">
