@@ -1,0 +1,17 @@
+<odoo>
+  <data>
+
+    <!-- Heredamos la vista del contrato -->
+    <record id="view_hr_contract_form_inherit_hourly_wage_precision" model="ir.ui.view">
+      <field name="name">hr.contract.form.hourly.wage.precision</field>
+      <field name="model">hr.contract</field>
+      <field name="inherit_id" ref="hr_contract.hr_contract_view_form"/>
+      <field name="arch" type="xml">
+        <field name="hourly_wage" position="attributes">
+          <attribute name="options">{'precision': 4}</attribute>
+        </field>
+      </field>
+    </record>
+
+  </data>
+</odoo>

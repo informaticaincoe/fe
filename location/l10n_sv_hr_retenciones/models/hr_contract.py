@@ -19,6 +19,11 @@ class HrContract(models.Model):
         string='Tipo de salario'
     )
 
+    hourly_wage = fields.Float(
+        string="Salario por hora",
+        digits=(16, 4),  # ✅ Ahora permite 4 decimales
+    )
+
     def get_salario_bruto_total(self):
         """
         Retorna el salario base + total de asignaciones sujetas a retención,

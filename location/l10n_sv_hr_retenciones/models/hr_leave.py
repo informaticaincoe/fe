@@ -1,22 +1,37 @@
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
+import logging
+_logger = logging.getLogger(__name__)
+
 class HrLeave(models.Model):
     _inherit = 'hr.leave'
 
-    vacation_type = fields.Selection([
-        ('total', 'Vacaciones completas'),
-        ('partial', 'Vacaciones parciales'),
-    ], string="Tipo de vacaciones")
+    # vacation_type = fields.Selection([
+    #     ('total', 'Vacaciones completas'),
+    #     ('partial', 'Vacaciones parciales'),
+    # ], string="Tipo de vacaciones")
 
-    @api.constrains('vacation_type', 'request_date_from', 'request_date_to')
+    vacation_full = fields.Boolean(
+        string="Vacaciones completas",
+        help="Si está marcado, las vacaciones son completas; si no, son parciales."
+    )
+
+    from odoo.exceptions import ValidationError
+
+    @api.constrains('vacation_full', 'request_date_from', 'request_date_to', 'number_of_days')
     def _check_partial_vacation_days(self):
         for leave in self:
-            if leave.vacation_type == 'partial':
+            # Solo aplica si NO son vacaciones completas
+            _logger.info("Son vacaciones completas? %s", leave.vacation_full)
+            if not leave.vacation_full:
                 if leave.request_date_from and leave.request_date_to:
-                    days = (leave.request_date_to - leave.request_date_from).days + 1
+                    # Redondeamos hacia arriba para evitar que 7.5 días pase como válido
+                    days = int(leave.number_of_days) if leave.number_of_days.is_integer() else int(leave.number_of_days) + 1
+
                     if days > 7:
                         raise ValidationError(
                             f"Las vacaciones parciales no pueden exceder 7 días. "
                             f"Has seleccionado {days} días."
                         )
+

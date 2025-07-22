@@ -1,38 +1,37 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <odoo>
-    <data>
+  <data>
 
-        <!-- Heredar vista formulario de hr.payslip para agregar campo payslip_principal_id -->
-        <record id="view_hr_payslip_form_inherit_principal" model="ir.ui.view">
-            <field name="name">hr.payslip.form.inherit.principal</field>
-            <field name="model">hr.payslip</field>
-            <field name="inherit_id" ref="hr_payroll.view_hr_payslip_form"/>
-            <field name="arch" type="xml">
+    <record id="view_hr_payslip_form_skip_deductions" model="ir.ui.view">
+        <field name="name">hr.payslip.form.skip.deductions</field>
+        <field name="model">hr.payslip</field>
+        <field name="inherit_id" ref="hr_payroll.view_hr_payslip_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='struct_id']" position="after">
+                <field name="skip_deductions"/>
+            </xpath>
+        </field>
+    </record>
 
-                <xpath expr="//field[@name='employee_id']" position="after">
-                    <field name="payslip_principal_id"
-                        options="{'no_create': True}"
-                        widget="many2one"
-                        placeholder="Seleccionar nómina principal"
-                        />
-                </xpath>
+    <record id="view_hr_payslip_form_inherit_vacation" model="ir.ui.view">
+      <field name="name">hr.payslip.form.inherit.vacation</field>
+      <field name="model">hr.payslip</field>
+      <field name="inherit_id" ref="hr_payroll.view_hr_payslip_form"/>
+      <field name="arch" type="xml">
+        <xpath expr="//field[@name='date_to']" position="after">
+          <group>
+            <group colspan="2">
+              <field name="is_vacation_payslip"/>
+            </group>
+            <group invisible="not is_vacation_payslip">
+              <field name="payslip_principal_id"
+                     options="{'no_create': True}"
+                     placeholder="Seleccionar nómina principal"/>
+            </group>
+          </group>
+        </xpath>
+      </field>
+    </record>
 
-            </field>
-        </record>
-
-       <!-- Heredar formulario de hr.payslip -->
-        <record id="view_hr_payslip_form_skip_deductions" model="ir.ui.view">
-            <field name="name">hr.payslip.form.skip.deductions</field>
-            <field name="model">hr.payslip</field>
-            <field name="inherit_id" ref="hr_payroll.view_hr_payslip_form"/>
-            <field name="arch" type="xml">
-
-                <xpath expr="//field[@name='company_id']" position="after">
-                    <field name="skip_deductions"/>
-                </xpath>
-
-            </field>
-        </record>
-
-    </data>
+  </data>
 </odoo>

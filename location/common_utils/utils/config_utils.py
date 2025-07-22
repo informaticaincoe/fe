@@ -6,6 +6,9 @@ _logger = logging.getLogger(__name__)
 import pytz
 import datetime
 
+from odoo.exceptions import UserError
+from .constants import SCHEDULE_PAY_CONVERSION
+
 def get_config_value(env, clave, company_id):
     """
     Buscar el valor de configuración según clave y company_id.
@@ -118,3 +121,37 @@ def actualizar_cuentas_reglas_generico(env, reglas):
             )
 
     _logger.info("[COMMON_UTILS] Finalizó actualización de cuentas de reglas salariales.")
+
+def get_monthly_wage_from_contract(contract):
+    """
+    Convierte el salario base del contrato a salario mensual
+    según su schedule_pay.
+    """
+    schedule_pay = contract.schedule_pay or "monthly"
+    factor = SCHEDULE_PAY_CONVERSION.get(schedule_pay, 1.0)
+    return contract.wage * factor
+
+
+def get_hourly_rate_from_contract(contract):
+    """
+    Devuelve el valor por hora del contrato.
+    - Si wage_type=hourly → usa contract.hourly_wage (lanza error si falta)
+    - Si wage_type=monthly o professional_services → calcula desde salario mensual
+    """
+    tipo_salario = contract.wage_type or "monthly"
+
+    # Servicios profesionales se tratan como mensual
+    if tipo_salario == "professional_services":
+        tipo_salario = "monthly"
+
+    if tipo_salario == "hourly":
+        if not contract.hourly_wage:
+            raise UserError(
+                f"El contrato '{contract.name}' es por hora pero no tiene definido "
+                f"el salario por hora (campo Hourly Wage)."
+            )
+        return contract.hourly_wage
+
+    # mensual fijo → promedio 30 días, 8 horas/día
+    salario_mensual = get_monthly_wage_from_contract(contract)
+    return salario_mensual / 30.0 / 8.0
