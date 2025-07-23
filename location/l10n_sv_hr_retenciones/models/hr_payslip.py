@@ -766,9 +766,13 @@ class HrPayslip(models.Model):
 
         # Determinar si ya tiene derecho completo
         tiene_derecho_completo = meses_trabajados >= 12
+
+        # Días de derecho por ley
+        if tiene_derecho_completo:
+            dias_derecho = 15
             motivo_pago = "Vacaciones anuales"
         else:
-            dias_vacaciones = (meses_trabajados / 12.0) * 15
+            dias_derecho = (meses_trabajados / 12.0) * 15
             motivo_pago = "Vacaciones proporcionales"
 
         # Caso 1: Ya cumplió tiempo y son vacaciones parciales
