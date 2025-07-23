@@ -27,9 +27,9 @@ class HrLeave(models.Model):
                     # Redondeamos hacia arriba para evitar que 7.5 días pase como válido
                     days = int(leave.number_of_days) if leave.number_of_days.is_integer() else int(leave.number_of_days) + 1
 
-                    if days > 7:
+                    if days > 8:
                         raise ValidationError(
-                            f"Las vacaciones parciales no pueden exceder 7 días. "
+                            f"Las vacaciones parciales no pueden exceder 8 días. "
                             f"Has seleccionado {days} días."
                         )
 

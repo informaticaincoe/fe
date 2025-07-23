@@ -129,8 +129,10 @@ def get_monthly_wage_from_contract(contract):
     """
     schedule_pay = contract.schedule_pay or "monthly"
     factor = SCHEDULE_PAY_CONVERSION.get(schedule_pay, 1.0)
+    _logger.info("Salario mensual=%.2f ", contract.wage * factor)
+    _logger.info(
+        "Contrato %s | wage=%.2f | schedule_pay=%s | factor=%.4f", contract.name, contract.wage, contract.schedule_pay, SCHEDULE_PAY_CONVERSION.get(contract.schedule_pay or 'monthly', 1.0))
     return contract.wage * factor
-
 
 def get_hourly_rate_from_contract(contract):
     """

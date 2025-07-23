@@ -283,18 +283,31 @@ class HrPayslip(models.Model):
 
         return base_actual + bruto_prev
 
-    def _get_bruto_total(self):
+    def _get_salary_total_base(self):
         """
-        Devuelve el total bruto de este payslip
-        considerando salario base + asignaciones (categoría ALW)
+        Obtiene el importe total que aparece en 'Días trabajados' del slip.
+        Si no hay líneas, como fallback toma las líneas BASIC/GROSS.
         """
-        bruto = sum(
-            self.line_ids.filtered(
-                lambda l: l.code == 'BASIC' or (l.category_id and l.category_id.code == 'ALW')
-            ).mapped('total')
+        # Suma de todos los importes de días trabajados
+        total_dias_trabajados = sum(self.worked_days_line_ids.mapped('amount'))
+
+        if total_dias_trabajados > 0:
+            _logger.info("Base vacaciones desde worked_days_line_ids en %s → %.2f", self.name, total_dias_trabajados)
+            return total_dias_trabajados
+
+        # Si no hay días trabajados (extraordinario), usa bruto BASIC/GROSS
+        gross_lines = self.line_ids.filtered(
+            lambda l: l.salary_rule_id.category_id.code in ('BASIC', 'GROSS')
         )
-        _logger.info("Bruto total calculado para %s = %.2f", self.name, bruto)
-        return bruto
+        if gross_lines:
+            total_bruto = sum(gross_lines.mapped('total'))
+            _logger.info("Fallback base vacaciones desde líneas BASIC/GROSS en %s → %.2f", self.name, total_bruto)
+            return total_bruto
+
+        # Último fallback: suma de todo el slip
+        total_fallback = sum(self.line_ids.mapped('total'))
+        _logger.info("Fallback base vacaciones (todo el slip) en %s → %.2f", self.name, total_fallback)
+        return total_fallback
 
     def _crear_inputs_deducciones(self, slip, contract, base_total):
         """
@@ -667,7 +680,6 @@ class HrPayslip(models.Model):
                          payslip.employee_id.name, total_domingos, monto_dom,
                          total_sabados, monto_sab)
 
-
     # ==========FALTAS INJUSTIFICADAS
     def _aplicar_descuento_septimo_por_faltas(self):
         """
@@ -737,36 +749,67 @@ class HrPayslip(models.Model):
                 })
                 _logger.info("[%s] Creado input DESC_FALTA_SEPTIMO con %.2f", slip.employee_id.name, monto_descuento)
 
-
     # ==========VACACIONES
-    def calcular_vacaciones(self, salario_mensual, meses_trabajados):
+    def calcular_vacaciones(self, salario_mensual, meses_trabajados, dias_tomados=None):
         """
         Calcula el pago de vacaciones en El Salvador.
 
-        - salario_mensual: sueldo mensual del empleado
+        - salario_mensual: importe total base del slip (worked_days)
         - meses_trabajados: número de meses trabajados
+        - dias_tomados: días efectivos que se gozan en esta nómina (si es parcial)
 
         Retorna dict con:
-          dias_vacaciones, pago_base, extra_30, total, motivo_pago
+            dias_vacaciones, pago_base, extra_30, total, motivo_pago
         """
-        # Salario diario (30 días según ley)
+
         salario_diario = salario_mensual / 30.0
 
-        # Si trabajó >= 12 meses tiene derecho completo
-        if meses_trabajados >= 12:
-            dias_vacaciones = 15
+        # Determinar si ya tiene derecho completo
+        tiene_derecho_completo = meses_trabajados >= 12
             motivo_pago = "Vacaciones anuales"
         else:
             dias_vacaciones = (meses_trabajados / 12.0) * 15
             motivo_pago = "Vacaciones proporcionales"
 
-        # Calcular montos
-        pago_base = salario_diario * dias_vacaciones
-        extra_30 = pago_base * 0.30
-        total = pago_base + extra_30
+        # Caso 1: Ya cumplió tiempo y son vacaciones parciales
+        _logger.info("=== Tiene derecho completo: %s | Días tomados: %s | Tipo: %s ===", tiene_derecho_completo,
+                     dias_tomados, motivo_pago)
 
-        _logger.info( f"Vacaciones calculadas: {dias_vacaciones:.2f} días, "
-            f"base={pago_base:.2f}, extra_30={extra_30:.2f}, total={total:.2f}")
+        if tiene_derecho_completo and dias_tomados:
+            # Si tiene derecho completo, y son parciales, el slip ya tiene el importe proporcional
+            pago_base = salario_mensual  # viene directo de worked_days_line_ids
+            extra_30 = pago_base * 0.30
+            total = pago_base + extra_30
+            dias_vacaciones = dias_tomados
+            motivo_pago += " (parciales)"
+
+        # Caso 2: No ha cumplido tiempo (proporcionales)
+        elif not tiene_derecho_completo and dias_tomados:
+            # Vacaciones proporcionales: cálculo proporcional al bono anual
+            bono_completo = salario_diario * 15 * 0.30  # 30% del equivalente a 15 días
+            dias_trabajados_totales = round(meses_trabajados * 30)
+            extra_30 = (dias_trabajados_totales * bono_completo) / 365
+            pago_base = salario_diario * dias_tomados
+            total = pago_base + extra_30
+            dias_vacaciones = dias_tomados
+            motivo_pago += " (proporcionales, parciales)"
+
+            _logger.info("=== Salario diario: %s | Meses trabajados: %s | Bono: %s | Pago base: %s | Salario mensual: %s ===", salario_diario, meses_trabajados, bono_completo, pago_base, salario_mensual)
+
+            _logger.info(
+                f"Vacaciones proporcionales: trabajado={dias_trabajados_totales} días | bono_completo={bono_completo:.2f} | extra_30={extra_30:.2f}"
+            )
+        else:
+            # Vacaciones completas
+            dias_vacaciones = dias_derecho
+            pago_base = salario_diario * dias_vacaciones
+            extra_30 = pago_base * 0.30
+            total = pago_base + extra_30
+            motivo_pago += " (completas)"
+
+        _logger.info(
+            f"Vacaciones calculadas: {dias_vacaciones:.2f} días | base={pago_base:.2f} | extra_30={extra_30:.2f} | total={total:.2f}"
+        )
 
         return {
             "dias_vacaciones": round(dias_vacaciones, 2),
@@ -776,13 +819,13 @@ class HrPayslip(models.Model):
             "motivo_pago": motivo_pago
         }
 
-
     def _agregar_regla_vacaciones(self, slip):
         contract = slip.contract_id
         if not contract:
             return
 
-        salario_mensual = (contract.wage * 2) or 0.0
+        # Salario mensual real desde contrato (no desde líneas del slip)
+        salario_mensual = config_utils.get_monthly_wage_from_contract(contract)
 
         # Calcular meses trabajados
         meses_trabajados = 0
@@ -790,8 +833,17 @@ class HrPayslip(models.Model):
             diff_days = (fields.Date.today() - contract.date_start).days
             meses_trabajados = diff_days / 30.0
 
-        # Calcular vacaciones según ley
-        datos_vac = self.calcular_vacaciones(salario_mensual, meses_trabajados)
+        # Obtener días tomados desde ausencias aprobadas
+        dias_tomados = self._get_dias_vacaciones_tomados(slip)
+
+        _logger.info("=== Meses trabajados %.2f | días tomados detectados=%s | salario mensual contrato=%.2f ===", meses_trabajados, dias_tomados, salario_mensual)
+
+        # Calcular vacaciones completas o parciales según días_tomados
+        datos_vac = self.calcular_vacaciones(
+            salario_mensual,
+            meses_trabajados,
+            dias_tomados=dias_tomados
+        )
 
         # Solo creamos input si hay extra_30
         if datos_vac["extra_30"] > 0:
@@ -811,21 +863,23 @@ class HrPayslip(models.Model):
                 _logger.info(f"Actualizado input VACACIONES → {datos_vac['extra_30']}")
             else:
                 slip.input_line_ids.create({
-                    'name': f"Vacaciones ({datos_vac['dias_vacaciones']} días)",
+                    'name': f"Vacaciones",
                     'code': 'VACACIONES',
                     'amount': float_round(datos_vac["extra_30"], precision_digits=2),
                     'payslip_id': slip.id,
                     'input_type_id': tipo_vacaciones.id,
                 })
-                _logger.info(f"Creado input VACACIONES en {slip.name} → días={datos_vac['dias_vacaciones']} extra={datos_vac['extra_30']}")
+                _logger.info(
+                    f"Creado input VACACIONES en {slip.name} → días={datos_vac['dias_vacaciones']} extra={datos_vac['extra_30']}"
+                )
 
     def _ajustar_lineas_vacaciones(self):
         horas_diarias = 0
 
         # Obtener las horas diarias configuradas, si no existe usar 8 por defecto
-        horas_diarias = config_utils.get_config_value(self.env, 'horas_diarias', self.company_id.id)
+        horas_diarias = config_utils.get_config_value(self.env, 'horas_diarias', self.company_id.id) or 8.0
         try:
-            horas_diarias = float(horas_diarias) if horas_diarias else 8.0
+            horas_diarias = float(horas_diarias)
         except ValueError:
             _logger.warning("La configuración 'horas_diarias' no es numérica, usando 8.0 por defecto")
             horas_diarias = 8.0
@@ -835,9 +889,26 @@ class HrPayslip(models.Model):
             if not contract:
                 continue
 
-            _logger.info("=== Ajustando línea de asistencia SOLO para nómina de vacaciones %s ===", slip.name)
+            # ✅ Buscar si hay alguna ausencia (tiempo personal) en el período del slip
+            leave = self.env['hr.leave'].search([
+                ('employee_id', '=', slip.employee_id.id),
+                ('date_from', '<=', slip.date_to),
+                ('date_to', '>=', slip.date_from),
+                ('holiday_status_id.is_vacation', '=', True),  # solo vacaciones
+            ], limit=1)
 
-            # 👉 Obtener salario mensual y valor hora usando las utilidades
+            # ✅ Si tiene vacation_full = True, NO ajustamos
+            if leave and leave.vacation_full:
+                _logger.info(
+                    "Vacaciones registradas como COMPLETAS (vacation_full=True) → NO se ajusta importe para %s",
+                    slip.name
+                )
+                continue
+
+            # --- SOLO sigue si no es vacation_full ---
+            _logger.info("=== Ajustando línea de asistencia SOLO para vacaciones parciales en %s ===", slip.name)
+
+            # Obtener salario mensual y valor hora usando las utilidades
             salario_mensual = config_utils.get_monthly_wage_from_contract(contract)
             valor_hora = config_utils.get_hourly_rate_from_contract(contract)
 
@@ -853,12 +924,14 @@ class HrPayslip(models.Model):
                 ('employee_id', '=', slip.employee_id.id),
                 ('date_start', '>=', slip.date_from),
                 ('date_start', '<', date_to_plus),
-            ])
+            ]).filtered(lambda we: we.duration > 0)
 
             # Filtrar solo entradas que cuentan como asistencia
-            work_entries = work_entries.filtered(lambda we: we.duration > 0)
+            _logger.info("Entradas de trabajo encontradas: %d para %s (%s → %s)",
+                         len(work_entries), slip.employee_id.name, slip.date_from, slip.date_to)
 
-            _logger.info("Entradas de trabajo encontradas: %d para %s (%s → %s)", len(work_entries), slip.employee_id.name, slip.date_from, slip.date_to)
+            _logger.info("Entradas de trabajo encontradas: %d para %s (%s → %s)", len(work_entries),
+                         slip.employee_id.name, slip.date_from, slip.date_to)
 
             # Calcular horas totales
             total_hours = sum(we.duration for we in work_entries)
@@ -866,12 +939,11 @@ class HrPayslip(models.Model):
             dias_reales = total_hours / horas_diarias
             monto_proporcional = total_hours * valor_hora
 
-            _logger.info("TOTAL → horas=%.2f | días reales=%.2f | monto proporcional=%.2f",total_hours, dias_reales, monto_proporcional)
+            _logger.info("TOTAL → horas=%.2f | días reales=%.2f | monto proporcional=%.2f",
+                         total_hours, dias_reales, monto_proporcional)
 
             # Buscar línea a ajustar (cualquier línea con importe > 0)
-            asistencia_line = slip.worked_days_line_ids.filtered(
-                lambda l: l.amount > 0
-            )
+            asistencia_line = slip.worked_days_line_ids.filtered(lambda l: l.amount > 0)
 
             if asistencia_line:
                 for line in asistencia_line:
@@ -880,3 +952,27 @@ class HrPayslip(models.Model):
                     _logger.info("Línea actualizada: days=%.2f amount=%.2f", line.number_of_days, line.amount)
             else:
                 _logger.warning("No se encontró línea de asistencia para actualizar en %s", slip.name)
+
+    def _get_dias_vacaciones_tomados(self, slip):
+        """
+        Obtiene automáticamente los días de vacaciones tomados en el período del slip
+        leyendo ausencias hr.leave validadas.
+        """
+        # Buscar ausencias tipo VACACIONES aprobadas dentro del período del slip
+        vac_leaves = self.env['hr.leave'].search([
+            ('employee_id', '=', slip.employee_id.id),
+            ('state', '=', 'validate'),
+            ('holiday_status_id.is_vacation', '=', True),
+            ('date_from', '<=', slip.date_to),
+            ('date_to', '>=', slip.date_from),
+        ])
+
+        # Sumar los días aprobados en ese período
+        dias_tomados = sum(vac_leaves.mapped('number_of_days'))
+
+        _logger.info(
+            "Vacaciones detectadas en %s: %s días (de %s ausencias)",
+            slip.name, dias_tomados, len(vac_leaves)
+        )
+
+        return dias_tomados if dias_tomados > 0 else None
