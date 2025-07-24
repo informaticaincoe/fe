@@ -7,8 +7,8 @@
         <field name="arch" type="xml">
             <xpath expr="//group" position="inside">
                 <group>
-                    <field name="tipo_asistencia"/>
-                    <field name="se_paga"/>
+<!--                    <field name="tipo_asistencia"/>-->
+<!--                    <field name="se_paga"/>-->
                 </group>
             </xpath>
         </field>
@@ -29,8 +29,8 @@
                 <header>
                     <button name="action_descargar_plantilla" type="object" icon="fa-download" string="Plantilla" context="{}" display="always"/>
                 </header>
-                <field name="tipo_asistencia"/>
-                <field name="se_paga"/>
+<!--                <field name="tipo_asistencia"/>-->
+<!--                <field name="se_paga"/>-->
             </list>
         </field>
     </record>

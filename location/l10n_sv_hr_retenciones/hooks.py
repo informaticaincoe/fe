@@ -19,11 +19,16 @@ except ImportError as e:
     constants = None
 
 def ejecutar_hooks_post_init(env):
-    from .hooks import post_init_configuracion_reglas, cargar_archivo_excel
+    from .hooks import post_init_configuracion_reglas, cargar_archivo_excel, copiar_reglas_a_estructuras
 
-    # post_init_configuracion_reglas(env)
+    post_init_configuracion_reglas(env)
     cargar_archivo_excel(env)
 
+    # Mapeo de estructuras origen -> destino
+    mapping = {
+        'INCOE': ['PLAN_VAC', 'PLAN_PRO']
+    }
+    copiar_reglas_a_estructuras(env, mapping)
 
 def post_init_configuracion_reglas(env):
     """
@@ -47,6 +52,7 @@ def post_init_configuracion_reglas(env):
     ejecute automáticamente una vez que el módulo es instalado o actualizado.
 
     """
+    _logger.info("Asignar cuenta contable a las reglas salariales.")
     env['hr.salary.rule'].sudo().actualizar_cuentas_retenciones()
 
 def cargar_archivo_excel(env):
@@ -82,3 +88,75 @@ def cargar_archivo_excel(env):
 
     except Exception as e:
         _logger.error("[HOOK] Error al cargar el archivo Excel de asistencia: %s", e, exc_info=True)
+
+def copiar_reglas_a_estructuras(env, mapping, reglas_excluir=None):
+    """
+    Copia reglas salariales de estructuras origen a múltiples estructuras destino SIN agregar (copy) al nombre.
+    Normaliza los Many2one para evitar errores de tipo record -> integer.
+    """
+    _logger.info("Creación de reglas para planillas de vacaciones y servicios profesionales")
+
+    if reglas_excluir is None:
+        reglas_excluir = {'RENTA', 'ISSS', 'AFP', 'AFP_EMP', 'ISSS_EMP', 'INCAF'}
+
+    campos_deseados = [
+        'name', 'code', 'sequence', 'category_id',
+        'condition_select', 'condition_python', 'condition_range',
+        'condition_range_min', 'condition_range_max',
+        'amount_select', 'amount_fix', 'amount_percentage',
+        'amount_percentage_base', 'amount_python_compute',
+        'appears_on_payslip', 'active',
+        'quantity', 'note',
+        'account_debit', 'account_credit'
+    ]
+
+    fields_available = env['hr.salary.rule'].fields_get().keys()
+    campos_existentes = [c for c in campos_deseados if c in fields_available]
+
+    _logger.info(f"Campos disponibles en hr.salary.rule: {fields_available}")
+    _logger.info(f"Campos que se van a copiar: {campos_existentes}")
+
+    # Campos Many2one que necesitan normalización
+    campos_many2one = {'category_id', 'account_debit', 'account_credit'}
+
+    for codigo_origen, destinos in mapping.items():
+        estructura_origen = env['hr.payroll.structure'].search([('code', '=', codigo_origen)], limit=1)
+        if not estructura_origen:
+            _logger.error(f"No se encontró la estructura origen ({codigo_origen})")
+            continue
+
+        for codigo_destino in destinos:
+            estructura_destino = env['hr.payroll.structure'].search([('code', '=', codigo_destino)], limit=1)
+            if not estructura_destino:
+                _logger.error(f"No se encontró la estructura destino ({codigo_destino})")
+                continue
+
+            _logger.info(f"Iniciando copia de reglas de {codigo_origen} a {codigo_destino}")
+
+            reglas_a_copiar = env['hr.salary.rule'].search([
+                ('struct_id', '=', estructura_origen.id),
+                ('code', 'not in', list(reglas_excluir))
+            ])
+
+            for regla in reglas_a_copiar:
+                # Evitar duplicados en destino
+                if env['hr.salary.rule'].search([('struct_id', '=', estructura_destino.id), ('code', '=', regla.code)], limit=1):
+                    _logger.info(f"La regla {regla.code} ya existe en estructura {codigo_destino}, se omite.")
+                    continue
+
+                # Leer valores de la regla
+                vals = regla.read(campos_existentes)[0]
+
+                for campo in campos_many2one:
+                    if campo in vals and isinstance(vals[campo], (list, tuple)):
+                        vals[campo] = vals[campo][0] if vals[campo] else False
+
+                # Ajustar la estructura destino y nombre SIN (copy)
+                vals['struct_id'] = estructura_destino.id
+                vals['name'] = regla.name
+
+                # Crear regla clonada
+                nueva_regla = env['hr.salary.rule'].create(vals)
+                _logger.info(f" Regla {nueva_regla.code} copiada a estructura {codigo_destino} SIN (copy).")
+
+            _logger.info(f"Copia de reglas de {codigo_origen} a {codigo_destino} finalizada.")

@@ -159,7 +159,7 @@ class HrPayslip(models.Model):
 
                 # Eliminar inputs de deducciones ya creados
                 deduction_inputs = payslip.input_line_ids.filtered(
-                    lambda i: i.code in ['RENTA', 'AFP', 'ISSS', 'ISSS_EMP', 'AFP_EMP', 'INCAF']
+                    lambda i: i.code in ['RENTA', 'RENTA_SP', 'AFP', 'ISSS', 'ISSS_EMP', 'AFP_EMP', 'INCAF']
                 )
                 if deduction_inputs:
                     _logger.info("Eliminando %d inputs de deducción en %s por skip_deductions=True",
@@ -232,7 +232,6 @@ class HrPayslip(models.Model):
         self._aplicar_descuento_septimo_por_faltas()
 
         # Llama al método original para completar el cálculo de la nómina
-
         res = super().compute_sheet()
         # Registra el fin del cálculo personalizado de la nómina
         _logger.info(">>> [FIN] compute_sheet personalizado completado")
@@ -280,7 +279,7 @@ class HrPayslip(models.Model):
                 self.payslip_principal_id.name,
                 bruto_prev
             )
-
+        _logger.info("Total base imponible %s = ", base_actual)
         return base_actual + bruto_prev
 
     def _get_salary_total_base(self):
@@ -315,7 +314,7 @@ class HrPayslip(models.Model):
         a partir de una base imponible.
         """
         # Primero eliminamos entradas previas para evitar duplicados
-        for code in ['RENTA', 'AFP', 'ISSS', 'ISSS_EMP', 'AFP_EMP', 'INCAF']:
+        for code in ['RENTA', 'RENTA_SP', 'AFP', 'ISSS', 'ISSS_EMP', 'AFP_EMP', 'INCAF']:
             old_inputs = slip.input_line_ids.filtered(lambda l: l.code == code)
             if old_inputs:
                 _logger.info("Eliminando inputs previos código %s para nómina %d", code, slip.id)
@@ -325,7 +324,7 @@ class HrPayslip(models.Model):
         renta, afp, isss, afp_patronal, isss_patronal, incaf = self._obtener_deducciones(contract, base_total)
         tipos = {
             code: self.env['hr.payslip.input.type'].search([('code', '=', code)], limit=1)
-            for code in ['RENTA', 'AFP', 'ISSS', 'ISSS_EMP', 'AFP_EMP', 'INCAF']
+            for code in ['RENTA', 'RENTA_SP', 'AFP', 'ISSS', 'ISSS_EMP', 'AFP_EMP', 'INCAF']
         }
 
         # Validar que existan tipos
@@ -338,7 +337,7 @@ class HrPayslip(models.Model):
         valores = []
 
         if is_professional:
-            valores.append(('RENTA', -abs(renta)))
+            valores.append(('RENTA_SP', -abs(renta)))
             _logger.info("Contrato de servicios profesionales → solo se agrega RENTA")
         else:
             valores = [
@@ -426,7 +425,6 @@ class HrPayslip(models.Model):
             _logger.info(">>> Ahora se llamará a _crear_inputs_deducciones con base %.2f", base_total)
             self._crear_inputs_deducciones(slip, contract, base_total)
             _logger.info("===== FIN cálculo deducciones vacaciones para %s =====", slip.name)
-
 
     def _asignar_importe_asistencia(self):
         """
@@ -612,7 +610,6 @@ class HrPayslip(models.Model):
                 _logger.info("[%s] INCAPACIDAD sin pago: %.2f h -> $0", empleado.name, horas_sin_pago)
 
         _logger.info(">>> Fin del cálculo de WORK100 + incapacidad pagada y sin pago")
-
 
     def _agregar_inputs_sabado_y_domingos(self):
         """

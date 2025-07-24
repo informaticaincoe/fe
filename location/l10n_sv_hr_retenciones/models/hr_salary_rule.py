@@ -38,7 +38,7 @@ class HrSalaryRule(models.Model):
 
         # Códigos de reglas salariales
         deducciones_empleado = [
-            'AFP', 'ISSS', 'RENTA', 'FSV', 'FONDO_PENSIONES', 'PRESTAMOS', 'VENTA_EMPLEADOS', 'OTROS'
+            'AFP', 'ISSS', 'RENTA', 'FSV', 'FONDO_PENSIONES', 'PRESTAMOS', 'VENTA_EMPLEADOS', 'OTROS', 'RENTA_SP'
         ]
 
         aportes_patronales = ['AFP_EMP', 'ISSS_EMP', 'INCAF']

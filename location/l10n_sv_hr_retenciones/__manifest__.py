@@ -29,6 +29,7 @@
         "data/deduccion_banco.xml",
         "data/salary_rules_attendance.xml",
         "data/hr_leave_type_data.xml",
+        "data/renta_servicios_profesionales.xml",
 
         "security/hr_retencion_groups.xml",
         "security/ir.model.access.csv",

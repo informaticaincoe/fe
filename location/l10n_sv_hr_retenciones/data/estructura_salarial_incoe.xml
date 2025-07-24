@@ -1,17 +1,62 @@
 <odoo>
     <data noupdate="0">
 
-        <!-- Definición de un nuevo tipo de estructura salarial, se utilizara para las deducciones personalizadas(isss, afp y renta) -->
+        <!-- ===========================
+                TIPOS DE ESTRUCTURA
+        ============================ -->
+
+        <!-- Tipo general para empleados -->
         <record id="structure_type_incoe" model="hr.payroll.structure.type">
-            <field name="name">INCOE</field>
+            <field name="name">Planilla de Pagos</field>
+            <field name="default_schedule_pay">semi-monthly</field>
         </record>
 
+        <!-- Tipo para vacaciones -->
+<!--        <record id="structure_type_incoe_vacaciones" model="hr.payroll.structure.type">-->
+<!--            <field name="name">Planilla de Vacaciones</field>-->
+<!--            <field name="default_schedule_pay">semi-monthly</field>-->
+<!--        </record>-->
+
+        <!-- Tipo para servicios profesionales -->
+<!--        <record id="structure_type_incoe_profesionales" model="hr.payroll.structure.type">-->
+<!--            <field name="name">Planilla de Servicios Profesionales</field>-->
+<!--            <field name="default_schedule_pay">semi-monthly</field>-->
+<!--        </record>-->
+
+        <!-- ===========================
+                ESTRUCTURAS SALARIALES
+        ============================ -->
+
+        <!-- Estructura principal empleados -->
         <!-- Creación de nueva estructura salarial(Incoe Pay) asociada al nuevo tipo de estructura salarial(INCOE) -->
         <record id="structure_incoe" model="hr.payroll.structure">
-            <field name="name">Incoe Pay</field>
+            <field name="name">Planilla - Empleado</field>
             <field name="code">INCOE</field>
             <field name="type_id" ref="l10n_sv_hr_retenciones.structure_type_incoe"/>
         </record>
+        <record id="structure_type_incoe" model="hr.payroll.structure.type">
+            <field name="default_struct_id" ref="l10n_sv_hr_retenciones.structure_incoe"/>
+        </record>
+
+        <!-- Vacaciones hereda reglas -->
+        <record id="structure_incoe_vacaciones" model="hr.payroll.structure">
+            <field name="name">Planilla - Vacaciones</field>
+            <field name="code">PLAN_VAC</field>
+            <field name="type_id" ref="structure_type_incoe"/>
+        </record>
+        <record id="structure_type_incoe" model="hr.payroll.structure.type">
+            <field name="default_struct_id" ref="l10n_sv_hr_retenciones.structure_incoe"/>
+        </record>
+
+        <!-- Servicios profesionales hereda reglas -->
+        <record id="structure_incoe_profesionales" model="hr.payroll.structure">
+            <field name="name">Planilla - Servicios Profesionales</field>
+            <field name="code">PLAN_PRO</field>
+            <field name="type_id" ref="structure_type_incoe"/>
+        </record>
+        <record id="structure_type_incoe" model="hr.payroll.structure.type">
+            <field name="default_struct_id" ref="l10n_sv_hr_retenciones.structure_incoe"/>
+        </record>
 
     </data>
-</odoo>
+    </odoo>

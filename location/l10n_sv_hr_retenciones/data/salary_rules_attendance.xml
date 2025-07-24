@@ -2,10 +2,10 @@
     <data noupdate="0">
 
         <!-- Tipos de entrada -->
-        <record id="input_permiso_sin_goce" model="hr.payslip.input.type">
-            <field name="name">Permiso sin goce</field>
-            <field name="code">PERMISO_SG</field>
-        </record>
+<!--        <record id="input_permiso_sin_goce" model="hr.payslip.input.type">-->
+<!--            <field name="name">Permiso sin goce</field>-->
+<!--            <field name="code">PERMISO_SG</field>-->
+<!--        </record>-->
 
         <record id="input_vacaciones" model="hr.payslip.input.type">
             <field name="name">Vacaciones</field>
@@ -33,44 +33,19 @@
         </record>
 
         <!-- Reglas salariales -->
-        <!--        <record id="rule_work100" model="hr.salary.rule">-->
-        <!--            <field name="name">Asistencia</field>-->
-        <!--            <field name="code">WORK100</field>-->
-        <!--            <field name="sequence">25</field>-->
-        <!--            <field name="category_id" ref="hr_payroll.BASIC"/>-->
-        <!--            <field name="amount_select">code</field>-->
-        <!--            <field name="amount_python_compute">none</field>-->
-        <!--            <field name="appears_on_payslip" eval="False"/>-->
-        <!--            <field name="struct_id" ref="l10n_sv_hr_retenciones.structure_incoe"/>-->
-        <!--            <field name="condition_select">none</field>-->
-        <!--        </record>-->
-
-        <!--        <record id="rule_permiso_sin_goce" model="hr.salary.rule">-->
-        <!--            <field name="name">Permiso sin goce</field>-->
-        <!--            <field name="code">PERMISO_SG</field>-->
-        <!--            <field name="sequence">101</field>-->
-        <!--            <field name="category_id" ref="hr_payroll.DED"/>-->
-        <!--            <field name="amount_select">input</field>-->
-        <!--            <field name="amount_python_compute">none</field>-->
-        <!--            <field name="appears_on_payslip" eval="False"/>-->
-        <!--            <field name="input_type_id" ref="l10n_sv_hr_retenciones.input_permiso_sin_goce"/>-->
-        <!--            <field name="amount_other_input_id" ref="l10n_sv_hr_retenciones.input_permiso_sin_goce"/>-->
-        <!--            <field name="struct_id" ref="l10n_sv_hr_retenciones.structure_incoe"/>-->
-        <!--            <field name="condition_select">none</field>-->
-        <!--        </record>-->
-
-        <record id="rule_permiso_sin_goce" model="hr.salary.rule">
-            <field name="name">Permiso sin goce</field>
-            <field name="code">PERMISO_SG</field>
-            <field name="sequence">101</field>
-            <field name="category_id" ref="hr_payroll.DED"/> <!-- Categoría de deducción -->
-            <field name="amount_select">code</field>
-            <field name="amount_python_compute">result = 0.0</field> <!-- Nunca suma monto -->
-            <field name="appears_on_payslip" eval="False"/> <!-- Oculta en el recibo -->
-            <field name="input_type_id" ref="l10n_sv_hr_retenciones.input_permiso_sin_goce"/>
-            <field name="struct_id" ref="l10n_sv_hr_retenciones.structure_incoe"/>
-            <field name="condition_select">none</field>
-        </record>
+<!--        <record id="rule_permiso_sin_goce" model="hr.salary.rule">-->
+<!--            <field name="name">Permiso sin goce</field>-->
+<!--            <field name="code">PERMISO_SG</field>-->
+<!--            <field name="sequence">101</field>-->
+<!--            <field name="category_id" ref="hr_payroll.DED"/> &lt;!&ndash; Categoría de deducción &ndash;&gt;-->
+<!--            <field name="amount_select">code</field>-->
+<!--            <field name="amount_python_compute">result = 0.0</field> &lt;!&ndash; Nunca suma monto &ndash;&gt;-->
+<!--            <field name="appears_on_payslip" eval="False"/> &lt;!&ndash; Oculta en el recibo &ndash;&gt;-->
+<!--            <field name="input_type_id" ref="l10n_sv_hr_retenciones.input_permiso_sin_goce"/>-->
+<!--            <field name="struct_id" ref="l10n_sv_hr_retenciones.structure_incoe"/>-->
+<!--            <field name="condition_select">none</field>-->
+<!--            <field name="active" eval="False"/>-->
+<!--        </record>-->
 
         <record id="rule_vacaciones" model="hr.salary.rule">
             <field name="name">Vacaciones</field>
@@ -82,7 +57,7 @@
             <field name="appears_on_payslip" eval="True"/>
             <field name="input_type_id" ref="l10n_sv_hr_retenciones.input_vacaciones"/>
             <field name="amount_other_input_id" ref="l10n_sv_hr_retenciones.input_vacaciones"/>
-            <field name="struct_id" ref="l10n_sv_hr_retenciones.structure_incoe"/>
+            <field name="struct_id" ref="l10n_sv_hr_retenciones.structure_incoe_vacaciones"/>
             <field name="condition_select">none</field>
         </record>
 
@@ -98,6 +73,7 @@
             <field name="amount_other_input_id" ref="l10n_sv_hr_retenciones.input_incapacidad"/>
             <field name="struct_id" ref="l10n_sv_hr_retenciones.structure_incoe"/>
             <field name="condition_select">none</field>
+            <field name="active" eval="False"/>
         </record>
 
         <record id="rule_falta_injustificada" model="hr.salary.rule">
@@ -128,6 +104,7 @@
             <field name="amount_other_input_id" ref="l10n_sv_hr_retenciones.input_sabado_tarde"/>
             <field name="struct_id" ref="l10n_sv_hr_retenciones.structure_incoe"/>
             <field name="condition_select">none</field>
+            <field name="active" eval="False"/>
         </record>
 
         <record id="rule_domingos" model="hr.salary.rule">
@@ -142,6 +119,7 @@
             <field name="amount_other_input_id" ref="l10n_sv_hr_retenciones.input_domingos"/>
             <field name="struct_id" ref="l10n_sv_hr_retenciones.structure_incoe"/>
             <field name="condition_select">none</field>
+            <field name="active" eval="False"/>
         </record>
 
     </data>

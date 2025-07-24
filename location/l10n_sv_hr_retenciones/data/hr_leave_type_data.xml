@@ -43,7 +43,6 @@
             <field name="condition_select">none</field>
         </record>
 
-
         <!--        Vacaciones-->
         <!-- Tipo de entrada de trabajo para Vacaciones -->
         <record id="work_entry_type_vacaciones" model="hr.work.entry.type">
