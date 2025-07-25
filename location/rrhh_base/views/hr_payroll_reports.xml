@@ -1,22 +1,48 @@
 <odoo>
-  <data>
+    <data>
+        <record id="view_hr_planilla_list_custom" model="ir.ui.view">
+            <field name="name">hr.payslip.list.custom</field>
+            <field name="model">hr.payslip</field>
+            <field name="priority" eval="20"/>
+            <field name="arch" type="xml">
+                <list string="Planilla">
+                    <field name="employee_name" string="Empleado"/>
+                    <field name="department_name" string="Departamento"/>
+                    <field name="total_worked_days" string="Dias laborados"/>
+                    <field name="total_worked_hours" string="Horas laborados"/>
+                    <field name="basic_wage" string="Salario a pagar"/>
+                    <field name="comisiones" string="Comisiones"/>
+                    <field name="total_overtime" string="horas extras"/>
+                    <field name="viaticos"/>
+                    <field name="total_viaticos_a_pagar"/>
+                    <field name="total_devengado"/>
+                    <field name="isss"/>
+                    <field name="isr"/>
+                    <field name="afp"/>
+                    <field name="otros"/>
+                    <field name="bancos"/>
+                    <field name="venta_empleados"/>
+                    <field name="prestamos_incoe"/>
+                    <field name="fsv"/>
+                    <field name="total_descuentos"/>
+                </list>
+            </field>
+        </record>
 
-    <record id="view_hr_planilla_list_custom" model="ir.ui.view">
-      <field name="name">hr.payslip.list.custom</field>
-      <field name="model">hr.payslip</field>
-      <field name="priority" eval="20"/>
-      <field name="arch" type="xml">
-        <list string="Planilla">
-          <field name="employee_name" string="Empleado"/>
-          <field name="department_name" string="Departamento"/>
-          <field name="total_worked_days" string="Dias laborados"/>
-            <field name="total_worked_hours" string="Dias laborados"/>
-            <field name="total_overtime" string="horas extras"/>
-          <field name="total_viaticos"/>
-          <field name="basic_wage"/>
-        </list>
-      </field>
-    </record>
+<!--<record id="hr_payslip_search_quin1cena_filter" model="ir.ui.view">-->
+<!--    <field name="name">hr.payslip.search.quin1cena.filter</field>-->
+<!--    <field name="model">hr.payslip</field>-->
+<!--    <field name="inherit_id" ref="hr_payroll.view_hr_payslip_filter"/>-->
+<!--    <field name="arch" type="xml">-->
+<!--        <xpath expr="//search" position="inside">-->
+<!--            <separator string="Quincenas"/>-->
+<!--            <filter string="1° Quincena" domain="[('quin1cena','=','1')]"/>-->
+<!--            <filter string="2° Quincena" domain="[('quin1cena','=','2')]"/>-->
+<!--            <field name="quin1cena" string="Buscar por Quincena"/>-->
+<!--        </xpath>-->
+<!--    </field>-->
+<!--</record>-->
 
-  </data>
+
+    </data>
 </odoo>
