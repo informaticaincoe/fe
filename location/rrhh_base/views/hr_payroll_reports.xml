@@ -1,0 +1,22 @@
+<odoo>
+  <data>
+
+    <record id="view_hr_planilla_list_custom" model="ir.ui.view">
+      <field name="name">hr.payslip.list.custom</field>
+      <field name="model">hr.payslip</field>
+      <field name="priority" eval="20"/>
+      <field name="arch" type="xml">
+        <list string="Planilla">
+          <field name="employee_name" string="Empleado"/>
+          <field name="department_name" string="Departamento"/>
+          <field name="total_worked_days" string="Dias laborados"/>
+            <field name="total_worked_hours" string="Dias laborados"/>
+            <field name="total_overtime" string="horas extras"/>
+          <field name="total_viaticos"/>
+          <field name="basic_wage"/>
+        </list>
+      </field>
+    </record>
+
+  </data>
+</odoo>

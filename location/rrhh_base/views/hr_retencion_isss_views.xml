@@ -12,7 +12,7 @@
                     <field name="techo"/>
                 </list>
             </field>
-        </record>no
+        </record>
 
         <!-- Vista tipo formulario -->
         <record id="view_hr_retencion_isss_form" model="ir.ui.view">
