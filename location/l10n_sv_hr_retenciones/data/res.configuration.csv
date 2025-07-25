@@ -3,3 +3,7 @@ config_cuenta_cont_debito_salario_fin_semana,base.main_company,,text,962000,Cuen
 config_cuenta_cont_credito_salario_fin_semana,base.main_company,,text,230000,Cuenta contable de crédito: Sueldo por pagar,True,cuenta_salarial_credito_fs
 config_pago_vacaciones,base.main_company,,int,30,Porcentaje de liquidación de vacaciones,true,pago_vacaciones
 config_horas_diarias,base.main_company,,int,8,Horas de trabajo diarias,true,horas_diarias
+config_dias_promedio_salario,base.main_company,,int,30,Días promedio para cálculo diario de salario,True,dias_promedio_salario
+config_vacaciones_meses_derecho,base.main_company,,int,12,Meses mínimos para derecho a vacaciones,True,vacaciones_meses_derecho
+config_vacaciones_dias_derecho,base.main_company,,int,15,Días de vacaciones anuales,True,vacaciones_dias_derecho
+config_vacaciones_extra_porcentaje,base.main_company,,int,30,Porcentaje adicional para vacaciones (bonificación 30%),True,vacaciones_extra_porcentaje

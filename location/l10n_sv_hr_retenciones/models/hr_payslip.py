@@ -16,15 +16,6 @@ except ImportError as e:
     constants = None
     config_utils = None
 
-TIPOS_AUSENCIA = {
-    # 'ASISTENCIA': 'WORK100',
-    'PERMISO_SG': 'PERMISO_SG',
-    'VACACIONES': 'VACACIONES',
-    'INCAPACIDAD': 'INCAPACIDAD',
-    'FALTA_INJ': 'FALTA_INJ',
-}
-
-
 class HrPayslip(models.Model):
     _inherit = 'hr.payslip'
 
@@ -63,40 +54,24 @@ class HrPayslip(models.Model):
     @api.onchange('worked_days_line_ids')
     def _onchange_worked_days_vacations(self):
         """
-        Si en los días trabajados hay vacaciones y el tiempo personal tiene
-        vacation_full=False → activamos is_vacation_payslip para mostrar el campo en la vista.
+        Si en los días trabajados hay vacaciones, marcamos is_vacation_payslip=True.
         """
         for slip in self:
             _logger.info("=== ONCHANGE worked_days_line_ids para nómina %s ===", slip.name)
-            vacaciones_parciales = False
 
-            # Buscar licencias del empleado en el período del payslip
-            leaves = self.env['hr.leave'].search([
-                ('employee_id', '=', slip.employee_id.id),
-                ('request_date_from', '<=', slip.date_to),
-                ('request_date_to', '>=', slip.date_from),
-                ('holiday_status_id.is_vacation', '=', True),  # Campo que identifica vacaciones
-            ])
+            # Buscar si hay líneas de vacaciones en worked_days_line_ids
+            tiene_vacaciones = any(
+                line.code in ['VAC', 'VACACIONES']  # Ajusta si tus códigos son diferentes
+                for line in slip.worked_days_line_ids
+            )
 
-            _logger.info("Licencias encontradas en período: %s", leaves.mapped('name'))
+            # Marcar el campo si se detectan vacaciones
+            slip.is_vacation_payslip = bool(tiene_vacaciones)
+            _logger.info("¿Tiene vacaciones en worked_days_line_ids? %s → is_vacation_payslip=%s", tiene_vacaciones, slip.is_vacation_payslip)
 
-            for leave in leaves:
-                _logger.info("Revisando licencia: %s | vacation_full=%s", leave.name, leave.vacation_full)
-                if not leave.vacation_full:
-                    _logger.info("Vacaciones PARCIALES detectadas en licencia %s", leave.name)
-                    vacaciones_parciales = True
-                    break
-                else:
-                    _logger.info("Vacaciones COMPLETAS en licencia %s", leave.name)
-
-            # Si hay vacaciones parciales → mostramos el campo
-            slip.is_vacation_payslip = vacaciones_parciales
-            _logger.info("Resultado final: is_vacation_payslip=%s", vacaciones_parciales)
-
-            # Si no hay vacaciones parciales → limpiamos payslip_principal_id
-            if not vacaciones_parciales:
-                if slip.payslip_principal_id:
-                    _logger.info("No hay vacaciones parciales → limpiando payslip_principal_id")
+            # Si ya no hay vacaciones → limpiar payslip_principal_id
+            if not tiene_vacaciones and slip.payslip_principal_id:
+                _logger.info("No hay vacaciones → limpiando payslip_principal_id")
                 slip.payslip_principal_id = False
 
     @api.depends('line_ids.salary_rule_id.appears_on_payslip')
@@ -142,98 +117,34 @@ class HrPayslip(models.Model):
         # Registra el inicio del cálculo personalizado de la nómina
         _logger.info(">>> [INICIO] compute_sheet personalizado para %d nóminas", len(self))
 
-        # Itera sobre cada nómina en la lista
+        # 1. Crear inputs necesarios ANTES del cálculo estándar
         for payslip in self:
-            # Si está marcado "Omitir deducciones", solo calcula lo demás
-            if payslip.skip_deductions:
-                _logger.info("Saltando deducciones en nómina %s (marcada como omitir)", payslip.name)
-
-                # Eliminar líneas de deducción ya creadas
-                deduction_lines = payslip.line_ids.filtered(
-                    lambda l: l.category_id and l.category_id.code in ['DED']
-                )
-                if deduction_lines:
-                    _logger.info("Eliminando %d líneas de deducción en %s por skip_deductions=True",
-                                 len(deduction_lines), payslip.name)
-                    deduction_lines.unlink()
-
-                # Eliminar inputs de deducciones ya creados
-                deduction_inputs = payslip.input_line_ids.filtered(
-                    lambda i: i.code in ['RENTA', 'RENTA_SP', 'AFP', 'ISSS', 'ISSS_EMP', 'AFP_EMP', 'INCAF']
-                )
-                if deduction_inputs:
-                    _logger.info("Eliminando %d inputs de deducción en %s por skip_deductions=True",
-                                 len(deduction_inputs), payslip.name)
-                    deduction_inputs.unlink()
-
-                # Calcular solo líneas normales, sin agregar deducciones
-                super(HrPayslip, payslip).compute_sheet()
-                continue  # seguimos con la siguiente nómina
-
-            # Si es nómina de vacaciones (tiene principal asociada)
-            if payslip.payslip_principal_id:
-                principal = payslip.payslip_principal_id
-                _logger.info("Nómina %s es de vacaciones y tiene principal vinculada: %s", payslip.name, principal.name)
-
-                # Siempre ejecutamos el cálculo base primero
-                super(HrPayslip, payslip).compute_sheet()
-
-                # Verificamos si la principal omitió deducciones
-                if principal.skip_deductions:
-                    _logger.info("Principal %s tiene skip_deductions=True → sumaremos principal + vacaciones",
-                                 principal.name)
-                    self._calcular_deducciones_desde_dias_trabajados(include_principal=True)
-                else:
-                    _logger.info("Principal %s YA calculó deducciones → solo calculamos sobre vacaciones",
-                                 principal.name)
-                    self._calcular_deducciones_desde_dias_trabajados(include_principal=False)
-
-                # Ahora agregamos automáticamente la regla VACACIONES (30% extra)
+            if self.es_nomina_de_vacacion(payslip):
+                _logger.info("Detectada nómina de vacaciones %s → preparando inputs antes del cálculo", payslip.name)
                 self._agregar_regla_vacaciones(payslip)
-
-                # Ajustamos proporcional SIEMPRE que sea vacaciones, aunque no tenga is_vacation_payslip
-                _logger.info(
-                    "Nómina %s es vacaciones con principal → Ajustando importe proporcional según horas reales",
-                    payslip.name)
-                self._ajustar_lineas_vacaciones()
-
-                continue  # terminamos con esta nómina y seguimos
-
-            # 3. Nómina normal SIN relación con vacaciones
             contract = payslip.contract_id
             _logger.info("Procesando nómina normal: %s para contrato %s", payslip.name,
                          contract.name if contract else "N/A")
 
             if not contract:
-                _logger.warning("Nómina %s sin contrato, saltando deducciones", payslip.name)
-                super(HrPayslip, payslip).compute_sheet()
+                _logger.warning("Nómina %s sin contrato → solo cálculo base", payslip.name)
                 continue
 
             # Calcular base imponible acumulada (actual + previa)
-            base_imponible = payslip.get_base_imponible_acumulada()
-            _logger.info("Base imponible= %d", base_imponible)
-
-            # Ejecutar cálculo base primero
-            super(HrPayslip, payslip).compute_sheet()
+            base_imponible = sum(payslip.worked_days_line_ids.mapped('amount'))
+            _logger.info("Base imponible (total días trabajados) = %.2f", base_imponible)
 
             # Usar el método centralizado para crear los inputs
             self._crear_inputs_deducciones(payslip, contract, base_imponible)
 
-            # **AJUSTE SOLO SI ES NÓMINA DE VACACIONES MANUAL**
-            _logger.info("Nómina marcada como VACACIONES ? %s", payslip.is_vacation_payslip)
-            if payslip.is_vacation_payslip:
-                _logger.info("Nómina %s marcada como VACACIONES → Ajustaremos importe proporcional según horas reales",
-                             payslip.name)
-                self._ajustar_lineas_vacaciones()
+            #payslip.flush()  # Para asegurar que los inputs se guarden en DB antes del cálculo
 
-        # Una vez generadas las deducciones → agregamos sabados/domingos y descuentos séptimo
-        # self._agregar_inputs_sabado_y_domingos()
-        # Aplicar descuento de séptimo por faltas injustificadas
+        # 2. Llamar al cálculo estándar, que ahora usará los inputs ya creados
+        res = super(HrPayslip, self).compute_sheet()
+
+        # 3. Aplicar descuento de séptimo por faltas injustificadas
         self._aplicar_descuento_septimo_por_faltas()
 
-        # Llama al método original para completar el cálculo de la nómina
-        res = super().compute_sheet()
-        # Registra el fin del cálculo personalizado de la nómina
         _logger.info(">>> [FIN] compute_sheet personalizado completado")
         return res
 
@@ -252,61 +163,31 @@ class HrPayslip(models.Model):
 
         return renta, afp, isss, afp_patronal, isss_patronal, incaf
 
-    def get_base_imponible_acumulada(self):
-        """Retorna la base imponible acumulada sumando nómina actual + nómina previa si aplica"""
-        self.ensure_one()
-
-        # Tomar el contrato
-        contract = self.contract_id
-        if not contract:
-            _logger.warning("No hay contrato asociado a %s → base=0", self.name)
-            return 0.0
-
-        # ✅ Base actual (salario mensual del contrato)
-        base_actual = contract.wage or 0.0
-        _logger.info("Base imponible actual para %s = %.2f", self.name, base_actual)
-
-        bruto_prev = 0.0
-
-        # Si hay nómina previa asociada, sumarla
-        if self.payslip_principal_id:
-            bruto_prev = sum(self.payslip_principal_id.line_ids.filtered(
-                lambda l: l.category_id and l.category_id.code == 'BASIC'
-            ).mapped('total'))
-
-            _logger.info(
-                "Sumando nómina previa %s con bruto=%.2f",
-                self.payslip_principal_id.name,
-                bruto_prev
-            )
-        _logger.info("Total base imponible %s = ", base_actual)
-        return base_actual + bruto_prev
-
-    def _get_salary_total_base(self):
-        """
-        Obtiene el importe total que aparece en 'Días trabajados' del slip.
-        Si no hay líneas, como fallback toma las líneas BASIC/GROSS.
-        """
-        # Suma de todos los importes de días trabajados
-        total_dias_trabajados = sum(self.worked_days_line_ids.mapped('amount'))
-
-        if total_dias_trabajados > 0:
-            _logger.info("Base vacaciones desde worked_days_line_ids en %s → %.2f", self.name, total_dias_trabajados)
-            return total_dias_trabajados
-
-        # Si no hay días trabajados (extraordinario), usa bruto BASIC/GROSS
-        gross_lines = self.line_ids.filtered(
-            lambda l: l.salary_rule_id.category_id.code in ('BASIC', 'GROSS')
-        )
-        if gross_lines:
-            total_bruto = sum(gross_lines.mapped('total'))
-            _logger.info("Fallback base vacaciones desde líneas BASIC/GROSS en %s → %.2f", self.name, total_bruto)
-            return total_bruto
-
-        # Último fallback: suma de todo el slip
-        total_fallback = sum(self.line_ids.mapped('total'))
-        _logger.info("Fallback base vacaciones (todo el slip) en %s → %.2f", self.name, total_fallback)
-        return total_fallback
+    # def _get_salary_total_base(self):
+    #     """
+    #     Obtiene el importe total que aparece en 'Días trabajados' del slip.
+    #     Si no hay líneas, como fallback toma las líneas BASIC/GROSS.
+    #     """
+    #     # Suma de todos los importes de días trabajados
+    #     total_dias_trabajados = sum(self.worked_days_line_ids.mapped('amount'))
+    #
+    #     if total_dias_trabajados > 0:
+    #         _logger.info("Base vacaciones desde worked_days_line_ids en %s → %.2f", self.name, total_dias_trabajados)
+    #         return total_dias_trabajados
+    #
+    #     # Si no hay días trabajados (extraordinario), usa bruto BASIC/GROSS
+    #     gross_lines = self.line_ids.filtered(
+    #         lambda l: l.salary_rule_id.category_id.code in ('BASIC', 'GROSS')
+    #     )
+    #     if gross_lines:
+    #         total_bruto = sum(gross_lines.mapped('total'))
+    #         _logger.info("Fallback base vacaciones desde líneas BASIC/GROSS en %s → %.2f", self.name, total_bruto)
+    #         return total_bruto
+    #
+    #     # Último fallback: suma de todo el slip
+    #     total_fallback = sum(self.line_ids.mapped('total'))
+    #     _logger.info("Fallback base vacaciones (todo el slip) en %s → %.2f", self.name, total_fallback)
+    #     return total_fallback
 
     def _crear_inputs_deducciones(self, slip, contract, base_total):
         """
@@ -363,6 +244,7 @@ class HrPayslip(models.Model):
                 })
                 _logger.info("Input %s agregado a nómina %d con monto %.2f", code, slip.id, valor)
 
+# INICIO NO SE UTILIZAN___________
     def _calcular_deducciones_desde_dias_trabajados(self, include_principal=False):
         """
         Se usa para nóminas de vacaciones.
@@ -677,11 +559,15 @@ class HrPayslip(models.Model):
                          payslip.employee_id.name, total_domingos, monto_dom,
                          total_sabados, monto_sab)
 
+# FIN NO SE UTILIZAN___________
+
     # ==========FALTAS INJUSTIFICADAS
     def _aplicar_descuento_septimo_por_faltas(self):
         """
         Si hay al menos 1 entrada de trabajo con código FALTA en una semana ISO,
         se pierde el séptimo (domingo) de esa semana.
+        En una quincena (15 días) solo se pueden descontar máximo 2 domingos.
+        Si la nómina es mensual, se divide en 2 quincenas y se aplica el límite por cada quincena.
         """
         _logger.info(">>> Evaluando descuento de séptimo por faltas injustificadas")
 
@@ -691,133 +577,136 @@ class HrPayslip(models.Model):
                 _logger.warning("Nómina %s sin contrato. Se omite cálculo de séptimo.", slip.name)
                 continue
 
-            salario_diario = (contract.wage * 2) / 30.0  # quincenal → mensual → diario
-            _logger.info("[%s] Salario diario calculado: %.2f", slip.employee_id.name, salario_diario)
+            # Obtener salario mensual según la frecuencia del contrato
+            salario_mensual = config_utils.get_monthly_wage_from_contract(contract)
 
+            # De ahí derivamos el salario diario promedio
+            dias_promedio = config_utils.get_dias_promedio_salario(self.env, slip.company_id.id)
+            salario_diario = salario_mensual / dias_promedio
+            _logger.info("[%s] Salario mensual=%.2f | divisor=%d días | salario diario=%.2f", slip.employee_id.name, salario_mensual, dias_promedio, salario_diario)
+            # Determinar subperíodos (quincenas)
+            quincenas = []
+
+            # Si es mensual → dividir en dos quincenas
+            if contract.schedule_pay == 'monthly':
+                primera_quincena_fin = slip.date_from + relativedelta(days=14)
+                segunda_quincena_ini = primera_quincena_fin + relativedelta(days=1)
+
+                quincenas.append((slip.date_from, primera_quincena_fin))
+                quincenas.append((segunda_quincena_ini, slip.date_to))
+            else:
+                # Si es quincenal o semanal, es solo un período
+                quincenas.append((slip.date_from, slip.date_to))
             # Buscar solo las FALTAS injustificadas en el periodo de la nómina
-            faltas_entries = self.env['hr.work.entry'].search([
-                ('employee_id', '=', slip.employee_id.id),
-                ('date_start', '>=', slip.date_from),
-                ('date_stop', '<=', slip.date_to),
-                ('work_entry_type_id.code', '=', 'FALTA')
-            ])
-
-            if not faltas_entries:
-                _logger.info("[%s] No hay FALTAS → no se descuenta séptimo", slip.employee_id.name)
-                continue
-
-            # Agrupar las semanas ISO en las que hubo al menos una falta
-            semanas_con_falta = set()
-            for entry in faltas_entries:
-                fecha_falta = fields.Date.to_date(entry.date_start)
-                semana_iso = fecha_falta.isocalendar()[1]
-                semanas_con_falta.add(semana_iso)
-
-            total_semanas_afectadas = len(semanas_con_falta)
-            _logger.info("[%s] Semanas con faltas injustificadas: %d", slip.employee_id.name, total_semanas_afectadas)
-
-            if total_semanas_afectadas == 0:
-                continue
-
-            # Por cada semana con falta → se pierde 1 domingo
-            dias_perdidos = total_semanas_afectadas
-            monto_descuento = salario_diario * dias_perdidos
-
-            _logger.info("[%s] Pierde %d domingos → descuento %.2f", slip.employee_id.name, dias_perdidos, monto_descuento)
-
-            # Buscar el tipo de entrada YA creado en XML
-            tipo_input = self.env['hr.payslip.input.type'].search([('code', '=', 'DESC_FALTA_SEPTIMO')], limit=1)
+            falta_code = constants.TIPOENT_FALTA or 'FALTA'
+            desc_sept_code = constants.REGLASAL_DESC_SEPTIMO or 'DESC_FALTA_SEPTIMO'
+            tipo_input = self.env['hr.payslip.input.type'].search([('code', '=', desc_sept_code)], limit=1)
             if not tipo_input:
-                _logger.warning("[%s] Tipo de entrada DESC_FALTA_SEPTIMO no existe en BD → revisar XML", slip.employee_id.name)
-                continue  # No creamos nada, el XML debe existir
+                _logger.warning("[%s] Tipo de entrada %s no existe en BD → revisar XML",
+                                slip.employee_id.name, desc_sept_code)
+                continue
+
+            monto_total_descuento = 0.0
+
+            # Procesar cada quincena por separado
+            for fecha_ini, fecha_fin in quincenas:
+                # Buscar solo faltas injustificadas en esta quincena
+                faltas_entries = self.env['hr.work.entry'].search([
+                    ('employee_id', '=', slip.employee_id.id),
+                    ('date_start', '>=', fecha_ini),
+                    ('date_stop', '<=', fecha_fin),
+                    ('work_entry_type_id.code', '=', falta_code)
+                ])
+
+                if not faltas_entries:
+                    _logger.info("[%s] No hay faltas en quincena %s → no descuenta séptimo", slip.employee_id.name, f"{fecha_ini} a {fecha_fin}")
+                    continue
+
+                # Agrupar las semanas ISO en las que hubo al menos una falta
+                semanas_con_falta = set()
+                for entry in faltas_entries:
+                    fecha_falta = fields.Date.to_date(entry.date_start)
+                    semana_iso = fecha_falta.isocalendar()[1]
+                    semanas_con_falta.add(semana_iso)
+
+                total_semanas_afectadas = len(semanas_con_falta)
+                _logger.info("[%s] Quincena %s → semanas con faltas: %d", slip.employee_id.name, f"{fecha_ini} a {fecha_fin}", total_semanas_afectadas)
+
+                # Límite máximo de 2 domingos por quincena
+                if total_semanas_afectadas > 2:
+                    _logger.info("[%s] Más de 2 domingos afectados (%d) en quincena, se limita a 2", slip.employee_id.name, total_semanas_afectadas)
+
+                # Límite por quincena = 2 domingos
+                dias_perdidos_quincena = min(total_semanas_afectadas, 2)
+                # Calcular descuento final con el límite aplicado
+                monto_total_descuento += salario_diario * dias_perdidos_quincena
+                _logger.info("[%s] Pierde %d domingos (de %d posibles) → descuento %.2f", slip.employee_id.name, dias_perdidos_quincena, total_semanas_afectadas, monto_descuento)
+
+            if monto_total_descuento <= 0:
+                _logger.info("[%s] Monto total de descuento = 0 → no se crea input", slip.employee_id.name)
+                continue
 
             # Buscar o crear el input en la nómina
-            input_line = slip.input_line_ids.filtered(lambda inp: inp.code == 'DESC_FALTA_SEPTIMO')
+            input_line = slip.input_line_ids.filtered(lambda inp: inp.code == tipo_input.code)
             if input_line:
-                input_line.amount = -abs(monto_descuento)
-                _logger.info("[%s] Actualizado input DESC_FALTA_SEPTIMO con %.2f", slip.employee_id.name, monto_descuento)
+                input_line.amount = -abs(monto_total_descuento)
+                _logger.info("[%s] Actualizado input %s con %.2f", slip.employee_id.name, tipo_input.code, monto_total_descuento)
             else:
                 self.env['hr.payslip.input'].create({
-                    'name': 'Descuento séptimo (faltas injustificadas)',
-                    'code': 'DESC_FALTA_SEPTIMO',
-                    'amount': -abs(monto_descuento),
+                    'amount': -abs(monto_total_descuento),
                     'payslip_id': slip.id,
                     'input_type_id': tipo_input.id,
                 })
-                _logger.info("[%s] Creado input DESC_FALTA_SEPTIMO con %.2f", slip.employee_id.name, monto_descuento)
+                _logger.info("[%s] Creado input %s con %.2f", slip.employee_id.name, tipo_input.code, monto_total_descuento)
 
     # ==========VACACIONES
-    def calcular_vacaciones(self, salario_mensual, meses_trabajados, dias_tomados=None):
+    def calcular_vacaciones(self, salario_mensual, meses_trabajados, company_id, dias_tomados=None, base_vacaciones=None):
         """
         Calcula el pago de vacaciones en El Salvador.
 
         - salario_mensual: importe total base del slip (worked_days)
         - meses_trabajados: número de meses trabajados
+        - company_id: ID de la compañía del slip
         - dias_tomados: días efectivos que se gozan en esta nómina (si es parcial)
 
         Retorna dict con:
-            dias_vacaciones, pago_base, extra_30, total, motivo_pago
+            dias_vacaciones, pago_base, extra_30, total
         """
 
-        salario_diario = salario_mensual / 30.0
+        dias_promedio = config_utils.get_dias_promedio_salario(self.env, company_id)
+        salario_diario = salario_mensual / dias_promedio
 
         # Determinar si ya tiene derecho completo
-        tiene_derecho_completo = meses_trabajados >= 12
+        meses_derecho = int(config_utils.get_config_value(self.env, 'vacaciones_meses_derecho', company_id) or 12)
+        dias_derecho = int(config_utils.get_config_value(self.env, 'vacaciones_dias_derecho', company_id) or 15)
+        extra_pct = int(config_utils.get_config_value(self.env, 'vacaciones_extra_porcentaje', company_id) or 30)
 
-        # Días de derecho por ley
-        if tiene_derecho_completo:
-            dias_derecho = 15
-            motivo_pago = "Vacaciones anuales"
-        else:
-            dias_derecho = (meses_trabajados / 12.0) * 15
-            motivo_pago = "Vacaciones proporcionales"
+        tiene_derecho_completo = meses_trabajados >= meses_derecho
 
         # Caso 1: Ya cumplió tiempo y son vacaciones parciales
-        _logger.info("=== Tiene derecho completo: %s | Días tomados: %s | Tipo: %s ===", tiene_derecho_completo,
-                     dias_tomados, motivo_pago)
+        _logger.info("=== Tiene derecho completo: %s | Días tomados: %s | base vacacion: %s ===", tiene_derecho_completo, dias_tomados, base_vacaciones)
 
-        if tiene_derecho_completo and dias_tomados:
-            # Si tiene derecho completo, y son parciales, el slip ya tiene el importe proporcional
-            pago_base = salario_mensual  # viene directo de worked_days_line_ids
-            extra_30 = pago_base * 0.30
-            total = pago_base + extra_30
+        # Si ya tenemos el importe real del slip, usamos ese como base
+        if base_vacaciones and dias_tomados:
             dias_vacaciones = dias_tomados
-            motivo_pago += " (parciales)"
-
-        # Caso 2: No ha cumplido tiempo (proporcionales)
-        elif not tiene_derecho_completo and dias_tomados:
-            # Vacaciones proporcionales: cálculo proporcional al bono anual
-            bono_completo = salario_diario * 15 * 0.30  # 30% del equivalente a 15 días
-            dias_trabajados_totales = round(meses_trabajados * 30)
-            extra_30 = (dias_trabajados_totales * bono_completo) / 365
-            pago_base = salario_diario * dias_tomados
+            pago_base = base_vacaciones
+            extra_30 = pago_base * (extra_pct / 100.0)
             total = pago_base + extra_30
-            dias_vacaciones = dias_tomados
-            motivo_pago += " (proporcionales, parciales)"
 
-            _logger.info("=== Salario diario: %s | Meses trabajados: %s | Bono: %s | Pago base: %s | Salario mensual: %s ===", salario_diario, meses_trabajados, bono_completo, pago_base, salario_mensual)
-
-            _logger.info(
-                f"Vacaciones proporcionales: trabajado={dias_trabajados_totales} días | bono_completo={bono_completo:.2f} | extra_30={extra_30:.2f}"
-            )
         else:
-            # Vacaciones completas
+            # ✅ Caso vacaciones completas
             dias_vacaciones = dias_derecho
             pago_base = salario_diario * dias_vacaciones
-            extra_30 = pago_base * 0.30
+            extra_30 = pago_base * (extra_pct / 100.0)
             total = pago_base + extra_30
-            motivo_pago += " (completas)"
 
         _logger.info(
-            f"Vacaciones calculadas: {dias_vacaciones:.2f} días | base={pago_base:.2f} | extra_30={extra_30:.2f} | total={total:.2f}"
-        )
-
+            f"Vacaciones calculadas: {dias_vacaciones:.2f} días | base={pago_base:.2f} | extra_30={extra_30:.2f} | total={total:.2f} | salario diario={salario_diario:.2f}")
         return {
             "dias_vacaciones": round(dias_vacaciones, 2),
             "pago_base": round(pago_base, 2),
             "extra_30": round(extra_30, 2),
-            "total": round(total, 2),
-            "motivo_pago": motivo_pago
+            "total": round(total, 2)
         }
 
     def _agregar_regla_vacaciones(self, slip):
@@ -825,58 +714,68 @@ class HrPayslip(models.Model):
         if not contract:
             return
 
-        # Salario mensual real desde contrato (no desde líneas del slip)
+        # Salario mensual real desde contrato
         salario_mensual = config_utils.get_monthly_wage_from_contract(contract)
+        dias_promedio = config_utils.get_dias_promedio_salario(self.env, slip.company_id.id)
 
         # Calcular meses trabajados
         meses_trabajados = 0
         if contract.date_start:
             diff_days = (fields.Date.today() - contract.date_start).days
-            meses_trabajados = diff_days / 30.0
+            meses_trabajados = diff_days / dias_promedio
 
         # Obtener días tomados desde ausencias aprobadas
         dias_tomados = self._get_dias_vacaciones_tomados(slip)
 
-        _logger.info("=== Meses trabajados %.2f | días tomados detectados=%s | salario mensual contrato=%.2f ===", meses_trabajados, dias_tomados, salario_mensual)
+        # Primero ajusta las líneas worked_days según work_entries reales
+        self._ajustar_lineas_vacaciones()
+
+        # NUEVO: obtener el importe real ya calculado en worked_days_line_ids para vacaciones
+        base_vacaciones = sum(
+            slip.worked_days_line_ids.filtered(
+                lambda l: l.work_entry_type_id.leave_type_ids.is_vacation
+            ).mapped('amount')
+        )
+        _logger.info("Base imponible (total días trabajados) = %.2f ", base_vacaciones)
+
+        _logger.info("=== Meses trabajados %.2f | días tomados detectados=%s | salario mensual contrato=%.2f ===",
+            meses_trabajados, dias_tomados, salario_mensual)
 
         # Calcular vacaciones completas o parciales según días_tomados
         datos_vac = self.calcular_vacaciones(
             salario_mensual,
             meses_trabajados,
-            dias_tomados=dias_tomados
+            slip.company_id.id,
+            dias_tomados=dias_tomados,
+            base_vacaciones=base_vacaciones
         )
 
         # Solo creamos input si hay extra_30
         if datos_vac["extra_30"] > 0:
             # Buscar el tipo de otras entradas VACACIONES
-            tipo_vacaciones = self.env['hr.payslip.input.type'].search([('code', '=', 'VACACIONES')], limit=1)
+            vacacion = constants.REGLASAL_VACACION or 'VACACIONES'
+            tipo_vacaciones = self.env['hr.payslip.input.type'].search([('code', '=', vacacion)], limit=1)
             if not tipo_vacaciones:
                 _logger.error("No existe tipo de entrada VACACIONES en Otras Entradas")
                 return
 
             # Buscar si ya existe input VACACIONES en este slip
-            input_existente = slip.input_line_ids.filtered(lambda i: i.code == 'VACACIONES')
+            input_existente = slip.input_line_ids.filtered(lambda i: i.code == vacacion)
 
             if input_existente:
-                input_existente.write({
-                    'amount': float_round(datos_vac["extra_30"], precision_digits=2),
-                })
+                input_existente.write({'amount': float_round(datos_vac["extra_30"], precision_digits=2)})
                 _logger.info(f"Actualizado input VACACIONES → {datos_vac['extra_30']}")
             else:
                 slip.input_line_ids.create({
-                    'name': f"Vacaciones",
-                    'code': 'VACACIONES',
+                    'name': tipo_vacaciones.name,
+                    'code': tipo_vacaciones.code,
                     'amount': float_round(datos_vac["extra_30"], precision_digits=2),
                     'payslip_id': slip.id,
                     'input_type_id': tipo_vacaciones.id,
                 })
-                _logger.info(
-                    f"Creado input VACACIONES en {slip.name} → días={datos_vac['dias_vacaciones']} extra={datos_vac['extra_30']}"
-                )
+                _logger.info(f"Creado input VACACIONES en {slip.name} → días={datos_vac['dias_vacaciones']} extra={datos_vac['extra_30']}")
 
-    def _ajustar_lineas_vacaciones(self):
-        horas_diarias = 0
-
+    def _ajustar_lineas_vacaciones(self):# No se esta utilizando
         # Obtener las horas diarias configuradas, si no existe usar 8 por defecto
         horas_diarias = config_utils.get_config_value(self.env, 'horas_diarias', self.company_id.id) or 8.0
         try:
@@ -890,7 +789,7 @@ class HrPayslip(models.Model):
             if not contract:
                 continue
 
-            # ✅ Buscar si hay alguna ausencia (tiempo personal) en el período del slip
+            # Buscar si hay alguna ausencia (tiempo personal) en el período del slip
             leave = self.env['hr.leave'].search([
                 ('employee_id', '=', slip.employee_id.id),
                 ('date_from', '<=', slip.date_to),
@@ -898,12 +797,9 @@ class HrPayslip(models.Model):
                 ('holiday_status_id.is_vacation', '=', True),  # solo vacaciones
             ], limit=1)
 
-            # ✅ Si tiene vacation_full = True, NO ajustamos
+            # Si tiene vacation_full = True, NO ajustamos
             if leave and leave.vacation_full:
-                _logger.info(
-                    "Vacaciones registradas como COMPLETAS (vacation_full=True) → NO se ajusta importe para %s",
-                    slip.name
-                )
+                _logger.info("Vacaciones registradas como COMPLETAS (vacation_full=True) → NO se ajusta importe para %s", slip.name)
                 continue
 
             # --- SOLO sigue si no es vacation_full ---
@@ -915,8 +811,7 @@ class HrPayslip(models.Model):
 
             # Si quieres loguear también el factor de conversión:
             factor = constants.SCHEDULE_PAY_CONVERSION.get(contract.schedule_pay or 'monthly', 1.0)
-            _logger.info(
-                "Frecuencia pago=%s | salario_base=%.2f | factor=%.4f → salario_mensual=%.2f | valor_hora=%.4f",
+            _logger.info("Frecuencia pago=%s | salario_base=%.2f | factor=%.4f → salario_mensual=%.2f | valor_hora=%.4f",
                 contract.schedule_pay, contract.wage, factor, salario_mensual, valor_hora)
 
             # Buscar work.entries en el período
@@ -928,11 +823,9 @@ class HrPayslip(models.Model):
             ]).filtered(lambda we: we.duration > 0)
 
             # Filtrar solo entradas que cuentan como asistencia
-            _logger.info("Entradas de trabajo encontradas: %d para %s (%s → %s)",
-                         len(work_entries), slip.employee_id.name, slip.date_from, slip.date_to)
+            _logger.info("Entradas de trabajo encontradas: %d para %s (%s → %s)", len(work_entries), slip.employee_id.name, slip.date_from, slip.date_to)
 
-            _logger.info("Entradas de trabajo encontradas: %d para %s (%s → %s)", len(work_entries),
-                         slip.employee_id.name, slip.date_from, slip.date_to)
+            _logger.info("Entradas de trabajo encontradas: %d para %s (%s → %s)", len(work_entries), slip.employee_id.name, slip.date_from, slip.date_to)
 
             # Calcular horas totales
             total_hours = sum(we.duration for we in work_entries)
@@ -940,8 +833,7 @@ class HrPayslip(models.Model):
             dias_reales = total_hours / horas_diarias
             monto_proporcional = total_hours * valor_hora
 
-            _logger.info("TOTAL → horas=%.2f | días reales=%.2f | monto proporcional=%.2f",
-                         total_hours, dias_reales, monto_proporcional)
+            _logger.info("TOTAL → horas=%.2f | días reales=%.2f | monto proporcional=%.2f", total_hours, dias_reales, monto_proporcional)
 
             # Buscar línea a ajustar (cualquier línea con importe > 0)
             asistencia_line = slip.worked_days_line_ids.filtered(lambda l: l.amount > 0)
@@ -970,10 +862,22 @@ class HrPayslip(models.Model):
 
         # Sumar los días aprobados en ese período
         dias_tomados = sum(vac_leaves.mapped('number_of_days'))
-
-        _logger.info(
-            "Vacaciones detectadas en %s: %s días (de %s ausencias)",
-            slip.name, dias_tomados, len(vac_leaves)
-        )
+        _logger.info("Vacaciones detectadas en %s: %s días (de %s ausencias)", slip.name, dias_tomados, len(vac_leaves))
 
         return dias_tomados if dias_tomados > 0 else None
+
+    def es_nomina_de_vacacion(self, slip):
+        """
+        Detecta si la nómina es de vacaciones revisando las worked_days_line_ids.
+        Se busca si el work_entry_type está vinculado a un leave_type con is_vacation.
+        """
+        for line in slip.worked_days_line_ids:
+            work_type = line.work_entry_type_id
+            # Buscar leave_type asociado a este work_entry_type
+            leave_type = self.env['hr.leave.type'].search([
+                ('work_entry_type_id', '=', work_type.id),
+                ('is_vacation', '=', True)
+            ], limit=1)
+            if leave_type:
+                return True
+        return False

@@ -38,11 +38,11 @@ class HrSalaryRule(models.Model):
 
         # Códigos de reglas salariales
         deducciones_empleado = [
-            'AFP', 'ISSS', 'RENTA', 'FSV', 'FONDO_PENSIONES', 'PRESTAMOS', 'VENTA_EMPLEADOS', 'OTROS', 'RENTA_SP'
+            'AFP', 'ISSS', 'RENTA', 'FSV', 'FONDO_PENSIONES', 'PRESTAMOS', 'VENTA_EMPLEADOS', 'OTROS', 'RENTA_SP', 'FSV', 'BANCO', 'DESC_FALTA_SEPTIMO', 'FALTA_INJ'
         ]
 
         aportes_patronales = ['AFP_EMP', 'ISSS_EMP', 'INCAF']
-        salario_fin_semana = ['SAB_TARDE', 'DOMINGO']
+        salario_fin_semana = ['VACACIONES']
 
         # Armar diccionario de reglas y cuentas
         reglas = {codigo: default_cuentas.copy() for codigo in deducciones_empleado}

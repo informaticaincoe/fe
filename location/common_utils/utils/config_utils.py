@@ -83,44 +83,48 @@ def actualizar_cuentas_reglas_generico(env, reglas):
     for codigo_regla, claves_config in reglas.items():
         _logger.debug("[COMMON_UTILS] Procesando regla con código: %s", codigo_regla)
 
-        regla = env['hr.salary.rule'].search([('code', '=', codigo_regla)], limit=1)
-        if not regla:
+        # Buscar TODAS las reglas con este código (pueden estar en varias estructuras)
+        reglas_encontradas = env['hr.salary.rule'].search([('code', '=', codigo_regla)])
+        if not reglas_encontradas:
             _logger.warning("[COMMON_UTILS] Regla con código %s no encontrada. Se omite.", codigo_regla)
             continue
 
-        _logger.debug("[COMMON_UTILS] Regla encontrada: %s (ID: %s)", regla.name, regla.id)
-
+        # Obtener las cuentas configuradas desde la utilidad
         cuenta_credito = obtener_cuenta_desde_codigo_config(env, claves_config['cuenta_salarial_deducciones_credito'])
         cuenta_debito = obtener_cuenta_desde_codigo_config(env, claves_config['cuenta_salarial_deducciones_debito'])
 
         _logger.debug(
             "[COMMON_UTILS] Cuenta crédito obtenida: %s, cuenta débito obtenida: %s",
-            cuenta_credito and cuenta_credito.display_name or "N/A",
-            cuenta_debito and cuenta_debito.display_name or "N/A"
+            cuenta_credito.display_name if cuenta_credito else "N/A",
+            cuenta_debito.display_name if cuenta_debito else "N/A"
         )
 
-        valores = {}
-        if cuenta_credito and regla.account_credit != cuenta_credito:
-            valores['account_credit'] = cuenta_credito.id
-        if cuenta_debito and regla.account_debit != cuenta_debito:
-            valores['account_debit'] = cuenta_debito.id
+        # Actualizar cada regla encontrada
+        for regla in reglas_encontradas:
+            valores = {}
+            if cuenta_credito and regla.account_credit != cuenta_credito:
+                valores['account_credit'] = cuenta_credito.id
+            if cuenta_debito and regla.account_debit != cuenta_debito:
+                valores['account_debit'] = cuenta_debito.id
 
-        if valores:
-            regla.write(valores)
-            _logger.info(
-                "[COMMON_UTILS] Regla %s (ID: %s) actualizada con valores: %s",
-                codigo_regla,
-                regla.id,
-                valores
-            )
-        else:
-            _logger.info(
-                "[COMMON_UTILS] Regla %s (ID: %s) ya tenía las cuentas correctas configuradas, no se actualiza.",
-                codigo_regla,
-                regla.id
-            )
+            if valores:
+                regla.write(valores)
+                _logger.info(
+                    "[COMMON_UTILS] Regla %s (ID: %s, estructura: %s) actualizada con %s",
+                    codigo_regla,
+                    regla.id,
+                    regla.struct_id.display_name if regla.struct_id else "Sin estructura",
+                    valores
+                )
+            else:
+                _logger.info(
+                    "[COMMON_UTILS] Regla %s (ID: %s, estructura: %s) ya estaba correcta, no se modifica",
+                    codigo_regla,
+                    regla.id,
+                    regla.struct_id.display_name if regla.struct_id else "Sin estructura"
+                )
 
-    _logger.info("[COMMON_UTILS] Finalizó actualización de cuentas de reglas salariales.")
+    _logger.info("[COMMON_UTILS] Finalizó actualización de cuentas en todas las estructuras.")
 
 def get_monthly_wage_from_contract(contract):
     """
@@ -157,3 +161,15 @@ def get_hourly_rate_from_contract(contract):
     # mensual fijo → promedio 30 días, 8 horas/día
     salario_mensual = get_monthly_wage_from_contract(contract)
     return salario_mensual / 30.0 / 8.0
+
+def get_dias_promedio_salario(env, company_id):
+    """
+    Obtiene el número de días promedio para cálculo diario del salario
+    desde res.configuration. Si no existe, devuelve 30 por defecto.
+    """
+    dias_cfg = get_config_value(env, "dias_promedio_salario", company_id)
+    try:
+        return int(dias_cfg) if dias_cfg else 30
+    except ValueError:
+        _logger.warning("Valor inválido para dias_promedio_salario: %s, usando 30 por defecto", dias_cfg)
+        return 30
