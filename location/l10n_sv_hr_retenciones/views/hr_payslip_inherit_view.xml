@@ -6,10 +6,13 @@
             <field name="model">hr.payslip</field>
             <field name="inherit_id" ref="hr_payroll.view_hr_payslip_form"/>
             <field name="arch" type="xml">
-                <xpath expr="//field[@name='struct_id']" position="after">
-                    <field name="is_vacation_payslip"/>
+                <xpath expr="//field[@name='date_to']/.." position="after">
+                    <div class="o_row">
+                        <label for="is_vacation_payslip"/>
+                        <field name="is_vacation_payslip"/>
+                    </div>
                 </xpath>
             </field>
         </record>
-  </data>
+    </data>
 </odoo>

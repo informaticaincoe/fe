@@ -1,5 +1,6 @@
 import logging
 from odoo import models, fields
+from odoo.tools import float_round
 
 _logger = logging.getLogger(__name__)
 
@@ -21,22 +22,32 @@ class HrContract(models.Model):
 
     hourly_wage = fields.Float(
         string="Salario por hora",
-        digits=(16, 4),  # ✅ Ahora permite 4 decimales
+        digits=(16, 4),  # Ahora permite 4 decimales
     )
 
-    def get_salario_bruto_total(self):
+    afp_id = fields.Selection([
+        ('crecer', 'AFP CRECER'),
+        ('confia', 'AFP CONFIA'),
+        ('ipsfa', 'IPSFA'),
+    ], string="AFP", default='crecer')
+
+    def get_salario_bruto_total(self, payslip=None, salario_bruto_payslip=None):
         """
         Retorna el salario base + total de asignaciones sujetas a retención,
-        incluyendo horas extra, comisiones y bonos.
+        incluyendo horas extra, comisiones y bonos. Si se proporciona `salario_bruto_payslip`,
+        se usa como salario base en lugar de self.wage.
         """
         self.ensure_one()
+        fecha_inicio = payslip.date_from if payslip else None
+        fecha_fin = payslip.date_to if payslip else None
 
-        bruto = self.wage or 0.0  # Define salario base
-        _logger.info("📌 Salario base del contrato ID %s = %.2f", self.id, bruto)
+        # Usa bruto de payslip si está definido, de lo contrario usa wage
+        bruto = salario_bruto_payslip if salario_bruto_payslip is not None else self.wage or 0.0
+        _logger.info("Salario base del contrato ID %s = %.2f", self.id, bruto)
 
         if not self.employee_id:
             _logger.warning("Contrato %s no tiene empleado asignado. Retornando solo salario base.", self.id)
-            return bruto  # ✅ Ya está definido
+            return bruto  # Ya está definido
 
         tipos_incluidos = [
             constants.ASIGNACION_HORAS_EXTRA.upper(),
@@ -45,12 +56,19 @@ class HrContract(models.Model):
         ]
         _logger.info("Buscando asignaciones (%s) para empleado ID %s", tipos_incluidos, self.employee_id.id)
 
+        domain = [
+            ('employee_id', '=', self.employee_id.id),
+            ('tipo', 'in', tipos_incluidos),
+        ]
+
+        if fecha_inicio and fecha_fin:
+            domain.append(('periodo', '>=', fecha_inicio))
+            domain.append(('periodo', '<=', fecha_fin))
+
         try:
-            asignaciones = self.env['hr.salary.assignment'].search([
-                ('employee_id', '=', self.employee_id.id),
-                ('tipo', 'in', tipos_incluidos),
-            ])
-            _logger.info("✅ Se encontraron %d asignaciones para contrato ID %s", len(asignaciones), self.id)
+            asignaciones = self.env['hr.salary.assignment'].search(domain)
+            _logger.info("Se encontraron %d asignaciones para contrato ID %s en el rango %s - %s", len(asignaciones),
+                         self.id, fecha_inicio, fecha_fin)
         except Exception as e:
             _logger.error("Error al buscar asignaciones para contrato %s: %s", self.id, e)
             asignaciones = []
@@ -58,68 +76,62 @@ class HrContract(models.Model):
         monto_extra = sum(asignacion.monto for asignacion in asignaciones)
         bruto_total = bruto + monto_extra
 
-        _logger.info(
-            "Bruto total para contrato ID %s: salario base %.2f + asignaciones %.2f = %.2f",
-            self.id, bruto, monto_extra, bruto_total
-        )
+        _logger.info("Bruto total para contrato ID %s: salario base %.2f + asignaciones %.2f = %.2f", self.id, bruto,
+                     monto_extra, bruto_total)
 
-        _logger.info(
-            "Bruto total %.2f",bruto_total
-        )
         return bruto_total
 
     # Método para calcular la deducción AFP (Administradora de Fondos de Pensiones)
-    def calcular_afp(self, bruto=None):
+    def calcular_afp(self, salario_bruto=None, payslip=None):
         self.ensure_one()  # Garantiza que el cálculo se realice solo en un solo registro
         if self.wage_type == constants.SERVICIOS_PROFESIONALES:
             _logger.info("Contrato con servicios profesionales, no se aplica AFP.")
             return 0.0
 
-        salario = bruto if bruto is not None else self.get_salario_bruto_total()
-        _logger.info("📌 AFP: salario bruto =%s", bruto)
-        _logger.info("📌 AFP: salario base para contrato ID %s = %.2f", self.id, salario)
+        salario = self.get_salario_bruto_total(payslip=payslip, salario_bruto_payslip=salario_bruto)
+        _logger.info("AFP: salario bruto =%s", salario_bruto)
+        _logger.info("AFP: salario base para contrato ID %s = %.2f", self.id, salario)
 
         # Buscar el porcentaje y techo configurado para el empleado
-        afp_empleado = self.env['hr.retencion.afp'].search([('tipo', '=', constants.DEDUCCION_EMPLEADO)], limit=1)
+        afp_empleado = None
+        if self.afp_id and self.afp_id == constants.AFP_IPSFA:
+            _logger.info("Tipo de AFP: %s", self.afp_id)
+            afp_empleado = self.env['hr.retencion.afp'].search([('tipo', '=', constants.DEDUCCION_IPSFA_EMPLEADO)], limit=1)
+        else:
+            afp_empleado = self.env['hr.retencion.afp'].search([('tipo', '=', constants.DEDUCCION_EMPLEADO)], limit=1)
+
         if not afp_empleado:
             # Si no se encuentra configuración para AFP, se registra una advertencia y se retorna 0.0
             _logger.warning("No se encontró configuración AFP para empleado.")
             return 0.0
 
-        _logger.info("Config AFP encontrada: techo=%.2f, porcentaje=%.2f%%", afp_empleado.techo,
-                     afp_empleado.porcentaje)
+        _logger.info("Config AFP encontrada: techo=%.2f, porcentaje=%.2f%%", afp_empleado.techo, afp_empleado.porcentaje)
 
         porcentaje_afp = afp_empleado.porcentaje or 0.0  # Porcentaje de deducción AFP
         techo = afp_empleado.techo or 0.0  # Techo máximo de deducción AFP
 
-        _logger.info(
-            "salario %.2f", salario
-        )
+        _logger.info("salario %.2f", salario)
         # Si hay techo definido (> 0), se aplica como límite para la base de cálculo
         base = min(salario, techo) if techo > 0 else salario
         deduccion = base * (porcentaje_afp / 100.0)  # Cálculo de la deducción AFP
         _logger.info("AFP base calculada = %.2f", base)
 
-        _logger.info(
-            "base %.2f", base
-        )
-        _logger.info(
-            "deduccion %.2f", deduccion
-        )
+        _logger.info("base %.2f", base)
+        _logger.info("deduccion %.2f", deduccion)
 
         _logger.info("AFP para contrato ID %d: base %.2f * %.2f%% = %.2f", self.id, base, porcentaje_afp, deduccion)
         return deduccion
 
     # Método para calcular la deducción ISSS (Instituto Salvadoreño del Seguro Social)
-    def calcular_isss(self, bruto=None):
+    def calcular_isss(self, salario_bruto=None, payslip=None):
         self.ensure_one()  # Garantiza que el cálculo se realice solo en un solo registro
         if self.wage_type == constants.SERVICIOS_PROFESIONALES:
             _logger.info("Contrato con servicios profesionales, no se aplica ISSS.")
             return 0.0
 
-        salario = bruto if bruto is not None else self.get_salario_bruto_total()
-        _logger.info("📌 ISSS: salario bruto =%s", bruto)
-        _logger.info("📌 ISSS: salario base para contrato ID %s = %.2f", self.id, salario)
+        salario = self.get_salario_bruto_total(payslip=payslip, salario_bruto_payslip=salario_bruto)
+        _logger.info("ISSS: salario bruto =%s", salario_bruto)
+        _logger.info("ISSS: salario base para contrato ID %s = %.2f", self.id, salario)
 
         # Buscar la configuración de ISSS para el empleado
         isss_empleado = self.env['hr.retencion.isss'].search([('tipo', '=', constants.DEDUCCION_EMPLEADO)], limit=1)
@@ -128,8 +140,7 @@ class HrContract(models.Model):
             _logger.warning("No se encontró configuración ISSS para empleado.")
             return 0.0
 
-        _logger.info("Config ISSS encontrada: techo=%.2f, porcentaje=%.2f%%", isss_empleado.techo,
-                     isss_empleado.porcentaje)
+        _logger.info("Config ISSS encontrada: techo=%.2f, porcentaje=%.2f%%", isss_empleado.techo, isss_empleado.porcentaje)
 
         porcentaje = isss_empleado.porcentaje or 0.0  # Porcentaje de deducción ISSS
         techo = isss_empleado.techo or 0.0  # Techo máximo de deducción ISSS
@@ -140,23 +151,24 @@ class HrContract(models.Model):
         _logger.info("ISSS base calculada = %.2f", base)
 
         # Registro de la información de la deducción para referencia
-        _logger.info("ISSS empleado para contrato ID %d: base %.2f * %.2f%% = %.2f", self.id, base, porcentaje,
-                     deduccion)
+        _logger.info("ISSS empleado para contrato ID %d: base %.2f * %.2f%% = %.2f", self.id, base, porcentaje, deduccion)
         return deduccion
 
     # Método para calcular la deducción de renta del empleado
-    def calcular_deduccion_renta(self, bruto=None):
+    def calcular_deduccion_renta(self, salario_bruto=None, payslip=None):
         self.ensure_one()  # Garantiza que el cálculo se realice solo en un solo registro
-        _logger.info("Cálculo de deducción de renta iniciado para contrato ID %s", self.id)
+        _logger.info("Cálculo de deducción de renta iniciado para contrato ID %s | base imponible=%s ", self.id, salario_bruto)
 
         # Si el valor 'bruto' no es proporcionado, se usa el salario del contrato
-        salario = bruto if bruto is not None else self.get_salario_bruto_total()
-        _logger.info("📌 RENTA: salario bruto =%s", bruto)
+        salario = self.get_salario_bruto_total(payslip=payslip, salario_bruto_payslip=salario_bruto) #bruto if bruto is not None else self.get_salario_bruto_total()
+        _logger.info("RENTA: salario= %s | salario bruto =%s", salario, salario_bruto)
 
         # Si es servicios profesionales: 10% directo
         if self.wage_type == constants.SERVICIOS_PROFESIONALES:
-            resultado = salario * 0.10
-            _logger.info("Contrato de servicios profesionales: renta fija 10%% sobre %.2f = %.2f", bruto, resultado)
+            porcentaje_renta = config_utils.get_config_value(self.env, 'renta_servicios_profesionales', self.company_id.id) or 0.0
+
+            resultado = salario * (porcentaje_renta / 100)
+            _logger.info("Contrato de servicios profesionales: renta fija 10%% sobre %.2f = %.2f", salario_bruto, resultado)
             return resultado
 
         # Verifica si el contrato tiene definida la frecuencia de pago
@@ -189,10 +201,10 @@ class HrContract(models.Model):
             return 0.0
 
         # Calcular base imponible restando AFP e ISSS
-        afp = self.calcular_afp(bruto=salario)
-        isss = self.calcular_isss(bruto=salario)
+        afp = self.calcular_afp(salario_bruto=salario_bruto, payslip=payslip)
+        isss = self.calcular_isss(salario_bruto=salario_bruto, payslip=payslip)
         # incaf = self.calcular_incaf()
-        base_imponible = salario - afp - isss  # - incaf
+        base_imponible = float_round( (salario - afp - isss), precision_digits=2)  # - incaf
         _logger.info("Base imponible renta = %.2f - %.2f - %.2f = %.2f", salario, afp, isss, base_imponible)
 
         # Se itera sobre los tramos de la tabla para determinar el tramo aplicable
@@ -201,8 +213,10 @@ class HrContract(models.Model):
             # Verificar si la base imponible cae dentro del tramo
             if (not tramo.hasta or base_imponible <= tramo.hasta) and base_imponible >= tramo.desde:
                 # Si es así, calcular la deducción de renta basada en el tramo
-                exceso = base_imponible - tramo.exceso_sobre
+                exceso = float_round(base_imponible - tramo.exceso_sobre, precision_digits=2)
                 resultado = tramo.cuota_fija + (exceso * tramo.porcentaje_excedente / 100)
+                _logger.info("Aplicar deduccion: base= %s | exceso sobre= %s  ", base_imponible, tramo.exceso_sobre)
+                _logger.info("Aplicar deduccion: cuota fija= %s | exceso = %s | porcentaje= %s ", tramo.cuota_fija, exceso, tramo.porcentaje_excedente)
                 _logger.info("Deducción de renta calculada: %.2f (tramo aplicado)", resultado)
                 return resultado
 
@@ -211,41 +225,44 @@ class HrContract(models.Model):
         return 0.0
 
     # Método para calcular el aporte patronal ISSS (empleador)
-    def calcular_aporte_patronal(self, tipo, bruto=None):
+    def calcular_aporte_patronal(self, tipo, salario_bruto=None, payslip=None):
         """
         Calcula el aporte patronal (ISSS o AFP) según el salario y los techos definidos.
         - tipo: constants.TIPO_DED_ISSS o constants.TIPO_DED_AFP
-        - bruto: base opcional. Si no se pasa, usa el salario bruto total del contrato.
+        - salario_bruto: base opcional. Si no se pasa, usa el salario bruto total del contrato.
         """
         self.ensure_one()
         if self.wage_type == constants.SERVICIOS_PROFESIONALES:
             _logger.info("Contrato con servicios profesionales, no se aplica INCAF.")
             return 0.0
 
-        # ✅ Si me pasaron bruto, usarlo. Si no, calcular salario bruto total del contrato
-        salario = bruto if bruto is not None else self.get_salario_bruto_total()
-        _logger.info("📌 Aporte patronal: salario bruto =%s", bruto)
+        # Si me pasaron salario_bruto, usarlo. Si no, calcular salario bruto total del contrato
+        salario = self.get_salario_bruto_total(payslip=payslip, salario_bruto_payslip=salario_bruto)
+        _logger.info("Aporte patronal: salario bruto =%s", salario_bruto)
 
-        _logger.info("Cálculo de aporte patronal para contrato ID %s. Tipo: %s. Salario base: %.2f", self.id, tipo,
-                     salario)
+        _logger.info("Cálculo de aporte patronal para contrato ID %s. Tipo: %s. Salario base: %.2f", self.id, tipo, salario)
 
         if tipo == constants.TIPO_DED_ISSS:
             tipo_isss = self.env['hr.retencion.isss'].search([('tipo', '=', constants.DEDUCCION_EMPLEADOR)], limit=1)
             if tipo_isss:
                 base = salario if tipo_isss.techo == 0.0 else min(salario, tipo_isss.techo)
                 resultado = base * (tipo_isss.porcentaje / 100)
-                _logger.info("ISSS Patronal: base=%.2f, porcentaje=%.2f%%, resultado=%.2f", base,
-                             tipo_isss.porcentaje * 100, resultado)
+                _logger.info("ISSS Patronal: base=%.2f, porcentaje=%.2f%%, resultado=%.2f", base, tipo_isss.porcentaje * 100, resultado)
                 return resultado
             _logger.warning("No se encontró configuración ISSS para empleador.")
             return 0.0
         elif tipo != constants.TIPO_DED_ISSS:  # afp
-            tipo_afp = self.env['hr.retencion.afp'].search([('tipo', '=', constants.DEDUCCION_EMPLEADOR)], limit=1)
+            tipo_afp = None
+            if self.afp_id and self.afp_id == constants.AFP_IPSFA:
+                _logger.info("Tipo de AFP: %s", self.afp_id)
+                tipo_afp = self.env['hr.retencion.afp'].search([('tipo', '=', constants.DEDUCCION_IPSFA_EMPLEADOR)], limit=1)
+            else:
+                tipo_afp = self.env['hr.retencion.afp'].search([('tipo', '=', constants.DEDUCCION_EMPLEADO)], limit=1)
+
             if tipo_afp:
                 base = salario if tipo_afp.techo == 0.0 else min(salario, tipo_afp.techo)
                 resultado = base * (tipo_afp.porcentaje / 100)
-                _logger.info("AFP Patronal: base=%.2f, porcentaje=%.2f%%, resultado=%.2f", base,
-                             tipo_afp.porcentaje * 100, resultado)
+                _logger.info("AFP Patronal: base=%.2f, porcentaje=%.2f%%, resultado=%.2f", base, tipo_afp.porcentaje * 100, resultado)
                 return resultado
             _logger.warning("No se encontró configuración AFP para empleador.")
             return 0.0
@@ -253,7 +270,7 @@ class HrContract(models.Model):
         _logger.warning("Tipo de aporte patronal desconocido o sin configuración.")
         return 0.0
 
-    def calcular_incaf(self, bruto=None):
+    def calcular_incaf(self, salario_bruto=None, payslip=None):
         """
         Calcula la deducción del INCAF (1% del salario bruto total del empleado),
         solo si la empresa tiene activado el campo 'pago_incaf'.
@@ -270,9 +287,9 @@ class HrContract(models.Model):
                 _logger.info("Empresa no paga INCAF, se omite deducción para contrato ID %s.", self.id)
                 return 0.0
 
-            salario = bruto if bruto is not None else self.get_salario_bruto_total()
-            _logger.info("📌 INCAF: salario bruto =%s", bruto)
-            _logger.info("📌 INCAF: salario base para contrato ID %s = %.2f", self.id, salario)
+            salario = self.get_salario_bruto_total(payslip=payslip, salario_bruto_payslip=salario_bruto)
+            _logger.info("INCAF: salario bruto =%s", salario_bruto)
+            _logger.info("INCAF: salario base para contrato ID %s = %.2f", self.id, salario)
 
             # Buscar la configuración de ISSS para el incaf
             isss_incaf = self.env['hr.retencion.isss'].search([('tipo', '=', constants.DEDUCCION_INCAF)], limit=1)

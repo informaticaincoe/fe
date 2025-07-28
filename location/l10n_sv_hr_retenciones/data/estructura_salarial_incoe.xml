@@ -11,18 +11,6 @@
             <field name="default_schedule_pay">semi-monthly</field>
         </record>
 
-        <!-- Tipo para vacaciones -->
-<!--        <record id="structure_type_incoe_vacaciones" model="hr.payroll.structure.type">-->
-<!--            <field name="name">Planilla de Vacaciones</field>-->
-<!--            <field name="default_schedule_pay">semi-monthly</field>-->
-<!--        </record>-->
-
-        <!-- Tipo para servicios profesionales -->
-<!--        <record id="structure_type_incoe_profesionales" model="hr.payroll.structure.type">-->
-<!--            <field name="name">Planilla de Servicios Profesionales</field>-->
-<!--            <field name="default_schedule_pay">semi-monthly</field>-->
-<!--        </record>-->
-
         <!-- ===========================
                 ESTRUCTURAS SALARIALES
         ============================ -->

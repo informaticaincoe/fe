@@ -24,7 +24,7 @@
 
         <!-- Tipo de entrada para el descuento séptimo -->
         <record id="input_type_desc_falta_septimo" model="hr.payslip.input.type">
-            <field name="name">Descuento Séptimo por Falta...</field>
+            <field name="name">Descuento Séptimo por Falta</field>
             <field name="code">DESC_FALTA_SEPTIMO</field>
         </record>
 

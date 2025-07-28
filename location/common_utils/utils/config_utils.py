@@ -134,8 +134,7 @@ def get_monthly_wage_from_contract(contract):
     schedule_pay = contract.schedule_pay or "monthly"
     factor = SCHEDULE_PAY_CONVERSION.get(schedule_pay, 1.0)
     _logger.info("Salario mensual=%.2f ", contract.wage * factor)
-    _logger.info(
-        "Contrato %s | wage=%.2f | schedule_pay=%s | factor=%.4f", contract.name, contract.wage, contract.schedule_pay, SCHEDULE_PAY_CONVERSION.get(contract.schedule_pay or 'monthly', 1.0))
+    _logger.info("Contrato %s | wage=%.2f | schedule_pay=%s | factor=%.4f", contract.name, contract.wage, contract.schedule_pay, SCHEDULE_PAY_CONVERSION.get(contract.schedule_pay or 'monthly', 1.0))
     return contract.wage * factor
 
 def get_hourly_rate_from_contract(contract):
@@ -160,7 +159,13 @@ def get_hourly_rate_from_contract(contract):
 
     # mensual fijo → promedio 30 días, 8 horas/día
     salario_mensual = get_monthly_wage_from_contract(contract)
-    return salario_mensual / 30.0 / 8.0
+    dias_promedio = to_int(get_dias_promedio_salario(contract.env, contract.company_id.id), 0)
+    horas_diarias = to_int(get_config_value(contract.env, 'horas_diarias', contract.company_id.id), 0)
+
+    if dias_promedio <= 0 or horas_diarias <= 0:
+        raise UserError("No se puede calcular la tarifa por hora debido a configuración inválida.")
+
+    return salario_mensual / dias_promedio / horas_diarias
 
 def get_dias_promedio_salario(env, company_id):
     """
@@ -173,3 +178,9 @@ def get_dias_promedio_salario(env, company_id):
     except ValueError:
         _logger.warning("Valor inválido para dias_promedio_salario: %s, usando 30 por defecto", dias_cfg)
         return 30
+
+def to_int(value, default=0):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default

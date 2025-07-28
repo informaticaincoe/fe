@@ -28,6 +28,9 @@ SERVICIOS_PROFESIONALES = "professional_services"
 TIPOENT_FALTA = "FALTA"
 REGLASAL_DESC_SEPTIMO = "DESC_FALTA_SEPTIMO"
 REGLASAL_VACACION = "VACACIONES"
+AFP_IPSFA = "ipsfa"
+DEDUCCION_IPSFA_EMPLEADO = "ipsfa_empleado"
+DEDUCCION_IPSFA_EMPLEADOR = "ipsfa_empleador"
 
 #Modulo de asignaciones salariales
 ASIGNACION_COMISIONES = "comision"
