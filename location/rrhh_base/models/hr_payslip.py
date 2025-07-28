@@ -58,6 +58,13 @@ class HrPayslip(models.Model):
         store=False  # No se almacena en la base de datos
     )
 
+    bonos = fields.Float(
+        string='Bonos',
+        compute='_compute_bonos',
+        readonly=True,
+        store=False  # No se almacena en la base de datos
+    )
+
     total_viaticos_a_pagar = fields.Float(
         string='Total viaticos',
         compute='_compute_total_viaticos_a_pagar',
@@ -131,6 +138,13 @@ class HrPayslip(models.Model):
         store=False  # No se almacena en la base de datos
     )
 
+    sueldo_liquido = fields.Float(
+        string='Sueldo liquido',
+        compute='_compute_sueldo_liquidido',
+        readonly=True,
+        store=False  # No se almacena en la base de datos
+    )
+
     quin1cena = fields.Selection(
         [('1', '1° Quincena'), ('2', '2° Quincena')],
         string='Quincena',
@@ -149,14 +163,22 @@ class HrPayslip(models.Model):
     @api.depends('worked_days_line_ids.number_of_days')
     def _compute_worked_days_total(self):
         for record in self:
-            total_days = sum(record.worked_days_line_ids.mapped('number_of_days'))
+            asistencia_lines = record.worked_days_line_ids.filtered(lambda l: l.name == 'ASISTENCIA')
+            total_days = sum(asistencia_lines.mapped('number_of_days'))
             record.total_worked_days = total_days
 
     @api.depends('worked_days_line_ids.number_of_hours')
     def _compute_worked_hours_total(self):
         for record in self:
-            total_hours = sum(record.worked_days_line_ids.mapped('number_of_hours'))
+            asistencia_lines = record.worked_days_line_ids.filtered(lambda l: l.name == 'ASISTENCIA')
+            total_hours = sum(asistencia_lines.mapped('number_of_hours'))
             record.total_worked_hours = total_hours
+
+    @api.depends('line_ids.amount')
+    def _compute_comisiones(self):
+        for record in self:
+            comisiones_lines = record.line_ids.filtered(lambda l: l.code == 'COMISION')
+            record.comisiones = sum(comisiones_lines.mapped('amount'))
 
     @api.depends('line_ids.amount')
     def _compute_overtime_total(self):
@@ -165,31 +187,31 @@ class HrPayslip(models.Model):
             record.total_overtime = sum(overtime_lines.mapped('amount'))
 
     @api.depends('line_ids.amount')
+    def _compute_bonos(self):
+        for record in self:
+            bonos_lines = record.line_ids.filtered(lambda l: l.code == 'BONO')
+            record.bonos = sum(bonos_lines.mapped('amount'))
+
+    @api.depends('line_ids.amount')
     def _compute_viaticos(self):
         for record in self:
-            viaticos_lines = record.line_ids.filtered(lambda l: l.code == 'VIATICOS')
-            record.viaticos = sum(viaticos_lines.mapped('amount'))
+            viaticos_lines = record.line_ids.filtered(lambda l: l.code == 'VIATICO')
+            record.viaticos = sum(viaticos_lines.mapped('amount')) + record.bonos
 
     @api.depends('viaticos', 'total_overtime')
     def _compute_total_viaticos_a_pagar(self):
         for record in self:
             record.total_viaticos_a_pagar = record.viaticos + record.total_overtime
 
-    @api.depends('line_ids.amount')
-    def _compute_comisiones(self):
-        for record in self:
-            comisiones_lines = record.line_ids.filtered(lambda l: l.code == 'COMISION')
-            record.comisiones = sum(comisiones_lines.mapped('amount'))
-
     @api.depends('viaticos', 'total_viaticos_a_pagar')
     def _compute_total_devengado(self):
         for record in self:
-            record.total_devengado = record.comisiones + record.total_viaticos_a_pagar
+            record.total_devengado = record.total_viaticos_a_pagar + record.basic_wage + record.comisiones
 
     @api.depends('line_ids.amount')
     def _compute_isr(self):
         for record in self:
-            overtime_lines = record.line_ids.filtered(lambda l: l.code == 'ISR')
+            overtime_lines = record.line_ids.filtered(lambda l: l.code == 'RENTA')
             record.isr = abs(sum(overtime_lines.mapped('amount')))
 
     @api.depends('line_ids.amount')
@@ -237,7 +259,12 @@ class HrPayslip(models.Model):
     @api.depends('isss', 'isr', 'afp', 'otros', 'bancos', 'fsv', 'prestamos_incoe', 'venta_empleados', 'total_viaticos_a_pagar')
     def _compute_total_descuentos(self):
         for record in self:
-            record.total_descuentos = record.isss + record.isr + record.afp + record.otros + record.bancos + record.fsv + record.prestamos_incoe + record.venta_empleados + record.total_viaticos_a_pagar
+            record.total_descuentos = record.isss + record.isr + record.afp + record.otros + record.bancos + record.fsv + record.prestamos_incoe + record.venta_empleados
+
+    @api.depends('total_devengado', 'total_descuentos')
+    def _compute_sueldo_liquidido(self):
+        for record in self:
+            record.sueldo_liquido = record.total_devengado - record.total_descuentos
 
     def action_send_payslip_email(self):
         self.ensure_one()
@@ -246,7 +273,6 @@ class HrPayslip(models.Model):
         template = self.env.ref('rrhh_base.rrhh_email_template_payslip', raise_if_not_found=False)
         rendered_body = template._render_field('body_html', [self.id])[self.id]
         _logger.warning("CUERPO RENDERIZADO:\n%s", rendered_body)
-
 
         if not template:
             raise UserError("No se encontró la plantilla de correo para la boleta de pago.")

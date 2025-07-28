@@ -5,7 +5,7 @@
             <field name="model">hr.payslip</field>
             <field name="priority" eval="20"/>
             <field name="arch" type="xml">
-                <list string="Planilla">
+                <list string="Planilla" >
                     <field name="employee_name" string="Empleado"/>
                     <field name="department_name" string="Departamento"/>
                     <field name="total_worked_days" string="Dias laborados"/>
@@ -25,24 +25,38 @@
                     <field name="prestamos_incoe"/>
                     <field name="fsv"/>
                     <field name="total_descuentos"/>
+                    <field name="sueldo_liquido"/>
                 </list>
             </field>
         </record>
 
-<!--<record id="hr_payslip_search_quin1cena_filter" model="ir.ui.view">-->
-<!--    <field name="name">hr.payslip.search.quin1cena.filter</field>-->
-<!--    <field name="model">hr.payslip</field>-->
-<!--    <field name="inherit_id" ref="hr_payroll.view_hr_payslip_filter"/>-->
-<!--    <field name="arch" type="xml">-->
-<!--        <xpath expr="//search" position="inside">-->
-<!--            <separator string="Quincenas"/>-->
-<!--            <filter string="1° Quincena" domain="[('quin1cena','=','1')]"/>-->
-<!--            <filter string="2° Quincena" domain="[('quin1cena','=','2')]"/>-->
-<!--            <field name="quin1cena" string="Buscar por Quincena"/>-->
-<!--        </xpath>-->
-<!--    </field>-->
-<!--</record>-->
+        <record id="hr_payslip_search_view_inherit_group_by_lote" model="ir.ui.view">
+            <field name="name">hr.payslip.search.inherit.group.by.lote</field>
+            <field name="model">hr.payslip</field>
+            <field name="inherit_id" ref="hr_payroll.view_hr_payslip_filter"/>
+            <field name="arch" type="xml">
+                <xpath expr="//search" position="inside">
+                    <group expand="0" string="Group By">
+                        <filter name="group_by_payslip_run" string="Lote de Nómina" context="{'group_by': 'payslip_run_id'}"/>
+                    </group>
+                </xpath>
+            </field>
+        </record>
 
+        <record id="rrhh_base.action_reporte_hr_plantilla" model="ir.actions.act_window">
+            <field name="name">Nóminas de Empleados</field>
+            <field name="res_model">hr.payslip</field>
+            <field name="view_mode">list,form</field>
+            <field name="domain">[]</field>
+            <field name="context">{'search_default_group_by_payslip_run': 1}</field>
+            <field name="help" type="html">
+                <p class="o_view_nocontent_smiling_face">
+                    Crea una nueva nómina de empleado
+                </p><p>
+                    Usa esta funcionalidad para generar las nóminas de tus empleados.
+                </p>
+            </field>
+        </record>
 
     </data>
 </odoo>
