@@ -13,5 +13,16 @@
       </field>
     </record>
 
+    <record id="hr_contract_form_inherit_afp" model="ir.ui.view">
+      <field name="name">hr.contract.form.inherit.afp</field>
+      <field name="model">hr.contract</field>
+      <field name="inherit_id" ref="hr_contract.hr_contract_view_form" />
+      <field name="arch" type="xml">
+          <xpath expr="//field[@name='work_entry_source']" position="after">
+              <field name="afp_id" />
+          </xpath>
+      </field>
+    </record>
+
   </data>
 </odoo>

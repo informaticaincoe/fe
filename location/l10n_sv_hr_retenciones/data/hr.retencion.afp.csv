@@ -1,3 +1,5 @@
 id,porcentaje,techo,tipo
 afp_empleado,7.25,0.00,empleado
 afp_patron,8.75,0.00,patron
+ipsfa,6.00,0.00,ipsfa_empleado
+ipsfa_empleador,6.00,0.00,ipsfa_empleador

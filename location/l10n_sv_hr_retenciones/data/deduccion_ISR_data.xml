@@ -20,6 +20,5 @@
             <field name="amount_other_input_id" ref="input_type_deduccion_renta"/>
             <field name="appears_on_payslip" eval="True"/>
         </record>
-
     </data>
 </odoo>

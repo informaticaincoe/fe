@@ -8,5 +8,7 @@ class HrRetencionAFP(models.Model):
     techo = fields.Float("Techo", required=True)
     tipo = fields.Selection([
         ('empleado', 'Empleado'),
-        ('patron', 'Patrón')
+        ('patron', 'Patrón'),
+        ('ipsfa_empleado', 'IPSFA Empleado'),
+        ('ipsfa_empleador', 'IPSFA Empleador')
     ], string="Tipo de Aportante", required=True)
