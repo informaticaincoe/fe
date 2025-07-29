@@ -7,8 +7,12 @@
             <field name="code">FALTA</field>
             <field name="is_leave" eval="True"/>
             <field name="color" eval="2"/>
-            <!-- Se marca como NO pagado en la estructura INCOE -->
-            <field name="unpaid_structure_ids" eval="[(6,0,[ref('l10n_sv_hr_retenciones.structure_incoe')])]"/>
+            <!-- Se marca como NO pagado en las estructuras INCOE, VAC y PRO -->
+            <field name="unpaid_structure_ids" eval="[(6,0,[
+                ref('l10n_sv_hr_retenciones.structure_incoe'),
+                ref('l10n_sv_hr_retenciones.structure_incoe_vacaciones'),
+                ref('l10n_sv_hr_retenciones.structure_incoe_profesionales'),
+            ])]"/>
         </record>
 
         <!-- Tiempo personal Falta Injustificada -->
@@ -32,7 +36,7 @@
         <record id="hr_salary_rule_descuento_septimo_falta" model="hr.salary.rule">
             <field name="name">Desc. Séptimo por Falta Injustificada</field>
             <field name="code">DESC_FALTA_SEPTIMO</field>
-            <field name="sequence">30</field>
+            <field name="sequence">150</field>
             <field name="category_id" ref="hr_payroll.DED"/>
             <field name="amount_select">input</field>
             <field name="amount_python_compute">none</field>

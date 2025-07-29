@@ -10,7 +10,7 @@
         <record id="afp_regla_employee" model="hr.salary.rule">
             <field name="name">AFP (Empleado)</field>
             <field name="code">AFP</field>
-            <field name="sequence">5</field>
+            <field name="sequence">110</field>
             <field name="category_id" ref="hr_payroll.DED"/>
             <field name="struct_id" ref="l10n_sv_hr_retenciones.structure_incoe"/>
             <field name="condition_select">none</field>
@@ -31,13 +31,53 @@
         <record id="afp_empleador_regla" model="hr.salary.rule">
             <field name="name">AFP Empleador</field>
             <field name="code">AFP_EMP</field>
-            <field name="sequence">20</field>
+            <field name="sequence">111</field>
             <field name="category_id" ref="hr_payroll.COMP"/>
             <field name="amount_select">input</field>
             <field name="struct_id" ref="l10n_sv_hr_retenciones.structure_incoe"/>
             <field name="condition_select">none</field>
             <field name="input_type_id" ref="input_type_afp_empleador"/>
             <field name="amount_other_input_id" ref="input_type_afp_empleador"/>
+            <field name="appears_on_payslip" eval="False"/>
+        </record>
+
+        <!-- Definición de un tipo de entrada para deducción IPSFA -->
+        <record id="input_type_deduccion_ipsfa" model="hr.payslip.input.type">
+            <field name="name">Deducción IPSFA</field>
+            <field name="code">IPSFA</field>
+        </record>
+
+        <!-- Definición de una regla salarial relacionada con la deducción IPSFA -->
+        <record id="ipsfa_regla_employee" model="hr.salary.rule">
+            <field name="name">IPSFA</field>
+            <field name="code">IPSFA</field>
+            <field name="sequence">115</field>
+            <field name="category_id" ref="hr_payroll.DED"/>
+            <field name="struct_id" ref="l10n_sv_hr_retenciones.structure_incoe"/>
+            <field name="condition_select">none</field>
+            <field name="amount_select">input</field>
+            <field name="input_type_id" ref="input_type_deduccion_ipsfa"/>
+            <field name="amount_other_input_id" ref="input_type_deduccion_ipsfa"/>
+            <field name="appears_on_payslip" eval="True"/>
+        </record>
+
+        <!-- Tipo de entrada para AFP Empleador -->
+        <record id="input_type_ipsfa_empleador" model="hr.payslip.input.type">
+            <field name="name">IPSFA Empleador</field>
+            <field name="code">IPSFA_EMP</field>
+        </record>
+
+        <!-- Regla salarial para AFP Empleador -->
+        <record id="ipsfa_empleador_regla" model="hr.salary.rule">
+            <field name="name">IPSFA Empleador</field>
+            <field name="code">IPSFA_EMP</field>
+            <field name="sequence">116</field>
+            <field name="category_id" ref="hr_payroll.COMP"/>
+            <field name="amount_select">input</field>
+            <field name="struct_id" ref="l10n_sv_hr_retenciones.structure_incoe"/>
+            <field name="condition_select">none</field>
+            <field name="input_type_id" ref="input_type_ipsfa_empleador"/>
+            <field name="amount_other_input_id" ref="input_type_ipsfa_empleador"/>
             <field name="appears_on_payslip" eval="False"/>
         </record>
     </data>

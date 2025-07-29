@@ -19,7 +19,7 @@
         <record id="salary_rule_venta_empleados" model="hr.salary.rule">
             <field name="name">Venta a empleados</field>
             <field name="code">VENTA_EMPLEADOS</field>
-            <field name="sequence">15</field>
+            <field name="sequence">135</field>
             <field name="category_id" ref="hr_payroll.DED"/>
             <field name="struct_id" ref="l10n_sv_hr_retenciones.structure_incoe"/>
             <field name="condition_select">input</field>

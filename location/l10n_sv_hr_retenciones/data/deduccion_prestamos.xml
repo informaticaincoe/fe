@@ -2,19 +2,6 @@
     <data noupdate="1">
 
         <!-- Tipo de entrada: Calculo -->
-<!--        <record id="input_type_deduccion_prestamos" model="hr.payslip.input.type">-->
-<!--            <field name="name">Prestamos</field>-->
-<!--            <field name="code">PRESTAMOS</field>-->
-<!--        </record>-->
-
-<!--        <record id="attachment_type_prestamos" model="hr.payslip.input.type">-->
-<!--            <field name="name">Prestamos</field>-->
-<!--            <field name="is_quantity">true</field>-->
-<!--            <field name="code">PRESTAMOS</field>-->
-<!--            <field name="create_uid">2</field>-->
-<!--            <field name="write_uid">2</field>-->
-<!--        </record>-->
-
         <record id="input_type_deduccion_prestamos" model="hr.payslip.input.type">
             <field name="name">Prestamos principal</field>
             <field name="code">PRESTAMOS</field>
@@ -26,7 +13,7 @@
         <record id="salary_rule_prestamos" model="hr.salary.rule">
             <field name="name">Prestamos</field>
             <field name="code">PRESTAMOS</field>
-            <field name="sequence">15</field>
+            <field name="sequence">140</field>
             <field name="category_id" ref="hr_payroll.DED"/>
             <field name="struct_id" ref="l10n_sv_hr_retenciones.structure_incoe"/>
             <field name="condition_select">input</field>
@@ -36,14 +23,6 @@
             <field name="amount_other_input_id" ref="input_type_deduccion_prestamos"/>
             <field name="appears_on_payslip" eval="True"/>
         </record>
-
-<!--        <record id="salary_type_deduccion_prestamos" model="hr.payslip.input.type">-->
-<!--            <field name="name">Prestamos</field>-->
-<!--            <field name="code">PRESTAMOS</field>-->
-<!--            <field name="active">true</field>-->
-<!--            <field name="available_in_attachments">true</field>-->
-<!--            <field name="is_quantity">true</field>-->
-<!--        </record>-->
 
     </data>
 </odoo>

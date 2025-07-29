@@ -19,7 +19,7 @@
         <record id="salary_rule_fondo_pensiones" model="hr.salary.rule">
             <field name="name">Fondo de pensiones</field>
             <field name="code">FONDO_PENSIONES</field>
-            <field name="sequence">15</field>
+            <field name="sequence">120</field>
             <field name="category_id" ref="hr_payroll.DED"/>
             <field name="struct_id" ref="l10n_sv_hr_retenciones.structure_incoe"/>
             <field name="condition_select">input</field>

@@ -1,18 +1,18 @@
 <odoo>
     <!-- Herencia del formulario -->
-    <record id="hr_attendance_form_inherit_tipo" model="ir.ui.view">
-        <field name="name">hr.attendance.form.tipo_asistencia</field>
-        <field name="model">hr.attendance</field>
-        <field name="inherit_id" ref="hr_attendance.hr_attendance_view_form"/>
-        <field name="arch" type="xml">
-            <xpath expr="//group" position="inside">
-                <group>
-<!--                    <field name="tipo_asistencia"/>-->
-<!--                    <field name="se_paga"/>-->
-                </group>
-            </xpath>
-        </field>
-    </record>
+<!--    <record id="hr_attendance_form_inherit_tipo" model="ir.ui.view">-->
+<!--        <field name="name">hr.attendance.form.tipo_asistencia</field>-->
+<!--        <field name="model">hr.attendance</field>-->
+<!--        <field name="inherit_id" ref="hr_attendance.hr_attendance_view_form"/>-->
+<!--        <field name="arch" type="xml">-->
+<!--            <xpath expr="//group" position="inside">-->
+<!--                <group>-->
+<!--&lt;!&ndash;                    <field name="tipo_asistencia"/>&ndash;&gt;-->
+<!--&lt;!&ndash;                    <field name="se_paga"/>&ndash;&gt;-->
+<!--                </group>-->
+<!--            </xpath>-->
+<!--        </field>-->
+<!--    </record>-->
 
     <!-- Herencia de la vista tipo lista -->
     <record id="view_attendance_tree_inherit_tipo_asistencia" model="ir.ui.view">
@@ -20,17 +20,10 @@
         <field name="model">hr.attendance</field>
         <field name="inherit_id" ref="hr_attendance.view_attendance_tree"/>
         <field name="arch" type="xml">
-<!--            <xpath expr="//list" position="inside">-->
-<!--                <field name="tipo_asistencia"/>-->
-<!--                <field name="se_paga"/>-->
-<!--            </xpath>-->
-
             <list>
                 <header>
                     <button name="action_descargar_plantilla" type="object" icon="fa-download" string="Plantilla" context="{}" display="always"/>
                 </header>
-<!--                <field name="tipo_asistencia"/>-->
-<!--                <field name="se_paga"/>-->
             </list>
         </field>
     </record>

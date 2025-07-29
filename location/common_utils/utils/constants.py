@@ -31,6 +31,35 @@ REGLASAL_VACACION = "VACACIONES"
 AFP_IPSFA = "ipsfa"
 DEDUCCION_IPSFA_EMPLEADO = "ipsfa_empleado"
 DEDUCCION_IPSFA_EMPLEADOR = "ipsfa_empleador"
+# Deducciones comunes a todos menos servicios profesionales
+BASE_DEDUCCIONES = [
+    ('RENTA', 'renta', -1),
+    ('ISSS', 'isss', -1),
+    ('ISSS_EMP', 'isss_patronal', 1),
+    ('INCAF', 'incaf', -1),
+]
+
+# AFP según tipo
+AFP_IPSFA_CODES = [
+    ('IPSFA', 'afp', -1),
+    ('IPSFA_EMP', 'afp_patronal', 1),
+]
+AFP_REGULAR_CODES = [
+    ('AFP', 'afp', -1),
+    ('AFP_EMP', 'afp_patronal', 1),
+]
+
+# Todos los códigos usados
+DEDUCCION_CODES = list(set(
+    [c[0] for c in BASE_DEDUCCIONES + AFP_IPSFA_CODES + AFP_REGULAR_CODES] + ['RENTA_SP']
+))
+
+CONST_CODIGOS_APORTES_PATRONALES = ['AFP_EMP', 'ISSS_EMP', 'INCAF', 'IPSFA_EMP']
+CONST_CODIGOS_DEDUCCIONES_EMPLEADO = ['AFP', 'ISSS', 'RENTA', 'FSV', 'FONDO_PENSIONES', 'PRESTAMOS', 'VENTA_EMPLEADOS', 'OTROS', 'RENTA_SP', 'BANCO', 'DESC_FALTA_SEPTIMO', 'FALTA_INJ', 'IPSFA']
+COD_ISSS_EMP = "ISSS_EMP"
+COD_AFP_EMP = "AFP_EMP"
+REGLAS_EXCLUIR_SERVICIOS_PROFESIONALES = {'RENTA', 'ISSS', 'AFP', 'AFP_EMP', 'ISSS_EMP', 'INCAF', 'IPSFA', 'IPSFA_EMP'}
+CAMPOS_MANY2ONE_REGLAS = {'category_id', 'account_debit', 'account_credit', 'amount_other_input_id'}
 
 #Modulo de asignaciones salariales
 ASIGNACION_COMISIONES = "comision"
@@ -46,6 +75,7 @@ HORAS_NOCTURNAS_ASUETO = "horas_nocturnas_asueto"
 PERIODO = "periodo"
 NOMBRE_PLANTILLA_ASIGNACIONES = "Plantilla de Asignaciones"
 NOMBRE_PLANTILLA_ASISTENCIA = "Plantilla de Asistencia"
+CODES_VACACIONES = ['VAC', 'VACACIONES']
 
 CUENTAS_ASIGNACIONES = {
     'cuenta_salarial_deducciones_credito': 'cuenta_salarial_deducciones',
@@ -66,4 +96,6 @@ SCHEDULE_PAY_CONVERSION = {
     'annually': 1 / 12,
 }
 
-
+# Mapping estructuras
+STRUCTURE_MAPPING = {'INCOE': ['PLAN_VAC', 'PLAN_PRO']}
+STRUCTURE_PLAN_PROD = "PLAN_PRO"

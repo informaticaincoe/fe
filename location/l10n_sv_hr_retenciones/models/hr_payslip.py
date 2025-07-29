@@ -37,19 +37,8 @@ class HrPayslip(models.Model):
     )
 
     is_vacation_payslip = fields.Boolean(
-        string="¿Es recibo de vacaciones?",  # ✅ Etiqueta que se mostrará
+        string="¿Es recibo de vacaciones?",
         help="Marca esta opción si este recibo corresponde a vacaciones."
-    )
-
-    payslip_principal_id = fields.Many2one( # No se utiliza
-        'hr.payslip',
-        string="Nómina principal",
-        help="Recibo de nómina principal asociado a este recibo de vacaciones."
-    )
-
-    skip_deductions = fields.Boolean(# No se utiliza
-        string="Omitir deducciones",
-        help="Si se marca, no se aplicarán deducciones automáticas en este recibo."
     )
 
     @api.onchange('worked_days_line_ids')
@@ -62,7 +51,7 @@ class HrPayslip(models.Model):
 
             # Buscar si hay líneas de vacaciones en worked_days_line_ids
             tiene_vacaciones = any(
-                line.code in ['VAC', 'VACACIONES']  # Ajusta si tus códigos son diferentes
+                line.code in constants.CODES_VACACIONES
                 for line in slip.worked_days_line_ids
             )
 
@@ -138,23 +127,23 @@ class HrPayslip(models.Model):
             # Usar el método centralizado para crear los inputs
             self._crear_inputs_deducciones(payslip, contract, base_imponible)
 
-        # 2. Llamar al cálculo estándar, que ahora usará los inputs ya creados
-        res = super(HrPayslip, self).compute_sheet()
-
         # 3. Aplicar descuento de séptimo por faltas injustificadas
         self._aplicar_descuento_septimo_por_faltas()
+
+        # 2. Llamar al cálculo estándar, que ahora usará los inputs ya creados
+        res = super(HrPayslip, self).compute_sheet()
 
         _logger.info(">>> [FIN] compute_sheet personalizado completado")
         return res
 
-    def _obtener_deducciones(self, contract, base_imponible):
+    def _obtener_deducciones(self, payslip, contract, base_imponible):
         try:
-            renta = contract.calcular_deduccion_renta(salario_bruto=base_imponible, payslip=self)
-            afp = contract.calcular_afp(salario_bruto=base_imponible, payslip=self)
-            isss = contract.calcular_isss(salario_bruto=base_imponible, payslip=self)
-            afp_patronal = contract.calcular_aporte_patronal(constants.TIPO_DED_AFP, salario_bruto=base_imponible, payslip=self)
-            isss_patronal = contract.calcular_aporte_patronal(constants.TIPO_DED_ISSS, salario_bruto=base_imponible, payslip=self)
-            incaf = contract.calcular_incaf(salario_bruto=base_imponible, payslip=self)
+            renta = contract.calcular_deduccion_renta(salario_bruto=base_imponible, payslip=payslip)
+            afp = contract.calcular_afp(salario_bruto=base_imponible, payslip=payslip)
+            isss = contract.calcular_isss(salario_bruto=base_imponible, payslip=payslip)
+            afp_patronal = contract.calcular_aporte_patronal(constants.TIPO_DED_AFP, salario_bruto=base_imponible, payslip=payslip)
+            isss_patronal = contract.calcular_aporte_patronal(constants.TIPO_DED_ISSS, salario_bruto=base_imponible, payslip=payslip)
+            incaf = contract.calcular_incaf(salario_bruto=base_imponible, payslip=payslip)
         except Exception as e:
             _logger.error("Error al calcular deducciones para contrato %s: %s", contract.id, e)
             raise UserError(_("Ocurrió un error al calcular deducciones: %s") % str(e))
@@ -166,42 +155,75 @@ class HrPayslip(models.Model):
         Método reutilizable para crear los inputs de deducciones (RENTA, AFP, ISSS, etc.)
         a partir de una base imponible.
         """
+        _logger.info("Iniciando creación de inputs de deducción para nómina ID=%s | contrato ID=%s | base_total=%.2f", slip.id, contract.id, base_total)
+
         # Primero eliminamos entradas previas para evitar duplicados
-        for code in ['RENTA', 'RENTA_SP', 'AFP', 'ISSS', 'ISSS_EMP', 'AFP_EMP', 'INCAF']:
+        for code in constants.DEDUCCION_CODES:
             old_inputs = slip.input_line_ids.filtered(lambda l: l.code == code)
             if old_inputs:
-                _logger.info("Eliminando inputs previos código %s para nómina %d", code, slip.id)
+                _logger.info("Eliminando %d inputs previos con código %s para nómina ID=%d", len(old_inputs), code,
+                             slip.id)
                 old_inputs.unlink()
 
         # Obtener valores de deducciones
-        renta, afp, isss, afp_patronal, isss_patronal, incaf = self._obtener_deducciones(contract, base_total)
+        renta, afp, isss, afp_patronal, isss_patronal, incaf = self._obtener_deducciones(payslip=slip, contract=contract, base_imponible=base_total)
+
+        _logger.info(
+            "Deducciones obtenidas → renta=%.2f, afp=%.2f, isss=%.2f, afp_patronal=%.2f, isss_patronal=%.2f, incaf=%.2f",
+            renta, afp, isss, afp_patronal, isss_patronal, incaf)
+
         tipos = {
             code: self.env['hr.payslip.input.type'].search([('code', '=', code)], limit=1)
-            for code in ['RENTA', 'RENTA_SP', 'AFP', 'ISSS', 'ISSS_EMP', 'AFP_EMP', 'INCAF']
+            for code in constants.DEDUCCION_CODES
         }
 
-        # Validar que existan tipos
+        # Validar existencia de tipos de input
         for code, tipo in tipos.items():
             if not tipo:
+                _logger.error("No se encontró tipo de input con código %s", code)
                 raise UserError(_("No se encontró el tipo de input para %s.") % code)
+            else:
+                _logger.debug("Tipo de input encontrado → código=%s, nombre=%s", code, tipo.name)
 
         # Determinar si es contrato profesional
         is_professional = contract.wage_type == constants.SERVICIOS_PROFESIONALES
+        _logger.info("Tipo de contrato: %s", "Servicios Profesionales" if is_professional else "Regular")
+
+        variables = {
+            'renta': renta,
+            'afp': afp,
+            'isss': isss,
+            'afp_patronal': afp_patronal,
+            'isss_patronal': isss_patronal,
+            'incaf': incaf,
+        }
+
         valores = []
 
         if is_professional:
             valores.append(('RENTA_SP', -abs(renta)))
-            _logger.info("Contrato de servicios profesionales → solo se agrega RENTA")
+            _logger.info("Contrato de servicios profesionales → Solo se agrega RENTA_SP con valor %.2f", -abs(renta))
         else:
-            valores = [
-                ('RENTA', -abs(renta)),
-                ('AFP', -abs(afp)),
-                ('ISSS', -abs(isss)),
-                ('ISSS_EMP', abs(isss_patronal)),
-                ('AFP_EMP', abs(afp_patronal)),
-                ('INCAF', -abs(incaf)),
+            # Deducciones base
+            base_vals = [
+                (code, abs(variables[var]) * sign)
+                for code, var, sign in constants.BASE_DEDUCCIONES
             ]
-            _logger.info("Deducciones calculadas: %s", valores)
+            valores += base_vals
+            _logger.info("Deducciones BASE: %s", base_vals)
+
+            # Deducciones según tipo de AFP
+            afp_rules = (
+                constants.AFP_IPSFA_CODES
+                if contract.afp_id == constants.AFP_IPSFA
+                else constants.AFP_REGULAR_CODES
+            )
+            afp_vals = [
+                (code, abs(variables[var]) * sign)
+                for code, var, sign in afp_rules
+            ]
+            valores += afp_vals
+            _logger.info("Deducciones AFP: %s", afp_vals)
 
         # Crear inputs en la nómina
         for code, valor in valores:
@@ -214,7 +236,10 @@ class HrPayslip(models.Model):
                     'payslip_id': slip.id,
                     'input_type_id': tipo.id,
                 })
-                _logger.info("Input %s agregado a nómina %d con monto %.2f", code, slip.id, valor)
+                _logger.info("Input agregado: código=%s, nombre=%s, monto=%.2f, nómina ID=%d",
+                             code, tipo.name, valor, slip.id)
+            else:
+                _logger.warning("Tipo de input para código %s no encontrado, no se creó input", code)
 
     # ==========FALTAS INJUSTIFICADAS
     def _aplicar_descuento_septimo_por_faltas(self):
@@ -295,8 +320,8 @@ class HrPayslip(models.Model):
                 # Límite por quincena = 2 domingos
                 dias_perdidos_quincena = min(total_semanas_afectadas, 2)
                 # Calcular descuento final con el límite aplicado
-                monto_total_descuento += salario_diario * dias_perdidos_quincena
-                _logger.info("[%s] Pierde %d domingos (de %d posibles) → descuento %.2f", slip.employee_id.name, dias_perdidos_quincena, total_semanas_afectadas, monto_descuento)
+                monto_total_descuento += float_round(salario_diario * dias_perdidos_quincena, precision_digits=2)
+                _logger.info("[%s] Pierde %d domingos (de %d posibles) → descuento %.2f", slip.employee_id.name, dias_perdidos_quincena, total_semanas_afectadas, monto_total_descuento)
 
             if monto_total_descuento <= 0:
                 _logger.info("[%s] Monto total de descuento = 0 → no se crea input", slip.employee_id.name)
@@ -312,6 +337,7 @@ class HrPayslip(models.Model):
                     'amount': -abs(monto_total_descuento),
                     'payslip_id': slip.id,
                     'input_type_id': tipo_input.id,
+                    'name': tipo_input.name,
                 })
                 _logger.info("[%s] Creado input %s con %.2f", slip.employee_id.name, tipo_input.code, monto_total_descuento)
 
@@ -348,7 +374,6 @@ class HrPayslip(models.Model):
             pago_base = base_vacaciones
             extra_30 = pago_base * (extra_pct / 100.0)
             total = pago_base + extra_30
-
         else:
             # Caso vacaciones completas
             dias_vacaciones = dias_derecho
@@ -444,17 +469,17 @@ class HrPayslip(models.Model):
                 continue
 
             # Buscar si hay alguna ausencia (tiempo personal) en el período del slip
-            leave = self.env['hr.leave'].search([
-                ('employee_id', '=', slip.employee_id.id),
-                ('date_from', '<=', slip.date_to),
-                ('date_to', '>=', slip.date_from),
-                ('holiday_status_id.is_vacation', '=', True),  # solo vacaciones
-            ], limit=1)
+            # leave = self.env['hr.leave'].search([
+            #     ('employee_id', '=', slip.employee_id.id),
+            #     ('date_from', '<=', slip.date_to),
+            #     ('date_to', '>=', slip.date_from),
+            #     ('holiday_status_id.is_vacation', '=', True),  # solo vacaciones
+            # ], limit=1)
 
             # Si tiene vacation_full = True, NO ajustamos
-            if leave and leave.vacation_full:
-                _logger.info("Vacaciones registradas como COMPLETAS (vacation_full=True) → NO se ajusta importe para %s", slip.name)
-                continue
+            # if leave and leave.vacation_full:
+            #     _logger.info("Vacaciones registradas como COMPLETAS (vacation_full=True) → NO se ajusta importe para %s", slip.name)
+            #     continue
 
             # --- SOLO sigue si no es vacation_full ---
             _logger.info("=== Ajustando línea de asistencia SOLO para vacaciones parciales en %s ===", slip.name)

@@ -36,8 +36,6 @@
 
         "views/hr_payslip_inherit_view.xml",
         "views/hr_payslip_form_inherit.xml",
-        #"views/hr_attendance_inherit.xml",
-        #"views/hr_contract_form_inherit_pagos.xml",
         "views/hr_leave_vacation_type.xml",
 
         "views/hr_contract_form_view.xml",
