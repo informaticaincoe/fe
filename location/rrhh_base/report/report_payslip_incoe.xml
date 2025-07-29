@@ -2,438 +2,461 @@
 <odoo>
     <data>
         <template id="report_boleta_pago_template" name="Boleta de pago">
-            <t name="Boleta de pago" t-name="rrhh_base.report_boleta_pago_template">
-                <t t-name="rrhh_base.report_boleta_pago_template">
-                    <t t-call="web.html_container">
-                        <meta charset="UTF-8"/>
-                        <t t-call-assets="web.assets_pdf" t-js="false"/>
-                        <t t-set="o" t-value="docs[0]"/>
-                        <div class="page">
-                            <style>
-                                body {
-                                font-family: 'Inter', sans-serif !important;
-                                font-size: 10px;
-                                }
+            <t t-name="rrhh_base.report_boleta_pago_template">
+                <t t-call="web.html_container">
+                    <meta charset="UTF-8"/>
+                    <t t-call-assets="web.assets_pdf" t-js="false"/>
+                    <t t-set="o" t-value="docs[0]"/>
+                    <div class="page">
+                        <style>
+                            body {
+                            font-family: 'Inter', sans-serif !important;
+                            font-size: 10px;
+                            }
 
-                                h1 {
-                                font-size: 18px;
-                                font-weight: bold;
-                                }
+                            h1 {
+                            font-size: 18px;
+                            font-weight: bold;
+                            }
 
-                                h2 {
-                                font-size: 13px;
-                                font-weight: bold;
-                                margin: 5px 0;
-                                }
+                            h2 {
+                            font-size: 13px;
+                            font-weight: bold;
+                            margin: 5px 0;
+                            }
 
-                                table {
-                                width: 100%;
-                                border-collapse: collapse;
-                                }
+                            table {
+                            width: 100%;
+                            border-collapse: collapse;
+                            }
 
-                                th, td {
-                                padding: 1% 2%;
-                                border: 1px solid #ccc;
-                                text-align: left;
-                                }
+                            th, td {
+                            padding: 1% 2%;
+                            border: 1px solid #ccc;
+                            text-align: left;
+                            }
 
-                                .py-1{
-                                padding: 2% 2%;
-                                }
+                            .py-1{
+                            padding: 2% 2%;
+                            }
 
-                                .no-border {
-                                border: none !important;
-                                }
+                            .no-border {
+                            border: none !important;
+                            }
 
-                                .header-table td {
-                                vertical-align: top;
-                                }
+                            .header-table td {
+                            vertical-align: top;
+                            }
 
-                                .label {
-                                font-weight: bold;
-                                }
+                            .label {
+                            font-weight: bold;
+                            }
 
-                                .highlight {
-                                background-color: #EAEDFF;
-                                font-weight: bold;
-                                font-size: 0.8rem;
-                                padding: 4% 2%;
-                                }
+                            .highlight {
+                            background-color: #EAEDFF;
+                            font-weight: bold;
+                            font-size: 0.8rem;
+                            padding: 4% 2%;
+                            }
 
-                                .footer {
-                                background-color: #FFF2E4;
-                                font-weight: bold;
-                                }
+                            .footer {
+                            background-color: #FFF2E4;
+                            font-weight: bold;
+                            }
 
-                                .section-title {
-                                font-weight: bold;
-                                font-size: 16px;
-                                margin-top: 10px;
-                                margin-bottom: 5px;
-                                }
+                            .section-title {
+                            font-weight: bold;
+                            font-size: 16px;
+                            margin-top: 10px;
+                            margin-bottom: 5px;
+                            }
 
-                                .border-clean {
-                                border-left-color: transparent;
-                                border-right-color: transparent;
-                                }
+                            .border-clean {
+                            border-left-color: transparent;
+                            border-right-color: transparent;
+                            }
 
-                                .text-gray-color {
-                                color: #4A4A4A;
-                                }
+                            .text-gray-color {
+                            color: #4A4A4A;
+                            }
 
-                            </style>
-                            <t t-set="attendances"
-                               t-value="o.env['hr.attendance'].search([        ('employee_id', '=', o.employee_id.id),        ('check_in', '&gt;=', o.date_from),        ('check_out', '&lt;=', o.date_to)    ])"/>
+                        </style>
+                        <!-- Encabezado -->
+                        <t t-set="company" t-value="o.company_id"/>
+                        <t t-set="hay_vacaciones"
+                           t-value="any(line.code == 'VACACIONES' for line in o.input_line_ids)"/>
+                        <t t-set="report_utils" t-value="o.env['report.rrhh_base.report_helpers']"/>
 
-                            <t t-set="dias_laborados" t-value="len(attendances)"/>
-                            <!-- Encabezado -->
-                            <t t-set="company" t-value="o.company_id"/>
-                            <t t-set="hay_vacaciones"
-                               t-value="any(line.code == 'VACACIONES' for line in o.input_line_ids)"/>
-                            <t t-set="report_utils" t-value="o.env['report.rrhh_base.report_helpers']"/>
-
-                            <!-- Encabezado -->
-                            <!--<div style="position: absolute; top: 17%; left: 22%; z-index: -1; border-color: #fff;"><img id="marca-de-agua" class="watermark-img" t-att-src="'data:image/png;base64,%s' % company.logo_web.decode('utf-8')" style="width: 500px; border-color: #fff; "/></div>
-                                        -->
-                            <table class="header-table" style="margin-bottom: 3%;">
-                                <tr>
-                                    <td style="border-color: #fff;">
-                                        <div>
-                                            <t t-if="company.logo_web">
-                                                <img id="logo"
-                                                     t-att-src="'data:image/png;base64,%s' % company.logo_web.decode('utf-8')"
-                                                     style="width:20vw;"/>
-                                            </t>
-                                        </div>
-                                    </td>
-                                    <td style="width: 30%; border-color: #fff;"/>
-                                    <td style="width: 40%; border-color: #fff; text-align:start;">
-                                        <h1 style="font-weight: bolder; font-size: 1.5rem; margin:0;">RECIBO DE
-                                            SALARIO
-                                        </h1>
-                                        <t t-if="hay_vacaciones">
-                                            <h1 style="font-weight: bold; font-size: 0.9rem; margin:0;">
-                                                Vacaciones
-                                            </h1>
+                        <!-- Encabezado -->
+                        <!--<div style="position: absolute; top: 17%; left: 22%; z-index: -1; border-color: #fff;"><img id="marca-de-agua" class="watermark-img" t-att-src="'data:image/png;base64,%s' % company.logo_web.decode('utf-8')" style="width: 500px; border-color: #fff; "/></div>
+                                    -->
+                        <table class="header-table" style="margin-bottom: 3%;">
+                            <tr>
+                                <td style="border-color: #fff;">
+                                    <div>
+                                        <t t-if="company.logo_web">
+                                            <img id="logo"
+                                                 t-att-src="'data:image/png;base64,%s' % company.logo_web.decode('utf-8')"
+                                                 style="width:20vw;"/>
                                         </t>
-                                        <div style="font-size: 0.8rem; margin-top:2%;">
-                                            <p style="margin: 0;">
-                                                <span class="label">Empleado:</span>
-                                                <span t-esc="o.employee_id.name"/>
-                                            </p>
-                                            <p style="margin: 0; margin-top:1%;">
-                                                <span class="label">Periodo:</span>
-                                                <span t-esc="o.date_from"/>
-                                                -
-
-                                                <span t-esc="o.date_to"/>
-                                            </p>
-                                        </div>
-                                    </td>
-                                </tr>
-                            </table>
-                            <!-- Sueldo base y días -->
-                            <table style="margin-bottom: 3%; table-layout: auto; width: 100%;">
-                                <tr style="background-color: #F1F1F1;">
-                                    <td class="label border-clean" style="nowrap; width: 15%;">Sueldo base</td>
-                                    <td class="label border-clean" style="text-align: start; width: 20%;">
-                                        <span t-esc="o.basic_wage"
-                                              t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
-                                    </td>
-                                    <td class="label border-clean" style="width: 15%;">Días laborados</td>
-                                    <td class="label border-clean" style="width: 20%;">
-                                        <span t-esc="len(attendances)"/>
-                                    </td>
+                                    </div>
+                                </td>
+                                <td style="width: 30%; border-color: #fff;"/>
+                                <td style="width: 40%; border-color: #fff; text-align:start;">
+                                    <h1 style="font-weight: bolder; font-size: 1.5rem; margin:0;">RECIBO DE
+                                        SALARIO
+                                    </h1>
                                     <t t-if="hay_vacaciones">
-                                        <td class="label border-clean" style="width: 25%;">Bono 30%</td>
-                                        <td class="label border-clean" style="width: 20%;">
-                                            <span t-esc="o.basic_wage * 0.3"/>
-                                        </td>
+                                        <h1 style="font-weight: bold; font-size: 0.9rem; margin:0;">
+                                            Vacaciones
+                                        </h1>
                                     </t>
-                                </tr>
-                            </table>
-                            <!-- Descuentos -->
-                            <t t-set="isss"
-                               t-value="round(abs(o.line_ids.filtered(lambda l: l.code == 'ISSS')[0].total if o.line_ids.filtered(lambda l: l.code == 'ISSS') else 0),2)"/>
-                            <t t-set="renta"
-                               t-value="round(abs(o.line_ids.filtered(lambda l: l.code == 'RENTA')[0].total if o.line_ids.filtered(lambda l: l.code == 'RENTA') else 0),2)"/>
-                            <t t-set="afp"
-                               t-value="round(abs(o.line_ids.filtered(lambda l: l.code == 'AFP')[0].total if o.line_ids.filtered(lambda l: l.code == 'AFP') else 0), 2)"/>
-                            <t t-set="prestamos"
-                               t-value="round(abs(o.line_ids.filtered(lambda l: l.code == 'PRESTAMOS')[0].total if o.line_ids.filtered(lambda l: l.code == 'PRESTAMOS') else 0), 2)"/>
-                            <t t-set="fsv"
-                               t-value="round(abs(o.line_ids.filtered(lambda l: l.code == 'FSV')[0].total if o.line_ids.filtered(lambda l: l.code == 'FSV') else 0), 2)"/>
-                            <t t-set="otros"
-                               t-value="round(abs(o.line_ids.filtered(lambda l: l.code == 'OTROS')[0].total if o.line_ids.filtered(lambda l: l.code == 'OTROS') else 0), 2)"/>
-                            <t t-set="v_empleado"
-                               t-value="round(abs(o.line_ids.filtered(lambda l: l.code == 'VENTA_EMPLEADOS')[0].total if o.line_ids.filtered(lambda l: l.code == 'VENTA_EMPLEADOS') else 0), 2)"/>
-                            <t t-set="banco"
-                               t-value="round(abs(o.line_ids.filtered(lambda l: l.code == 'BANCO')[0].total if o.line_ids.filtered(lambda l: l.code == 'BANCO') else 0), 2)"/>
-                            <t t-set="total_descuentos"
-                               t-value="round(isss + renta + afp + fsv + otros + v_empleado + banco + prestamos, 2)"/>
-                            <!-- Ingresos -->
-                            <t t-set="base"
-                               t-value="round(abs(o.line_ids.filtered(lambda l: l.code == 'BASIC')[0].total if o.line_ids.filtered(lambda l: l.code == 'BASIC') else 0), 2)"/>
-                            <t t-set="viaticos"
-                               t-value="round(abs(o.line_ids.filtered(lambda l: l.code == 'VIATICO')[0].total if o.line_ids.filtered(lambda l: l.code == 'VIATICO') else 0), 2)"/>
-                            <t t-set="comisiones"
-                               t-value="round(abs(o.line_ids.filtered(lambda l: l.code == 'COMISION')[0].total if o.line_ids.filtered(lambda l: l.code == 'COMISION') else 0), 2)"/>
-                            <t t-set="bonos"
-                               t-value="round(abs(o.line_ids.filtered(lambda l: l.code == 'BONO')[0].total if o.line_ids.filtered(lambda l: l.code == 'BONO') else 0), 2)"/>
-                            <t t-set="total_horas_extras"
-                               t-value="round(abs(o.line_ids.filtered(lambda l: l.code == 'OVERTIME')[0].total if o.line_ids.filtered(lambda l: l.code == 'OVERTIME') else 0), 2)"/>
-                            <t t-set="asignaciones_horas"
-                               t-value="o.env['hr.salary.assignment'].search([('payslip_id','=',o.id)])"/>
-                            <t t-set="horas" t-value="asignaciones_horas.mapped('horas_extras_ids')"/>
-                            <t t-set="extra" t-value="horas[0] if horas else None"/>
-                            <t t-set="total_ingresos"
-                               t-value="round(base + viaticos + comisiones + bonos + total_horas_extras,2)"/>
-                            <t t-set="config_he_diurna"
-                               t-value="o.env['res.configuration'].search([('clave','=','he_diurna'),('company_id','=',o.employee_id.company_id.id)], limit=1)"/>
-                            <t t-set="config_he_nocturnas"
-                               t-value="o.env['res.configuration'].search([('clave','=','he_nocturna'),('company_id','=',o.employee_id.company_id.id)], limit=1)"/>
-                            <t t-set="config_he_diurna_descanso"
-                               t-value="o.env['res.configuration'].search([('clave','=','he_diurna_dia_descanso'),('company_id','=',o.employee_id.company_id.id)], limit=1)"/>
-                            <t t-set="config_he_nocturnas_descanso"
-                               t-value="o.env['res.configuration'].search([('clave','=','he_nocturna_dia_descanso'),('company_id','=',o.employee_id.company_id.id)], limit=1)"/>
-                            <t t-set="config_he_diurna_festivo"
-                               t-value="o.env['res.configuration'].search([('clave','=','he_diurna_dia_festivo'),('company_id','=',o.employee_id.company_id.id)], limit=1)"/>
-                            <t t-set="config_he_nocturna_festivo"
-                               t-value="o.env['res.configuration'].search([('clave','=','he_nocturna_dia_festivo'),('company_id','=',o.employee_id.company_id.id)], limit=1)"/>
-                            <t t-set="he_diurna_porcenaje"
-                               t-value="report_utils.horas_a_decimal(extra.horas_diurnas) * float(config_he_diurna.value_text or 0) if extra else 0"/>
-                            <t t-set="he_nocturas_porcenaje"
-                               t-value="report_utils.horas_a_decimal(extra.horas_nocturnas) * float(config_he_nocturnas.value_text or 0) if extra else 0"/>
-                            <t t-set="he_diurna_descanso_porcentaje"
-                               t-value="report_utils.horas_a_decimal(extra.horas_diurnas_descanso) * float(config_he_diurna_descanso.value_text or 0) if extra else 0"/>
-                            <t t-set="he_nocturna_descanso_porcentaje"
-                               t-value="report_utils.horas_a_decimal(extra.horas_nocturnas_descanso) * float(config_he_nocturnas_descanso.value_text or 0) if extra else 0"/>
-                            <t t-set="he_diurna_festivo_porcentaje"
-                               t-value="report_utils.horas_a_decimal(extra.horas_diurnas_asueto) * float(config_he_diurna_festivo.value_text or 0) if extra else 0"/>
-                            <t t-set="he_nocturna_festivo_porcentaje"
-                               t-value="report_utils.horas_a_decimal(extra.horas_nocturnas_asueto) * float(config_he_nocturna_festivo.value_text or 0) if extra else 0"/>
-                            <!-- ... resto del contenido intacto ... -->
-                            <!-- -->
-                            <t t-set="pago_por_hora" t-value="o.basic_wage / 120"/>
-                            <table style="margin-bottom: 3%;">
-                                <tr>
-                                    <td style="width: 45%; vertical-align: top; border-color: transparent;">
-                                        <h2 style="font-size: 0.9rem">Ingresos</h2>
-                                        <table>
-                                            <thead>
-                                                <tr>
-                                                    <th class="border-clean border-bold py-1"
-                                                        style="border-top-color: #000; border-bottom-color: #000; font-weight: bold; font-size: 0.9rem;">
-                                                        Concepto
-                                                    </th>
-                                                    <th class="border-clean border-bold py-1"
-                                                        style="border-top-color: #000; border-bottom-color: #000; font-weight: bold; font-size: 0.9rem">
-                                                        Monto
-                                                    </th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                <tr>
-                                                    <td class="border-clean py-1">Horas Extra Diurnas</td>
-                                                    <td class="border-clean py-1">
-                                                        <t t-if="extra">
-                                                            <span t-esc="round(report_utils.horas_a_decimal(extra.horas_diurnas) * pago_por_hora * (he_diurna_porcenaje / 100), 2)"
-                                                                  t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
-                                                        </t>
-                                                        <t t-else="">
-                                                            <span>$ 0.00</span>
-                                                        </t>
-                                                    </td>
-                                                </tr>
-                                                <tr>
-                                                    <td class="border-clean py-1">Horas Extra Nocturnas</td>
-                                                    <td class="border-clean py-1">
-                                                        <t t-if="extra">
-                                                            <span t-esc="round(report_utils.horas_a_decimal(extra.horas_nocturnas) * pago_por_hora * (he_diurna_porcenaje / 100), 2)"
-                                                                  t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
-                                                        </t>
-                                                        <t t-else="">
-                                                            <span>$ 0.00</span>
-                                                        </t>
-                                                    </td>
-                                                </tr>
-                                                <tr>
-                                                    <td class="border-clean py-1">Horas Feriado Diurno</td>
-                                                    <td class="border-clean py-1">
-                                                        <t t-if="extra">
-                                                            <span t-esc="round(report_utils.horas_a_decimal(extra.horas_diurnas_asueto) * pago_por_hora * (he_diurna_festivo_porcentaje / 100), 2)"
-                                                                  t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
-                                                        </t>
-                                                        <t t-else="">
-                                                            <span>$ 0.00</span>
-                                                        </t>
-                                                    </td>
-                                                </tr>
-                                                <tr>
-                                                    <td class="border-clean py-1">Horas Feriado Nocturno</td>
-                                                    <td class="border-clean py-1">
-                                                        <t t-if="extra">
-                                                            <span t-esc="round(report_utils.horas_a_decimal(extra.horas_nocturnas_asueto) * pago_por_hora * (he_nocturna_festivo_porcentaje / 100), 2)"
-                                                                  t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
-                                                        </t>
-                                                        <t t-else="">
-                                                            <span>$ 0.00</span>
-                                                        </t>
-                                                    </td>
-                                                </tr>
-                                                <tr>
-                                                    <td class="border-clean py-1">Salario a pagar</td>
-                                                    <td class="border-clean py-1">
-                                                        <span t-esc="base"
+                                    <div style="font-size: 0.8rem; margin-top:2%;">
+                                        <p style="margin: 0;">
+                                            <span class="label">Empleado:</span>
+                                            <span t-esc="o.employee_id.name"/>
+                                        </p>
+                                        <p style="margin: 0; margin-top:1%;">
+                                            <span class="label">Periodo:</span>
+                                            <span t-esc="o.date_from"/>
+                                            -
+
+                                            <span t-esc="o.date_to"/>
+                                        </p>
+                                    </div>
+                                </td>
+                            </tr>
+                        </table>
+                        <!-- t t-set="dias_trabajados" t-value="o.env['hr.payslip.worked.days'].search([('payslip_id','=',o.id)])" />-->
+                        <t t-set="dias_trabajados" t-value="o.worked_days_line_ids[0]"/>
+
+                        <!-- Sueldo base y días -->
+                        <table style="margin-bottom: 3%; table-layout: auto; width: 100%;">
+                            <tr style="background-color: #F1F1F1;">
+                                <td class="label border-clean" style="nowrap; width: 15%;">Sueldo base</td>
+                                <td class="label border-clean" style="text-align: start; width: 20%;">
+                                    <span t-esc="o.basic_wage"
+                                          t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
+                                </td>
+                                <td class="label border-clean" style="width: 15%;">Días laborados</td>
+                                <td class="label border-clean" style="width: 20%;">
+                                    <t t-esc="('%.0f' % dias_trabajados.number_of_days)"/>
+                                </td>
+                                <t t-if="hay_vacaciones">
+                                    <td class="label border-clean" style="width: 25%;">Bono 30%</td>
+                                    <td class="label border-clean" style="width: 20%;">
+                                        <span t-esc="round(o.basic_wage * 0.3,2)"/>
+                                    </td>
+                                </t>
+                            </tr>
+                        </table>
+                        <!-- Descuentos -->
+                        <t t-set="isss"
+                           t-value="round(abs(o.line_ids.filtered(lambda l: l.code == 'ISSS')[0].total if o.line_ids.filtered(lambda l: l.code == 'ISSS') else 0),2)"/>
+                        <t t-set="renta"
+                           t-value="round(abs(o.line_ids.filtered(lambda l: l.code == 'RENTA')[0].total if o.line_ids.filtered(lambda l: l.code == 'RENTA') else 0),2)"/>
+                        <t t-set="afp"
+                           t-value="round(abs(o.line_ids.filtered(lambda l: l.code == 'AFP')[0].total if o.line_ids.filtered(lambda l: l.code == 'AFP') else 0), 2)"/>
+                        <t t-set="prestamos"
+                           t-value="round(abs(o.line_ids.filtered(lambda l: l.code == 'PRESTAMOS')[0].total if o.line_ids.filtered(lambda l: l.code == 'PRESTAMOS') else 0), 2)"/>
+                        <t t-set="fsv"
+                           t-value="round(abs(o.line_ids.filtered(lambda l: l.code == 'FSV')[0].total if o.line_ids.filtered(lambda l: l.code == 'FSV') else 0), 2)"/>
+                        <t t-set="otros"
+                           t-value="round(abs(o.line_ids.filtered(lambda l: l.code == 'OTROS')[0].total if o.line_ids.filtered(lambda l: l.code == 'OTROS') else 0), 2)"/>
+                        <t t-set="v_empleado"
+                           t-value="round(abs(o.line_ids.filtered(lambda l: l.code == 'VENTA_EMPLEADOS')[0].total if o.line_ids.filtered(lambda l: l.code == 'VENTA_EMPLEADOS') else 0), 2)"/>
+                        <t t-set="banco"
+                           t-value="round(abs(o.line_ids.filtered(lambda l: l.code == 'BANCO')[0].total if o.line_ids.filtered(lambda l: l.code == 'BANCO') else 0), 2)"/>
+                        <t t-set="total_descuentos"
+                           t-value="round(isss + renta + afp + fsv + otros + v_empleado + banco + prestamos, 2)"/>
+                        <!-- Ingresos -->
+
+                        <t t-set="hay_horas_extra"
+                           t-value="o.line_ids.filtered(lambda l: l.code == 'OVERTIME') and o.line_ids.filtered(lambda l: l.code == 'OVERTIME')[0].total != 0"/>
+
+
+                        <t t-set="base"
+                           t-value="round(abs(o.line_ids.filtered(lambda l: l.code == 'BASIC')[0].total if o.line_ids.filtered(lambda l: l.code == 'BASIC') else 0), 2)"/>
+                        <t t-set="viaticos"
+                           t-value="round(abs(o.line_ids.filtered(lambda l: l.code == 'VIATICO')[0].total if o.line_ids.filtered(lambda l: l.code == 'VIATICO') else 0), 2)"/>
+                        <t t-set="comisiones"
+                           t-value="round(abs(o.line_ids.filtered(lambda l: l.code == 'COMISION')[0].total if o.line_ids.filtered(lambda l: l.code == 'COMISION') else 0), 2)"/>
+                        <t t-set="bonos"
+                           t-value="round(abs(o.line_ids.filtered(lambda l: l.code == 'BONO')[0].total if o.line_ids.filtered(lambda l: l.code == 'BONO') else 0), 2)"/>
+                        <t t-set="total_horas_extras"
+                           t-value="round(abs(o.line_ids.filtered(lambda l: l.code == 'OVERTIME')[0].total if o.line_ids.filtered(lambda l: l.code == 'OVERTIME') else 0), 2)"/>
+                        <t t-set="asignaciones_horas"
+                           t-value="o.env['hr.salary.assignment'].search([('payslip_id','=',o.id)])"/>
+                        <t t-set="horas" t-value="asignaciones_horas.mapped('horas_extras_ids')"/>
+                        <t t-set="extra" t-value="(horas[0] if horas and hay_horas_extra else None)"/>
+                        <t t-set="total_ingresos"
+                           t-value="round(base + viaticos + comisiones + bonos + total_horas_extras,2)"/>
+
+                        <!-- configuracion de porcentaje por tipo de hora extra -->
+                        <t t-set="config_he_diurna"
+                           t-value="o.env['res.configuration'].search([('clave','=','he_diurna'),('company_id','=',o.employee_id.company_id.id)], limit=1) or {'value_text': '0'}"/>
+                        <t t-set="config_he_nocturnas"
+                           t-value="o.env['res.configuration'].search([('clave','=','he_nocturna'),('company_id','=',o.employee_id.company_id.id)], limit=1) or {'value_text': '0'}"/>
+                        <t t-set="config_he_diurna_descanso"
+                           t-value="o.env['res.configuration'].search([('clave','=','he_diurna_dia_descanso'),('company_id','=',o.employee_id.company_id.id)], limit=1) or {'value_text': '0'}"/>
+                        <t t-set="config_he_nocturnas_descanso"
+                           t-value="o.env['res.configuration'].search([('clave','=','he_nocturna_dia_descanso'),('company_id','=',o.employee_id.company_id.id)], limit=1) or {'value_text': '0'}"/>
+                        <t t-set="config_he_diurna_festivo"
+                           t-value="o.env['res.configuration'].search([('clave','=','he_diurna_dia_festivo'),('company_id','=',o.employee_id.company_id.id)], limit=1) or {'value_text': '0'}"/>
+                        <t t-set="config_he_nocturna_festivo"
+                           t-value="o.env['res.configuration'].search([('clave','=','he_nocturna_dia_festivo'),('company_id','=',o.employee_id.company_id.id)], limit=1) or {'value_text': '0'}"/>
+
+
+                        <!-- Cantidad horas extras -->
+                        <t t-set="he_diurna_cantidad"
+                           t-value="report_utils.horas_a_decimal(extra.horas_diurnas) if extra and extra.horas_diurnas else 0"/>
+                        <t t-set="he_nocturas_cantidad"
+                           t-value="report_utils.horas_a_decimal(extra.horas_nocturnas) if extra and extra.horas_nocturnas else 0"/>
+                        <t t-set="he_diurna_descanso_cantidad"
+                           t-value="report_utils.horas_a_decimal(extra.horas_diurnas_descanso) if extra and extra.horas_diurnas_descanso else 0"/>
+                        <t t-set="he_nocturna_descanso_cantidad"
+                           t-value="report_utils.horas_a_decimal(extra.horas_nocturnas_descanso) if extra and extra.horas_nocturnas_descanso else 0"/>
+                        <t t-set="he_diurna_festivo_cantidad"
+                           t-value="report_utils.horas_a_decimal(extra.horas_diurnas_asueto) if extra and extra.horas_diurnas_asueto else 0"/>
+                        <t t-set="he_nocturna_festivo_cantidad"
+                           t-value="report_utils.horas_a_decimal(extra.horas_nocturnas_asueto) if extra and extra.horas_nocturnas_asueto else 0"/>
+
+
+                        <!-- Pago por hora extra -->
+                        <t t-set="pago_por_hora" t-value="o.basic_wage / 120"/>
+                        <t t-set="pago_por_he_diurna"
+                           t-value="round(he_diurna_cantidad * (pago_por_hora * (float(config_he_diurna.value_text) / 100)),2)"/>
+                        <t t-set="pago_por_he_nocturna"
+                           t-value="round(he_nocturas_cantidad * (pago_por_hora * (float(config_he_nocturnas.value_text) / 100)),2)"/>
+                        <t t-set="pago_por_he_diurna_descanso"
+                           t-value="round(he_diurna_descanso_cantidad * (pago_por_hora * (float(config_he_diurna_descanso.value_text) / 100)),2)"/>
+                        <t t-set="pago_por_he_nocturna_descanso"
+                           t-value="round(he_nocturna_descanso_cantidad * (pago_por_hora * (float(config_he_nocturnas_descanso.value_text) / 100)),2)"/>
+                        <t t-set="pago_por_he_diurna_festivo"
+                           t-value="round(he_diurna_festivo_cantidad * (pago_por_hora * (float(config_he_diurna_festivo.value_text) / 100)),2)"/>
+                        <t t-set="pago_por_he_nocturna_festivo"
+                           t-value="round(he_nocturna_festivo_cantidad * (pago_por_hora * (float(config_he_nocturna_festivo.value_text) / 100)),2)"/>
+
+                        <table style="margin-bottom: 3%;">
+                            <tr>
+                                <td style="width: 45%; vertical-align: top; border-color: transparent;">
+                                    <h2 style="font-size: 0.9rem">Ingresos</h2>
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th class="border-clean border-bold py-1"
+                                                    style="border-top-color: #000; border-bottom-color: #000; font-weight: bold; font-size: 0.9rem;">
+                                                    Concepto
+                                                </th>
+                                                <th class="border-clean border-bold py-1"
+                                                    style="border-top-color: #000; border-bottom-color: #000; font-weight: bold; font-size: 0.9rem">
+                                                    Monto
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+
+                                            <tr>
+                                                <td class="border-clean py-1">Horas Extra Diurnas</td>
+                                                <td class="border-clean py-1">
+                                                    <t t-if="extra">
+                                                        <span t-esc="pago_por_he_diurna"
                                                               t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
+                                                    </t>
+                                                    <t t-else="">
+                                                        <span>$ 0.00</span>
+                                                    </t>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td class="border-clean py-1">Horas Extra Nocturnas</td>
+                                                <td class="border-clean py-1">
+                                                    <t t-if="extra">
+                                                        <span t-esc="pago_por_he_nocturna"
+                                                              t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
+                                                    </t>
+                                                    <t t-else="">
+                                                        <span>$ 0.00</span>
+                                                    </t>
+                                                </td>
+                                            </tr>
+
+                                            <tr>
+                                                <td class="border-clean py-1">Horas Feriado Diurno</td>
+                                                <td class="border-clean py-1">
+                                                    <t t-if="extra">
+                                                        <span t-esc="pago_por_he_diurna_festivo"
+                                                              t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
+                                                    </t>
+                                                    <t t-else="">
+                                                        <span>$ 0.00</span>
+                                                    </t>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td class="border-clean py-1">Horas Feriado Nocturno</td>
+                                                <td class="border-clean py-1">
+                                                    <t t-if="extra">
+                                                        <span t-esc="pago_por_he_nocturna_festivo"
+                                                              t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
+                                                    </t>
+                                                    <t t-else="">
+                                                        <span>$ 0.00</span>
+                                                    </t>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td class="border-clean py-1">Salario a pagar</td>
+                                                <td class="border-clean py-1">
+                                                    <span t-esc="base"
+                                                          t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td class="border-clean py-1">Viáticos ordinarios</td>
+                                                <td class="border-clean py-1">
+                                                    <span t-esc="viaticos"
+                                                          t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td class="border-clean py-1">Comisiones</td>
+                                                <td class="border-clean py-1">
+                                                    <span t-esc="comisiones"
+                                                          t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td class="border-clean py-1" style="border-bottom: 0px;">
+                                                    Bonos
+                                                </td>
+                                                <td class="border-clean py-1" style="border-bottom: 0px;">
+                                                    <span t-esc="bonos"
+                                                          t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
+                                                </td>
+                                            </tr>
+                                            <tr class="highlight">
+                                                <td class="border-clean"
+                                                    style="border-top-color: #475294; border-bottom-color: #475294; padding: 2%;">
+                                                    Total Ingresos
+                                                </td>
+                                                <td class="border-clean"
+                                                    style="border-top-color: #475294; border-bottom-color: #475294; padding: 2%;">
+                                                    <span t-esc="total_ingresos"
+                                                          t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+
+                                    </table>
+                                </td>
+                                <td style="width: 2%; border-color: transparent;"/>
+                                <td style="width: 45%; vertical-align: top; border-color: #fff;">
+                                    <h2 style="font-size: 0.9rem">Descuentos</h2>
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th class="border-clean py-1"
+                                                    style="border-top-color: #000; border-bottom-color: #000; font-weight: bold; font-size: 0.9rem;">
+                                                    Concepto
+                                                </th>
+                                                <th class="border-clean py-1"
+                                                    style="border-top-color: #000; border-bottom-color: #000; font-weight: bold; font-size: 0.9rem;">
+                                                    Monto
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td class="border-clean py-1">ISSS</td>
+                                                <td class="border-clean py-1">
+                                                    <span t-esc="isss"
+                                                          t-options="{'widget': 'monetary', 'display_currency': o.currency_id}"/>
+                                                </td>
+                                                <tr>
+                                                    <td class="border-clean py-1">Renta</td>
+                                                    <td class="border-clean py-1">
+                                                        <span t-esc="renta"
+                                                              t-options="{'widget': 'monetary', 'display_currency': o.currency_id}"/>
                                                     </td>
                                                 </tr>
                                                 <tr>
-                                                    <td class="border-clean py-1">Viáticos ordinarios</td>
+                                                    <td class="border-clean py-1">AFP</td>
                                                     <td class="border-clean py-1">
-                                                        <span t-esc="viaticos"
-                                                              t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
+                                                        <span t-esc="afp"
+                                                              t-options="{'widget': 'monetary', 'display_currency': o.currency_id}"/>
                                                     </td>
                                                 </tr>
                                                 <tr>
-                                                    <td class="border-clean py-1">Comisiones</td>
+                                                    <td class="border-clean py-1">Fondo de pensiones</td>
                                                     <td class="border-clean py-1">
-                                                        <span t-esc="comisiones"
-                                                              t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
+                                                        <span t-esc="fsv"
+                                                              t-options="{'widget': 'monetary', 'display_currency': o.currency_id}"/>
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="border-clean py-1">Otros</td>
+                                                    <td class="border-clean py-1">
+                                                        <span t-esc="otros"
+                                                              t-options="{'widget': 'monetary', 'display_currency': o.currency_id}"/>
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="border-clean py-1">Bancos</td>
+                                                    <td class="border-clean py-1">
+                                                        <span t-esc="banco"
+                                                              t-options="{'widget': 'monetary', 'display_currency': o.currency_id}"/>
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="border-clean py-1">Venta a empleados</td>
+                                                    <td class="border-clean py-1">
+                                                        <span t-esc="v_empleado"
+                                                              t-options="{'widget': 'monetary', 'display_currency': o.currency_id}"/>
                                                     </td>
                                                 </tr>
                                                 <tr>
                                                     <td class="border-clean py-1" style="border-bottom: 0px;">
-                                                        Bonos
+                                                        Préstamos
                                                     </td>
                                                     <td class="border-clean py-1" style="border-bottom: 0px;">
-                                                        <span t-esc="bonos"
-                                                              t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
+                                                        <span t-esc="prestamos"
+                                                              t-options="{'widget': 'monetary', 'display_currency': o.currency_id}"/>
                                                     </td>
                                                 </tr>
                                                 <tr class="highlight">
                                                     <td class="border-clean"
                                                         style="border-top-color: #475294; border-bottom-color: #475294; padding: 2%;">
-                                                        Total Ingresos
+                                                        Total Descuentos
                                                     </td>
                                                     <td class="border-clean"
                                                         style="border-top-color: #475294; border-bottom-color: #475294; padding: 2%;">
-                                                        <span t-esc="total_ingresos"
-                                                              t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
-                                                    </td>
-                                                </tr>
-                                            </tbody>
-
-                                        </table>
-                                    </td>
-                                    <td style="width: 2%; border-color: transparent;"/>
-                                    <td style="width: 45%; vertical-align: top; border-color: #fff;">
-                                        <h2 style="font-size: 0.9rem">Descuentos</h2>
-                                        <table>
-                                            <thead>
-                                                <tr>
-                                                    <th class="border-clean py-1"
-                                                        style="border-top-color: #000; border-bottom-color: #000; font-weight: bold; font-size: 0.9rem;">
-                                                        Concepto
-                                                    </th>
-                                                    <th class="border-clean py-1"
-                                                        style="border-top-color: #000; border-bottom-color: #000; font-weight: bold; font-size: 0.9rem;">
-                                                        Monto
-                                                    </th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                <tr>
-                                                    <td class="border-clean py-1">ISSS</td>
-                                                    <td class="border-clean py-1">
-                                                        <span t-esc="isss"
+                                                        <span t-esc="total_descuentos"
                                                               t-options="{'widget': 'monetary', 'display_currency': o.currency_id}"/>
                                                     </td>
-                                                    <tr>
-                                                        <td class="border-clean py-1">Renta</td>
-                                                        <td class="border-clean py-1">
-                                                            <span t-esc="renta"
-                                                                  t-options="{'widget': 'monetary', 'display_currency': o.currency_id}"/>
-                                                        </td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td class="border-clean py-1">AFP</td>
-                                                        <td class="border-clean py-1">
-                                                            <span t-esc="afp"
-                                                                  t-options="{'widget': 'monetary', 'display_currency': o.currency_id}"/>
-                                                        </td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td class="border-clean py-1">Fondo de pensiones</td>
-                                                        <td class="border-clean py-1">
-                                                            <span t-esc="fsv"
-                                                                  t-options="{'widget': 'monetary', 'display_currency': o.currency_id}"/>
-                                                        </td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td class="border-clean py-1">Otros</td>
-                                                        <td class="border-clean py-1">
-                                                            <span t-esc="otros"
-                                                                  t-options="{'widget': 'monetary', 'display_currency': o.currency_id}"/>
-                                                        </td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td class="border-clean py-1">Bancos</td>
-                                                        <td class="border-clean py-1">
-                                                            <span t-esc="banco"
-                                                                  t-options="{'widget': 'monetary', 'display_currency': o.currency_id}"/>
-                                                        </td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td class="border-clean py-1">Venta a empleados</td>
-                                                        <td class="border-clean py-1">
-                                                            <span t-esc="v_empleado"
-                                                                  t-options="{'widget': 'monetary', 'display_currency': o.currency_id}"/>
-                                                        </td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td class="border-clean py-1" style="border-bottom: 0px;">
-                                                            Préstamos
-                                                        </td>
-                                                        <td class="border-clean py-1" style="border-bottom: 0px;">
-                                                            <span t-esc="prestamos"
-                                                                  t-options="{'widget': 'monetary', 'display_currency': o.currency_id}"/>
-                                                        </td>
-                                                    </tr>
-                                                    <tr class="highlight">
-                                                        <td class="border-clean"
-                                                            style="border-top-color: #475294; border-bottom-color: #475294; padding: 2%;">
-                                                            Total Descuentos
-                                                        </td>
-                                                        <td class="border-clean"
-                                                            style="border-top-color: #475294; border-bottom-color: #475294; padding: 2%;">
-                                                            <span t-esc="total_descuentos"
-                                                                  t-options="{'widget': 'monetary', 'display_currency': o.currency_id}"/>
-                                                        </td>
-                                                    </tr>
                                                 </tr>
-                                            </tbody>
-                                        </table>
-                                    </td>
-                                </tr>
-                            </table>
-                            <h2 style="font-size: 0.9rem;">Sueldo líquido</h2>
-                            <table style="">
-                                <tr class="footer">
-                                    <td class="border-clean"
-                                        style="font-size: 0.9rem; border-top-color: #D1AA7F; border-bottom-color: #D1AA7F;">
-                                        Sueldo a pagar
-                                    </td>
-                                    <td class="border-clean"
-                                        style="border-top-color: #D1AA7F; border-bottom-color: #D1AA7F;">
-                                        <span t-esc="o.net_wage"
-                                              t-options="{'widget':'monetary','display_currency':o.currency_id}"
-                                              style="font-size: 0.8rem;"/>
-                                    </td>
-                                </tr>
-                            </table>
-                        </div>
-                    </t>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </td>
+                            </tr>
+                        </table>
+                        <h2 style="font-size: 0.9rem;">Sueldo líquido</h2>
+                        <table style="">
+                            <tr class="footer">
+                                <td class="border-clean"
+                                    style="font-size: 0.9rem; border-top-color: #D1AA7F; border-bottom-color: #D1AA7F;">
+                                    Sueldo a pagar
+                                </td>
+                                <td class="border-clean"
+                                    style="border-top-color: #D1AA7F; border-bottom-color: #D1AA7F;">
+                                    <span t-esc="o.net_wage"
+                                          t-options="{'widget':'monetary','display_currency':o.currency_id}"
+                                          style="font-size: 0.8rem;"/>
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
                 </t>
             </t>
         </template>
