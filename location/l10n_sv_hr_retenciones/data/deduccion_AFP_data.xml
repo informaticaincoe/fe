@@ -1,9 +1,9 @@
 <odoo>
-    <data noupdate="1">
+    <data noupdate="0">
 <!--        AFP CRECER-->
         <!-- Definición de un tipo de entrada para deducción AFP -->
         <record id="input_type_deduccion_afp" model="hr.payslip.input.type">
-            <field name="name">Deducción AFP</field>
+            <field name="name">AFP CRECER</field>
             <field name="code">AFP</field>
         </record>
 

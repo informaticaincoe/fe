@@ -18,7 +18,8 @@
                     <field name="total_devengado"/>
                     <field name="isss"/>
                     <field name="isr"/>
-                    <field name="afp"/>
+                    <field name="afp" string="AFP Crecer"/>
+                    <field name="afp_confia" string="AFP Confia"/>
                     <field name="otros"/>
                     <field name="bancos"/>
                     <field name="venta_empleados"/>
@@ -80,7 +81,8 @@
                     <field name="total_devengado" string="Total devengado"/>
                     <field name="isss" string="ISSS"/>
                     <field name="isr" string="ISR"/>
-                    <field name="afp" string="AFP"/>
+                    <field name="afp" string="AFP Crecer"/>
+                    <field name="afp_confia" string="AFP Confia"/>
                     <field name="otros" string="Otros"/>
                     <field name="bancos" string="Bancos"/>
                     <field name="venta_empleados" string="Venta a empelados"/>

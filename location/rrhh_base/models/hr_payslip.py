@@ -24,21 +24,29 @@ class HrPayslip(models.Model):
     )
 
     total_worked_days = fields.Float(
-        string='Total Worked Days',
+        string='Dias laborados',
         compute='_compute_worked_days_total',
         readonly=True,
         store=False  # No se almacena en la base de datos
     )
 
     total_worked_hours = fields.Float(
-        string='Total Worked Hours',
+        string='Horas laboradas',
         compute='_compute_worked_hours_total',
         readonly=True,
         store=False  # No se almacena en la base de datos
     )
 
     basic_wage = fields.Float(
-        string="Salario base"
+        string="Salario a pagar"
+    )
+
+    employee_name = fields.Char(
+        string="Empleado"
+    )
+
+    department_name = fields.Char(
+        string="Departamento"
     )
 
     salario_pagar = fields.Char(
@@ -49,21 +57,21 @@ class HrPayslip(models.Model):
     )
 
     comisiones = fields.Float(
-        string='Total comisiones',
+        string='Comisiones',
         compute='_compute_comisiones',
         readonly=True,
         store=False  # No se almacena en la base de datos
     )
 
     total_overtime = fields.Float(
-        string='Total Overtime',
+        string='Horas extras',
         compute='_compute_overtime_total',
         readonly=True,
         store=False  # No se almacena en la base de datos
     )
 
     viaticos = fields.Float(
-        string='Viaticos',
+        string='Viaticos ordinarios',
         compute='_compute_viaticos',
         readonly=True,
         store=False  # No se almacena en la base de datos
@@ -105,8 +113,15 @@ class HrPayslip(models.Model):
     )
 
     afp = fields.Float(
-        string='AFP',
+        string='AFP crecer',
         compute='_compute_afp',
+        readonly=True,
+        store=False  # No se almacena en la base de datos
+    )
+
+    afp_confia = fields.Float(
+        string='AFP Confia',
+        compute='_compute_afp_confia',
         readonly=True,
         store=False  # No se almacena en la base de datos
     )
@@ -154,7 +169,7 @@ class HrPayslip(models.Model):
     )
 
     sueldo_liquido = fields.Float(
-        string='Sueldo liquido',
+        string='Liquido a recibir',
         compute='_compute_sueldo_liquidido',
         readonly=True,
         store=False  # No se almacena en la base de datos
@@ -253,8 +268,14 @@ class HrPayslip(models.Model):
     @api.depends('line_ids.amount')
     def _compute_afp(self):
         for record in self:
-            overtime_lines = record.line_ids.filtered(lambda l: l.code == 'AFP')
-            record.afp = abs(sum(overtime_lines.mapped('amount')))
+            afp_lines = record.line_ids.filtered(lambda l: l.code == 'AFP')
+            record.afp = abs(sum(afp_lines.mapped('amount')))
+
+    @api.depends('line_ids.amount')
+    def _compute_afp_confia(self):
+        for record in self:
+            afp_confia_lines = record.line_ids.filtered(lambda l: l.code == 'AFP_CONF')
+            record.afp_confia = abs(sum(afp_confia_lines.mapped('amount')))
 
     @api.depends('line_ids.amount')
     def _compute_isss(self):
