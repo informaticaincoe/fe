@@ -19,11 +19,16 @@ except ImportError as e:
     constants = None
 
 def ejecutar_hooks_post_init(env):
-    from .hooks import post_init_configuracion_reglas, cargar_archivo_excel
+    from .hooks import post_init_configuracion_reglas, cargar_archivo_excel#, copiar_reglas_a_estructuras
 
     post_init_configuracion_reglas(env)
     cargar_archivo_excel(env)
 
+    # Mapeo de estructuras origen -> destino
+    # mapping = {
+    #     'INCOE': ['PLAN_VAC', 'PLAN_PRO']
+    # }
+    # copiar_reglas_a_estructuras(env, constants.STRUCTURE_MAPPING)
 
 def post_init_configuracion_reglas(env):
     """
@@ -47,6 +52,7 @@ def post_init_configuracion_reglas(env):
     ejecute automáticamente una vez que el módulo es instalado o actualizado.
 
     """
+    _logger.info("Asignar cuenta contable a las reglas salariales.")
     env['hr.salary.rule'].sudo().actualizar_cuentas_retenciones()
 
 def cargar_archivo_excel(env):

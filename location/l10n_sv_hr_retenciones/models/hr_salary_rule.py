@@ -5,9 +5,11 @@ _logger = logging.getLogger(__name__)
 
 try:
     from odoo.addons.common_utils.utils import config_utils
+    from odoo.addons.common_utils.utils import constants
     _logger.info("SIT Modulo config_utils [Asignaciones - salary]")
 except ImportError as e:
     _logger.error(f"Error al importar 'config_utils': {e}")
+    config_utils = None
     constants = None
 
 class HrSalaryRule(models.Model):
@@ -36,18 +38,10 @@ class HrSalaryRule(models.Model):
             'cuenta_salarial_deducciones_debito': 'cuenta_salarial_debito_fs',
         }
 
-        # Códigos de reglas salariales
-        deducciones_empleado = [
-            'AFP', 'ISSS', 'RENTA', 'FSV', 'FONDO_PENSIONES', 'PRESTAMOS', 'VENTA_EMPLEADOS', 'OTROS'
-        ]
-
-        aportes_patronales = ['AFP_EMP', 'ISSS_EMP', 'INCAF']
-        salario_fin_semana = ['SAB_TARDE', 'DOMINGO']
-
         # Armar diccionario de reglas y cuentas
-        reglas = {codigo: default_cuentas.copy() for codigo in deducciones_empleado}
-        reglas.update({codigo: cuentas_empleador.copy() for codigo in aportes_patronales})
-        reglas.update({codigo: cuentas_fin_semana.copy() for codigo in salario_fin_semana})
+        reglas = {codigo: default_cuentas.copy() for codigo in constants.CONST_CODIGOS_DEDUCCIONES_EMPLEADO}
+        reglas.update({codigo: cuentas_empleador.copy() for codigo in constants.CONST_CODIGOS_APORTES_PATRONALES})
+        reglas.update({codigo: cuentas_fin_semana.copy() for codigo in constants.REGLASAL_VACACION})
 
         try:
             config_utils.actualizar_cuentas_reglas_generico(self.env, reglas)
@@ -57,16 +51,16 @@ class HrSalaryRule(models.Model):
 
     @api.model
     def compute_rule_amount(self, rule, contract):
-        _logger.warning("⚠️ compute_rule_amount ejecutado para regla: %s", rule.code)
+        _logger.warning("compute_rule_amount ejecutado para regla: %s", rule.code)
         _logger.info("Cálculo de regla salarial '%s' para contrato ID %s", rule.code, contract.id)
 
-        if rule.code == 'ISSS_EMP':
-            resultado = contract.calcular_aporte_patronal('isss')
+        if rule.code == constants.COD_ISSS_EMP:
+            resultado = contract.calcular_aporte_patronal(constants.TIPO_DED_ISSS)
             _logger.info("Resultado del cálculo ISSS_EMP: %.2f", resultado)
             return resultado
 
-        elif rule.code == 'AFP_EMP':
-            resultado = contract.calcular_aporte_patronal('afp')
+        elif rule.code == constants.COD_AFP_EMP:
+            resultado = contract.calcular_aporte_patronal(constants.TIPO_DED_AFP)
             _logger.info("Resultado del cálculo AFP_EMP: %.2f", resultado)
             return resultado
 

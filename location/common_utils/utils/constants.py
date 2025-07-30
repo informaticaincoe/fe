@@ -21,9 +21,55 @@ RET_MENSUAL = "a"
 RET_QUINCENAL = "b"
 RET_SEMANAL = "c"
 TIPO_DED_ISSS = "isss"
+TIPO_DED_AFP = "afp"
 DEDUCCION_EMPLEADOR = "patron"
 DEDUCCION_INCAF = "incaf"
 SERVICIOS_PROFESIONALES = "professional_services"
+TIPOENT_FALTA = "FALTA"
+REGLASAL_DESC_SEPTIMO = "DESC_FALTA_SEPTIMO"
+REGLASAL_VACACION = "VACACIONES"
+AFP_IPSFA = "ipsfa"
+AFP_CONFIA = "confia"
+AFP_CRECER = "crecer"
+DEDUCCION_IPSFA_EMPLEADO = "ipsfa_empleado"
+DEDUCCION_IPSFA_EMPLEADOR = "ipsfa_empleador"
+DEDUCCION_AFP_CONF_EMPLEADO = "empleado_conf"
+DEDUCCION_AFP_CONF_EMPLEADOR = "patron_conf"
+# Deducciones comunes a todos menos servicios profesionales
+BASE_DEDUCCIONES = [
+    ('RENTA', 'renta', -1),
+    ('ISSS', 'isss', -1),
+    ('ISSS_EMP', 'isss_patronal', 1),
+    ('INCAF', 'incaf', -1),
+]
+
+# AFP según tipo
+AFP_IPSFA_CODES = [
+    ('IPSFA', 'afp', -1),
+    ('IPSFA_EMP', 'afp_patronal', 1),
+]
+
+AFP_REGULAR_CODES = [
+    ('AFP', 'afp_conf', -1),
+    ('AFP_EMP', 'afp_conf_patronal', 1),
+]
+
+AFP_CONF_REGULAR_CODES = [
+    ('AFP_CONF', 'afp_conf', -1),
+    ('AFP_CONF_EMP', 'afp_conf_patronal', 1),
+]
+
+# Todos los códigos usados
+DEDUCCION_CODES = list(set(
+    [c[0] for c in BASE_DEDUCCIONES + AFP_IPSFA_CODES + AFP_REGULAR_CODES + AFP_CONF_REGULAR_CODES] + ['RENTA_SP']
+))
+
+CONST_CODIGOS_APORTES_PATRONALES = ['AFP_EMP', 'AFP_CONF_EMP', 'ISSS_EMP', 'INCAF', 'IPSFA_EMP']
+CONST_CODIGOS_DEDUCCIONES_EMPLEADO = ['AFP', 'AFP_CONF', 'ISSS', 'RENTA', 'FSV', 'FONDO_PENSIONES', 'PRESTAMOS', 'VENTA_EMPLEADOS', 'OTROS', 'RENTA_SP', 'BANCO', 'DESC_FALTA_SEPTIMO', 'FALTA_INJ', 'IPSFA']
+COD_ISSS_EMP = "ISSS_EMP"
+COD_AFP_EMP = "AFP_EMP"
+REGLAS_EXCLUIR_SERVICIOS_PROFESIONALES = {'RENTA', 'ISSS', 'AFP', 'AFP_EMP', 'AFP_CONF', 'AFP_CONF_EMP', 'ISSS_EMP', 'INCAF', 'IPSFA', 'IPSFA_EMP'}
+CAMPOS_MANY2ONE_REGLAS = {'category_id', 'account_debit', 'account_credit', 'amount_other_input_id'}
 
 #Modulo de asignaciones salariales
 ASIGNACION_COMISIONES = "comision"
@@ -39,6 +85,7 @@ HORAS_NOCTURNAS_ASUETO = "horas_nocturnas_asueto"
 PERIODO = "periodo"
 NOMBRE_PLANTILLA_ASIGNACIONES = "Plantilla de Asignaciones"
 NOMBRE_PLANTILLA_ASISTENCIA = "Plantilla de Asistencia"
+CODES_VACACIONES = ['VAC', 'VACACIONES']
 
 CUENTAS_ASIGNACIONES = {
     'cuenta_salarial_deducciones_credito': 'cuenta_salarial_deducciones',
@@ -46,3 +93,19 @@ CUENTAS_ASIGNACIONES = {
 }
 CODIGOS_REGLAS_ASIGNACIONES = ['COMISION', 'VIATICO', 'BONO', 'OVERTIME']
 
+# Conversión de schedule_pay → factor para convertir a salario mensual
+SCHEDULE_PAY_CONVERSION = {
+    'monthly': 1,
+    'semi-monthly': 2,        # quincenal
+    'bi-weekly': 52 / 12 / 2,   # 26 pagos/año → mensual ≈ 2.1666
+    'weekly': 52 / 12,          # 4.3333 semanas por mes
+    'daily': 30,              # 30 días promedio en un mes
+    'bimonthly': 0.5,           # cada 2 meses
+    'quarterly': 1 / 3,
+    'semi-annually': 1 / 6,
+    'annually': 1 / 12,
+}
+
+# Mapping estructuras
+STRUCTURE_MAPPING = {'INCOE': ['PLAN_VAC', 'PLAN_PRO']}
+STRUCTURE_PLAN_PROD = "PLAN_PRO"

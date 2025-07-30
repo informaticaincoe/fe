@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data>
-
         <record id="account_invoice_send_wizard_form" model="ir.ui.view">
             <field name="name">account.invoice.send.form</field>
             <field name="model">account.invoice.send</field>
@@ -94,7 +93,5 @@
                     action = records.action_send_and_print()
             </field>
         </record>
-
     </data>
-
 </odoo>

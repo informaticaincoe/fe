@@ -16,7 +16,7 @@
         <record id="salary_rule_bonus" model="hr.salary.rule">
             <field name="name">Bono</field>
             <field name="code">BONO</field>
-            <field name="sequence">4</field>
+            <field name="sequence">15</field>
             <field name="category_id" ref="hr_payroll.BASIC"/>
             <field name="amount_select">input</field>
             <field name="appears_on_payslip" eval="True"/>
@@ -36,7 +36,7 @@
         <record id="salary_rule_viaticos" model="hr.salary.rule">
             <field name="name">Viáticos</field>
             <field name="code">VIATICO</field>
-            <field name="sequence">1</field>
+            <field name="sequence">5</field>
             <field name="category_id" ref="hr_payroll.BASIC"/>
             <field name="amount_select">input</field>
             <field name="appears_on_payslip" eval="True"/>
@@ -56,7 +56,7 @@
         <record id="salary_rule_comision" model="hr.salary.rule">
             <field name="name">Comisión</field>
             <field name="code">COMISION</field>
-            <field name="sequence">2</field>
+            <field name="sequence">10</field>
             <field name="category_id" ref="hr_payroll.BASIC"/>
             <field name="amount_select">input</field>
             <field name="appears_on_payslip" eval="True"/>

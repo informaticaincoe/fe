@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <data noupdate="0">
+        <!-- Se debe selecionar el correo desde el cual se va a enviar el correo desde las plantillas de correo alectronico y el servidor desde el que se va a enviar -->
+        <record id="rrhh_email_template_payslip" model="mail.template">
+            <field name="name">Boleta de pago: Enviar</field>
+            <field name="model_id" ref="hr_payroll.model_hr_payslip"/>
+            <field name="email_from">facturacion@grupoincoe.com</field>
+            <field name="email_to">{{object.employee_id.work_email}}</field>
+            <field name="partner_to">{{object.employee_id.work_email}}</field>
+            <field name="subject">Boleta de pago - {{object.employee_id.name}}</field>
+            <field name="body_html" type="html">
+                <div>
+                    <p style="margin: 0 0 16px 0;">
+                        Estimado/a
+                        <t t-if="object.employee_id.name">
+                            <t t-out="object.employee_id.name or ''"/>
+                        </t>
+                    </p>
+                    <p style="margin: 0 0 16px 0;">
+                        Adjunto encontrará su boleta de pago correspondiente al período de
+                        <t t-if="object.date_from">
+                            <t t-out="object.date_from or ''"/>
+                        </t>
+                        hasta
+                        <t t-if="object.date_to">
+                            <t t-out="object.date_to or ''"/>
+                        </t>
+                    </p>
+                    <p style="margin: 0 0 16px 0;">Saludos,<br/>RRHH
+                    </p>
+                </div>
+            </field>
+            <field name="auto_delete" eval="True"/>
+            <field name="lang">es_ES</field>
+        </record>
+    </data>
+</odoo>

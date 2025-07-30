@@ -10,7 +10,7 @@
         <record id="isss_regla_employee" model="hr.salary.rule">
             <field name="name">ISSS</field>
             <field name="code">ISSS</field>
-            <field name="sequence">10</field>
+            <field name="sequence">105</field>
             <field name="category_id" ref="hr_payroll.DED"/>
             <field name="amount_select">input</field>
             <field name="amount_python_compute">none</field>
@@ -32,7 +32,7 @@
         <record id="isss_empleador_regla" model="hr.salary.rule">
             <field name="name">ISSS Empleador</field>
             <field name="code">ISSS_EMP</field>
-            <field name="sequence">20</field>
+            <field name="sequence">106</field>
             <field name="category_id" ref="hr_payroll.COMP"/>
             <field name="amount_select">input</field>
             <field name="struct_id" ref="l10n_sv_hr_retenciones.structure_incoe"/>
@@ -52,7 +52,7 @@
         <record id="incaf_empleador_regla" model="hr.salary.rule">
             <field name="name">INCAF</field>
             <field name="code">INCAF</field>
-            <field name="sequence">20</field>
+            <field name="sequence">107</field>
             <field name="category_id" ref="hr_payroll.COMP"/>
             <field name="amount_select">input</field>
             <field name="struct_id" ref="l10n_sv_hr_retenciones.structure_incoe"/>

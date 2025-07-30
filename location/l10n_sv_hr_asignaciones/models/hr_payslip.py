@@ -111,3 +111,18 @@ class HrPayslip(models.Model):
                     asignacion.payslip_id = slip.id  # Marcamos como ya utilizada en este recibo
                     _logger.info(f"[{tipo}] Asignación {asignacion.id} aplicada con monto: {asignacion.monto}")
 
+    def action_descargar_plantilla(self):
+        attachment = self.env['ir.attachment'].search([
+            ('name', '=', 'plantilla_asignaciones.xlsx'),
+            ('mimetype', '=', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        ], limit=1)
+
+        if not attachment:
+            raise UserError("No se encontró la plantilla de asistencia.")
+
+        return {
+            'type': 'ir.actions.act_url',
+            'url': f'/web/content/{attachment.id}?download=true',
+            'target': 'self',
+        }
+
