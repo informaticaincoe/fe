@@ -161,16 +161,13 @@ class HrPayslip(models.Model):
         for code in constants.DEDUCCION_CODES:
             old_inputs = slip.input_line_ids.filtered(lambda l: l.code == code)
             if old_inputs:
-                _logger.info("Eliminando %d inputs previos con código %s para nómina ID=%d", len(old_inputs), code,
-                             slip.id)
+                _logger.info("Eliminando %d inputs previos con código %s para nómina ID=%d", len(old_inputs), code, slip.id)
                 old_inputs.unlink()
 
         # Obtener valores de deducciones
         renta, afp, isss, afp_patronal, isss_patronal, incaf = self._obtener_deducciones(payslip=slip, contract=contract, base_imponible=base_total)
 
-        _logger.info(
-            "Deducciones obtenidas → renta=%.2f, afp=%.2f, isss=%.2f, afp_patronal=%.2f, isss_patronal=%.2f, incaf=%.2f",
-            renta, afp, isss, afp_patronal, isss_patronal, incaf)
+        _logger.info( "Deducciones obtenidas → renta=%.2f, afp=%.2f, isss=%.2f, afp_patronal=%.2f, isss_patronal=%.2f, incaf=%.2f", renta, afp, isss, afp_patronal, isss_patronal, incaf)
 
         tipos = {
             code: self.env['hr.payslip.input.type'].search([('code', '=', code)], limit=1)
@@ -196,6 +193,8 @@ class HrPayslip(models.Model):
             'afp_patronal': afp_patronal,
             'isss_patronal': isss_patronal,
             'incaf': incaf,
+            'afp_conf': afp,
+            'afp_conf_patronal': afp_patronal,
         }
 
         valores = []
@@ -213,11 +212,18 @@ class HrPayslip(models.Model):
             _logger.info("Deducciones BASE: %s", base_vals)
 
             # Deducciones según tipo de AFP
-            afp_rules = (
-                constants.AFP_IPSFA_CODES
-                if contract.afp_id == constants.AFP_IPSFA
-                else constants.AFP_REGULAR_CODES
-            )
+            afp_name = (contract.afp_id  or '').strip().lower()
+
+            if afp_name == constants.AFP_IPSFA:
+                afp_rules = constants.AFP_IPSFA_CODES
+            elif afp_name == constants.AFP_CONFIA:
+                afp_rules = constants.AFP_CONF_REGULAR_CODES
+            elif afp_name == constants.AFP_CRECER:
+                afp_rules = constants.AFP_REGULAR_CODES
+            else:
+                _logger.warning("Tipo de AFP no reconocido: '%s'. No se aplicarán deducciones AFP.", afp_name)
+                afp_rules = []
+
             afp_vals = [
                 (code, abs(variables[var]) * sign)
                 for code, var, sign in afp_rules
@@ -236,8 +242,8 @@ class HrPayslip(models.Model):
                     'payslip_id': slip.id,
                     'input_type_id': tipo.id,
                 })
-                _logger.info("Input agregado: código=%s, nombre=%s, monto=%.2f, nómina ID=%d",
-                             code, tipo.name, valor, slip.id)
+                _logger.info("Input agregado: código=%s, nombre=%s, monto=%.2f, nómina ID=%d", code, tipo.name, valor,
+                             slip.id)
             else:
                 _logger.warning("Tipo de input para código %s no encontrado, no se creó input", code)
 
