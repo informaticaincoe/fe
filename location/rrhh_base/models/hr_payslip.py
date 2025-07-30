@@ -37,6 +37,17 @@ class HrPayslip(models.Model):
         store=False  # No se almacena en la base de datos
     )
 
+    basic_wage = fields.Float(
+        string="Salario base"
+    )
+
+    salario_pagar = fields.Char(
+        string='Salario a pagar',
+        compute='_compute_salario_pagar',
+        store=False,
+        readonly=True
+    )
+
     comisiones = fields.Float(
         string='Total comisiones',
         compute='_compute_comisiones',
@@ -106,24 +117,28 @@ class HrPayslip(models.Model):
         readonly=True,
         store=False  # No se almacena en la base de datos
     )
+
     bancos = fields.Float(
         string='Bancos',
         compute='_compute_bancos_ded',
         readonly=True,
         store=False  # No se almacena en la base de datos
     )
+
     venta_empleados = fields.Float(
         string='Venta a empleados',
         compute='_compute_venta_empleados',
         readonly=True,
         store=False  # No se almacena en la base de datos
     )
+
     prestamos_incoe = fields.Float(
         string='Prestamos INCOE',
         compute='_compute_prestamos_incoe',
         readonly=True,
         store=False  # No se almacena en la base de datos
     )
+
     fsv = fields.Float(
         string='Fondo social de la vivienda',
         compute='_compute_fsv',
@@ -152,6 +167,13 @@ class HrPayslip(models.Model):
         store=True
     )
 
+    vacaciones = fields.Float(
+        string="Vacaciones",
+        compute="_compute_vacaciones",
+        readonly=True,
+        store=False
+    )
+
     @api.depends('date_from')
     def _compute_quincena(self):
         for record in self:
@@ -163,16 +185,30 @@ class HrPayslip(models.Model):
     @api.depends('worked_days_line_ids.number_of_days')
     def _compute_worked_days_total(self):
         for record in self:
-            asistencia_lines = record.worked_days_line_ids.filtered(lambda l: l.name == 'ASISTENCIA')
+            asistencia_lines = record.worked_days_line_ids.filtered(lambda l: l.name == 'Asistencia' or l.name == 'Vacaciones')
+            insasistencia_injustificada_line = record.line_ids.filtered(lambda l: l.code == 'DESC_FALTA_SEPTIMO')
+            inansistencia_injustificada_cantidad = sum(insasistencia_injustificada_line.mapped('quantity'))
+
             total_days = sum(asistencia_lines.mapped('number_of_days'))
-            record.total_worked_days = total_days
+            record.total_worked_days = total_days - inansistencia_injustificada_cantidad
 
     @api.depends('worked_days_line_ids.number_of_hours')
     def _compute_worked_hours_total(self):
         for record in self:
-            asistencia_lines = record.worked_days_line_ids.filtered(lambda l: l.name == 'ASISTENCIA')
+            asistencia_lines = record.worked_days_line_ids.filtered(lambda l: l.name == 'Asistencia' or l.name == 'Vacaciones')
+            inasistencia_injustificada_lines = record.worked_days_line_ids.filtered(lambda l: l.name == 'Falta Injustificada')
+
+            inansistencia_injustificada_horas = sum(inasistencia_injustificada_lines.mapped('number_of_hours'))
+
             total_hours = sum(asistencia_lines.mapped('number_of_hours'))
-            record.total_worked_hours = total_hours
+            record.total_worked_hours = total_hours - inansistencia_injustificada_horas
+
+    @api.depends('line_ids.amount', 'basic_wage')
+    def _compute_salario_pagar(self):
+        for record in self:
+            descuento_falta = sum(record.line_ids.filtered(lambda l: l.code == 'DESC_FALTA_SEPTIMO').mapped('amount'))
+            salario_base = record.basic_wage or 0.0
+            record.salario_pagar = round(salario_base - abs(descuento_falta), 2)
 
     @api.depends('line_ids.amount')
     def _compute_comisiones(self):
@@ -203,10 +239,10 @@ class HrPayslip(models.Model):
         for record in self:
             record.total_viaticos_a_pagar = record.viaticos + record.total_overtime
 
-    @api.depends('viaticos', 'total_viaticos_a_pagar')
+    @api.depends('viaticos', 'total_viaticos_a_pagar', 'salario_pagar')
     def _compute_total_devengado(self):
         for record in self:
-            record.total_devengado = record.total_viaticos_a_pagar + record.basic_wage + record.comisiones
+            record.total_devengado = record.total_viaticos_a_pagar + float(record.salario_pagar) + record.comisiones
 
     @api.depends('line_ids.amount')
     def _compute_isr(self):
@@ -266,6 +302,12 @@ class HrPayslip(models.Model):
         for record in self:
             record.sueldo_liquido = record.total_devengado - record.total_descuentos
 
+    @api.depends('line_ids.amount')
+    def _compute_vacaciones(self):
+        for record in self:
+            vacaciones_lines = record.line_ids.filtered(lambda l: l.code == 'VACACIONES')
+            record.vacaciones = abs(sum(vacaciones_lines.mapped('amount')))
+
     def action_send_payslip_email(self):
         self.ensure_one()
 
@@ -281,12 +323,12 @@ class HrPayslip(models.Model):
 
         _logger.warning("TYPE CHECK >> about to resolve report: %s", type('rrhh_base.hr_payslip_report'))
 
-        report = self.env.ref('rrhh_base.hr_payslip_report')  #
+        report = self.env.ref('rrhh_base.report_payslip')
 
         _logger.warning("RESOLVED REPORT: %s | TYPE: %s", report, type(report))
         # Renderizar PDF
         report_name = 'rrhh_base.report_boleta_pago_template'
-        pdf_content, _ = self.env['ir.actions.report']._render_qweb_pdf(report_name, [self.id])
+        pdf_content, _ = self.env['ir.actions.report']._render_qweb_pdf(report.report_name, [self.id])
 
         filename = f"Boleta_{self.employee_id.name.replace(' ', '_')}_{self.date_to}.pdf"
         attachment = self.env['ir.attachment'].create({
@@ -306,3 +348,4 @@ class HrPayslip(models.Model):
             _logger.info("Correo enviado a %s con archivo %s", self.employee_id.work_email, filename)
         except Exception as e:
             raise UserError(_("Error al enviar el correo: %s") % str(e))
+

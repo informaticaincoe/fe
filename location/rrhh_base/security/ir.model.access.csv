@@ -10,3 +10,4 @@ access_hr_retencion_renta_manager,hr.retencion.renta.manager,l10n_sv_hr_retencio
 access_hr_retencion_tramo_user,hr.retencion.tramo.user,l10n_sv_hr_retenciones.model_hr_retencion_tramo,base.group_user,1,1,1,1
 access_hr_retencion_tramo_manager,hr.retencion.tramo.manager,l10n_sv_hr_retenciones.model_hr_retencion_tramo,base.group_system,1,1,1,1
 access_hr_attendance_download_user,hr.attendance.download.user,hr_attendance.model_hr_attendance,base.group_user,1,0,0,0
+access_hr_payslip_user,hr.payslip.user,hr_payroll.model_hr_payslip,base.group_user,1,0,0,0

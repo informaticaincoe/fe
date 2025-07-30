@@ -296,7 +296,7 @@ class HrPayslip(models.Model):
                 dias_perdidos_quincena = min(total_semanas_afectadas, 2)
                 # Calcular descuento final con el límite aplicado
                 monto_total_descuento += salario_diario * dias_perdidos_quincena
-                _logger.info("[%s] Pierde %d domingos (de %d posibles) → descuento %.2f", slip.employee_id.name, dias_perdidos_quincena, total_semanas_afectadas, monto_descuento)
+                _logger.info("[%s] Pierde %d domingos (de %d posibles) → descuento %.2f", slip.employee_id.name, dias_perdidos_quincena, total_semanas_afectadas, monto_total_descuento)
 
             if monto_total_descuento <= 0:
                 _logger.info("[%s] Monto total de descuento = 0 → no se crea input", slip.employee_id.name)
