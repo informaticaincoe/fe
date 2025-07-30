@@ -6,10 +6,12 @@ _logger = logging.getLogger(__name__)
 
 try:
     from odoo.addons.common_utils.utils import constants
+    from odoo.addons.common_utils.utils import config_utils
     _logger.info("SIT Modulo config_utils l10n_sv_haciendaws_fe")
 except ImportError as e:
     _logger.error(f"Error al importar 'config_utils': {e}")
     constants = None
+    config_utils = None
 
 class HrContract(models.Model):
     _inherit = 'hr.contract'
@@ -92,8 +94,9 @@ class HrContract(models.Model):
         # Buscar el porcentaje y techo configurado para el empleado
         afp_empleado = None
         if self.afp_id and self.afp_id == constants.AFP_IPSFA:
-            _logger.info("Tipo de AFP: %s", self.afp_id)
             afp_empleado = self.env['hr.retencion.afp'].search([('tipo', '=', constants.DEDUCCION_IPSFA_EMPLEADO)], limit=1)
+        elif self.afp_id and self.afp_id == constants.AFP_CONFIA:
+            afp_empleado = self.env['hr.retencion.afp'].search([('tipo', '=', constants.DEDUCCION_AFP_CONF_EMPLEADO)], limit=1)
         else:
             afp_empleado = self.env['hr.retencion.afp'].search([('tipo', '=', constants.DEDUCCION_EMPLEADO)], limit=1)
 
@@ -162,7 +165,7 @@ class HrContract(models.Model):
 
         # Si es servicios profesionales: 10% directo
         if self.wage_type == constants.SERVICIOS_PROFESIONALES:
-            porcentaje_renta = config_utils.get_config_value(self.env, 'renta_servicios_profesionales', self.company_id.id) or 0.0
+            porcentaje_renta = float(config_utils.get_config_value(self.env, 'renta_servicios_profesionales', self.company_id.id) or 0.0)
 
             resultado = salario * (porcentaje_renta / 100)
             _logger.info("Contrato de servicios profesionales: renta fija 10%% sobre %.2f = %.2f", salario_bruto, resultado)
@@ -248,8 +251,9 @@ class HrContract(models.Model):
         elif tipo != constants.TIPO_DED_ISSS:  # afp
             tipo_afp = None
             if self.afp_id and self.afp_id == constants.AFP_IPSFA:
-                _logger.info("Tipo de AFP: %s", self.afp_id)
                 tipo_afp = self.env['hr.retencion.afp'].search([('tipo', '=', constants.DEDUCCION_IPSFA_EMPLEADOR)], limit=1)
+            elif self.afp_id and self.afp_id == constants.AFP_CONFIA:
+                tipo_afp = self.env['hr.retencion.afp'].search([('tipo', '=', constants.DEDUCCION_AFP_CONF_EMPLEADOR)], limit=1)
             else:
                 tipo_afp = self.env['hr.retencion.afp'].search([('tipo', '=', constants.DEDUCCION_EMPLEADO)], limit=1)
 
