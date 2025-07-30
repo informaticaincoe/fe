@@ -320,7 +320,9 @@ class HrPayslip(models.Model):
                 # Límite por quincena = 2 domingos
                 dias_perdidos_quincena = min(total_semanas_afectadas, 2)
                 # Calcular descuento final con el límite aplicado
+
                 monto_total_descuento += float_round(salario_diario * dias_perdidos_quincena, precision_digits=2)
+
                 _logger.info("[%s] Pierde %d domingos (de %d posibles) → descuento %.2f", slip.employee_id.name, dias_perdidos_quincena, total_semanas_afectadas, monto_total_descuento)
 
             if monto_total_descuento <= 0:
