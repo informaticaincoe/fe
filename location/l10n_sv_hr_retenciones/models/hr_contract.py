@@ -67,17 +67,14 @@ class HrContract(models.Model):
 
         try:
             asignaciones = self.env['hr.salary.assignment'].search(domain)
-            _logger.info("Se encontraron %d asignaciones para contrato ID %s en el rango %s - %s", len(asignaciones),
-                         self.id, fecha_inicio, fecha_fin)
+            _logger.info("Se encontraron %d asignaciones para contrato ID %s en el rango %s - %s", len(asignaciones), self.id, fecha_inicio, fecha_fin)
         except Exception as e:
             _logger.error("Error al buscar asignaciones para contrato %s: %s", self.id, e)
             asignaciones = []
 
         monto_extra = sum(asignacion.monto for asignacion in asignaciones)
         bruto_total = bruto + monto_extra
-
-        _logger.info("Bruto total para contrato ID %s: salario base %.2f + asignaciones %.2f = %.2f", self.id, bruto,
-                     monto_extra, bruto_total)
+        _logger.info("Bruto total para contrato ID %s: salario base %.2f + asignaciones %.2f = %.2f", self.id, bruto, monto_extra, bruto_total)
 
         return bruto_total
 
@@ -203,8 +200,7 @@ class HrContract(models.Model):
         # Calcular base imponible restando AFP e ISSS
         afp = self.calcular_afp(salario_bruto=salario_bruto, payslip=payslip)
         isss = self.calcular_isss(salario_bruto=salario_bruto, payslip=payslip)
-        # incaf = self.calcular_incaf()
-        base_imponible = float_round( (salario - afp - isss), precision_digits=2)  # - incaf
+        base_imponible = float_round( (salario - afp - isss), precision_digits=2)
         _logger.info("Base imponible renta = %.2f - %.2f - %.2f = %.2f", salario, afp, isss, base_imponible)
 
         # Se itera sobre los tramos de la tabla para determinar el tramo aplicable
@@ -215,8 +211,6 @@ class HrContract(models.Model):
                 # Si es así, calcular la deducción de renta basada en el tramo
                 exceso = float_round(base_imponible - tramo.exceso_sobre, precision_digits=2)
                 resultado = tramo.cuota_fija + (exceso * tramo.porcentaje_excedente / 100)
-                _logger.info("Aplicar deduccion: base= %s | exceso sobre= %s  ", base_imponible, tramo.exceso_sobre)
-                _logger.info("Aplicar deduccion: cuota fija= %s | exceso = %s | porcentaje= %s ", tramo.cuota_fija, exceso, tramo.porcentaje_excedente)
                 _logger.info("Deducción de renta calculada: %.2f (tramo aplicado)", resultado)
                 return resultado
 
