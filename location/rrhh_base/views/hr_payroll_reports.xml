@@ -6,8 +6,8 @@
             <field name="priority" eval="20"/>
             <field name="arch" type="xml">
                 <list string="Planilla">
-                    <field name="employee_name" string="Empleado"/>
-                    <field name="department_name" string="Departamento"/>
+                    <field name="name" string="Empleado"/>
+                    <field name="complete_name" string="Departamento"/>
                     <field name="total_worked_days" string="Dias laborados"/>
                     <field name="total_worked_hours" string="Horas laborados"/>
                     <field name="salario_pagar" string="Salario a pagar"/>
@@ -69,8 +69,8 @@
             <field name="priority" eval="20"/>
             <field name="arch" type="xml">
                 <list string="Planilla vacaciones">
-                    <field name="employee_name" string="Empleado"/>
-                    <field name="department_name" string="Departamento"/>
+                    <field name="name" string="Empleado"/>
+                    <field name="complete_name" string="Departamento"/>
                     <field name="total_worked_days" string="Dias laborados"/>
                     <field name="total_worked_hours" string="Horas laborados"/>
                     <field name="salario_pagar" string="Salario a pagar"/>
