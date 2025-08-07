@@ -153,6 +153,7 @@ t
         <menuitem id="menu_action_tipo_persona" name="29-Tipo Persona" action="action_tipo_persona" groups="base.group_system" sequence="14"/>
         <menuitem id="menu_action_transporte" name="30-Transporte" action="action_transporte" groups="base.group_system" sequence="15"/>
         <menuitem id="menu_action_domicilio_fiscal" name="32-Domicilio Fiscal" action="action_domicilio_fiscal" groups="base.group_system" sequence="16"/>
+        <menuitem id="menu_action_tipo_modelo" name="32-Tipo de modelo" action="action_tipo_modelo" groups="base.group_system" sequence="16"/>
 
 
     </menuitem>

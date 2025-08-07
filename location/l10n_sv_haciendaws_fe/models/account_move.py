@@ -984,7 +984,7 @@ class AccountMove(models.Model):
         max_intentos = 3
         resultado = []
         # host = self.company_id.sit_firmador
-        url = self.url_firma#"http://192.168.2.25:8113/firmardocumento/"  # host + '/firmardocumento/'
+        url = "http://192.168.2.49:8113/firmardocumento/"  # host + '/firmardocumento/'
         _logger.info("SIT Url firma: %s", url)
 
         headers = {
@@ -1527,17 +1527,18 @@ class AccountMove(models.Model):
 
         # Si no hay contingencia activa o válida, crear una nueva
         if not contingencia_activa:
-            # contingencia_activa = Contingencia.create({
-            #     'company_id': self.company_id.id,
-            #     'journal_id': self.journal_id.id,
-            #     'sit_tipo_contingencia': tipo_contingencia.id if tipo_contingencia else False,
-            #     'contingencia_activa': True,
-            #     # 'move_ids': [(6, 0, [self.id])],
-            #     # 'estado': 'pendiente',
-            #     # 'motivo': f"Error {codigo}: {descripcion}",
-            #     # 'respuesta_mh': resp.text,
-            #     # 'codigo_generacion': self.codigoGeneracion,
-            # })
+            contingencia_activa = Contingencia.create({
+                'name': f"Contingencia {fields.Datetime.now().strftime('%Y%m%d-%H%M%S')}",
+                'company_id': self.company_id.id,
+                'journal_id': self.journal_id.id,
+                'sit_tipo_contingencia': tipo_contingencia.id if tipo_contingencia else False,
+                'contingencia_activa': True,
+                # 'move_ids': [(6, 0, [self.id])],
+                # 'estado': 'pendiente',
+                # 'motivo': f"Error {codigo}: {descripcion}",
+                # 'respuesta_mh': resp.text,
+                # 'codigo_generacion': self.codigoGeneracion,
+            })
 
             lote_asignado = Lote.create({
                 'name': f"Lote de contingencia {contingencia_activa.name}-1",

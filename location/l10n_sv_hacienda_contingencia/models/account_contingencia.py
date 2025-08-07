@@ -10,9 +10,10 @@ from pytz import timezone
 from datetime import datetime
 import pytz
 
-def _default_fecha_hora_sv():
+def _default_fecha_hora_sv(self):
     tz = pytz.timezone('America/El_Salvador')
-    return pytz.utc.localize(datetime.utcnow()).astimezone(tz)
+    dt_with_tz = pytz.utc.localize(datetime.utcnow()).astimezone(tz)
+    return dt_with_tz.replace(tzinfo=None)
 
 class sit_account_contingencia(models.Model):
     

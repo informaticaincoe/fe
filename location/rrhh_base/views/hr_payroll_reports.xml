@@ -6,8 +6,8 @@
             <field name="priority" eval="20"/>
             <field name="arch" type="xml">
                 <list string="Planilla">
-                    <field name="employee_name" string="Empleado"/>
-                    <field name="department_name" string="Departamento"/>
+                    <field name="name" string="Empleado"/>
+                    <field name="complete_name" string="Departamento"/>
                     <field name="total_worked_days" string="Dias laborados"/>
                     <field name="total_worked_hours" string="Horas laborados"/>
                     <field name="salario_pagar" string="Salario a pagar"/>
@@ -18,7 +18,8 @@
                     <field name="total_devengado"/>
                     <field name="isss"/>
                     <field name="isr"/>
-                    <field name="afp"/>
+                    <field name="afp" string="AFP Crecer"/>
+                    <field name="afp_confia" string="AFP Confia"/>
                     <field name="otros"/>
                     <field name="bancos"/>
                     <field name="venta_empleados"/>
@@ -68,8 +69,8 @@
             <field name="priority" eval="20"/>
             <field name="arch" type="xml">
                 <list string="Planilla vacaciones">
-                    <field name="employee_name" string="Empleado"/>
-                    <field name="department_name" string="Departamento"/>
+                    <field name="name" string="Empleado"/>
+                    <field name="complete_name" string="Departamento"/>
                     <field name="total_worked_days" string="Dias laborados"/>
                     <field name="total_worked_hours" string="Horas laborados"/>
                     <field name="salario_pagar" string="Salario a pagar"/>
@@ -80,7 +81,8 @@
                     <field name="total_devengado" string="Total devengado"/>
                     <field name="isss" string="ISSS"/>
                     <field name="isr" string="ISR"/>
-                    <field name="afp" string="AFP"/>
+                    <field name="afp" string="AFP Crecer"/>
+                    <field name="afp_confia" string="AFP Confia"/>
                     <field name="otros" string="Otros"/>
                     <field name="bancos" string="Bancos"/>
                     <field name="venta_empleados" string="Venta a empelados"/>

@@ -577,6 +577,11 @@ class AccountMove(models.Model):
                 raw_doc = self.partner_id.vat or ''
         tipo_doc = getattr(self.partner_id.l10n_latam_identification_type_id, 'codigo', None)
 
+        if not raw_doc:
+            raise UserError(_(
+                "Receptor sin documento de identidad (DUI o NIT) para DTE %s.\nCliente: %s"
+            ) % (tipo_dte, self.partner_id.display_name))
+
         # 3) limpio sólo dígitos
         cleaned = re.sub(r'\D', '', raw_doc)
         if not cleaned or not tipo_doc:

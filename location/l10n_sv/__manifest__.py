@@ -22,13 +22,13 @@
         - Nota de Credito.
         - Anulaciones de Exportacion.
         """,
-    'author': "Intelitecsa(Francisco Trejo)",
-    'website': "http://www.intelitecsa.com",
+    'author': "INCOE (Brenda Chacon, Kren Burgos, Francisco Flores",
+    'website': "http://www.incoe.net",
     "images": ['static/description/banner.png',
                'static/description/icon.png',
                'static/description/thumbnail.png'],
-    'price': 125.00,
-    'currency': 'EUR',
+    'price': 0.00,
+    'currency': 'USD',
     'license': 'GPL-3',
     'category': 'Localization',
     'version': '17.1',
@@ -82,6 +82,7 @@
         'data/account.journal.tipo_documento.field.csv',
         'data/account.move.tipo_operacion.field.csv',
         'data/account.move.regimen.field.csv',
+        'data/account_tax_sv.xml',
 
         'views/anexos_report_views.xml'
 
@@ -92,5 +93,6 @@
     'installable': True,
     'application': False,
     'auto_install': False,
+    'country_code': 'SV',
     # 'post_init_hook': 'drop_data',
 }
