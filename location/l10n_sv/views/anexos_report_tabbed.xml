@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data>
-        
         <record id="action_anexos" model="ir.actions.act_window">
             <field name="name">Anexos</field>
             <field name="res_model">account.move</field>
@@ -13,8 +12,7 @@
             <field name="name">Anexo consumidor final</field>
             <field name="res_model">account.move</field>
             <field name="view_mode">list</field>
-<!--            <field name="view_id" ref="view_anexos_tree"/>-->
-
+            <field name="view_id" ref="view_anexos_tree"/>
             <field name="domain">[('codigo_tipo_documento','=','01')]</field>
         </record>
 
