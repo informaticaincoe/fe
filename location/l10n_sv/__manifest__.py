@@ -64,7 +64,7 @@
         'data/account_fiscal_position.xml',
         'data/account_fiscal_position_tax.xml',
         'data/l10n_sv_coa_post.xml',
-        'data/journal_data.xml',
+
         'data/l10n_latam.identification.type.csv',
 
         'data/account.move.tipo_contingencia.field.csv',
@@ -84,7 +84,8 @@
         'data/account.move.regimen.field.csv',
         'data/account_tax_sv.xml',
 
-        'views/anexos_report_views.xml'
+        'views/anexos_report_views.xml',
+        'data/journal_data.xml'
 
     ],
     'demo': [
