@@ -9,17 +9,17 @@ _logger = logging.getLogger(__name__)
 class HrPayslip(models.Model):
     _inherit = 'hr.payslip'
 
-    employee_name = fields.Char(
+    name = fields.Char(
         string='Employee Name',
         related='employee_id.name',
-        store=True,
+        store=False,
         readonly=True
     )
 
-    department_name = fields.Char(
+    complete_name = fields.Char(
         string='Department Name',
         related='employee_id.department_id.complete_name',
-        store=True,
+        store=False,
         readonly=True
     )
 
@@ -200,8 +200,15 @@ class HrPayslip(models.Model):
     @api.depends('worked_days_line_ids.number_of_days')
     def _compute_worked_days_total(self):
         for record in self:
-            asistencia_lines = record.worked_days_line_ids.filtered(lambda l: l.name == 'Asistencia' or l.name == 'Vacaciones')
-            insasistencia_injustificada_line = record.line_ids.filtered(lambda l: l.code == 'DESC_FALTA_SEPTIMO')
+            asistencia_lines = record.worked_days_line_ids.filtered(
+                lambda l: l.name in ('Asistencia', 'Vacaciones')
+            )
+
+            # Filtrar líneas con código DESC_FALTA_SEPTIMO y amount ≠ 0
+            insasistencia_injustificada_line = record.line_ids.filtered(
+                lambda l: l.code == 'DESC_FALTA_SEPTIMO' and l.amount != 0
+            )
+
             inansistencia_injustificada_cantidad = sum(insasistencia_injustificada_line.mapped('quantity'))
 
             total_days = sum(asistencia_lines.mapped('number_of_days'))
