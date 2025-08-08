@@ -63,7 +63,9 @@
 
                     <group string="Totales" col="2">
                         <field name="total_descuento" widget="percent" readonly="1"/>
-                        <field name="sub_total" widget="monetary" readonly="1" invisible="codigo_tipo_documento == '11'"/><!-- invisible="1" modifiers="{'invisible': [['hide_no_sujeto_exento','=',True]]}" -->
+                        <field name="seguro" widget="monetary"/>
+                        <field name="flete" widget="monetary"/>
+                        <field name="sub_total" widget="monetary" readonly="1" invisible="codigo_tipo_documento == '11'"/>
                         <field name="total_operacion" widget="monetary" readonly="1"/>
                         <field name="total_pagar" widget="monetary" readonly="1"/>
                     </group>

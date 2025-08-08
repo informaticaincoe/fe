@@ -55,13 +55,16 @@ class AccountMoveLine(models.Model):
                     precio_total = round( (line.price_unit * line.quantity * (1 - (line.discount or 0.0) / 100.0)), 6)
                     line.precio_unitario = round(line.price_unit, 6)
 
-            elif line.move_id.journal_id.sit_tipo_documento.codigo != "01":
+            elif line.move_id.journal_id.sit_tipo_documento.codigo != "01" and line.move_id.journal_id.sit_tipo_documento.codigo != "11":
                 if line.tax_ids:
                     precio_total = round( (line.price_unit * line.quantity * (1 - (line.discount or 0.0) / 100.0) / iva), 6)
                     line.precio_unitario = round(line.price_unit / iva, 6)
                 elif not line.tax_ids:
                     precio_total = round( (line.price_unit * line.quantity * (1 - (line.discount or 0.0) / 100.0)), 6)
                     line.precio_unitario = round(line.price_unit, 6)
+            elif line.move_id.journal_id.sit_tipo_documento.codigo == "11":
+                precio_total = round((line.price_unit * line.quantity * (1 - (line.discount or 0.0) / 100.0)), 6)
+                line.precio_unitario = round(line.price_unit, 6)
             _logger.info("SIT Precio total con descuento: %s", precio_total)
 
             # Asignar según tipo_venta

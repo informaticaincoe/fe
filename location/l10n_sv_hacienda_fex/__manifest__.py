@@ -20,7 +20,10 @@
         "l10n_sv_haciendaws_fe",                ],
     # always loaded
     'data': [
+        "data/res.configuration.csv",
     #     "views/account_move_views.xml",
+        "views/account_move_view_inherit.xml",
+        "views/view_company_account.xml",
     ],
     "demo": [],
     "images": [],
