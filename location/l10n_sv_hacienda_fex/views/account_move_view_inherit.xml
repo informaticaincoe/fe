@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+  <data>
+
+    <!-- Herencia de la vista de facturas para agregar el campo tipoItemEmisor -->
+    <record id="view_move_form_inherit_tipo_item_emisor" model="ir.ui.view">
+      <field name="name">account.move.form.inherit.tipo.item.emisor</field>
+      <field name="model">account.move</field>
+      <field name="inherit_id" ref="account.view_move_form"/>
+      <field name="arch" type="xml">
+        <xpath expr="//field[@name='sit_regimen']" position="before">
+          <field name="tipoItemEmisor">
+            <attribute name="modifiers">
+              {
+                "required": [["journal_id.sit_tipo_documento", "=", "11"]]
+              }
+            </attribute>
+          </field>
+        </xpath>
+      </field>
+    </record>
+
+  </data>
+</odoo>

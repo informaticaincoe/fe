@@ -9,7 +9,7 @@
 
                 <field name="precio_no_sujeto" invisible="codigo_tipo_documento == '11'"/>
                 <field name="precio_exento" invisible="codigo_tipo_documento == '11'"/>
-                <field name="precio_gravado" invisible="codigo_tipo_documento == '11'"/>
+                <field name="precio_gravado"/>
             </xpath>
         </field>
     </record>

@@ -22,14 +22,75 @@ import logging
 import sys
 import traceback
 from datetime import datetime
+from odoo.exceptions import ValidationError
 
 _logger = logging.getLogger(__name__)
 
+try:
+    from odoo.addons.common_utils.utils import config_utils
+    from odoo.addons.common_utils.utils import constants
+    _logger.info("SIT Modulo config_utils [hacienda fex-account_move]")
+except ImportError as e:
+    _logger.error(f"Error al importar 'config_utils': {e}")
+    config_utils = None
+    constants = None
 
 class AccountMove(models.Model):
     _inherit = "account.move"
 
-#---------------------------------------------------------------------------------------------
+    tipoItemEmisor = fields.Many2one('account.move.tipo_item.field', string="Tipo de Item Emisor")
+    sale_order_id = fields.Many2one('sale.order', string='Orden de Venta', compute='_compute_sale_order', store=False)
+
+    def _compute_sale_order(self):
+        for rec in self:
+            sale_orders = rec.invoice_line_ids.mapped('sale_line_ids.order_id')
+            rec.sale_order_id = sale_orders[:1] if sale_orders else False
+
+    def action_post(self):
+        for rec in self:
+            tipo_dte = rec.journal_id.sit_tipo_documento
+            if tipo_dte and getattr(tipo_dte, 'codigo', tipo_dte) == '11':
+                # Validar Tipo de Ítem Emisor
+                if not rec.tipoItemEmisor:
+                    raise ValidationError("El campo 'Tipo de Ítem Emisor' es obligatorio para facturas de exportación (11).")
+
+                # Validar Incoterms
+                if not rec.invoice_incoterm_id:
+                    raise ValidationError("Debe seleccionar un INCOTERM para facturas de exportación (11).")
+
+                # Validar receptor.pais_id
+                if not rec.partner_id.country_id:
+                    raise ValidationError("El receptor debe tener un país seleccionado.")
+
+                # Validar régimen de exportación
+                if not rec.sit_regimen:
+                    raise ValidationError("Debe seleccionar un régimen de exportación.")
+
+                # Validar recinto fiscal
+                if not rec.sale_order_id.recintoFiscal:
+                    raise ValidationError("Debe seleccionar un recinto fiscal.")
+
+                # Validar cuenta para seguro y flete
+                company = rec.company_id
+                cuenta_exportacion = company.account_exportacion_id
+
+                if not cuenta_exportacion:
+                    cuenta = config_utils.get_config_value(self.env, 'cuenta_exportacion', self.company_id.id)
+                    if cuenta:
+                        cuenta = cuenta.strip()
+                        cuenta_exportacion = self.env['account.account'].search([('code', '=', cuenta)], limit=1)
+
+                    if not cuenta_exportacion:
+                        _logger.warning("No se encontró la cuenta contable con código %s para la compañía %s", cuenta,
+                                        company.name)
+                        raise UserError("Debe configurar la cuenta contable para seguro y flete. "
+                                        "Puede hacerlo en Ajustes de la Compañía o asignando una cuenta con código '450000'.")
+                    else:
+                        company.write({'account_exportacion_id': cuenta_exportacion.id})
+
+        return super().action_post()
+
+    #---------------------------------------------------------------------------------------------
 # Exportacion
 #---------------------------------------------------------------------------------------------
     # def _post(self, soft=True):

@@ -1,0 +1,2 @@
+id,company_id:id,pwd,value_type,value_text,description,active,clave
+config_cuenta_cont_exportacion,base.main_company,,text,441000,Cuenta contable para seguro y flete: Ganancia por tipo de cambio,True,cuenta_exportacion
