@@ -8,7 +8,6 @@
             <field name="default_account_id" search="[('name', '=', 'Venta de productos')]"/>
             <field name="show_on_dashboard" eval="True"/>
             <field name="refund_sequence" eval="False"/>
-            <field name="sit_tipo_documento" ref="dc_sv_fe"/>
         </record>
         <record id="ccf_journal" model="account.journal">
             <field name="name">Comprobante Credito Fiscal</field>
