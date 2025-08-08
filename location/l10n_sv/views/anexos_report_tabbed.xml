@@ -1,6 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data>
+    <record id="view_anexos_tree" model="ir.ui.view">
+        <field name="name">account.move.anexos.tree</field>
+        <field name="model">account.move</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="codigo_tipo_documento"/>
+                <field name="invoice_date"/>
+                <field name="partner_id"/>
+                <field name="amount_total"/>
+            </list>
+        </field>
+    </record>
         <record id="action_anexos" model="ir.actions.act_window">
             <field name="name">Anexos</field>
             <field name="res_model">account.move</field>

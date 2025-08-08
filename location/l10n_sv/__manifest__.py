@@ -82,10 +82,10 @@
         'data/account.journal.tipo_documento.field.csv',
         'data/account.move.tipo_operacion.field.csv',
         'data/account.move.regimen.field.csv',
-        'data/account.journal.tipo_modelo.field.csv',
         'data/account_tax_sv.xml',
+        'data/account.journal.tipo_modelo.field.csv',
 
-        'views/anexos_report_views.xml'
+        #'views/anexos_report_views.xml'
 
     ],
     'demo': [
