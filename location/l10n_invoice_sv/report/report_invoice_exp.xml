@@ -335,7 +335,7 @@
                                                         </td>
                                                         <td style="border:1px solid #e5e7e9; padding:4px; text-align:left;"
                                                             class="border-light-subtle">
-                                                            <span t-esc="(o.invoice_line_ids[idx].price_unit * (1 - o.invoice_line_ids[idx].discount/100))"
+                                                            <span t-esc="(o.invoice_line_ids[idx].price_unit * o.invoice_line_ids[idx].quantity * (1 - o.invoice_line_ids[idx].discount/100))"
                                                                   t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
                                                         </td>
                                                     </tr>
