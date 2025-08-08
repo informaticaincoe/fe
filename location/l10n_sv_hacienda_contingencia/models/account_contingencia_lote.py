@@ -452,6 +452,7 @@ class sit_AccountContingencia(models.Model):
                     'error_log': error_msg,
                     'state': 'draft',
                 })
+                raise e
                     # raise UserError(_(MENSAJE))
 
     def _compute_validation_type_2(self):

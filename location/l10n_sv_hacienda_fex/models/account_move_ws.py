@@ -18,6 +18,14 @@ import logging
 
 _logger = logging.getLogger(__name__)
 
+try:
+    from odoo.addons.common_utils.utils import config_utils
+    from odoo.addons.common_utils.utils import constants
+    _logger.info("SIT Modulo config_utils hacienda fex")
+except ImportError as e:
+    _logger.error(f"Error al importar 'config_utils': {e}")
+    config_utils = None
+    constants = None
 
 class AccountMove(models.Model):
     _inherit = "account.move"
@@ -63,16 +71,13 @@ class AccountMove(models.Model):
     def sit__fex_base_map_invoice_info_identificacion(self):
         _logger.info("SIT sit_base_map_invoice_info_identificacion self = %s", self)
         invoice_info = {}
-        invoice_info["version"] = 1
-        validation_type = self._compute_validation_type_2()        
-        param_type = self.env["ir.config_parameter"].sudo().get_param("afip.ws.env.type")
-        if param_type:
-            validation_type = param_type
-        if validation_type == 'homologation': 
-            ambiente = "00"
-        else:
-            ambiente = "01"        
+        invoice_info["version"] = int(self.journal_id.sit_tipo_documento.version) # 1
+
+        ambiente = None
+        if config_utils:
+            ambiente = config_utils.compute_validation_type_2(self.env)
         invoice_info["ambiente"] = ambiente
+
         invoice_info["tipoDte"] = self.journal_id.sit_tipo_documento.codigo
         invoice_info["numeroControl"] = self.name
         _logger.info("SIT sit_fex_base_map_invoice_info_identificacion0 = %s", invoice_info)
@@ -83,16 +88,23 @@ class AccountMove(models.Model):
         invoice_info["motivoContigencia"] = None
         _logger.info("SIT sit_fex_base_map_invoice_info_identificacion0 = %s", invoice_info)
 
-        import datetime
+        #import datetime
         import pytz
         import os
         os.environ['TZ'] = 'America/El_Salvador'  # Establecer la zona horaria
-        datetime.datetime.now() 
-        salvador_timezone = pytz.timezone('America/El_Salvador')
-        FechaEmi = datetime.datetime.now(salvador_timezone)
+        # ——————————————————————
+        # Fecha y hora de emisión
+        FechaEmi = None
+        if self.invoice_date:
+            FechaEmi = self.invoice_date
+        else:
+            FechaEmi = config_utils.get_fecha_emi()
+            if isinstance(FechaEmi, str):
+                # Convertir string a date
+                FechaEmi = datetime.strptime(FechaEmi, '%Y-%m-%d').date()
         _logger.info("SIT FechaEmi = %s (%s)", FechaEmi, type(FechaEmi))
         invoice_info["fecEmi"] = FechaEmi.strftime('%Y-%m-%d')
-        invoice_info["horEmi"] = FechaEmi.strftime('%H:%M:%S')
+        invoice_info["horEmi"] = self.invoice_time # FechaEmi.strftime('%H:%M:%S')
         invoice_info["tipoMoneda"] =  self.currency_id.name
         _logger.info("SIT sit_fex_ base_map_invoice_info_identificacion1 = %s", invoice_info)
         return invoice_info
@@ -102,10 +114,9 @@ class AccountMove(models.Model):
         _logger.info("SIT sit__fex_base_map_invoice_info_emisor self = %s", self)
         invoice_info = {}
         direccion = {}
-        nit=self.company_id.vat
-        nit = nit.replace("-", "")
+        nit = self.company_id.vat.replace("-", "") if self.company_id and self.company_id.vat else None
         invoice_info["nit"] = nit
-        nrc= self.company_id.company_registry
+        nrc = self.company_id.company_registry if self.company_id and self.company_id.company_registry else None
         if nrc:        
             nrc = nrc.replace("-", "")        
         invoice_info["nrc"] = nrc
@@ -160,7 +171,7 @@ class AccountMove(models.Model):
             tipo_item_exportacion = 2  #Servicio
         else:
             tipo_item_exportacion = 0
-        invoice_info["tipoItemExpor"] =  tipo_item_exportacion
+        invoice_info["tipoItemExpor"] =  int(self.tipoItemEmisor.codigo)
 
         recinto_fiscal = None
         if self.sale_order_id and self.sale_order_id.recintoFiscal:
@@ -181,25 +192,34 @@ class AccountMove(models.Model):
         # nit = self.partner_id.dui.replace("-", "") if self.partner_id.vat and isinstance(self.partner_id.vat, str) else None
         # invoice_info["numDocumento"] = nit
 
-        nit = self.partner_id.fax
-        _logger.info("SIT Documento receptor = %s", self.partner_id.dui)
-        if isinstance(nit, str):
-            #nit = nit.replace("-", "")
-            invoice_info["numDocumento"] = nit
+        #nit = self.partner_id.fax
+        raw_doc = None
+        if self.partner_id:
+            if self.partner_id.fax:
+                raw_doc = self.partner_id.fax.replace("-", "") if self.partner_id.fax else ''
+            elif self.partner_id.dui:
+                raw_doc = self.partner_id.dui.replace("-", "") if self.partner_id.dui else ''
+
+        _logger.info("SIT Documento receptor = %s", raw_doc)
+        if isinstance(raw_doc, str):
+            invoice_info["numDocumento"] = raw_doc
 
         # Establece 'tipoDocumento' como None si 'nit' es None
-        tipoDocumento = self.partner_id.l10n_latam_identification_type_id.codigo if self.partner_id.l10n_latam_identification_type_id and nit else None
+        tipoDocumento = self.partner_id.l10n_latam_identification_type_id.codigo if self.partner_id.l10n_latam_identification_type_id and raw_doc else None
         invoice_info["tipoDocumento"] = tipoDocumento
         invoice_info["nombre"] = self.partner_id.name
         if self.partner_id.country_id:
             invoice_info["codPais"] = self.partner_id.country_id.code
+            invoice_info["nombrePais"] = self.partner_id.country_id.name
         else:
             invoice_info["codPais"] = None
-        invoice_info["nombrePais"] = self.partner_id.country_id.name
+            invoice_info["nombrePais"] = None
+
+        tipoPersona = 0
         if self.partner_id.company_type == 'person':
-            tipoPersona = 1
+            tipoPersona = 1 # Persona Natural
         elif self.partner_id.company_type == 'company':
-            tipoPersona = 2
+            tipoPersona = 2 # Persona juridica
         invoice_info["tipoPersona"] = tipoPersona
         if  self.partner_id.nombreComercial:
             invoice_info["nombreComercial"] = self.partner_id.nombreComercial
@@ -228,6 +248,7 @@ class AccountMove(models.Model):
         item_numItem = 0
         total_Gravada = 0.0
         totalIva = 0.0
+        codigo_tributo = None
         for line in self.invoice_line_ids:
             if not line.custom_discount_line:
                 item_numItem += 1
@@ -242,6 +263,8 @@ class AccountMove(models.Model):
                     uniMedida = 7
                     raise UserError(
                         _("UOM de producto no configurado para:  %s" % (line.product_id.name)))
+                elif self.tipoItemEmisor and self.tipoItemEmisor.codigo == constants.ITEM_SERVICIOS:
+                    uniMedida = 99
                 else:
                     _logger.info("SIT uniMedida self = %s",  line.product_id)
                     _logger.info("SIT uniMedida self = %s",  line.product_id.uom_hacienda)
@@ -255,7 +278,6 @@ class AccountMove(models.Model):
                 ventaGravada =  round(line.precio_gravado,2)
                 line_temp["ventaGravada"] = ventaGravada
                 codigo_tributo_codigo=None
-                codigo_tributo = None
                 for line_tributo in line.tax_ids:
                     codigo_tributo_codigo = line_tributo.tributos_hacienda.codigo
                     codigo_tributo = line_tributo.tributos_hacienda
@@ -313,32 +335,33 @@ class AccountMove(models.Model):
         invoice_info["totalGravada"] = round(self.total_gravado, 2)
         invoice_info["totalNoGravado"] = 0
         invoice_info["descuento"] = round(self.descuento_gravado,2)
-        invoice_info["porcentajeDescuento"] = round(self.descuento_global_monto,2)
+        invoice_info["porcentajeDescuento"] = round(self.descuento_global,2)
         invoice_info["totalDescu"] = round(self.total_descuento, 2)
-        invoice_info["montoTotalOperacion"] = round(self.amount_total, 2 )
-        invoice_info["totalPagar"] = round(self.amount_total, 2 )
+        invoice_info["montoTotalOperacion"] = round(self.total_operacion, 2 )
+        invoice_info["totalPagar"] = round(self.total_pagar, 2 )
         invoice_info["totalLetras"] = self.amount_text
         invoice_info["condicionOperacion"] = int(self.condiciones_pago)
         pagos = {}  # Inicializa el diccionario pagos
         pagos["codigo"] = self.forma_pago.codigo  # '01'   # CAT-017 Forma de Pago    01 = bienes
-        pagos["montoPago"] = round(self.amount_total, 2)
-        pagos["referencia"] = None  # Un campo de texto llamado Referencia de pago
-        invoice_info["codIncoterms"] = '10'
-        invoice_info["descIncoterms"] = 'CFR-Costo y flete'
+        pagos["montoPago"] = round(self.total_pagar, 2)
+        pagos["referencia"] = self.sit_referencia  # Un campo de texto llamado Referencia de pago
+        invoice_info["codIncoterms"] = self.invoice_incoterm_id.code if self.invoice_incoterm_id else None # '10'
+        invoice_info["descIncoterms"] = self.invoice_incoterm_id.name if self.invoice_incoterm_id else None # 'CFR-Costo y flete'
         invoice_info["observaciones"] = None
-        invoice_info["flete"] = 0
+        invoice_info["flete"] = self.flete
         invoice_info["numPagoElectronico"] = None
-        invoice_info["seguro"] = 0
+        invoice_info["seguro"] = self.seguro
         
         if int(self.condiciones_pago) in [2]:
             pagos["plazo"] = self.sit_plazo.codigo   
             pagos["periodo"] = self.sit_periodo   #30      #  Es un nuevo campo entero
             invoice_info["pagos"] = [pagos]  # Asigna pagos como un elemento de una lista
+            pagos["montoPago"] = 0.0
         else:
             # pagos["plazo"] = self.sit_plazo.codigo 
             pagos["plazo"] = None    # Temporal
             pagos["periodo"] = None   #30      #  Es un nuevo campo entero            
-            invoice_info["pagos"] = None   # por ahora queda en null.
+            invoice_info["pagos"] = [pagos]   # por ahora queda en null.
         return invoice_info        
 
     def sit_obtener_payload_fex_dte_info(self,  ambiente, doc_firmado):

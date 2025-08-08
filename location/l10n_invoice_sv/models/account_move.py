@@ -96,6 +96,9 @@ class AccountMove(models.Model):
 
     sale_order_id = fields.Many2one('sale.order', string='Orden de Venta', compute='_compute_sale_order_id', store=False)
 
+    seguro = fields.Float(string='Seguro', default=0.0)
+    flete = fields.Float(string='Flete', default=0.0)
+
     def _compute_sale_order_id(self):
         for move in self:
             sale_orders = move.invoice_line_ids.mapped('sale_line_ids.order_id')
@@ -605,7 +608,7 @@ class AccountMove(models.Model):
             _logger.info(f"Descuentos gravados: {move.descuento_gravado}, exentos: {move.descuento_exento}, no sujetos: {move.descuento_no_sujeto}")
 
     @api.depends('amount_total', 'descuento_global', 'sub_total_ventas', 'descuento_no_sujeto', 'descuento_exento',
-                 'descuento_gravado', 'amount_tax', 'apply_retencion_renta', 'apply_retencion_iva', 'apply_iva_percibido')
+                 'descuento_gravado', 'amount_tax', 'apply_retencion_renta', 'apply_retencion_iva', 'apply_iva_percibido', 'seguro', 'flete')
     def _compute_total_con_descuento(self):
         for move in self:
             # 1. Obtener montos
@@ -636,7 +639,7 @@ class AccountMove(models.Model):
                 move.total_operacion = round(move.sub_total + move.amount_tax, 2)
                 _logger.info(f"[{move.name}] Documento no es tipo 01, total_operacion: {move.total_operacion}")
             elif move.journal_id.sit_tipo_documento.codigo == "11":
-                move.total_operacion = round((move.total_gravado - move.descuento_gravado - descuento_global) + move.amount_tax, 2)
+                move.total_operacion = round((move.total_gravado - move.descuento_gravado - descuento_global) + move.amount_tax + move.seguro + move.flete, 2)
             else:
                 move.total_operacion = move.sub_total
                 _logger.info(f"[{move.name}] Documento tipo 01, total_operacion: {move.total_operacion}")
@@ -648,9 +651,8 @@ class AccountMove(models.Model):
             else:
                 move.total_pagar = round((move.total_operacion - (move.retencion_renta_amount + move.retencion_iva_amount + move.iva_percibido_amount)), 2)
 
-
             _logger.info(f"{move.journal_id.sit_tipo_documento.codigo}] move.journal_id.sit_tipo_documento.codigo")
-
+            _logger.info(f"Seguro= {move.seguro} | Flete= {move.flete} | Total operacion={move.total_operacion}")
             _logger.info(f"[{move.name}] sub_total: {move.sub_total}")
             _logger.info(f"[{move.name}] total_descuento: {move.total_descuento}")
             _logger.info(f"[{move.name}] move.retencion_renta_amount + move.retencion_iva_amount: {move.retencion_renta_amount + move.retencion_iva_amount}")
@@ -809,8 +811,9 @@ class AccountMove(models.Model):
             # if move.apply_retencion_renta or move.apply_retencion_iva:
             #     move.agregar_lineas_retencion()
             move.agregar_lineas_retencion()
+            move.agregar_lineas_seguro_flete()
 
-        _logger.warning(f"[{move.name}] Total débitos: {sum(l.debit for l in move.line_ids)}, "f"Total créditos: {sum(l.credit for l in move.line_ids)}")
+        _logger.warning(f"[{self.name}] Total débitos: {sum(l.debit for l in self.line_ids)}, "f"Total créditos: {sum(l.credit for l in self.line_ids)}")
 
         return super().action_post()
 
@@ -845,7 +848,7 @@ class AccountMove(models.Model):
             }
 
             if all(monto <= 0 for monto in descuentos.values()):
-                _logger.info("No hay descuentos aplicables.")
+                _logger.info("No hay descuentos aplicables, saliendo.")
                 continue
 
             es_nota_credito = move.move_type in ('out_refund', 'in_refund')
@@ -884,6 +887,58 @@ class AccountMove(models.Model):
 
             if nuevas_lineas:
                 _logger.info("Lineas de factura: %s", nuevas_lineas)
+                move.write({'line_ids': nuevas_lineas})
+
+    def agregar_lineas_seguro_flete(self):
+        for move in self:
+            # Solo procesar si es factura de exportación
+            if move.codigo_tipo_documento != '11':  # Ajusta según tu código real de exportación
+                continue
+
+            if move.move_type != 'out_invoice':
+                raise UserError("Este método solo soporta facturas de cliente (out_invoice)")
+
+            cuenta_exportacion = move.company_id.account_exportacion_id
+            if not cuenta_exportacion:
+                _logger.warning(
+                    "[agregar_lineas_seguro_flete] No se encontró una cuenta contable configurada para exportación.")
+                raise UserError("No se ha configurado una cuenta de exportación en la empresa.")
+
+            _logger.info(
+                f"[agregar_lineas_seguro_flete] Cuenta encontrada: {cuenta_exportacion.code} - {cuenta_exportacion.name}")
+
+            cargos = {
+                'Seguro': move.seguro or 0.0,
+                'Flete': move.flete or 0.0,
+            }
+
+            if all(monto <= 0 for monto in cargos.values()):
+                _logger.info("[agregar_lineas_seguro_flete] No hay cargos de seguro o flete.")
+                continue
+
+            nuevas_lineas = []
+            for nombre, monto in cargos.items():
+                if monto <= 0:
+                    continue
+
+                linea = move.line_ids.filtered(lambda l: l.name == nombre and l.account_id == cuenta_exportacion)
+
+                valores = {'debit': 0.0, 'credit': monto}
+
+                if linea:
+                    if linea.debit != valores['debit'] or linea.credit != valores['credit']:
+                        _logger.info(f"Actualizando línea existente '{nombre}' con monto {monto}")
+                        linea.write(valores)
+                else:
+                    _logger.info(f"Agregando nueva línea de exportación: '{nombre}' con monto {monto}")
+                    nuevas_lineas.append((0, 0, {
+                        'account_id': cuenta_exportacion.id,
+                        'name': nombre,
+                        'custom_discount_line': True,
+                        **valores,
+                    }))
+
+            if nuevas_lineas:
                 move.write({'line_ids': nuevas_lineas})
 
 class AccountMoveSend(models.AbstractModel):
