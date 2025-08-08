@@ -108,7 +108,6 @@
                                     <div class="col-7 text-center" style="gap: 0;">
                                         <p>
                                             <span t-field="company.name" class="text-uppercase fs-6 fw-bold p-0"/>
-                                            <span t-field="o.invoice_user_id" class="text-uppercase fs-6 fw-bold p-0"/>
                                         </p>
                                         <p>
                                             <span class="text-uppercase fs-6 fw-bold p-0">NIT:</span>
@@ -388,7 +387,7 @@
                                                     <tr>
                                                         <td>
                                                             <span t-field="o.invoice_incoterm_id.name"
-                                                                  style="padding:2%; margin-top: 3%;"/>
+                                                                  style="padding:2%; margin-top: 3%; border-top: #fff;"/>
                                                         </td>
                                                     </tr>
                                                 </table>
