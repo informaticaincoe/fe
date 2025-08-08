@@ -371,6 +371,7 @@
                                                     <tr>
                                                         <td style="padding:2%; vertical-align:top;">
                                                             <strong>Observaciones:</strong>
+                                                            <span t-field="o.sit_observaciones"/>
                                                         </td>
                                                     </tr>
                                                 </table>
