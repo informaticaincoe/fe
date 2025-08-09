@@ -6,6 +6,13 @@ import logging
 _logger = logging.getLogger(__name__)
 tz_el_salvador = pytz.timezone('America/El_Salvador')
 
+try:
+    from odoo.addons.common_utils.utils import config_utils
+    _logger.info("SIT Modulo config_utils [hacienda ws-account_move[contingencia]]")
+except ImportError as e:
+    _logger.error(f"Error al importar 'config_utils': {e}")
+    config_utils = None
+
 class sit_account_move(models.Model):
     _inherit = 'account.move'
     sit_tipo_contingencia = fields.Many2one('account.move.tipo_contingencia.field', string="Tipo de Contingencia")
@@ -237,6 +244,161 @@ class sit_account_move(models.Model):
         # # return super(AccountMove, self).action_post()
         # return 
 
+    def reenviar_dte(self):
+        self.ensure_one()
+        if not self.hacienda_codigoGeneracion_identificacion:
+            raise UserError("No tiene código de generación.")
+
+        ambiente = config_utils.compute_validation_type_2(self.env) if config_utils else None
+
+        # Aquí incluir las validaciones necesarias de tipo documento y partner
+        # (Puedes extraerlas del _post y pegarlas aquí)
+
+        # Firmar solo si no está firmado
+        if not self.sit_documento_firmado:
+            payload = self.obtener_payload(ambiente, self.journal_id.sit_tipo_documento.codigo)
+            documento_firmado = self.firmar_documento(ambiente, payload)
+            if not documento_firmado:
+                raise UserError("Error en firma del documento")
+        else:
+            documento_firmado = self.sit_documento_firmado
+            payload = json.loads(self.sit_json_respuesta) if self.sit_json_respuesta else None
+
+        payload_dte = self.sit_obtener_payload_dte_info(ambiente, documento_firmado)
+        self.check_parametros_dte(payload_dte)
+
+        Resultado = self.generar_dte(ambiente, payload_dte, payload)
+        if not Resultado:
+            raise UserError("Error al generar DTE: Resultado vacío o nulo.")
+
+        estado = Resultado.get('estado', '').strip().lower()
+
+        # Guardar json generado
+        json_dte = payload.get('dteJson') if payload else None
+        try:
+            if isinstance(json_dte, str):
+                try:
+                    json_dte_obj = json.loads(json_dte)
+                    self.sit_json_respuesta = json.dumps(json_dte_obj, ensure_ascii=False)
+                except json.JSONDecodeError:
+                    self.sit_json_respuesta = json_dte
+            elif isinstance(json_dte, dict):
+                self.sit_json_respuesta = json.dumps(json_dte, ensure_ascii=False)
+            else:
+                self.sit_json_respuesta = str(json_dte)
+        except Exception as e:
+            _logger.warning(f"No se pudo guardar el JSON del DTE: {e}")
+
+        if estado == 'procesado':
+            self.actualizar_secuencia()
+
+            # Fecha procesamiento MH
+            fh_procesamiento = Resultado.get('fhProcesamiento')
+            if fh_procesamiento:
+                try:
+                    fh_dt = datetime.strptime(fh_procesamiento, '%d/%m/%Y %H:%M:%S') + timedelta(hours=6)
+                    if not self.fecha_facturacion_hacienda:
+                        self.fecha_facturacion_hacienda = fh_dt
+                except Exception as e:
+                    _logger.warning(f"Error al parsear fhProcesamiento: {e}")
+
+            # Actualizar campos MH
+            self.write({
+                'hacienda_estado': Resultado['estado'],
+                'hacienda_selloRecibido': Resultado.get('selloRecibido'),
+                'hacienda_clasificaMsg': Resultado.get('clasificaMsg'),
+                'hacienda_codigoMsg': Resultado.get('codigoMsg'),
+                'hacienda_descripcionMsg': Resultado.get('descripcionMsg'),
+                'hacienda_observaciones': str(Resultado.get('observaciones', '')),
+                'state': 'draft',
+                'recibido_mh': True,
+                'sit_json_respuesta': self.sit_json_respuesta,
+            })
+
+            # Generar QR
+            qr_code = self._generar_qr(ambiente, self.hacienda_codigoGeneracion_identificacion,
+                                       self.fecha_facturacion_hacienda)
+            self.sit_qr_hacienda = qr_code
+            self.sit_documento_firmado = documento_firmado
+
+            # Guardar archivo JSON adjunto
+            json_str = json.dumps(json_dte, ensure_ascii=False, default=str)
+            json_base64 = base64.b64encode(json_str.encode('utf-8'))
+            file_name = json_dte.get("identificacion", {}).get("numeroControl", "dte") + '.json'
+            self.env['ir.attachment'].sudo().create({
+                'name': file_name,
+                'datas': json_base64,
+                'res_model': self._name,
+                'res_id': self.id,
+                'mimetype': str(config_utils.get_config_value(self.env, 'content_type', self.company_id.id)),
+            })
+            _logger.info("SIT JSON creado y adjuntado.")
+
+            # Fusionar JSON respuesta MH
+            try:
+                json_original = json.loads(self.sit_json_respuesta) if self.sit_json_respuesta else {}
+            except json.JSONDecodeError:
+                json_original = {}
+            json_original.update({"jsonRespuestaMh": Resultado})
+            self.sit_json_respuesta = json.dumps(json_original)
+
+            # Enviar correo con PDF (capturar excepción para no interrumpir)
+            try:
+                self.with_context(from_button=False, from_invalidacion=False).sit_enviar_correo_dte_automatico()
+            except Exception as e:
+                _logger.warning(f"SIT | Error al enviar DTE por correo o generar PDF: {e}")
+
+        else:
+            # Manejo errores MH
+            if estado == 'rechazado':
+                mensaje = Resultado.get('descripcionMsg') or 'Documento rechazado por Hacienda.'
+                raise UserError(f"DTE rechazado por MH:\n{mensaje}")
+            elif estado not in ('procesado', ''):
+                mensaje = Resultado.get('descripcionMsg') or 'DTE no procesado correctamente.'
+                raise UserError(f"Respuesta inesperada de Hacienda. Estado: {estado}\nMensaje: {mensaje}")
+
+        # Validar formato número de control
+        if not self.name.startswith("DTE-"):
+            raise UserError(f"Número de control DTE inválido para la factura {self.id}.")
+
+        return Resultado
+
+    def action_reenviar_facturas_lote(self):
+        _logger.info("Inicio reenvio del dte a MH, ID lote: %s", self.mapped('sit_lote_contingencia.id'))
+
+        active_ids = self.env.context.get('active_ids')
+        if not active_ids:
+            raise UserError("Debe seleccionar al menos una factura del lote.")
+
+        facturas = self.env['account.move'].browse(active_ids)
+
+        # Obtener el lote del primer registro seleccionado
+        lote_id = facturas[0].sit_lote_contingencia.id
+        if not lote_id:
+            raise UserError("Las facturas seleccionadas no tienen lote asignado.")
+
+        # Filtrar facturas que pertenezcan a ese lote
+        facturas = facturas.filtered(lambda f: f.sit_lote_contingencia.id == lote_id)
+        if not facturas or len(facturas) != len(active_ids):
+            raise UserError("Las facturas seleccionadas no pertenecen al mismo lote.")
+
+        errores = []
+        reenviadas = []
+
+        for factura in facturas:
+            try:
+                factura.reenviar_dte()
+                reenviadas.append(factura.name)
+            except Exception as e:
+                errores.append(f"Factura {factura.name or factura.id}: {str(e)}")
+
+        mensaje = []
+        if reenviadas:
+            mensaje.append(f"Facturas reenviadas correctamente ({len(reenviadas)}):\n" + "\n".join(reenviadas))
+        if errores:
+            mensaje.append(f"Errores en ({len(errores)}):\n" + "\n".join(errores))
+
+        raise UserError("\n\n".join(mensaje))
 
 
 

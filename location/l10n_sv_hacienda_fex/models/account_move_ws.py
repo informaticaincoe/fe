@@ -45,7 +45,12 @@ class AccountMove(models.Model):
         invoice_info["passwordPri"] = self.company_id.sit_passwordPri
         _logger.info("SIT sit_base_map_invoice_info = %s", invoice_info)
 
-        invoice_info["dteJson"] = self.sit__fex_base_map_invoice_info_dtejson()
+        if not self.hacienda_selloRecibido and self.sit_factura_de_contingencia and not self.sit_json_respuesta:
+            _logger.info("SIT sit_base_map_invoice_info contingencia")
+            invoice_info["dteJson"] = self.sit_json_respuesta
+        else:
+            _logger.info("SIT sit_base_map_invoice_info dte")
+            invoice_info["dteJson"] = self.sit__fex_base_map_invoice_info_dtejson()
         return invoice_info
 
 
@@ -177,7 +182,7 @@ class AccountMove(models.Model):
         if self.sale_order_id and self.sale_order_id.recintoFiscal:
             recinto_fiscal = str(self.sale_order_id.recintoFiscal.codigo)
         _logger.info("SIT Recinto fiscal: %s (tipo: %s)", recinto_fiscal, type(recinto_fiscal).__name__)
-        invoice_info["recintoFiscal"] = recinto_fiscal #'99'
+        invoice_info["recintoFiscal"] = recinto_fiscal if recinto_fiscal else "05" #'99'
         _logger.info("SIT regimen de exportacion = %s", self.sit_regimen)
         invoice_info["regimen"] = self.sit_regimen.codigo#'EX1.1000.000'
         #segun para lo que se utilizara el producto, agregar seleccion para la factura de exportacion

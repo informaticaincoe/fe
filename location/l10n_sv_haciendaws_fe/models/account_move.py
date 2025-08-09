@@ -1234,7 +1234,7 @@ class AccountMove(models.Model):
                 _logger.warning(mensaje)
                 if intento == max_intentos:
                     self._crear_contingencia(resp, data, mensaje)
-                    raise UserError(_("Error MH (HTTP %s): %s") % (resp.status_code, data or resp.text))
+                    raise UserError(_("Error MH estado !=200 (HTTP %s): %s") % (resp.status_code, data or resp.text))
                 continue  # intenta de nuevo
             # data = resp.json()
 
@@ -1463,7 +1463,7 @@ class AccountMove(models.Model):
 
         self.write({
             'error_log': error_msg,
-            'sit_es_configencia': False,
+            'sit_es_configencia': True,
             'sit_tipo_contingencia': tipo_contingencia.id if tipo_contingencia else False,
             # 'sit_tipo_contingencia_otro': mensaje_motivo,
         })
@@ -1545,7 +1545,10 @@ class AccountMove(models.Model):
                 'sit_contingencia': contingencia_activa.id,
                 'lote_activo': True,
             })
-            self.write({'sit_lote_contingencia': lote_asignado.id})
+            self.write({
+                'sit_lote_contingencia': lote_asignado.id,
+                'sit_factura_de_contingencia': contingencia_activa.id,
+            })
             _logger.info("Creada nueva contingencia y lote: %s, %s", contingencia_activa.name, lote_asignado.name)
 
         _logger.info("Factura %s asignada a contingencia %s y lote %s", self.name, contingencia_activa.name,

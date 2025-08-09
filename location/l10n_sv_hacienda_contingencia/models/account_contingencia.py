@@ -179,15 +179,6 @@ class sit_account_contingencia(models.Model):
 
 
 # ---------------------------------------------------------------------------------------------
-    # def action_post_contingencia(self):
-    #     '''validamos que partner cumple los requisitos basados en el tipo
-    # de documento de la sequencia del diario selecionado
-    # FACTURA ELECTRONICAMENTE
-    # '''
-    #     _logger.info("SIT action_post_contingencia ")
-    #     MENSAJE = "SIT Generando Factura de Contingencia = ..." 
-    #     raise UserError(_(MENSAJE))        
-
 
     def _compute_validation_type_2(self):
         for rec in self:

@@ -25,6 +25,12 @@ from datetime import datetime
 import pytz
 
 _logger = logging.getLogger(__name__)
+try:
+    from odoo.addons.common_utils.utils import config_utils
+    _logger.info("SIT Modulo config_utils [hacienda ws-account_contingencia_lote]")
+except ImportError as e:
+    _logger.error(f"Error al importar 'config_utils': {e}")
+    config_utils = None
 
 
 class sit_AccountContingencia(models.Model):
@@ -82,40 +88,25 @@ class sit_AccountContingencia(models.Model):
 
     def action_lote_generate(self):
         # after validate, send invoice data to external system via http post
-        lotes_firmados = []
+        facturas_firmadas = []
         nro_factura = 0
         payload = None
         facturas_no_asignadas = []
         version = None
 
-        for lote in self.lote_ids: #self.sit_facturas_relacionadas:
+        for lote in self.lote_ids:
             nro_factura += 1
             _logger.info('SIT action_lote_generate lote a firmar = %s', lote.id)
 
             if lote.hacienda_codigoLote_lote:
                 _logger.info("SIT Lote ya procesado, se omite: %s", lote.id)
-                continue  # No procesar esta factura
+                continue
 
             facturas = self.env['account.move'].search([
                 ('sit_lote_contingencia', '=', lote.id)
             ])
 
             for invoice in facturas:
-                # firmando = invoice.action_firmado_lote(invoice)
-                # firmando = invoice.sit_documento_firmado
-
-                # if firmando:
-                #     facturas_firmadas.append(firmando)
-                # else:
-                #     MENSAJE = "Factura no firmada =" + str(invoice.name)
-                #     raise UserError(_(MENSAJE))
-                # if nro_factura > 20:
-                #     MENSAJE = "Factura firmada =" + str(firmando)
-                #     raise UserError(_(MENSAJE))
-
-                # MENSAJE = "Facturas firmadas a validar (" + invoice.name + ") = " + str(facturas_firmadas)
-                # raise UserError(_(MENSAJE ))
-
                 validation_type = self._compute_validation_type_2()
                 ambiente = "00"
                 if validation_type == 'homologacioin':
@@ -128,8 +119,7 @@ class sit_AccountContingencia(models.Model):
                 emisor = emisor.replace("-", "").replace(".", "")
 
                 if not emisor:
-                    MENSAJE = "SIT Se requiere definir compañia"
-                    raise UserError(_(MENSAJE))
+                    raise UserError("SIT Se requiere definir compañia")
 
                 if not invoice.sit_json_respuesta or invoice.sit_json_respuesta.strip() in ['', '{}', '[]']:
                     _logger.info("SIT Creando json factura relacionada(contingencia)")
@@ -138,49 +128,48 @@ class sit_AccountContingencia(models.Model):
                 else:
                     payload = invoice.sit_json_respuesta
 
-                #Convertir payload a dict si no lo es
+                # Convertir payload a dict si no lo es
                 if not isinstance(payload, dict):
                     try:
                         payload = json.loads(payload)
                     except Exception as e:
                         _logger.error("Error al convertir payload a JSON: %s", e)
-                        raise UserError(_("El payload no es un JSON válido."))
+                        raise UserError("El payload no es un JSON válido.")
 
                 # Si dteJson existe en payload, convertirlo a dict
-                if "dteJson" in payload:
-                    if not isinstance(payload["dteJson"], dict):
-                        try:
-                            payload["dteJson"] = json.loads(payload["dteJson"])
-                        except Exception as e:
-                            _logger.error("Error al convertir dteJson a dict: %s", e)
-                            raise UserError(_("El campo dteJson no es un JSON válido."))
-                    version = payload["dteJson"].get("identificacion", {}).get("ambiente")
-                elif "identificacion" in payload:
-                    version = payload.get("identificacion", {}).get("ambiente")
+                if "dteJson" in payload and not isinstance(payload["dteJson"], dict):
+                    try:
+                        payload["dteJson"] = json.loads(payload["dteJson"])
+                    except Exception as e:
+                        _logger.error("Error al convertir dteJson a dict: %s", e)
+                        raise UserError("El campo dteJson no es un JSON válido.")
+                version = payload.get("dteJson", {}).get("identificacion", {}).get("ambiente") or \
+                          payload.get("identificacion", {}).get("ambiente")
                 _logger.info("SIT json dte: %s", payload)
 
-                payload_dte_firma = self.sit_obtener_payload_lote_dte_firma(emisor, self.company_id.sit_passwordPri, payload)
+                payload_dte_firma = self.sit_obtener_payload_lote_dte_firma(emisor, self.company_id.sit_passwordPri,
+                                                                            payload)
                 _logger.info("SIT payload: %s", payload_dte_firma)
+
                 firmando = self.firmar_documento('production', payload_dte_firma)
-
                 if firmando:
-                    lotes_firmados.append(firmando)
+                    facturas_firmadas.append(firmando)
                 else:
-                    MENSAJE = "Factura no firmada =" + str(invoice.name)
-                    raise UserError(_(MENSAJE))
+                    raise UserError(f"Factura no firmada = {invoice.name}")
 
-                #version = payload["dteJson"]["identificacion"]["ambiente"]
-                payload_dte_envio_mh = self.sit_obtener_payload_lote_dte_info(ambiente, lotes_firmados, emisor, version)
+                # version = payload["dteJson"]["identificacion"]["ambiente"]
+                payload_dte_envio_mh = self.sit_obtener_payload_lote_dte_info(ambiente, facturas_firmadas, emisor,
+                                                                              version)
 
                 if nro_factura > 20:
-                    MENSAJE = "Factura firmada =" + str(firmando)
-                    raise UserError(_(MENSAJE))
+                    raise UserError(f"Factura firmada = {firmado}")
 
-                # MENSAJE = "SIT Payload LOTE DTE (" + str(payload_dte) + ")"
-                # raise UserError(_(MENSAJE ))
                 # Generando el DTE
-                dte_lote = self.generar_dte_lote(validation_type, payload_dte_envio_mh, len(lotes_firmados))
+                dte_lote = self.generar_dte_lote(validation_type, payload_dte_envio_mh, len(facturas_firmadas))
                 _logger.info("SIT Respuesta MH=%s", dte_lote)
+
+                # Guardar json respuesta en todas las facturas del lote
+                facturas.write({'sit_json_respuesta': json.dumps(dte_lote) if isinstance(dte_lote, dict) else str(dte_lote)})
 
                 hacienda_fhProcesamiento_lote = None
                 try:
@@ -188,40 +177,41 @@ class sit_AccountContingencia(models.Model):
                     _logger.info("SIT Fecha de procesamiento (%s)%s", type(fh), fh)
                     if fh:
                         hacienda_fhProcesamiento_lote = datetime.strptime(fh, '%d/%m/%Y %H:%M:%S')
-                        MENSAJE = "hacienda_fhProcesamiento_lote = " + str(hacienda_fhProcesamiento_lote)
+                        _logger.info("hacienda_fhProcesamiento_lote = %s", hacienda_fhProcesamiento_lote)
                 except Exception as e:
                     _logger.warning("No se pudo parsear fecha de procesamiento lote: %s", e)
-
-                #json_dte = payload['dteJson']
-                #_logger.info("Tipo de dteJson: %s, json: %s", type(json_dte), json_dte)
 
                 # Guardar datos de account.lote
                 lote_vals = {
                     'hacienda_estado_lote': dte_lote.get('estado', ''),
-                    'hacienda_idEnvio_lote': dte_lote.get('idEnvio ', ''),
+                    'hacienda_idEnvio_lote': dte_lote.get('idEnvio', ''),
                     'hacienda_fhProcesamiento_lote': hacienda_fhProcesamiento_lote,
-                    'hacienda_codigoLote_lote': dte_lote.get('codigoLote ', ''),
-                    'hacienda_codigoMsg_lote': dte_lote.get('codigoMsg ', ''),
-                    'hacienda_descripcionMsg_lote': dte_lote.get('descripcionMsg ', ''),
+                    'hacienda_codigoLote_lote': dte_lote.get('codigoLote', ''),
+                    'hacienda_codigoMsg_lote': dte_lote.get('codigoMsg', ''),
+                    'hacienda_descripcionMsg_lote': dte_lote.get('descripcionMsg', ''),
                     'state': "posted_lote" if dte_lote.get('estado') == 'RECIBIDO' else 'draft',
                     'lote_recibido_mh': bool(dte_lote.get('codigoLote')),
                 }
 
-                lote_record = self.env['account.lote'].create(lote_vals)
-                invoice.sit_lote_contingencia = lote_record.id
-                _logger.info("Registro de lote creado con ID %s", lote_record.id)
+                if lote.exists():
+                    lote.write(lote_vals)
+                    lote_record = lote
+                else:
+                    lote_record = self.env['account.lote'].create(lote_vals)
+
+                # Asignar lote a todas las facturas del lote procesado
+                #facturas.write({'sit_lote_contingencia': lote_record.id})
+                _logger.info("Registro de lote creado con ID %s y asignado a facturas %s", lote_record.id, facturas.ids)
 
                 # Verificar cuántas facturas se han asignado a este lote y si se excede el límite de lotes
-                if len(lotes_firmados) >= 400 * 100:  # 400 lotes * 100 facturas por lote
+                if len(facturas_firmadas) >= 400 * 100:
                     _logger.info(
-                        "Se ha alcanzado el límite de 400 lotes. Las facturas restantes se dejarán para una nueva contingencia.")
-                    facturas_no_asignadas = self.sit_facturas_relacionadas[nro_factura:]
+                        "Se ha alcanzado el límite de 400 lotes. Facturas restantes para próxima contingencia.")
                     break  # Salir del ciclo, ya no se añaden más facturas a la contingencia actual
 
             # Verificar que se hayan creado los lotes y no se hayan excedido
-            if len(lotes_firmados) > 400 * 100:
-                MENSAJE = "La cantidad de facturas excede el límite de lotes permitido (400 lotes). Las facturas no asignadas se guardarán para la próxima contingencia."
-                raise UserError(_(MENSAJE))
+            if len(facturas_firmadas) > 400 * 100:
+                raise UserError("La cantidad de facturas excede el límite de lotes permitido (400 lotes).")
 
         _logger.info("SIT Fin generar lote")
 
@@ -334,7 +324,7 @@ class sit_AccountContingencia(models.Model):
         invoice_info = {}
         invoice_info["ambiente"] = ambiente
         invoice_info["idEnvio"] = self.sit_generar_uuid()
-        invoice_info["version"] = 2
+        invoice_info["version"] = 3
         invoice_info["nitEmisor"] = nitEmisor
         invoice_info["documentos"] = doc_firmado
 
@@ -361,7 +351,7 @@ class sit_AccountContingencia(models.Model):
     '''
         # NUMERO_FACTURA= super(AccountMove, self).action_post()
         # _logger.info("SIT NUMERO FACTURA =%s", NUMERO_FACTURA)
-        _logger.info("SIT Iniciando Validación de Contingencia")
+        _logger.info("SIT Iniciando Validación de Contingencia (account_contingencia_lote)")
         for invoice in self:
             try:
                 validation_type = self._compute_validation_type_2()
@@ -475,8 +465,12 @@ class sit_AccountContingencia(models.Model):
             ambiente = "01"
         # host = 'http://service-it.com.ar:8113'
         # host = 'http://svfe-api-firmador:8113'
-        host = 'http://192.168.2.25:8113'
-        url = host + '/firmardocumento/'
+        #host = 'http://192.168.2.25:8113'
+        #url = host + '/firmardocumento/'
+        url = config_utils.get_config_value(self.env, 'url_firma', self.company_id.id)
+        if not url:
+            _logger.error("SIT | No se encontró 'url_firma' en la configuración para la compañía ID %s", self.company_id.id)
+            raise UserError(_("La URL de firma no está configurada en la empresa."))
         authorization = self.company_id.sit_token
 
         headers = {
@@ -485,26 +479,40 @@ class sit_AccountContingencia(models.Model):
             'Content-Type': 'application/json',
         }
 
+        response = None
+        MENSAJE_ERROR = None
         try:
             response = requests.post(url, headers=headers, json=payload, timeout=30)
             _logger.info("SIT firmar_documento response =%s", response.text)
             self.write({'sit_documento_firmado_contingencia': response.text})
         except Exception as e:
-            error = str(e)
-            _logger.info('SIT error= %s, ', error)
-            if "error" in error or "" in error:
-                MENSAJE_ERROR = str(error['status']) + ", " + str(error['error']) + ", " + str(error['message'])
-                # raise UserError(_(MENSAJE_ERROR))
-                _logger.warning("Error:%s", MENSAJE_ERROR)
-            else:
-                # raise UserError(_(error))
-                _logger.warning("Error:%s", MENSAJE_ERROR)
-            return False
+            _logger.info('SIT error= %s, ', e)
+
+            MENSAJE_ERROR = str(e)
+            try:
+                error_dict = json.loads(str(e))
+                if isinstance(error_dict, dict):
+                    MENSAJE_ERROR = "{}, {}, {}".format(
+                        error_dict.get('status'),
+                        error_dict.get('error'),
+                        error_dict.get('message')
+                    )
+            except json.JSONDecodeError:
+                pass
+            _logger.warning("Error firmando documento: %s", MENSAJE_ERROR)
+            return False  # SALIR si no se pudo hacer la petición
 
         resultado = []
-        json_response = response.json()
+        # Verificar que el contenido sea JSON válido
+        try:
+            json_response = response.json()
+        except Exception:
+            _logger.warning("Respuesta no es JSON válido: %s", response.text)
+            return False
+
         _logger.info("SIT json responde=%s", json_response)
-        if json_response['status'] in [400, 401, 402]:
+
+        if json_response.get('status') in [400, 401, 402]:
             _logger.info("SIT Error 40X  =%s", json_response['status'])
             status = json_response['status']
             error = json_response['error']
@@ -534,6 +542,7 @@ class sit_AccountContingencia(models.Model):
             resultado.append(status)
             resultado.append(body)
             return body
+        return False
 
     def obtener_payload_contingencia(self, enviroment_type):
         _logger.info("SIT  Obteniendo payload")
@@ -580,7 +589,7 @@ class sit_AccountContingencia(models.Model):
             #response = requests.request("POST", url, headers=headers, data=json.dumps(payload))
             response = requests.post(url, headers=headers, json=payload, timeout=30)
             _logger.info("SIT DTE contingencia response =%s", response)
-            _logger.info("SIT DTE contingencia response =%s", response.status_code)
+            _logger.info("SIT DTE contingencia response status=%s", response.status_code)
             _logger.info("SIT DTE contingencia response.text =%s", response.text)
         except Exception as e:
             error = str(e)
@@ -683,12 +692,13 @@ class sit_AccountContingencia(models.Model):
 
 
     def check_parametros_contingencia(self):
+        # Tipo de documento: iva/nit(campo fax) = 1, dui(campo dui) = 4, otro = 5, pasaporte = 2, extranjero = 3
         if not self.company_id:
             raise UserError(_('El Nombre de la compañía no definido'))        
         if not self.invoice_user_id.partner_id.name: #if not self.company_id.partner_id.user_id.partner_id.name:
             raise UserError(_('El Nombre de Responsable no definido'))        
-        if not self.invoice_user_id.partner_id.fax:
-            raise UserError(_('El Número de RFC no definido'))        
+        if not self.invoice_user_id.partner_id.fax and not self.invoice_user_id.partner_id.dui:
+            raise UserError(_('El Número de Documento no definido')) # raise UserError(_('El Número de RFC no definido'))
         if not self.company_id.tipoEstablecimiento.codigo:
             raise UserError(_('El tipoEstablecimiento no definido'))        
         if not self.sit_tipo_contingencia:

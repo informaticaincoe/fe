@@ -103,3 +103,15 @@ class sit_account_lote(models.Model):
         copy=False,
         string="Identificacion del lote",
     )
+
+    def action_ver_facturas(self):
+        return {
+            'name': 'Facturas del Lote',
+            'type': 'ir.actions.act_window',
+            'res_model': 'account.move',
+            'view_mode': 'list,form',
+            'domain': [('sit_lote_contingencia', '=', self.id)],
+            'context': dict(self.env.context),
+            'views': [(self.env.ref('l10n_sv_hacienda_contingencia.view_account_move_lote_list').id, 'list'),
+                      (self.env.ref('account.view_move_form').id, 'form')],
+        }
