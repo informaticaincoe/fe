@@ -45,7 +45,7 @@ class AccountMove(models.Model):
         invoice_info["passwordPri"] = self.company_id.sit_passwordPri
         _logger.info("SIT sit_base_map_invoice_info = %s", invoice_info)
 
-        if not self.hacienda_selloRecibido and self.sit_factura_de_contingencia and not self.sit_json_respuesta:
+        if not self.hacienda_selloRecibido and self.sit_factura_de_contingencia and self.sit_json_respuesta:
             _logger.info("SIT sit_base_map_invoice_info contingencia")
             invoice_info["dteJson"] = self.sit_json_respuesta
         else:
@@ -350,7 +350,7 @@ class AccountMove(models.Model):
         pagos["codigo"] = self.forma_pago.codigo  # '01'   # CAT-017 Forma de Pago    01 = bienes
         pagos["montoPago"] = round(self.total_pagar, 2)
         pagos["referencia"] = self.sit_referencia  # Un campo de texto llamado Referencia de pago
-        invoice_info["codIncoterms"] = self.invoice_incoterm_id.code if self.invoice_incoterm_id else None # '10'
+        invoice_info["codIncoterms"] = "01"#self.invoice_incoterm_id.code if self.invoice_incoterm_id else None # '10'
         invoice_info["descIncoterms"] = self.invoice_incoterm_id.name if self.invoice_incoterm_id else None # 'CFR-Costo y flete'
         invoice_info["observaciones"] = None
         invoice_info["flete"] = self.flete

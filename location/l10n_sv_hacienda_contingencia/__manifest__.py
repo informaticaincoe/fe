@@ -34,6 +34,7 @@
         'views/menuitem.xml',
         'views/account_move_views.xml',
         'views/cron_contingencia.xml',
+        'data/res.configuration.csv',
     ],
     # only loaded in demonstration mode
     "demo": [],

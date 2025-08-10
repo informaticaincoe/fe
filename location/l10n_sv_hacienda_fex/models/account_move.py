@@ -88,6 +88,9 @@ class AccountMove(models.Model):
                     else:
                         company.write({'account_exportacion_id': cuenta_exportacion.id})
 
+                if not rec.invoice_date:
+                    raise ValidationError("Debe seleccionar la fecha de la Factura.")
+
         return super().action_post()
 
     #---------------------------------------------------------------------------------------------
