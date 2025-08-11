@@ -202,7 +202,7 @@ class AccountMove(models.Model):
         _logger.info("SIT sit_base_map_invoice_info_receptor self = %s", self)
         direccion_rec = {}
         invoice_info = {}
-        nit = self.partner_id.fax if self.partner_id and self.partner_id.fax else None
+        nit = self.partner_id.vat if self.partner_id and self.partner_id.vat else None
         _logger.info("SIT Documento receptor = %s", self.partner_id.dui)
 
         if isinstance(nit, str):
@@ -441,7 +441,13 @@ class AccountMove(models.Model):
             invoice_info["nombRecibe"] = self.partner_id.nombreComercial
         else:
             invoice_info["nombRecibe"] = None
-        nit = self.partner_id.dui if self.partner_id and self.partner_id.dui else None
+
+        nit = None
+        if self.partner_id:
+            if self.partner_id.dui:
+                nit = self.partner_id.dui or ''
+            elif self.partner_id.vat:
+                nit = self.partner_id.vat or ''
         if isinstance(nit, str):
             nit = nit.replace("-", "")
             invoice_info["docuRecibe"] = nit
@@ -858,8 +864,17 @@ class AccountMove(models.Model):
         invoice_info["docuEntrega"] = self.company_id.vat or None
         invoice_info["nombRecibe"] = self.partner_id.nombreComercial if self.partner_id.nombreComercial else None
         # Asegurarse de que 'nit' sea una cadena antes de usar 'replace'
-        nit = self.partner_id.dui.replace("-", "") if self.partner_id and self.partner_id.dui and isinstance(self.partner_id.dui, str) else None
-        invoice_info["docuRecibe"] = nit
+
+        nit = None
+        if self.partner_id:
+            if self.partner_id.dui:
+                nit = self.partner_id.dui or ''
+            elif self.partner_id.vat:
+                nit = self.partner_id.vat or ''
+
+        if isinstance(nit, str):
+            nit = nit.replace("-", "")
+            invoice_info["docuRecibe"] = nit
         invoice_info["observaciones"] = self.sit_observaciones
         invoice_info["placaVehiculo"] = None
         invoice_info["observaciones"] = self.sit_observaciones
@@ -1168,8 +1183,15 @@ class AccountMove(models.Model):
         invoice_info["docuEntrega"] = self.company_id.vat
         invoice_info["nombRecibe"] = self.partner_id.nombreComercial if self.partner_id.nombreComercial else None
         # Asegurarse de que 'nit' sea una cadena antes de usar 'replace'
-        nit = self.partner_id.dui.replace("-", "") if self.partner_id and self.partner_id.dui and isinstance(
-            self.partner_id.dui, str) else None
+        nit = None
+        if self.partner_id:
+            if self.partner_id.dui:
+                nit = self.partner_id.dui or ''
+            elif self.partner_id.vat:
+                nit = self.partner_id.vat or ''
+
+        if isinstance(nit, str):
+            nit = nit.replace("-", "")
         invoice_info["docuRecibe"] = nit
         invoice_info["observaciones"] = self.sit_observaciones
         return invoice_info

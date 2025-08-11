@@ -100,7 +100,7 @@ class sit_AccountContingencia(models.Model):
         if self.invoice_user_id.partner_id.user_id.partner_id.dui:
             numeroDocumento = self.invoice_user_id.partner_id.user_id.partner_id.dui
         else:
-            numeroDocumento = self.invoice_user_id.partner_id.user_id.partner_id.fax
+            numeroDocumento = self.invoice_user_id.partner_id.user_id.partner_id.vat
         invoice_info["numeroDocResponsable"] = numeroDocumento
         invoice_info["tipoEstablecimiento"] =  self.company_id.tipoEstablecimiento.codigo
         invoice_info["codEstableMH"] =  None

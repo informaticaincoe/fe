@@ -70,6 +70,9 @@ class AccountMove(models.Model):
                 if not rec.sale_order_id.recintoFiscal:
                     raise ValidationError("Debe seleccionar un recinto fiscal.")
 
+                if rec.partner_id.l10n_latam_identification_type_id and rec.partner_id.l10n_latam_identification_type_id.codigo == constants.COD_TD_DUI:
+                    raise ValidationError("Tipo de persona no aplica.")
+
                 # Validar cuenta para seguro y flete
                 company = rec.company_id
                 cuenta_exportacion = company.account_exportacion_id

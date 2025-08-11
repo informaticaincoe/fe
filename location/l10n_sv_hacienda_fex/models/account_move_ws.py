@@ -182,7 +182,7 @@ class AccountMove(models.Model):
         if self.sale_order_id and self.sale_order_id.recintoFiscal:
             recinto_fiscal = str(self.sale_order_id.recintoFiscal.codigo)
         _logger.info("SIT Recinto fiscal: %s (tipo: %s)", recinto_fiscal, type(recinto_fiscal).__name__)
-        invoice_info["recintoFiscal"] = recinto_fiscal if recinto_fiscal else "05" #'99'
+        invoice_info["recintoFiscal"] = recinto_fiscal if recinto_fiscal else None #'99'
         _logger.info("SIT regimen de exportacion = %s", self.sit_regimen)
         invoice_info["regimen"] = self.sit_regimen.codigo#'EX1.1000.000'
         #segun para lo que se utilizara el producto, agregar seleccion para la factura de exportacion
@@ -200,8 +200,8 @@ class AccountMove(models.Model):
         #nit = self.partner_id.fax
         raw_doc = None
         if self.partner_id:
-            if self.partner_id.fax:
-                raw_doc = self.partner_id.fax.replace("-", "") if self.partner_id.fax else ''
+            if self.partner_id.vat:
+                raw_doc = self.partner_id.vat.replace("-", "") if self.partner_id.vat else ''
             elif self.partner_id.dui:
                 raw_doc = self.partner_id.dui.replace("-", "") if self.partner_id.dui else ''
 
@@ -350,7 +350,7 @@ class AccountMove(models.Model):
         pagos["codigo"] = self.forma_pago.codigo  # '01'   # CAT-017 Forma de Pago    01 = bienes
         pagos["montoPago"] = round(self.total_pagar, 2)
         pagos["referencia"] = self.sit_referencia  # Un campo de texto llamado Referencia de pago
-        invoice_info["codIncoterms"] = "01"#self.invoice_incoterm_id.code if self.invoice_incoterm_id else None # '10'
+        invoice_info["codIncoterms"] = self.invoice_incoterm_id.codigo_mh if self.invoice_incoterm_id else None # '10'
         invoice_info["descIncoterms"] = self.invoice_incoterm_id.name if self.invoice_incoterm_id else None # 'CFR-Costo y flete'
         invoice_info["observaciones"] = None
         invoice_info["flete"] = self.flete

@@ -35,6 +35,7 @@
         'views/account_move_views.xml',
         'views/cron_contingencia.xml',
         'data/res.configuration.csv',
+        'views/account_incoterms_views.xml',
     ],
     # only loaded in demonstration mode
     "demo": [],

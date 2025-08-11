@@ -202,10 +202,10 @@ class AccountMove(models.Model):
             #nit = self.partner_id.dui.replace("-", "") if isinstance(self.partner_id.dui,str) and self.partner_id.dui.strip() else None
             if isinstance(self.partner_id.dui,str) and self.partner_id.dui.strip():
                 dui = self.partner_id.dui.replace("-", "")
-            elif isinstance(self.partner_id.fax,str) and self.partner_id.fax.strip():
-                nit = self.partner_id.fax.replace("-", "")
+            elif isinstance(self.partner_id.vat,str) and self.partner_id.vat.strip():
+                nit = self.partner_id.vat.replace("-", "")
         else:
-            nit = self.partner_id.fax.replace("-", "") if isinstance(self.partner_id.fax,str) and self.partner_id.fax.strip() else None
+            nit = self.partner_id.vat.replace("-", "") if isinstance(self.partner_id.vat,str) and self.partner_id.vat.strip() else None
         _logger.info("SIT Numero de documento: %s, %s", dui, nit)
         #invoice_info["codigoGeneracionR"] = None  # ó self.sit_codigoGeneracionR
 
@@ -242,7 +242,7 @@ class AccountMove(models.Model):
             if self.partner_id.dui:
                 dui = self.partner_id.dui
             else:
-                dui = self.partner_id.fax
+                dui = self.partner_id.vat
 
         if not dui:
             raise UserError(
@@ -267,7 +267,7 @@ class AccountMove(models.Model):
             "tipDocResponsable": "36",
             "numDocResponsable": numDocumento,
             "nombreSolicita": self.partner_id.name,
-            "tipDocSolicita": "36" if self.partner_id and self.partner_id.fax else "13",
+            "tipDocSolicita": "36" if self.partner_id and self.partner_id.vat else "13",
             "numDocSolicita": nit
         }
 

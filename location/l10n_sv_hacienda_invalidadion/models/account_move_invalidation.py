@@ -739,7 +739,7 @@ class AccountMoveInvalidation(models.Model):
                 raise UserError(_('El receptor no tiene NOMBRE configurado para facturas tipo 01.'))
         elif tipo_dte == '03':
             # Validaciones completas para DTE tipo 03
-            if not self.sit_factura_a_reemplazar.partner_id.fax and self.sit_factura_a_reemplazar.partner_id.is_company:
+            if not self.sit_factura_a_reemplazar.partner_id.vat and self.sit_factura_a_reemplazar.partner_id.is_company:
                 _logger.info("SIT, es compañia se requiere NIT")
                 _logger.info("SIT, partner campos requeridos Invalidation=%s", self.partner_id)
                 raise UserError(_('El receptor no tiene NIT configurado.'))
