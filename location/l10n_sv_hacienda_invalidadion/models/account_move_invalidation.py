@@ -27,8 +27,8 @@ import re
 # from datetime import datetime
 
 _logger = logging.getLogger(__name__)
-#EXTRA_ADDONS = r'C:\Users\Admin\Documents\GitHub\fe\location\mnt\extra-addons\src'
-EXTRA_ADDONS = r'C:\Users\INCOE\Documents\GitHub\fe\location\mnt\extra-addons\src'
+EXTRA_ADDONS = r'C:\Users\Admin\Documents\GitHub\fe\location\mnt\extra-addons\src'
+#EXTRA_ADDONS = r'C:\Users\INCOE\Documents\GitHub\fe\location\mnt\extra-addons\src'
 
 try:
     from odoo.addons.common_utils.utils import config_utils

@@ -2,6 +2,7 @@ from odoo import models, api, _, fields
 from odoo.exceptions import UserError
 import logging
 import base64
+from lxml import etree
 
 _logger = logging.getLogger(__name__)
 
@@ -126,6 +127,13 @@ class HrPayslip(models.Model):
         store=False  # No se almacena en la base de datos
     )
 
+    afp_IPSFA = fields.Float(
+        string='INCAF',
+        compute='_compute_afp_IPSFA',
+        readonly=True,
+        store=False  # No se almacena en la base de datos
+    )
+
     otros = fields.Float(
         string='Otros',
         compute='_compute_otros_ded',
@@ -217,8 +225,10 @@ class HrPayslip(models.Model):
     @api.depends('worked_days_line_ids.number_of_hours')
     def _compute_worked_hours_total(self):
         for record in self:
-            asistencia_lines = record.worked_days_line_ids.filtered(lambda l: l.name == 'Asistencia' or l.name == 'Vacaciones')
-            inasistencia_injustificada_lines = record.worked_days_line_ids.filtered(lambda l: l.name == 'Falta Injustificada')
+            asistencia_lines = record.worked_days_line_ids.filtered(
+                lambda l: l.name == 'Asistencia' or l.name == 'Vacaciones')
+            inasistencia_injustificada_lines = record.worked_days_line_ids.filtered(
+                lambda l: l.name == 'Falta Injustificada')
 
             inansistencia_injustificada_horas = sum(inasistencia_injustificada_lines.mapped('number_of_hours'))
 
@@ -284,6 +294,53 @@ class HrPayslip(models.Model):
             afp_confia_lines = record.line_ids.filtered(lambda l: l.code == 'AFP_CONF')
             record.afp_confia = abs(sum(afp_confia_lines.mapped('amount')))
 
+    @api.model
+    def fields_view_get(self, view_id=None, view_type='form', toolbar=False, submenu=False):
+        """Oculta la columna afp_incaf en lista si no hay ningún INCAF > 0 en las líneas de recibo."""
+        res = super().fields_view_get(view_id=view_id, view_type=view_type, toolbar=toolbar, submenu=submenu)
+
+        # En Odoo 18, el parámetro sigue llegando como 'tree' para vistas de lista.
+        # Algunos devs usan <list> en el XML, pero internamente es lo mismo.
+        if view_type in ('tree', 'list'):
+            # Como afp_incaf no es store, no podemos hacer search en hr.payslip por ese campo.
+            # En su lugar, miramos hr.payslip.line con code='INCAF' y amount>0.
+            hay_incaf = bool(
+                self.env['hr.payslip.line'].sudo().search([
+                    ('code', '=', 'INCAF'),
+                    ('amount', '>', 0),
+                ], limit=1)
+            )
+
+            if not hay_incaf and res.get('arch'):
+                try:
+                    doc = etree.XML(res['arch'])
+                    # Ocultar la columna si existe en la vista
+                    for node in doc.xpath("//field[@name='afp_incaf']"):
+                        node.set('invisible', '1')
+                        # Para que no lo pueda reactivar por dominio, añade attrs también:
+                        node.set('attrs', "{'invisible': True}")
+                    res['arch'] = etree.tostring(doc, encoding='unicode')
+                except Exception as e:
+                    # Evita romper la carga de la vista si algo sale mal
+                    self.env['ir.logging'].sudo().create({
+                        'name': 'fields_view_get afp_incaf',
+                        'type': 'server',
+                        'dbname': self._cr.dbname,
+                        'level': 'WARNING',
+                        'message': f'No se pudo alterar la vista para ocultar afp_incaf: {e}',
+                        'path': __name__,
+                        'line': '0',
+                        'func': 'fields_view_get',
+                    })
+
+        return res
+
+    @api.depends('line_ids.amount')
+    def _compute_afp_IPSFA(self):
+        for record in self:
+            afp_ipsfa_lines = record.line_ids.filtered(lambda l: l.code == 'IPSFA')
+            record.afp_IPSFA = abs(sum(afp_ipsfa_lines.mapped('amount')))
+
     @api.depends('line_ids.amount')
     def _compute_isss(self):
         for record in self:
@@ -320,7 +377,8 @@ class HrPayslip(models.Model):
             fsv_lines = record.line_ids.filtered(lambda l: l.code == 'FSV')
             record.fsv = abs(sum(fsv_lines.mapped('amount')))
 
-    @api.depends('isss', 'isr', 'afp', 'otros', 'bancos', 'fsv', 'prestamos_incoe', 'venta_empleados', 'total_viaticos_a_pagar')
+    @api.depends('isss', 'isr', 'afp', 'otros', 'bancos', 'fsv', 'prestamos_incoe', 'venta_empleados',
+                 'total_viaticos_a_pagar')
     def _compute_total_descuentos(self):
         for record in self:
             record.total_descuentos = record.isss + record.isr + record.afp + record.otros + record.bancos + record.fsv + record.prestamos_incoe + record.venta_empleados
@@ -376,4 +434,3 @@ class HrPayslip(models.Model):
             _logger.info("Correo enviado a %s con archivo %s", self.employee_id.work_email, filename)
         except Exception as e:
             raise UserError(_("Error al enviar el correo: %s") % str(e))
-
