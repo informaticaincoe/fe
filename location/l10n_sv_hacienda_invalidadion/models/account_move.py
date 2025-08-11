@@ -2,10 +2,10 @@
 # For copyright and license notices, see __manifest__.py file in module root
 # directory
 ##############################################################################
+from location.common_utils.utils import config_utils
 from odoo import fields, models, api, _
 from odoo.exceptions import UserError
 from odoo.tools import float_repr
-from odoo.addons.l10n_sv_haciendaws_fe.afip_utils import get_invoice_number_from_response
 import base64
 import pyqrcode
 import qrcode
@@ -28,8 +28,8 @@ from pytz import timezone, UTC
 
 _logger = logging.getLogger(__name__)
 
-#EXTRA_ADDONS = r'C:\Users\admin\Documents\GitHub\fe\location\mnt\extra-addons\src'
-EXTRA_ADDONS = r'C:\Users\INCOE\Documents\GitHub\fe\location\mnt\extra-addons\src'
+EXTRA_ADDONS = r'C:\Users\admin\Documents\GitHub\fe\location\mnt\extra-addons\src'
+#EXTRA_ADDONS = r'C:\Users\INCOE\Documents\GitHub\fe\location\mnt\extra-addons\src'
 
 
 class AccountMove(models.Model):

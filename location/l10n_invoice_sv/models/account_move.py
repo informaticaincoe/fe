@@ -768,21 +768,6 @@ class AccountMove(models.Model):
                 _logger.info(f"PERCEPCION IVA monto={monto}")
                 _logger.info(f"cuenta_iva={cuenta_iva}")
 
-            # IVA Percibido
-            # if move.apply_iva_percibido and move.iva_percibido_amount > 0:
-            #     cuenta_iva = move.company_id.iva_percibido_account_id
-            #     _logger.info(f"cuenta_iva {cuenta_iva}")
-            #
-            #     monto = round(move.iva_percibido_amount, 2)
-            #     lineas.append((0, 0, {
-            #         'account_id': cuenta_iva.id,
-            #         'name': "IVA percibido",
-            #         'credit': monto if es_nota_credito else 0.0,
-            #         'debit': 0.0 if es_nota_credito else monto,
-            #         'partner_id': move.partner_id.id,
-            #     }))
-            #     _logger.info(f"IVA PERCIBIDO monto={monto}")
-
             if lineas:
                 move.write({'line_ids': lineas})
                 _logger.info(f"SIT | Nuevas líneas de retención escritas: {lineas}")
