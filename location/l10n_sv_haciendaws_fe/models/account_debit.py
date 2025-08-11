@@ -4,6 +4,7 @@ import logging
 
 _logger = logging.getLogger(__name__)
 
+
 class AccountDebitNote(models.TransientModel):
     _inherit = 'account.debit.note'
 
@@ -17,6 +18,31 @@ class AccountDebitNote(models.TransientModel):
         if self.journal_id.type == 'sale' and not self.journal_id.sit_tipo_documento:
             raise UserError(_("No se encontró el tipo de documento (06) Nota de Débito."))
 
+            # Obtener el código del tipo de documento desde el diario
+        doc_code = (
+                getattr(self.journal_id.sit_tipo_documento, "codigo", False)
+                or getattr(self.journal_id.sit_tipo_documento, "code", False)
+        )
+        if not doc_code:
+            raise UserError(_("El diario no tiene código de tipo de documento configurado."))
+
+        DocType = self.env["l10n_latam.document.type"]
+        doc_type = DocType.search([
+            ("code", "=", doc_code),
+        ], limit=1)
+
+        if not doc_type:
+            # Intento sin filtro de país como fallback
+            doc_type = DocType.search([("code", "=", doc_code)], limit=1)
+
+        if not doc_type:
+            _logger.error("SIT: No se encontró l10n_latam.document.type con code=%s", doc_code)
+            raise UserError(_("No se encontró el Tipo de Documento (LATAM) con código: %s") % doc_code)
+
+        _logger.info(
+            "SIT: Resuelto l10n_latam_document_type_id -> id=%s, code=%s, name=%s",
+            doc_type.id, doc_type.code, doc_type.display_name
+        )
         ctx = dict(self.env.context or {})
         ctx.update({
             'default_journal_id': self.journal_id.id,
@@ -28,12 +54,13 @@ class AccountDebitNote(models.TransientModel):
 
         for move in moves:
             _logger.info("SIT: Procesando factura original ID=%s | name=%s", move.id, move.name)
+            _logger.info("SIT: doc_type =%s", doc_type)
 
             default_vals = {
                 'journal_id': self.journal_id.id,
                 'move_type': 'out_invoice',
                 'partner_id': move.partner_id.id,
-                'l10n_latam_document_type_id': self.journal_id.sit_tipo_documento.id,
+                'l10n_latam_document_type_id':doc_type.id,
                 'debit_origin_id': move.id,
                 'ref': move.name,
                 'invoice_origin': move.name,
@@ -63,7 +90,6 @@ class AccountDebitNote(models.TransientModel):
                     invoice_lines_vals.append((0, 0, line_vals))
 
                     _logger.warning("SIT: line_vals: %s", line_vals)
-
 
             # Simula el asiento temporalmente
             temp_move = self.env['account.move'].new({
@@ -138,4 +164,3 @@ class AccountDebitNote(models.TransientModel):
                 'default_move_type': new_moves[0].move_type if new_moves else 'out_invoice',
             },
         }
-

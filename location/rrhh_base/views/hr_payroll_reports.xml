@@ -20,6 +20,7 @@
                     <field name="isr"/>
                     <field name="afp" string="AFP Crecer"/>
                     <field name="afp_confia" string="AFP Confia"/>
+                    <field name="afp_IPSFA" string="IPSFA"/>
                     <field name="otros"/>
                     <field name="bancos"/>
                     <field name="venta_empleados"/>
@@ -83,6 +84,7 @@
                     <field name="isr" string="ISR"/>
                     <field name="afp" string="AFP Crecer"/>
                     <field name="afp_confia" string="AFP Confia"/>
+                    <field name="afp_IPSFA" string="IPSFA"/>
                     <field name="otros" string="Otros"/>
                     <field name="bancos" string="Bancos"/>
                     <field name="venta_empleados" string="Venta a empelados"/>

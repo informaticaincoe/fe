@@ -16,15 +16,18 @@ import logging
 
 import re
 import json
+
 _logger = logging.getLogger(__name__)
 
 try:
     from odoo.addons.common_utils.utils import config_utils
     from odoo.addons.common_utils.utils import constants
+
     _logger.info("SIT Modulo config_utils hacienda ws")
 except ImportError as e:
     _logger.error(f"Error al importar 'config_utils': {e}")
     config_utils = None
+
 
 class AccountMove(models.Model):
     _inherit = "account.move"
@@ -266,6 +269,7 @@ class AccountMove(models.Model):
             line_temp["descripcion"] = line.name
             line_temp["cantidad"] = line.quantity
 
+            _logger.debug(f"codTributo: {codTributo}.")
             # Validación UOM
             if not line.product_id.uom_hacienda:
                 raise UserError(_("UOM de producto no configurado para:  %s" % (line.product_id.name)))
@@ -281,11 +285,48 @@ class AccountMove(models.Model):
             # ventaGravada = round(line_temp["cantidad"] * (line.price_unit - (line.price_unit * (line.discount / 100))),2)
             # line_temp["ventaGravada"] = ventaGravada
 
-            # Calcular tributos
+            # ------ Validar que se haya colocado impuesto de IVA ------
+            iva_tax_found = False
+            tributo_found = False
+            iva_tax_name = "IVA 13% Ventas Bienes"
+
+            for line_tax in line.tax_ids:
+                _logger.info("SIT: Evaluando impuesto '%s' en la línea del producto %s", line_tax.name, line.product_id.name)
+
+                # Verificamos si es el impuesto de IVA obligatorio
+                if line_tax.name == iva_tax_name:
+                    iva_tax_found = True
+                    if line_tax.tributos_hacienda:
+                        tributo_found = True
+
+                # --- Validaciones impuesto de IVa ---
+            if not iva_tax_found:
+                _logger.info("SIT: Validación fallida. No se encontró el impuesto '%s'.", iva_tax_name)
+                raise UserError(_(
+                    "El impuesto '%s' es obligatorio para la emisión de DTE. "
+                    "Por favor, revise y agregue el impuesto correspondiente a las líneas de la factura."
+                ) % iva_tax_name)
+
+                # --- Validaciones tributo de IVA ---
+            if not tributo_found:  # Si el IVA se encontró, pero el tributo no.
+                _logger.info("SIT: Validación fallida. Impuesto '%s' encontrado, pero sin tributo asignado.",
+                              iva_tax_name)
+                raise UserError(_(
+                    "Falta la configuración del tributo en el impuesto de IVA. "
+                    "\n\nEl impuesto '%s' no tiene configurado un 'Tributo de Hacienda' asociado. "
+                    "Por favor, edite la ficha del impuesto y asigne el tributo correspondiente."
+                ) % iva_tax_name)
+
+            #---------------------------------------------------------------------------------------------------#
+
+            # Calcular tributos y verificar el IVA
             for line_tributo in line.tax_ids.filtered(lambda x: x.tributos_hacienda):
-                codigo_tributo = line_tributo.tributos_hacienda  # ← Se asigna el objeto, no solo el código
+                codigo_tributo = line_tributo.tributos_hacienda
                 codigo_tributo_codigo = line_tributo.tributos_hacienda.codigo
                 lines_tributes.append(codigo_tributo_codigo)
+
+                _logger.info("SIT: Evaluando impuesto '%s' con código de tributo '%s'", line_tributo.name,
+                              codigo_tributo_codigo)
 
             # Cálculo de IVA
             vat_taxes_amounts = line.tax_ids.compute_all(
@@ -296,10 +337,13 @@ class AccountMove(models.Model):
                 partner=self.partner_id,
             )
             vat_taxes_amount = 0.0
+            sit_amount_base = 0.0
             if vat_taxes_amounts and vat_taxes_amounts.get('taxes') and len(vat_taxes_amounts['taxes']) > 0:
                 vat_taxes = vat_taxes_amounts.get('taxes', [])
                 vat_taxes_amount = vat_taxes[0].get('amount', 0.0) if vat_taxes else self.valor_iva_config()
                 sit_amount_base = round(vat_taxes[0].get('base', 0.0), 2) if vat_taxes else self.valor_iva_config()
+
+                _logger.info("SIT TAX vat_taxes_amounts = %s", vat_taxes)
 
             line_temp['psv'] = line.product_id.sit_psv
             line_temp["noGravado"] = 0.0
@@ -324,7 +368,7 @@ class AccountMove(models.Model):
                 elif line.product_id.tipo_venta == constants.TIPO_VENTA_PROD_EXENTO:
                     line_temp["ventaNoSuj"] = 0.0
                     line_temp["ventaGravada"] = 0.0
-                elif line.product_id.tipo_venta ==TIPO_VENTA_PROD_GRAV:
+                elif line.product_id.tipo_venta == constants.TIPO_VENTA_PROD_GRAV:
                     line_temp["ventaExenta"] = 0.0
                     line_temp["ventaGravada"] = 0.0
 
@@ -340,9 +384,7 @@ class AccountMove(models.Model):
                 line_temp["tributos"] = lines_tributes
 
             totalIva += round(
-                vat_taxes_amount - ((((line.precio_unitario * line.quantity) * (
-                            line.discount / 100)) / self.get_valor_iva_divisor_config()) * self.valor_iva_config()),
-                2)
+                vat_taxes_amount - ((((line.precio_unitario * line.quantity) * (line.discount / 100)) / self.get_valor_iva_divisor_config()) * self.valor_iva_config()),2)
 
             lines.append(line_temp)
             self.check_parametros_linea_firmado(line_temp)
@@ -351,6 +393,8 @@ class AccountMove(models.Model):
 
     def sit_ccf_base_map_invoice_info_resumen(self, total_Gravada, total_tributos, totalIva, identificacion):
         _logger.info("SIT sit_base_map_invoice_info_resumen self = %s", self)
+        _logger.info("total_tributos = %s", total_tributos)
+        _logger.info("total_tributos tributos_hacienda = %s", total_tributos.tributos_hacienda.codigo)
         total_des = 0
         por_des = 0
         for line in self.invoice_line_ids.filtered(lambda x: x.price_unit < 0):
@@ -375,10 +419,12 @@ class AccountMove(models.Model):
         _logger.info("SIT  identificacion[tipoDte] = %s", identificacion['tipoDte'])
         _logger.info("SIT  identificacion[tipoDte] = %s", identificacion)
         _logger.info("SIT resumen totalIVA ========================== %s", totalIva)
+
         tributos["codigo"] = total_tributos.tributos_hacienda.codigo
         tributos["descripcion"] = total_tributos.tributos_hacienda.valores
         tributos["valor"] = round(self.amount_tax, 2)  # round(totalIva -(total_des*0.13),2)
         invoice_info["tributos"] = [tributos]
+        _logger.info("tributos = %s", [tributos])
         invoice_info["subTotal"] = round(self.sub_total, 2)  # round(total_Gravada - total_des, 2 )
         invoice_info["ivaPerci1"] = round(self.iva_percibido_amount, 2)
 
@@ -462,7 +508,12 @@ class AccountMove(models.Model):
         invoice_info["nit"] = nit
         invoice_info["activo"] = True
         invoice_info["passwordPri"] = self.company_id.sit_passwordPri
-        invoice_info["dteJson"] = self.sit_base_map_invoice_info_dtejson()
+        if not self.hacienda_selloRecibido and self.sit_factura_de_contingencia and not self.sit_json_respuesta:
+            _logger.info("SIT sit_base_map_invoice_info contingencia")
+            invoice_info["dteJson"] = self.sit_json_respuesta
+        else:
+            _logger.info("SIT sit_base_map_invoice_info dte")
+            invoice_info["dteJson"] = self.sit_base_map_invoice_info_dtejson()
         return invoice_info
 
     def sit_base_map_invoice_info_dtejson(self):
@@ -487,7 +538,7 @@ class AccountMove(models.Model):
 
     def sit_base_map_invoice_info_identificacion(self):
         invoice_info = {}
-        invoice_info["version"] = int(self.journal_id.sit_tipo_documento.version) #1
+        invoice_info["version"] = int(self.journal_id.sit_tipo_documento.version)  # 1
 
         ambiente = None
         if config_utils:
@@ -509,22 +560,22 @@ class AccountMove(models.Model):
             FechaEmi = self.invoice_date
             _logger.info("SIT FechaEmi seleccionada = %s", FechaEmi)
         else:
-            #os.environ['TZ'] = 'America/El_Salvador'  # Establecer la zona horaria
-            #datetime.datetime.now()
-            #salvador_timezone = pytz.timezone('America/El_Salvador')
-            #FechaEmi = datetime.datetime.now(salvador_timezone)
+            # os.environ['TZ'] = 'America/El_Salvador'  # Establecer la zona horaria
+            # datetime.datetime.now()
+            # salvador_timezone = pytz.timezone('America/El_Salvador')
+            # FechaEmi = datetime.datetime.now(salvador_timezone)
             FechaEmi = config_utils.get_fecha_emi()
             _logger.info("SIT FechaEmi none = %s", FechaEmi)
         _logger.info("SIT FechaEmi = %s (%s): HoraEmi = %s", FechaEmi, type(FechaEmi), self.invoice_date)
         invoice_info["fecEmi"] = FechaEmi
         invoice_info["horEmi"] = self.invoice_time
         invoice_info["tipoMoneda"] = self.currency_id.name
-        if invoice_info["tipoOperacion"] == constants.TRANSMISION_NORMAL:#1:
-            invoice_info["tipoModelo"] = 1 #Transmision normal
+        if invoice_info["tipoOperacion"] == constants.TRANSMISION_NORMAL:  # 1:
+            invoice_info["tipoModelo"] = 1  # Transmision normal
             invoice_info["tipoContingencia"] = None
             invoice_info["motivoContin"] = None
         else:
-            invoice_info["tipoModelo"] = 2 #Transmision por contingencia
+            invoice_info["tipoModelo"] = 2  # Transmision por contingencia
         if invoice_info["tipoOperacion"] == constants.TRANSMISION_CONTINGENCIA:
             invoice_info["tipoContingencia"] = None
         return invoice_info
@@ -575,6 +626,8 @@ class AccountMove(models.Model):
                 raw_doc = self.partner_id.dui or ''
             elif self.partner_id.vat:
                 raw_doc = self.partner_id.vat or ''
+            elif self.partner_id.fax:
+                raw_doc = self.partner_id.fax or ''
         tipo_doc = getattr(self.partner_id.l10n_latam_identification_type_id, 'codigo', None)
 
         if not raw_doc:
@@ -583,21 +636,21 @@ class AccountMove(models.Model):
             ) % (tipo_dte, self.partner_id.display_name))
 
         # 3) limpio sólo dígitos
-        cleaned = re.sub(r'\D', '', raw_doc)
-        if not cleaned or not tipo_doc:
-            raise UserError(_(
-                "Receptor sin documento válido para DTE %s:\nraw=%r, tipo=%r") %
-                            (tipo_dte, raw_doc, tipo_doc)
-                            )
-
-        # 4) si es DTE 13, poner guión xxxxxxxx-x
-        num_doc = None
-        if tipo_doc == constants.COD_TIPO_DOCU_DUI: #if tipo_dte == '13':
-            if len(cleaned) != 9:
-                raise UserError(_("Para DTE 01 el DUI debe ser 9 dígitos (8+1). Se dieron %d.") % len(cleaned))
-            num_doc = f"{cleaned[:8]}-{cleaned[8]}"
-        else:
-            num_doc = cleaned
+        # cleaned = re.sub(r'\D', '', raw_doc)
+        # if not cleaned or not tipo_doc:
+        #     raise UserError(_(
+        #         "Receptor sin documento válido para DTE %s:\nraw=%r, tipo=%r") %
+        #                     (tipo_dte, raw_doc, tipo_doc)
+        #                     )
+        #
+        # # 4) si es DTE 13, poner guión xxxxxxxx-x
+        num_doc = raw_doc  # None
+        # if tipo_doc is not None and tipo_doc == constants.COD_TIPO_DOCU_DUI: #if tipo_dte == '13':
+        #     if len(cleaned) != 9:
+        #         raise UserError(_("Para DTE 01 el DUI debe ser 9 dígitos (8+1). Se dieron %d.") % len(cleaned))
+        #     num_doc = f"{cleaned[:8]}-{cleaned[8]}"
+        # else:
+        #     num_doc = cleaned
 
         invoice_info['numDocumento'] = num_doc
         invoice_info['tipoDocumento'] = tipo_doc
@@ -645,6 +698,8 @@ class AccountMove(models.Model):
             line_temp["numeroDocumento"] = None
             line_temp["cantidad"] = line.quantity
             line_temp["codigo"] = line.product_id.default_code
+            codTributo = line.product_id.tributos_hacienda_cuerpo.codigo
+            line_temp["codTributo"] = codTributo if codTributo else None
             if not line.product_id:
                 _logger.error("Producto no configurado en la línea de factura.")
                 continue  # O puedes decidir manejar de otra manera
@@ -664,6 +719,30 @@ class AccountMove(models.Model):
                     or 0.0
             )
             line_temp["ventaNoSuj"] = round(line.precio_no_sujeto, 2)  # 0.0
+
+            iva_tax_found = False
+            tributo_found = False
+            iva_tax_name = "IVA 13% Ventas Bienes"
+
+            for line_tax in line.tax_ids:
+                _logger.debug("SIT: Evaluando impuesto '%s' en la línea del producto %s", line_tax.name,
+                              line.product_id.name)
+
+                # Verificamos si es el impuesto de IVA obligatorio
+                if line_tax.name == iva_tax_name:
+                    iva_tax_found = True
+                    if line_tax.tributos_hacienda:
+                        tributo_found = True
+
+                # --- Validaciones impuesto de IVa ---
+            if not iva_tax_found:
+                _logger.debug("SIT: Validación fallida. No se encontró el impuesto '%s'.", iva_tax_name)
+                raise UserError(_(
+                    "El impuesto '%s' es obligatorio para la emisión de DTE. "
+                    "Por favor, revise y agregue el impuesto correspondiente a las líneas de la factura."
+                ) % iva_tax_name)
+
+
             codigo_tributo = None
             codigo_tributo_codigo = 0
             for line_tributo in line.tax_ids:
@@ -694,8 +773,9 @@ class AccountMove(models.Model):
                          line_temp["cantidad"], line.precio_gravado, (line.discount / 100),
                          (line.precio_gravado * (line.discount / 100)), ventaGravada)
 
-            line_temp["ivaItem"] = round(((ventaGravada / self.get_valor_iva_divisor_config()) * self.valor_iva_config()),
-                                         2)  # round(vat_taxes_amount - ((((line.price_unit *line.quantity)* (line.discount / 100))/1.13)*0.13),2)
+            line_temp["ivaItem"] = round(
+                ((ventaGravada / self.get_valor_iva_divisor_config()) * self.valor_iva_config()),
+                2)  # round(vat_taxes_amount - ((((line.price_unit *line.quantity)* (line.discount / 100))/1.13)*0.13),2)
             _logger.info("SIT Iva item= %s", line_temp["ivaItem"])
             _logger.info("SIT  RENTA = %s", self.retencion_renta_amount)
 
@@ -726,7 +806,7 @@ class AccountMove(models.Model):
             if tipoItem == 4:
                 line_temp["uniMedida"] = 99
                 line_temp["codTributo"] = codTributo
-                line_temp["codTributo"] = None  # <------------- Temporal
+                # line_temp["codTributo"] = None  # <------------- Temporal
                 line_temp["tributos"] = None
             else:
                 line_temp["codTributo"] = None
@@ -850,7 +930,8 @@ class AccountMove(models.Model):
         invoice_info["docuEntrega"] = self.company_id.vat or None
         invoice_info["nombRecibe"] = self.partner_id.nombreComercial if self.partner_id.nombreComercial else None
         # Asegurarse de que 'nit' sea una cadena antes de usar 'replace'
-        nit = self.partner_id.dui.replace("-", "") if self.partner_id and self.partner_id.dui and isinstance(self.partner_id.dui, str) else None
+        nit = self.partner_id.dui.replace("-", "") if self.partner_id and self.partner_id.dui and isinstance(
+            self.partner_id.dui, str) else None
         invoice_info["docuRecibe"] = nit
         invoice_info["observaciones"] = self.sit_observaciones
         invoice_info["placaVehiculo"] = None
@@ -1011,6 +1092,39 @@ class AccountMove(models.Model):
                 _logger.debug(
                     f"Venta gravada: {ventaGravada}, cantidad: {line_temp['cantidad']}, precio unitario: {line.price_unit}.")  # Log sobre cálculos.
 
+                # ------ Validar que se haya colocado impuesto de IVA ------
+                iva_tax_found = False
+                tributo_found = False
+                iva_tax_name = "IVA 13% Ventas Bienes"
+
+                for line_tax in line.tax_ids:
+                    _logger.info("SIT: Evaluando impuesto '%s' en la línea del producto %s", line_tax.name,
+                                 line.product_id.name)
+
+                    # Verificamos si es el impuesto de IVA obligatorio
+                    if line_tax.name == iva_tax_name:
+                        iva_tax_found = True
+                        if line_tax.tributos_hacienda:
+                            tributo_found = True
+
+                    # --- Validaciones impuesto de IVa ---
+                if not iva_tax_found:
+                    _logger.info("SIT: Validación fallida. No se encontró el impuesto '%s'.", iva_tax_name)
+                    raise UserError(_(
+                        "El impuesto '%s' es obligatorio para la emisión de DTE. "
+                        "Por favor, revise y agregue el impuesto correspondiente a las líneas de la factura."
+                    ) % iva_tax_name)
+
+                    # --- Validaciones tributo de IVA ---
+                if not tributo_found:  # Si el IVA se encontró, pero el tributo no.
+                    _logger.info("SIT: Validación fallida. Impuesto '%s' encontrado, pero sin tributo asignado.",
+                                 iva_tax_name)
+                    raise UserError(_(
+                        "Falta la configuración del tributo en el impuesto de IVA. "
+                        "\n\nEl impuesto '%s' no tiene configurado un 'Tributo de Hacienda' asociado. "
+                        "Por favor, edite la ficha del impuesto y asigne el tributo correspondiente."
+                    ) % iva_tax_name)
+
                 for line_tributo in line.tax_ids:
                     codigo_tributo_codigo = line_tributo.tributos_hacienda.codigo
                     codigo_tributo = line_tributo.tributos_hacienda  # Asignamos el valor de `codigo_tributo`
@@ -1170,11 +1284,12 @@ class AccountMove(models.Model):
         lines = []
         lines_temp = {}
         lines_temp['tipoDocumento'] = self.reversed_entry_id.journal_id.sit_tipo_documento.codigo  # '03'
-        lines_temp['tipoGeneracion'] = int(constants.COD_TIPO_DOC_GENERACION_DTE) #Cat-007 Tipo de generacion del documento
+        lines_temp['tipoGeneracion'] = int(
+            constants.COD_TIPO_DOC_GENERACION_DTE)  # Cat-007 Tipo de generacion del documento
         lines_temp['numeroDocumento'] = self.inv_refund_id.hacienda_codigoGeneracion_identificacion
-        #invoice_date = self.inv_refund_id.invoice_date
-        #if invoice_date:
-            #new_date = invoice_date + timedelta(hours=20)
+        # invoice_date = self.inv_refund_id.invoice_date
+        # if invoice_date:
+        # new_date = invoice_date + timedelta(hours=20)
         lines_temp['fechaEmision'] = self.inv_refund_id.invoice_date.strftime(
             '%Y-%m-%d') if self.inv_refund_id.invoice_date else None  # self.inv_refund_id.invoice_date
         lines.append(lines_temp)

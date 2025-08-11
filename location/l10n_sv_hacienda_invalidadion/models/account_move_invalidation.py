@@ -27,8 +27,8 @@ import re
 # from datetime import datetime
 
 _logger = logging.getLogger(__name__)
-#EXTRA_ADDONS = r'C:\Users\Admin\Documents\GitHub\fe\location\mnt\extra-addons\src'
-EXTRA_ADDONS = r'C:\Users\INCOE\Documents\GitHub\fe\location\mnt\extra-addons\src'
+EXTRA_ADDONS = r'C:\Users\Admin\Documents\GitHub\fe\location\mnt\extra-addons\src'
+#EXTRA_ADDONS = r'C:\Users\INCOE\Documents\GitHub\fe\location\mnt\extra-addons\src'
 
 try:
     from odoo.addons.common_utils.utils import config_utils
@@ -426,8 +426,13 @@ class AccountMoveInvalidation(models.Model):
         # Firmado de documento
         # host = 'http://service-it.com.ar:8113'
         # host = 'http://svfe-api-firmador:8113'
-        host = "http://192.168.2.25:8113"
-        url = host + '/firmardocumento/'
+        #host = "http://192.168.2.25:8113"
+        #url = host + '/firmardocumento/'
+        url = config_utils.get_config_value(self.env, 'url_firma', self.sit_factura_a_reemplazar.company_id.id)
+        if not url:
+            _logger.error("SIT | No se encontró 'url_firma' en la configuración para la compañía ID %s",
+                          self.company_id.id)
+            raise UserError(_("La URL de firma no está configurada en la empresa."))
         headers = {
             'Content-Type': 'application/json'
         }
@@ -437,13 +442,10 @@ class AccountMoveInvalidation(models.Model):
             response = requests.request("POST", url, headers=headers, data=json.dumps(payload))
             # _logger.info("SIT firmar_documento response =%s", response.text)
         except Exception as e:
-            error = str(e)
-            _logger.info('SIT error= %s, ', error)
-            if "error" in error or "" in error:
-                MENSAJE_ERROR = str(error['status']) + ", " + str(error['error']) + ", " + str(error['message'])
-                raise UserError(_(MENSAJE_ERROR))
-            else:
-                raise UserError(_(error))
+            error_str = str(e)
+            _logger.info('SIT error= %s, ', error_str)
+            raise UserError(_(error_str))
+
         resultado = []
         json_response = response.json()
         if json_response['status'] in [400, 401, 402]:

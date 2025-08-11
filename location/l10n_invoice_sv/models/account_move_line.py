@@ -38,7 +38,6 @@ class AccountMoveLine(models.Model):
             line.precio_exento = 0.0
             line.precio_no_sujeto = 0.0
             precio_total = 0.0
-            iva = 1.13
             # if config_utils:
             #     iva = config_utils.get_config_value(self.env, 'valor_iva', self.company_id.id)
             # else:
@@ -48,20 +47,12 @@ class AccountMoveLine(models.Model):
             # Calcular precio total con descuento
             # Se verifica el tipo de documento a generar, si es factura el precio debe contener impuesto(IVA), si es CCF no debe tener impuestos(IVA)
             if line.move_id.journal_id.sit_tipo_documento.codigo == "01":
-                if not line.tax_ids:
-                    precio_total = round( (line.price_unit * line.quantity * (1 - (line.discount or 0.0) / 100.0) * iva), 6)
-                    line.precio_unitario = round(line.price_unit * iva, 6)
-                elif line.tax_ids:
-                    precio_total = round( (line.price_unit * line.quantity * (1 - (line.discount or 0.0) / 100.0)), 6)
-                    line.precio_unitario = round(line.price_unit, 6)
+                precio_total = round( (line.price_unit * line.quantity * (1 - (line.discount or 0.0) / 100.0)), 6)
+                line.precio_unitario = round(line.price_unit, 6)
 
             elif line.move_id.journal_id.sit_tipo_documento.codigo != "01" and line.move_id.journal_id.sit_tipo_documento.codigo != "11":
-                if line.tax_ids:
-                    precio_total = round( (line.price_unit * line.quantity * (1 - (line.discount or 0.0) / 100.0) / iva), 6)
-                    line.precio_unitario = round(line.price_unit / iva, 6)
-                elif not line.tax_ids:
-                    precio_total = round( (line.price_unit * line.quantity * (1 - (line.discount or 0.0) / 100.0)), 6)
-                    line.precio_unitario = round(line.price_unit, 6)
+                precio_total = round( (line.price_unit * line.quantity * (1 - (line.discount or 0.0) / 100.0)), 6)
+                line.precio_unitario = round(line.price_unit, 6)
             elif line.move_id.journal_id.sit_tipo_documento.codigo == "11":
                 precio_total = round((line.price_unit * line.quantity * (1 - (line.discount or 0.0) / 100.0)), 6)
                 line.precio_unitario = round(line.price_unit, 6)

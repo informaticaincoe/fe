@@ -2,10 +2,10 @@
 # For copyright and license notices, see __manifest__.py file in module root
 # directory
 ##############################################################################
+from location.common_utils.utils import config_utils
 from odoo import fields, models, api, _
 from odoo.exceptions import UserError
 from odoo.tools import float_repr
-from odoo.addons.l10n_sv_haciendaws_fe.afip_utils import get_invoice_number_from_response
 import base64
 import pyqrcode
 import qrcode
@@ -28,8 +28,8 @@ from pytz import timezone, UTC
 
 _logger = logging.getLogger(__name__)
 
-#EXTRA_ADDONS = r'C:\Users\admin\Documents\GitHub\fe\location\mnt\extra-addons\src'
-EXTRA_ADDONS = r'C:\Users\INCOE\Documents\GitHub\fe\location\mnt\extra-addons\src'
+EXTRA_ADDONS = r'C:\Users\admin\Documents\GitHub\fe\location\mnt\extra-addons\src'
+#EXTRA_ADDONS = r'C:\Users\INCOE\Documents\GitHub\fe\location\mnt\extra-addons\src'
 
 
 class AccountMove(models.Model):
@@ -235,8 +235,12 @@ class AccountMove(models.Model):
             ambiente = "01"
         # host = 'http://service-it.com.ar:8113'
         #host = 'http://svfe-api-firmador:8113'
-        host = "http://192.168.2.25:8113"
-        url = host + '/firmardocumento/'
+        #host = "http://192.168.2.25:8113"
+        #url = host + '/firmardocumento/'
+        url = config_utils.get_config_value(self.env, 'url_firma', self.company_id.id)
+        if not url:
+            _logger.error("SIT | No se encontró 'url_firma' en la configuración para la compañía ID %s", self.company_id.id)
+            raise UserError(_("La URL de firma no está configurada en la empresa."))
         headers = {
             'Content-Type': 'application/json'
             }
