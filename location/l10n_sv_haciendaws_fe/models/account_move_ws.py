@@ -296,6 +296,7 @@ class AccountMove(models.Model):
                 partner=self.partner_id,
             )
             vat_taxes_amount = 0.0
+            sit_amount_base = 0.0
             if vat_taxes_amounts and vat_taxes_amounts.get('taxes') and len(vat_taxes_amounts['taxes']) > 0:
                 vat_taxes = vat_taxes_amounts.get('taxes', [])
                 vat_taxes_amount = vat_taxes[0].get('amount', 0.0) if vat_taxes else self.valor_iva_config()
@@ -462,7 +463,12 @@ class AccountMove(models.Model):
         invoice_info["nit"] = nit
         invoice_info["activo"] = True
         invoice_info["passwordPri"] = self.company_id.sit_passwordPri
-        invoice_info["dteJson"] = self.sit_base_map_invoice_info_dtejson()
+        if not self.hacienda_selloRecibido and self.sit_factura_de_contingencia and not self.sit_json_respuesta:
+            _logger.info("SIT sit_base_map_invoice_info contingencia")
+            invoice_info["dteJson"] = self.sit_json_respuesta
+        else:
+            _logger.info("SIT sit_base_map_invoice_info dte")
+            invoice_info["dteJson"] = self.sit_base_map_invoice_info_dtejson()
         return invoice_info
 
     def sit_base_map_invoice_info_dtejson(self):
@@ -575,6 +581,8 @@ class AccountMove(models.Model):
                 raw_doc = self.partner_id.dui or ''
             elif self.partner_id.vat:
                 raw_doc = self.partner_id.vat or ''
+            elif self.partner_id.fax:
+                raw_doc = self.partner_id.fax or ''
         tipo_doc = getattr(self.partner_id.l10n_latam_identification_type_id, 'codigo', None)
 
         if not raw_doc:
@@ -583,21 +591,21 @@ class AccountMove(models.Model):
             ) % (tipo_dte, self.partner_id.display_name))
 
         # 3) limpio sólo dígitos
-        cleaned = re.sub(r'\D', '', raw_doc)
-        if not cleaned or not tipo_doc:
-            raise UserError(_(
-                "Receptor sin documento válido para DTE %s:\nraw=%r, tipo=%r") %
-                            (tipo_dte, raw_doc, tipo_doc)
-                            )
-
-        # 4) si es DTE 13, poner guión xxxxxxxx-x
-        num_doc = None
-        if tipo_doc == constants.COD_TIPO_DOCU_DUI: #if tipo_dte == '13':
-            if len(cleaned) != 9:
-                raise UserError(_("Para DTE 01 el DUI debe ser 9 dígitos (8+1). Se dieron %d.") % len(cleaned))
-            num_doc = f"{cleaned[:8]}-{cleaned[8]}"
-        else:
-            num_doc = cleaned
+        # cleaned = re.sub(r'\D', '', raw_doc)
+        # if not cleaned or not tipo_doc:
+        #     raise UserError(_(
+        #         "Receptor sin documento válido para DTE %s:\nraw=%r, tipo=%r") %
+        #                     (tipo_dte, raw_doc, tipo_doc)
+        #                     )
+        #
+        # # 4) si es DTE 13, poner guión xxxxxxxx-x
+        num_doc = raw_doc #None
+        # if tipo_doc is not None and tipo_doc == constants.COD_TIPO_DOCU_DUI: #if tipo_dte == '13':
+        #     if len(cleaned) != 9:
+        #         raise UserError(_("Para DTE 01 el DUI debe ser 9 dígitos (8+1). Se dieron %d.") % len(cleaned))
+        #     num_doc = f"{cleaned[:8]}-{cleaned[8]}"
+        # else:
+        #     num_doc = cleaned
 
         invoice_info['numDocumento'] = num_doc
         invoice_info['tipoDocumento'] = tipo_doc

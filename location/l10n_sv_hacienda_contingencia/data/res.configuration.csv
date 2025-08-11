@@ -1,0 +1,3 @@
+id,company_id:id,pwd,value_type,value_text,description,active,clave
+config_version_contingencia,base.main_company,,int,3,Versión vigente para el evento de contingencia,True,version_contingencia
+config_version_lote,base.main_company,,int,2,Versión vigente para el evento de lotes en contingencia,True,version_lote

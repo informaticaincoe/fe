@@ -235,8 +235,12 @@ class AccountMove(models.Model):
             ambiente = "01"
         # host = 'http://service-it.com.ar:8113'
         #host = 'http://svfe-api-firmador:8113'
-        host = "http://192.168.2.25:8113"
-        url = host + '/firmardocumento/'
+        #host = "http://192.168.2.25:8113"
+        #url = host + '/firmardocumento/'
+        url = config_utils.get_config_value(self.env, 'url_firma', self.company_id.id)
+        if not url:
+            _logger.error("SIT | No se encontró 'url_firma' en la configuración para la compañía ID %s", self.company_id.id)
+            raise UserError(_("La URL de firma no está configurada en la empresa."))
         headers = {
             'Content-Type': 'application/json'
             }

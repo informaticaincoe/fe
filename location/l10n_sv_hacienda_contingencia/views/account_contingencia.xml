@@ -13,6 +13,7 @@
                       expand="context.get('expand', False)"
                       sample="1">
                     <field name="state" widget="badge" decoration-success="state == 'posted'" decoration-info="state == 'draft'" optional="show"/>
+                        <field name="id"/>
                         <field name="name" readonly="state != 'draft'" placeholder="Factura de Contingencia"/>
                         <field name="journal_id" invisible="0"/>
                         <field name="invoice_user_id" invisible="0"/>
@@ -62,34 +63,17 @@
                         <notebook>
                             <page id="lotes_contingencia" string="Lotes Relacionados">
                                 <field name="lote_ids">
-                                    <list editable="bottom">
-                                        <field name="id"/>
+                                    <list>
+                                        <field name="name" string="Identificación"/>
                                         <field name="hacienda_estado_lote"/>
                                         <field name="hacienda_codigoLote_lote"/>
                                         <field name="hacienda_descripcionMsg_lote"/>
                                         <field name="hacienda_fhProcesamiento_lote"/>
+                                        <button name="action_ver_facturas"
+                                                type="object"
+                                                string="Ver Facturas"
+                                                icon="fa-list"/>
                                     </list>
-                                    <form string="Detalle del Lote">
-                                        <group>
-                                            <field name="hacienda_estado_lote"/>
-                                            <field name="hacienda_codigoLote_lote"/>
-                                            <field name="hacienda_descripcionMsg_lote"/>
-                                            <field name="fechaHoraTransmision"/>
-                                        </group>
-                                        <notebook>
-                                            <page string="Facturas del Lote">
-                                                <field name="move_ids">
-                                                    <list>
-                                                        <field name="name" string="Número de Control" invisible="0"/>
-                                                        <field name="sit_lote_contingencia" string="Código de Generación" invisible="0"/>
-                                                        <field name="hacienda_selloRecibido" string="Sello Recibido" invisible="0"/>
-                                                        <field name="fecha_facturacion_hacienda" string="Fecha" invisible="0"/>
-                                                        <field name="hacienda_estado" string="Estado" invisible="0"/>
-                                                    </list>
-                                                </field>
-                                            </page>
-                                        </notebook>
-                                    </form>
                                 </field>
                             </page>
                             <page id="facturas_relacionadas" string="Facturas Relacionadas" name="facturas_relacionadas">    
@@ -126,6 +110,31 @@
                         </notebook>
                     </sheet>
                 </form>
+            </field>
+        </record>
+
+
+        <record id="view_account_move_lote_list" model="ir.ui.view">
+            <field name="name">account.move.lote.list</field>
+            <field name="model">account.move</field>
+            <field name="arch" type="xml">
+                <list string="Facturas del Lote">
+                    <header>
+                        <button name="action_reenviar_facturas_lote"
+                                type="object"
+                                string="Reenviar Facturas del Lote"
+                                display="always"
+                                class="oe_highlight"
+                                icon="fa-refresh"/>
+                    </header>
+                    <field name="name" string="Número de Control"/>
+                    <field name="hacienda_codigoGeneracion_identificacion" string="Código Generación"/>
+                    <field name="hacienda_selloRecibido" string="Sello Recibido"/>
+                    <field name="invoice_partner_display_name" string="Cliente"/>
+                    <field name="invoice_date" string="Fecha"/>
+                    <field name="amount_untaxed_in_currency_signed" widget="monetary"/>
+                    <field name="status_in_payment" string="Estado de Pago"/>
+                </list>
             </field>
         </record>
     </data>

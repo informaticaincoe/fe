@@ -781,7 +781,12 @@ class AccountMove(models.Model):
                     payload = invoice.obtener_payload(ambiente, sit_tipo_documento)
 
                     # Firmar el documento y generar el DTE
-                    documento_firmado = invoice.firmar_documento(ambiente, payload)
+                    try:
+                        documento_firmado = invoice.firmar_documento(ambiente, payload)
+                        _logger.info("Documento firmado: %s", documento_firmado)
+                    except Exception as e:
+                        _logger.error("Error al firmar documento: %s", e)
+                        raise
 
                     if not documento_firmado:
                         raise UserError("Error en firma del documento")
@@ -960,6 +965,16 @@ class AccountMove(models.Model):
                     'state': 'draft',
                     'sit_es_configencia': False,
                 })
+                #errores_dte.append("Factura %s: %s" % (invoice.name or invoice.id, str(e)))
+                #UserError(_("Error al procesar la factura %s:\n%s") % (invoice.name or invoice.id, str(e)))
+        # if errores_dte:
+        #     mensaje = "\n".join(errores_dte)
+        #     return {
+        #         'warning': {
+        #             'title': "Errores en procesamiento DTE",
+        #             'message': mensaje,
+        #         }
+        #     }
         _logger.info("SIT Fin _post")
 
         return super(AccountMove, self)._post(soft=soft)
@@ -975,91 +990,147 @@ class AccountMove(models.Model):
 
     # FIMAR FIMAR FIRMAR =======
     def firmar_documento(self, enviroment_type, payload):
-        _logger.info("SIT  Firmando documento")
-        _logger.info("SIT Documento a FIRMAR = %s", payload)
+        try:
+            _logger.info("SIT  Firmando documento")
+            _logger.info("SIT Documento a FIRMAR = %s", payload)
 
-        # 1) inicializar la lista donde acumularás status/cuerpo o errores
-        resultado = []
+            # 1) inicializar la lista donde acumularás status/cuerpo o errores
+            resultado = []
 
-        max_intentos = 3
-        resultado = []
-        # host = self.company_id.sit_firmador
-        url = "http://192.168.2.49:8113/firmardocumento/"  # host + '/firmardocumento/'
-        _logger.info("SIT Url firma: %s", url)
+            max_intentos = 3
+            resultado = []
+            # host = self.company_id.sit_firmador
+            url = self.url_firma  # "http://192.168.2.49:8113/firmardocumento/"  # host + '/firmardocumento/'
+            _logger.info("SIT Url firma: %s", url)
 
-        headers = {
-            'Content-Type': str(self.content_type) #'application/json'
-        }
+            headers = {
+                'Content-Type': str(self.content_type)  # 'application/json'
+            }
 
-        payload = {
-            "nit": payload["nit"],  # <--- aquí estaba el error, decía 'liendre'
-            "activo": True,
-            "passwordPri": payload["passwordPri"],
-            "dteJson": payload["dteJson"],
-        }
+            nit = payload.get("nit")
+            passwordPri = payload.get("passwordPri")
+            raw_dte = payload.get("dteJson")
+            dte_json = None
 
-        for intento in range(1, max_intentos + 1):
-            _logger.info("Intento %s de %s para firmar el documento", intento, max_intentos)
-            try:
-                response = requests.request("POST", url, headers=headers, data=json.dumps(payload, default=str))
-                _logger.info("SIT firmar_documento response =%s", response.text)
-                _logger.info("SIT dte json =%s",
-                             json.dumps(payload.get("dteJson", {}), indent=2, ensure_ascii=False, default=str))
+            # Validar que dteJson exista y no esté vacío
+            if not raw_dte or not str(raw_dte).strip():
+                _logger.error("No se puede firmar: el JSON del DTE está vacío o inválido")
+                raise UserError(_("No se puede firmar el documento: el JSON del DTE está vacío o inválido."))
 
-                json_response = response.json()
-                # Manejo de errores 400–402
-                if json_response.get('status') in [400, 401, 402, 'ERROR']:
-                    _logger.info("SIT Error 40X  =%s", json_response['status'])
-                    status = json_response['status']
-                    error = json_response['error']
-                    message = json_response['message']
-                    MENSAJE_ERROR = "Código de Error:" + str(status) + ", Error:" + str(error) + ", Detalle:" + str(
-                        message)
-                    # raise UserError(_(MENSAJE_ERROR))
-                    _logger.warning("Error de firma intento %s: %s", intento, MENSAJE_ERROR)
+            # Solo cambio aquí: si dteJson es string JSON, parsear a dict
+            if isinstance(raw_dte, str):
+                try:
+                    dte_json = json.loads(raw_dte)
+                    _logger.debug("SIT dteJson parseado desde string a objeto para evitar doble escape.")
+                except json.JSONDecodeError:
+                    # Si no es JSON válido, dejar tal cual para que falle luego si es necesario
+                    dte_json = raw_dte
+                    _logger.warning("El dteJson es string pero no JSON válido, se usará tal cual.")
+            elif isinstance(raw_dte, dict):
+                dte_json = raw_dte
+            else:
+                dte_json = raw_dte
 
+            # **Chequeo adicional**: si dte_json sigue siendo string, intentar manejarlo o lanzar error claro
+            if isinstance(dte_json, str):
+                try:
+                    dte_json = json.loads(dte_json)
+                    _logger.debug("Parseado doble de dteJson string anidado.")
+                except Exception:
+                    raise UserError(_("El campo dteJson no contiene JSON válido."))
+
+            # Asegurar que ahora sea dict para evitar errores posteriores
+            if not isinstance(dte_json, dict):
+                raise UserError(_("El campo dteJson debe ser un diccionario válido después del parseo."))
+
+            payload_firma = {
+                "nit": nit,  # <--- aquí estaba el error, decía 'liendre'
+                "activo": True,
+                "passwordPri": passwordPri,
+                "dteJson": dte_json,
+            }
+
+            for intento in range(1, max_intentos + 1):
+                _logger.info("Intento %s de %s para firmar el documento", intento, max_intentos)
+                try:
+                    response = requests.post(url, headers=headers, data=json.dumps(payload_firma, default=str))
+                    _logger.info("SIT firmar_documento response =%s", response.text)
+                    _logger.info("SIT dte json =%s", dte_json)
+
+                    json_response = response.json()
+                    status = json_response.get('status')
+                    # Manejo de errores 400–402
+                    if status in [400, 401, 402, 'ERROR']:
+                        _logger.info("SIT Error 40X  =%s", status)
+                        error = json_response.get('error')
+                        message = json_response.get('message')
+                        MENSAJE_ERROR = f"Código de Error: {status}, Error: {error}, Detalle: {message}"
+                        # raise UserError(_(MENSAJE_ERROR))
+                        _logger.warning("Error de firma intento %s: %s", intento, MENSAJE_ERROR)
+
+                        if intento == max_intentos:
+                            raise UserError(_(MENSAJE_ERROR))
+                        continue
+
+                    if status in ['ERROR', 401, 402]:
+                        _logger.info("SIT Error 40X  =%s", json_response.get('status'))
+                        body = json_response.get('body')
+
+                        # Si body es string, parsear a dict
+                        if isinstance(body, str):
+                            try:
+                                body = json.loads(body)
+                                _logger.debug("Parseado body de string a dict para error.")
+                            except Exception:
+                                _logger.warning("No se pudo parsear body de error, se usa tal cual.")
+
+                        if isinstance(body, dict):
+                            codigo = body.get('codigo', 'Desconocido')
+                            message = body.get('mensaje', '')
+                        else:
+                            codigo = 'Desconocido'
+                            message = str(body)
+
+                        resultado = [status, codigo, message]
+                        MENSAJE_ERROR = f"Código de Error: {status}, Codigo: {codigo}, Detalle: {message}"
+                        if intento == max_intentos:
+                            raise UserError(_(MENSAJE_ERROR))
+                        continue
+                    elif json_response.get('status') == 'OK':
+                        body = json_response['body']
+                        try:
+                            body_parsed = json.loads(body)
+                            _logger.info("Body parseado a JSON correctamente")
+                        except Exception:
+                            body_parsed = body
+                        resultado = [status, body]
+                        _logger.info("Firma ok regresando al post")
+                        return body_parsed
+
+                    # Otros casos, repetir intento o lanzar error
+                    _logger.warning("Respuesta inesperada en firma, intento %s: %s", intento, json_response)
                     if intento == max_intentos:
-                        raise UserError(_(MENSAJE_ERROR))
+                        raise UserError(_("No se pudo firmar el documento. Respuesta inesperada."))
                     continue
-
-                if json_response['status'] in ['ERROR', 401, 402]:
-                    _logger.info("SIT Error 40X  =%s", json_response['status'])
-                    status = json_response['status']
-                    body = json_response['body']
-                    codigo = body['codigo']
-                    message = body['mensaje']
-                    resultado.append(status)
-                    resultado.append(codigo)
-                    resultado.append(message)
-                    MENSAJE_ERROR = "Código de Error:" + str(status) + ", Codigo:" + str(codigo) + ", Detalle:" + str(
-                        message)
+                except Exception as e:
+                    _logger.warning("Excepción en firma intento %s: %s", intento, str(e))
                     if intento == max_intentos:
-                        raise UserError(_(MENSAJE_ERROR))
-                    continue
-                elif json_response['status'] == 'OK':
-                    status = json_response['status']
-                    body = json_response['body']
-                    resultado.append(status)
-                    resultado.append(body)
-                    return body
-            except Exception as e:
-                _logger.warning("Excepción en firma intento %s: %s", intento, str(e))
-                if intento == max_intentos:
-                    error = str(e)
-                    _logger.info('SIT error= %s, ', error)
-                    if "error" in error or "" in error:
+                        error = str(e)
+                        _logger.info('SIT error= %s, ', error)
                         try:
                             error_dict = json.loads(error) if isinstance(error, str) else error
-                            MENSAJE_ERROR = str(error_dict.get('status', '')) + ", " + str(
-                                error_dict.get('error', '')) + ", " + str(error_dict.get('message', ''))
+                            MENSAJE_ERROR = f"{error_dict.get('status', '')}, {error_dict.get('error', '')}, {error_dict.get('message', '')}"
                         except Exception:
                             MENSAJE_ERROR = error
                         raise UserError(_(MENSAJE_ERROR))
-                    else:
-                        raise UserError(_(error))
                     continue
-        # Si todos los intentos fallan sin lanzar excepciones
-        raise UserError(_("No se pudo firmar el documento. Inténtelo nuevamente más tarde."))
+            # Si todos los intentos fallan sin lanzar excepciones
+            raise UserError(_("No se pudo firmar el documento. Inténtelo nuevamente más tarde."))
+        except Exception as e_general:
+            _logger.info("Error general en firmar_documento: %s", e_general)
+            _logger.info("Tipo de dte_json (si existe): %s",
+                         type(dte_json) if 'dte_json' in locals() else 'No definido')
+            _logger.info("Contenido de dte_json (si existe): %s", dte_json if 'dte_json' in locals() else 'No definido')
 
     def obtener_payload(self, enviroment_type, sit_tipo_documento):
         _logger.info("SIT  Obteniendo payload")
@@ -1114,14 +1185,30 @@ class AccountMove(models.Model):
         # )
         # url_receive = f"{host}/fesv/recepciondte1"
 
+        # Validar y parsear dteJson si es string
+        dte_json = payload_original.get("dteJson")
+        if isinstance(dte_json, str):
+            try:
+                dte_json = json.loads(dte_json)
+                payload_original["dteJson"] = dte_json
+                _logger.info("dteJson parseado correctamente en generar_dte")
+            except Exception as e:
+                _logger.warning(f"No se pudo parsear dteJson en generar_dte: {e}")
+                raise UserError(_("Error interno: dteJson no válido."))
+
+        if not isinstance(dte_json, dict):
+            _logger.warning(f"dteJson no es un diccionario: {dte_json}")
+            raise UserError(_("Error interno: dteJson debe ser un diccionario."))
+
         url_receive = (
             config_utils.get_config_value(self.env, 'url_test_hacienda', self.company_id.id)
-            if environment_type == constants.AMBIENTE_TEST #Ambiente de prueba
+            if environment_type == constants.AMBIENTE_TEST  # Ambiente de prueba
             else config_utils.get_config_value(self.env, 'url_prod_hacienda', self.company_id.id)
         )
 
         if not url_receive:
-            _logger.error("SIT: Falta la URL de Hacienda en la configuración de la compañía [ID] %s", self.company_id.id)
+            _logger.error("SIT: Falta la URL de Hacienda en la configuración de la compañía [ID] %s",
+                          self.company_id.id)
             raise UserError(_("La URL de hacienda no está configurada en la empresa."))
 
         # ——— 2) Refrescar token si hace falta ———
@@ -1136,29 +1223,33 @@ class AccountMove(models.Model):
 
         headers = {
             "Content-Type": str(self.content_type),
-            "User-Agent": user_agent, #"Odoo",
+            "User-Agent": user_agent,  # "Odoo",
             "Authorization": f"Bearer {self.company_id.sit_token}",
         }
 
         # ——— 3) Obtener o firmar el JWT ———
         jwt_token = payload.get("documento")
+        url = config_utils.get_config_value(self.env, 'url_firma', self.company_id.id)
+        if not url:
+            _logger.error("SIT | No se encontró 'url_firma' en la configuración para la compañía ID %s",
+                          self.company_id.id)
+            raise UserError(_("La URL de firma no está configurada en la empresa."))
         if not (isinstance(jwt_token, str) and jwt_token.strip()):
             firmador_url = (
                     getattr(self.company_id, "sit_firmador", None)
-                    or "http://192.168.2.25:8113/firmardocumento"
+                    or url
             )
             sign_payload = {
-                "nit": payload_original["dteJson"]["emisor"]["nit"],
+                "nit": dte_json["emisor"]["nit"],
                 "activo": True,
                 "passwordPri": payload_original.get("passwordPri")
                                or self.company_id.sit_password
-                               or payload_original["dteJson"].get("passwordPri"),
-                "dteJson": payload_original["dteJson"],
+                               or dte_json.get("passwordPri"),
+                "dteJson": dte_json,
             }
             try:
-                resp_sign = requests.post(
-                    firmador_url, headers={"Content-Type": "application/json"}, json=sign_payload, timeout=30
-                )
+                resp_sign = requests.post(firmador_url, headers={"Content-Type": "application/json"}, json=sign_payload,
+                                          timeout=30)
                 resp_sign.raise_for_status()
                 data_sign = resp_sign.json()
                 if data_sign.get("status") != "OK":
@@ -1173,7 +1264,7 @@ class AccountMove(models.Model):
                 }
 
         # ——— 4) Construir el payload para Hacienda ———
-        ident = payload_original["dteJson"]["identificacion"]
+        ident = dte_json["identificacion"] if dte_json["identificacion"] else NotImplemented
         send_payload = {
             "ambiente": ident["ambiente"],
             "idEnvio": int(self.id),
@@ -1186,7 +1277,7 @@ class AccountMove(models.Model):
         # ——— 5) Envío a Hacienda ———
         # ——— Intentos para enviar a Hacienda ———
         for intento in range(1, max_intentos + 1):
-            _logger.info("Intento %s de %s para enviar DTE a Hacienda", intento, max_intentos)
+            _logger.info(f"Intento {intento} de {max_intentos} para enviar DTE a Hacienda")
             try:
                 resp = requests.post(url_receive, headers=headers, json=send_payload, timeout=30)
             except Exception as e:
@@ -1219,7 +1310,8 @@ class AccountMove(models.Model):
                     "hacienda_observaciones": ", ".join(data.get("observaciones") or []),
                     "state": "posted",
                 })
-                if (not self.hacienda_selloRecibido or self.hacienda_selloRecibido.strip()) and data.get("selloRecibido"):
+                if (not self.hacienda_selloRecibido or self.hacienda_selloRecibido.strip()) and data.get(
+                        "selloRecibido"):
                     self.write({
                         "hacienda_selloRecibido": data.get("selloRecibido")
                     })
@@ -1234,7 +1326,7 @@ class AccountMove(models.Model):
                 _logger.warning(mensaje)
                 if intento == max_intentos:
                     self._crear_contingencia(resp, data, mensaje)
-                    raise UserError(_("Error MH (HTTP %s): %s") % (resp.status_code, data or resp.text))
+                    raise UserError(_("Error MH estado !=200 (HTTP %s): %s") % (resp.status_code, data or resp.text))
                 continue  # intenta de nuevo
             # data = resp.json()
 
@@ -1244,7 +1336,8 @@ class AccountMove(models.Model):
                 _logger.warning(mensaje)
                 if intento == max_intentos:
                     self._crear_contingencia(resp, data, mensaje)
-                    raise UserError(_("Rechazado por MH: %s – %s") % (data.get('clasificaMsg'), data.get('descripcionMsg')))
+                    raise UserError(
+                        _("Rechazado por MH: %s – %s") % (data.get('clasificaMsg'), data.get('descripcionMsg')))
                 continue
 
             if estado == 'PROCESADO':
@@ -1442,19 +1535,35 @@ class AccountMove(models.Model):
 
     def _crear_contingencia(self, resp, data, mensaje):
         # ___Actualizar dte en contingencia
+        # Solo crear si no tiene sello y no está ya en contingencia
+        if self.hacienda_selloRecibido or self.sit_factura_de_contingencia:
+            _logger.info("Factura %s no entra a contingencia: sello=%s, contingencia=%s", self.name,
+                         self.hacienda_selloRecibido, self.sit_factura_de_contingencia)
+            return
+
+        journal_contingencia = self.env['account.journal'].search([
+            ('code', '=', 'CONT'),
+            ('company_id', '=', self.company_id.id),
+        ], limit=1)
+        if not journal_contingencia:
+            raise UserError(_("No se encontró el diario de contingencia."))
+
+        journal_lote = self.env['account.journal'].search([
+            ('code', '=', 'LOTE'),
+            ('company_id', '=', self.company_id.id),
+        ], limit=1)
+        if not journal_lote:
+            raise UserError(_("No se encontró el diario de lotes."))
+
         max_intentos = 3
         if not data:
             data = {}
 
         codigo = data.get("codigoMsg") or "SIN_CODIGO"
         descripcion = data.get("descripcionMsg") or resp.text or "Error desconocido"
-        _logger.warning("Creando contingencia por error MH: [%s] %s", codigo, descripcion)
+        _logger.info("Creando contingencia por error MH: [%s] %s", codigo, descripcion)
 
         error_msg = _(mensaje)  # mensaje debe ser clave de traducción
-        # error_msg = tmpl.format(
-        #     max_intentos=max_intentos,
-        #     **data,  # extiende data={'timestamp':…, 'status':…} a timestamp=…, status=…
-        # )
 
         tipo_contingencia, motivo_otro, mensaje_motivo = self._evaluar_error_contingencia(
             status_code=resp.status_code,
@@ -1463,13 +1572,14 @@ class AccountMove(models.Model):
 
         self.write({
             'error_log': error_msg,
-            'sit_es_configencia': False,
+            'sit_es_configencia': True,
             'sit_tipo_contingencia': tipo_contingencia.id if tipo_contingencia else False,
             # 'sit_tipo_contingencia_otro': mensaje_motivo,
         })
-        _logger.warning("Guardando DTE en contingencia (%s): %s", tipo_contingencia.codigo if tipo_contingencia else "", self.name)
+        _logger.info("Guardando DTE en contingencia (%s): %s", tipo_contingencia.codigo if tipo_contingencia else "",
+                     self.name)
 
-        _logger.warning("Buscando contingencia activa para empresa: %s", self.company_id.name)
+        _logger.info("Buscando contingencia activa para empresa: %s", self.company_id.name)
 
         Contingencia = self.env['account.contingencia1']
         Lote = self.env['account.lote']
@@ -1479,6 +1589,7 @@ class AccountMove(models.Model):
             ('company_id', '=', self.company_id.id),
             ('sit_selloRecibido', '=', False),
             ('contingencia_activa', '=', True),
+            ('contingencia_recibida_mh', '=', False),
         ], limit=1)
 
         lote_asignado = None
@@ -1492,60 +1603,84 @@ class AccountMove(models.Model):
             # Buscar lote incompleto
             lotes_validos = Lote.search([
                 ('sit_contingencia', '=', contingencia_activa.id),
-                ('hacienda_codigoLote_lote', '=', False),
+                ('hacienda_codigoLote_lote', 'in', [False, '', None]),
                 ('lote_activo', '=', True),
+                # ('lote_recibido_mh', '=', False),
             ])
 
             for lote in lotes_validos:
-                if len(lote.move_ids) < 2:#100
-                    if not self.sit_lote_contingencia:
-                        self.write({'sit_lote_contingencia': lote.id})
-                    else:
-                        self.write({'sit_lote_contingencia': lote.id})
+                if len(lote.move_ids) < 2:  # 100
+                    self.write({'sit_lote_contingencia': lote.id})
                     lote_asignado = lote
                     _logger.info("Factura asignada a lote existente: %s", lote.id)
                     break
 
-            if not lote_asignado:
+            if not lote_asignado and not self.sit_lote_contingencia:
+                # Eliminar lotes vacíos si los hay (opcional, solo si quieres limpiar)
+                lotes_vacios = Lote.search([
+                    ('sit_contingencia', '=', contingencia_activa.id),
+                    '|', '|',
+                    ('name', '=', False),
+                    ('name', '=', ''),
+                    ('name', '=ilike', ' '),
+                ])
+                if lotes_vacios:
+                    _logger.warning("Se eliminarán lotes vacíos sin nombre antes de crear uno nuevo: %s",
+                                    lotes_vacios.ids)
+                    lotes_vacios.unlink()
+
                 num_lotes = Lote.search_count([('sit_contingencia', '=', contingencia_activa.id)])
-                if num_lotes < 2:#400
+                _logger.info("Cantidad lotes existentes en contingencia %s: %d", contingencia_activa.name, num_lotes)
+
+                if num_lotes < 2:
+                    nuevo_nombre_lote = self.env['account.lote'].generar_nombre_lote(journal=journal_lote,
+                                                                                     actualizar_secuencia=True)
+                    if not nuevo_nombre_lote or not nuevo_nombre_lote.strip():
+                        raise UserError(_("El nombre generado para el lote es inválido, no puede ser vacío."))
                     lote_asignado = Lote.create({
-                        'name': f"Lote de contingencia {contingencia_activa.name}-{num_lotes + 1}",
+                        'name': nuevo_nombre_lote,
                         'sit_contingencia': contingencia_activa.id,
                         'lote_activo': True,
+                        'journal_id': journal_lote.id,
                     })
-                    if not self.sit_lote_contingencia:
-                        self.write({'sit_lote_contingencia': lote_asignado.id})
-                        _logger.info("Factura asignada a nuevo lote: %s", lote_asignado.name)
-                    else:
-                        _logger.warning("Factura ya tenía un lote asignado al crear nuevo: %s", self.sit_lote_contingencia.name)
+                    self.write({'sit_lote_contingencia': lote_asignado.id})
+                    _logger.info("Factura asignada a nuevo lote: %s", lote_asignado.name)
                 else:
-                    _logger.warning("Contingencia ya tiene 400 lotes. Creando nueva contingencia.")
+                    _logger.info("Contingencia ya tiene 400 lotes. Creando nueva contingencia.")
                     contingencia_activa = None  # Forzar nueva contingencia
+
+            elif not lote_asignado and self.sit_lote_contingencia:
+                _logger.info("Factura ya tenía un lote asignado, no se crea nuevo lote: %s",
+                             self.sit_lote_contingencia.name)
         else:
             _logger.info("No se encontró contingencia activa. Creando nueva.")
 
         # Si no hay contingencia activa o válida, crear una nueva
         if not contingencia_activa:
+            nuevo_name = self.env['account.contingencia1']._generate_contingencia_name(journal=journal_contingencia,
+                                                                                       actualizar_secuencia=True)
             contingencia_activa = Contingencia.create({
-                'name': f"Contingencia {fields.Datetime.now().strftime('%Y%m%d-%H%M%S')}",
+                'name': nuevo_name,
                 'company_id': self.company_id.id,
-                'journal_id': self.journal_id.id,
+                'journal_id': journal_contingencia.id,
                 'sit_tipo_contingencia': tipo_contingencia.id if tipo_contingencia else False,
                 'contingencia_activa': True,
-                # 'move_ids': [(6, 0, [self.id])],
-                # 'estado': 'pendiente',
-                # 'motivo': f"Error {codigo}: {descripcion}",
-                # 'respuesta_mh': resp.text,
-                # 'codigo_generacion': self.codigoGeneracion,
             })
 
+            nuevo_nombre_lote = self.env['account.lote'].generar_nombre_lote(journal=journal_lote,
+                                                                             actualizar_secuencia=True)
+            if not nuevo_nombre_lote or not nuevo_nombre_lote.strip():
+                raise UserError(_("El nombre generado para el lote es inválido, no puede ser vacío."))
             lote_asignado = Lote.create({
-                'name': f"Lote de contingencia {contingencia_activa.name}-1",
+                'name': nuevo_nombre_lote,
                 'sit_contingencia': contingencia_activa.id,
                 'lote_activo': True,
+                'journal_id': journal_lote.id,
             })
-            self.write({'sit_lote_contingencia': lote_asignado.id})
+            self.write({
+                'sit_lote_contingencia': lote_asignado.id,
+                'sit_factura_de_contingencia': contingencia_activa.id,
+            })
             _logger.info("Creada nueva contingencia y lote: %s, %s", contingencia_activa.name, lote_asignado.name)
 
         _logger.info("Factura %s asignada a contingencia %s y lote %s", self.name, contingencia_activa.name,
