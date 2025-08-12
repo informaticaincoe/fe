@@ -3,12 +3,20 @@ from odoo.exceptions import UserError
 import logging
 import base64
 from lxml import etree
+from datetime import date
 
 _logger = logging.getLogger(__name__)
 
 
 class HrPayslip(models.Model):
     _inherit = 'hr.payslip'
+
+    PERIOD_MONTHS = [
+        ('01', 'enero'), ('02', 'febrero'), ('03', 'marzo'),
+        ('04', 'abril'), ('05', 'mayo'), ('06', 'junio'),
+        ('07', 'julio'), ('08', 'agosto'), ('09', 'septiembre'),
+        ('10', 'octubre'), ('11', 'noviembre'), ('12', 'diciembre'),
+    ]
 
     name = fields.Char(
         string='Employee Name',
@@ -44,6 +52,10 @@ class HrPayslip(models.Model):
 
     employee_name = fields.Char(
         string="Empleado"
+    )
+
+    salario_pagar = fields.Float(
+        string="Salario a pagar"
     )
 
     department_name = fields.Char(
@@ -434,3 +446,37 @@ class HrPayslip(models.Model):
             _logger.info("Correo enviado a %s con archivo %s", self.employee_id.work_email, filename)
         except Exception as e:
             raise UserError(_("Error al enviar el correo: %s") % str(e))
+
+    def year_selection(self):
+        """Rango de años que se mostrarán en el panel."""
+        current_year = date.today().year
+        years = list(range(current_year - 3, current_year + 2))
+        return [(str(y), str(y)) for y in years]
+
+    period_year = fields.Selection(
+        selection=year_selection, string='Año',
+        compute='_compute_period_fields', store=True, index=True
+    )
+    period_month = fields.Selection(
+        selection=PERIOD_MONTHS, string='Mes',
+        compute='_compute_period_fields', store=True, index=True
+    )
+    period_quincena = fields.Selection(
+        selection=[('1', '1ª quincena'), ('2', '2ª quincena')],
+        string='Quincena',
+        compute='_compute_period_fields', store=True, index=True
+    )
+
+    @api.depends('date_from', 'date_to')
+    def _compute_period_fields(self):
+        for rec in self:
+            if rec.date_from:
+                # Tomamos date_from como referencia de periodo
+                d = fields.Date.from_string(rec.date_from)
+                rec.period_year = str(d.year)
+                rec.period_month = f"{d.month:02d}"
+                rec.period_quincena = '1' if d.day <= 15 else '2'
+            else:
+                rec.period_year = False
+                rec.period_month = False
+                rec.period_quincena = False
