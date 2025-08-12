@@ -27,8 +27,8 @@ import re
 # from datetime import datetime
 
 _logger = logging.getLogger(__name__)
-EXTRA_ADDONS = r'C:\Users\Admin\Documents\GitHub\fe\location\mnt\extra-addons\src'
-#EXTRA_ADDONS = r'C:\Users\INCOE\Documents\GitHub\fe\location\mnt\extra-addons\src'
+#EXTRA_ADDONS = r'C:\Users\Admin\Documents\GitHub\fe\location\mnt\extra-addons\src'
+EXTRA_ADDONS = r'C:\Users\INCOE\Documents\GitHub\fe\location\mnt\extra-addons\src'
 
 try:
     from odoo.addons.common_utils.utils import config_utils
@@ -165,6 +165,11 @@ class AccountMoveInvalidation(models.Model):
     def button_anul(self):
         '''Generamos la Anulación de la Factura'''
         _logger.info("SIT [INICIO] button_anul para invoices: %s", self.ids)
+        resultado_final = {
+            "exito": False,
+            "mensaje": "",
+            "resultado_mh": None,
+        }
         # MENSAJE="SIT Respuesta = button_anul"
         # raise UserError(_(MENSAJE))
 
@@ -172,87 +177,95 @@ class AccountMoveInvalidation(models.Model):
         # _logger.info("SIT NUMERO FACTURA =%s", NUMERO_FACTURA)
         fh_procesamiento = None
         for invoice in self:
-            _logger.info("SIT Anulando factura ID: %s, Nombre: %s", invoice.id, invoice.sit_factura_a_reemplazar.name)
+            documento_firmado = None
+            validation_type = None
+            ambiente = None
+            payload_original = None
+            Resultado = None
+            try:
+                _logger.info("SIT Anulando factura ID: %s, Nombre: %s", invoice.id, invoice.sit_factura_a_reemplazar.name)
 
-            sit_tipo_documento = invoice.sit_factura_a_reemplazar.journal_id.sit_tipo_documento.codigo
-            _logger.info("SIT Tipo de documento: %s", sit_tipo_documento)
+                sit_tipo_documento = invoice.sit_factura_a_reemplazar.journal_id.sit_tipo_documento.codigo
+                _logger.info("SIT Tipo de documento: %s", sit_tipo_documento)
 
-            #invoice.sit_fec_hor_Anula = fhProcesamiento
+                # invoice.sit_fec_hor_Anula = fhProcesamiento
 
-            if sit_tipo_documento not in ['01', '11']:
-                _logger.info("SIT Validando tiempo límite para anulación (24h)")
-                fecha_facturacion_hacienda = invoice.sit_factura_a_reemplazar.fecha_facturacion_hacienda
-                if fecha_facturacion_hacienda:
-                    if isinstance(fecha_facturacion_hacienda, datetime):
-                        fecha_factura_dt = fecha_facturacion_hacienda
-                    else:
-                        fecha_factura_dt = datetime.strptime(fecha_facturacion_hacienda, '%d/%m/%Y %H:%M:%S')
-
-                    fecha_factura_utc = pytz.timezone("America/El_Salvador").localize(fecha_factura_dt).astimezone(
-                        pytz.utc)
-                    time_diff = datetime.now(pytz.utc) - fecha_factura_utc
-
-                    # if time_diff.total_seconds() > 24 * 3600:
-                    #     _logger.warning("SIT Factura excede el límite de anulación de 24h")
-                    #     raise UserError(_("La anulación no puede realizarse. La factura tiene más de 24 horas."))
-
-            if not invoice.hacienda_estado_anulacion:
-                if invoice.sit_factura_a_reemplazar.move_type != 'entry':
-                    type_report = invoice.sit_factura_a_reemplazar.journal_id.type_report
-                    _logger.info("SIT Type report: %s", type_report)
-
-                    validation_type = self._compute_validation_type_2()
-                    _logger.info("SIT Validation type: %s", validation_type)
-
-                    ambiente = "00"
-                    if validation_type == 'homologation':
-                        ambiente = "00"
-                        _logger.info("SIT Factura de Prueba")
-                    elif validation_type == 'production':
-                        _logger.info("SIT Factura de Producción")
-                        ambiente = "01"
-                    _logger.info("SIT Ambiente: %s", ambiente)
-
-                    # Generar json de Invalidación
-                    payload = invoice.obtener_payload_anulacion(validation_type)
-
-                    documento_firmado = ""
-                    payload_original = payload
-                    _logger.info("SIT Payload original de anulación generado")
-
-                    # Guardar json generado
-                    json_dte = payload_original['dteJson']
-                    # Solo serializar si no es string
-                    try:
-                        if isinstance(json_dte, str):
-                            try:
-                                # Verifica si es un JSON string válido, y lo convierte a dict
-                                json_dte = json.loads(json_dte)
-                            except json.JSONDecodeError:
-                                # Ya era string, pero no era JSON válido -> guardar tal cual
-                                invoice.sit_json_respuesta_invalidacion = json_dte
-                            else:
-                                # Era un JSON string válido → ahora es dict
-                                invoice.sit_json_respuesta_invalidacion = json.dumps(json_dte, ensure_ascii=False)
-                        elif isinstance(json_dte, dict):
-                            invoice.sit_json_respuesta_invalidacion = json.dumps(json_dte, ensure_ascii=False)
+                if sit_tipo_documento not in ['01', '11']:
+                    _logger.info("SIT Validando tiempo límite para anulación (24h)")
+                    fecha_facturacion_hacienda = invoice.sit_factura_a_reemplazar.fecha_facturacion_hacienda
+                    if fecha_facturacion_hacienda:
+                        if isinstance(fecha_facturacion_hacienda, datetime):
+                            fecha_factura_dt = fecha_facturacion_hacienda
                         else:
-                            # Otro tipo de dato no esperado
-                            invoice.sit_json_respuesta_invalidacion = str(json_dte)
-                    except Exception as e:
-                        _logger.warning("No se pudo guardar el JSON del DTE: %s", e)
-                    _logger.info("SIT Json DTE= ", payload_original['dteJson'])
+                            fecha_factura_dt = datetime.strptime(fecha_facturacion_hacienda, '%d/%m/%Y %H:%M:%S')
 
-                    self.check_parametros_invalidacion()
-                    documento_firmado = invoice.firmar_documento_anu(validation_type, payload)
+                        fecha_factura_utc = pytz.timezone("America/El_Salvador").localize(fecha_factura_dt).astimezone(
+                            pytz.utc)
+                        time_diff = datetime.now(pytz.utc) - fecha_factura_utc
 
-                    if not documento_firmado:
-                        raise UserError("Error en firma del documento")
+                        # if time_diff.total_seconds() > 24 * 3600:
+                        #     _logger.warning("SIT Factura excede el límite de anulación de 24h")
+                        #     raise UserError(_("La anulación no puede realizarse. La factura tiene más de 24 horas."))
+
+                if not invoice.hacienda_estado_anulacion:
+                    if invoice.sit_factura_a_reemplazar.move_type != 'entry':
+                        type_report = invoice.sit_factura_a_reemplazar.journal_id.type_report
+                        _logger.info("SIT Type report: %s", type_report)
+
+                        validation_type = self._compute_validation_type_2()
+                        _logger.info("SIT Validation type: %s", validation_type)
+
+                        ambiente = "00"
+                        if validation_type == 'homologation':
+                            ambiente = "00"
+                            _logger.info("SIT Factura de Prueba")
+                        elif validation_type == 'production':
+                            _logger.info("SIT Factura de Producción")
+                            ambiente = "01"
+                        _logger.info("SIT Ambiente: %s", ambiente)
+
+                        # Generar json de Invalidación
+                        payload = invoice.obtener_payload_anulacion(validation_type)
+
+                        documento_firmado = ""
+                        payload_original = payload
+                        _logger.info("SIT Payload original de anulación generado")
+
+                        # Guardar json generado
+                        json_dte = payload_original['dteJson']
+                        # Solo serializar si no es string
+                        try:
+                            if isinstance(json_dte, str):
+                                try:
+                                    # Verifica si es un JSON string válido, y lo convierte a dict
+                                    json_dte = json.loads(json_dte)
+                                except json.JSONDecodeError:
+                                    # Ya era string, pero no era JSON válido -> guardar tal cual
+                                    invoice.sit_json_respuesta_invalidacion = json_dte
+                                else:
+                                    # Era un JSON string válido → ahora es dict
+                                    invoice.sit_json_respuesta_invalidacion = json.dumps(json_dte, ensure_ascii=False)
+                            elif isinstance(json_dte, dict):
+                                invoice.sit_json_respuesta_invalidacion = json.dumps(json_dte, ensure_ascii=False)
+                            else:
+                                # Otro tipo de dato no esperado
+                                invoice.sit_json_respuesta_invalidacion = str(json_dte)
+                        except Exception as e:
+                            _logger.warning("No se pudo guardar el JSON del DTE: %s", e)
+                        _logger.info("SIT Json DTE= %s", payload_original['dteJson'])
+
+                        self.check_parametros_invalidacion()
+                        documento_firmado = invoice.firmar_documento_anu(validation_type, payload)
+
+                        if not documento_firmado:
+                            resultado_final["mensaje"] = "Error en firma del documento"
+                            _logger.warning(resultado_final["mensaje"])
+                            return resultado_final
 
                     if documento_firmado:
                         _logger.info("SIT Firmado de documento")
                         _logger.info("SIT Generando DTE")
-                        #Guardar firma
+                        # Guardar firma
                         invoice.sit_documento_firmado_invalidacion = str(documento_firmado)
 
                         # Obtiene el payload DTE
@@ -263,7 +276,7 @@ class AccountMoveInvalidation(models.Model):
                         # Enviar Invalidación a MH
                         Resultado = invoice.generar_dte_invalidacion(validation_type, payload_dte, payload_original)
 
-                        #if Resultado:
+                        # if Resultado:
                         estado = None
                         if Resultado and Resultado.get('estado'):
                             estado = Resultado['estado'].strip().lower()
@@ -283,7 +296,7 @@ class AccountMoveInvalidation(models.Model):
                                 # else:
                                 # pass
 
-                                #fhProcesamiento = datetime.fromisoformat(dat_time).replace(tzinfo=None) + timedelta(hours=6)
+                                # fhProcesamiento = datetime.fromisoformat(dat_time).replace(tzinfo=None) + timedelta(hours=6)
                                 fh_procesamiento = Resultado['fhProcesamiento']
                                 fh_dt = None
                                 if fh_procesamiento:
@@ -298,7 +311,8 @@ class AccountMoveInvalidation(models.Model):
 
                                     if fh_dt and not invoice.hacienda_fhProcesamiento_anulacion:
                                         invoice.hacienda_fhProcesamiento_anulacion = fh_dt
-                                        _logger.info("SIT Fecha invalidacion=%s", invoice.hacienda_fhProcesamiento_anulacion)
+                                        _logger.info("SIT Fecha invalidacion=%s",
+                                                     invoice.hacienda_fhProcesamiento_anulacion)
 
                                 _logger.info("SIT Respuesta: %s", Resultado)
                                 invoice.hacienda_estado_anulacion = Resultado['estado']
@@ -311,7 +325,7 @@ class AccountMoveInvalidation(models.Model):
 
                                 codigo_qr = invoice._generar_qr(ambiente, Resultado['codigoGeneracion'],
                                                                 invoice.hacienda_fhProcesamiento_anulacion)
-                                #invoice.sit_qr_hacienda_anulacion = codigo_qr
+                                # invoice.sit_qr_hacienda_anulacion = codigo_qr
                                 _logger.info("SIT Factura creada correctamente =%s", MENSAJE)
                                 _logger.info("SIT Factura creada correctamente state =%s", invoice.state)
                                 payload_original['dteJson']['firmaElectronica'] = documento_firmado
@@ -320,7 +334,7 @@ class AccountMoveInvalidation(models.Model):
                                              str(json.dumps(payload_original)))
 
                                 # invoice.sit_json_respuesta = str(json.dumps(payload_original['dteJson']))
-                                #invoice.sit_json_respuesta_invalidacion = payload_original['dteJson']
+                                # invoice.sit_json_respuesta_invalidacion = payload_original['dteJson']
                                 _logger.info("SIT JSON de Invalidacion=%s", invoice.sit_json_respuesta_invalidacion)
                                 json_str = json.dumps(payload_original['dteJson'])
                                 _logger.info("SIT JSON de respuesta guardado")
@@ -335,10 +349,15 @@ class AccountMoveInvalidation(models.Model):
                                 json_response_data = {
                                     "jsonRespuestaMh": Resultado
                                 }
+                                resultado_final["exito"] = True
+                                resultado_final["mensaje"] = "DTE invalidado correctamente."
+                                resultado_final["resultado_mh"] = Resultado
+                                resultado_final["notificar"] = True
 
                                 # Convertir el JSON sit_json_respuesta_invalidacion a un diccionario de Python
                                 try:
-                                    json_original = json.loads(invoice.sit_json_respuesta_invalidacion) if invoice.sit_json_respuesta_invalidacion else {}
+                                    json_original = json.loads(
+                                        invoice.sit_json_respuesta_invalidacion) if invoice.sit_json_respuesta_invalidacion else {}
                                 except json.JSONDecodeError:
                                     json_original = {}
 
@@ -348,7 +367,8 @@ class AccountMoveInvalidation(models.Model):
                                 invoice.sit_json_respuesta_invalidacion = sit_json_respuesta_fusionado
 
                                 # Guardar archivo .json
-                                file_name = 'Invalidacion ' + invoice.sit_factura_a_reemplazar.name.replace('/', '_') + '.json'
+                                file_name = 'Invalidacion ' + invoice.sit_factura_a_reemplazar.name.replace('/',
+                                                                                                            '_') + '.json'
                                 _logger.info("SIT file_name =%s", file_name)
                                 _logger.info("SIT self._name =%s", self._name)
                                 _logger.info("SIT invoice.id =%s", invoice.id)
@@ -386,23 +406,25 @@ class AccountMoveInvalidation(models.Model):
                                 except Exception as e:
                                     _logger.warning("SIT | Error al enviar DTE por correo o generar PDF: %s", str(e))
 
+                                resultado_final["exito"] = True
+                                resultado_final["mensaje"] = "DTE invalidado correctamente."
+                                resultado_final["resultado_mh"] = Resultado
+
                                 _logger.info("SIT Factura anulada correctamente.")
                             except Exception as e:
                                 _logger.exception("SIT Error en el procesamiento de la respuesta de Hacienda:")
-                                raise UserError("Ocurrió un error al procesar y guardar la respuesta de Hacienda.")
-                        else:
-                            # Lanzar error al final si fue rechazado
-                            if estado:
-                                if estado == 'rechazado':
-                                    mensaje = Resultado['descripcionMsg'] or _('Documento rechazado por Hacienda.')
-                                    raise UserError(_("DTE rechazado por MH:\n%s") % mensaje)
-                                elif estado not in ('procesado', ''):
-                                    mensaje = Resultado.get('descripcionMsg') or _('DTE no procesado correctamente')
-                                    raise UserError(_("Respuesta inesperada de Hacienda. Estado: %s\nMensaje: %s") % (estado, mensaje))
-                    else:
-                        _logger.info("SIT  Documento no firmado")
-                        raise UserError(_('SIT Documento NO Firmado'))
+                            resultado_final["mensaje"] = f"Ocurrió un error al procesar la respuesta de Hacienda: {e}"
+                else:
+                    # Mostrar mensaje de error pero no interrumpir con excepción
+                    mensaje = Resultado.get(
+                        'descripcionMsg') or "Error en procesamiento MH" if Resultado else "Error desconocido"
+                    resultado_final["mensaje"] = f"Invalidación rechazada o error MH: {mensaje}"
+                    resultado_final["resultado_mh"] = Resultado
+            except Exception as e:
+                resultado_final["mensaje"] = str(e)
+                _logger.error("Error en button_anul: %s", e)
         _logger.info("SIT [FIN] button_anul")
+        return resultado_final
 
     def _compute_validation_type_2(self):
         for rec in self:

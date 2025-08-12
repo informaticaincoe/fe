@@ -22,7 +22,7 @@ class sit_account_move(models.Model):
     sit_tipo_contingencia_otro = fields.Text(string="Especifique el Otro Tipo de Contingencia")
     sit_tipo_contingencia_valores = fields.Char(related="sit_tipo_contingencia.valores", string="Tipo de contingiancia(nombre)")
     sit_factura_de_contingencia = fields.Many2one('account.contingencia1', string="Factura de contingencia relacionada", ondelete="set null")
-    sit_es_configencia = fields.Boolean('Es contingencia ?',  copy=False,)
+    sit_es_configencia = fields.Boolean('Contingencia',  copy=False,)
     sit_factura_por_lote = fields.Boolean('Facturado por lote ?',  copy=False, default=False)
     sit_documento_firmado = fields.Text(string="Documento Firmado", copy=False, readonly=True)
     sit_lote_contingencia = fields.Many2one('account.lote', string="Factura asignada en el lote", ondelete="set null")
@@ -348,7 +348,7 @@ class sit_account_move(models.Model):
                     'hacienda_codigoMsg': Resultado.get('codigoMsg'),
                     'hacienda_descripcionMsg': Resultado.get('descripcionMsg'),
                     'hacienda_observaciones': str(Resultado.get('observaciones', '')),
-                    'state': 'draft',
+                    'state': 'posted',
                     'recibido_mh': True,
                     'sit_json_respuesta': self.sit_json_respuesta,
                 })
