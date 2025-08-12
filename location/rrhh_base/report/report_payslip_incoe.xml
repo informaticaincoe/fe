@@ -237,7 +237,7 @@
 
 
                                 <!-- Pago por hora extra -->
-                                <t t-set="pago_por_hora" t-value="o.basic_wage / 120"/>
+                                <t t-set="pago_por_hora" t-value="o.employee_id.hourly_cost"/>
                                 <t t-set="pago_por_he_diurna"
                                    t-value="round(he_diurna_cantidad * (pago_por_hora * (float(config_he_diurna.value_text) / 100)),2)"/>
                                 <t t-set="pago_por_he_nocturna"

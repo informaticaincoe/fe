@@ -190,6 +190,20 @@ class HrSalaryAssignment(models.Model):
                                         pass
                 _logger.info(f"Comparando horas existentes: {horas_existentes} con nuevas: {horas_nuevas}")
 
+                horas_directas = {campo: 0.0 for campo in horas_campos}
+                for campo in horas_campos:
+                    if campo in vals and vals[campo]:
+                        try:
+                            horas_directas[campo] += self._parse_horas(vals[campo])
+                        except Exception:
+                            pass
+
+                horas_aportadas = {
+                    campo: float(horas_nuevas.get(campo, 0.0)) + float(horas_directas.get(campo, 0.0))
+                    for campo in horas_campos
+                }
+                hay_horas_aportadas = any(v > 0 for v in horas_aportadas.values())
+
                 # Función auxiliar para comparar horas con tolerancia
                 def horas_iguales(v1, v2):
                     try:
@@ -228,7 +242,7 @@ class HrSalaryAssignment(models.Model):
                 if desc_nueva.strip() and desc_nueva.strip() not in desc_actual:
                     descripcion_final = f"{desc_actual.strip()} | {desc_nueva.strip()}".strip(" | ")
 
-                if not horas_diferentes and not monto_diferente:
+                if not horas_diferentes and not monto_diferente and not hay_horas_aportadas:
                     #_logger.info("Asignación ya existe, solo se actualizó descripción: %s", existing)
                     existing.write({'description': descripcion_final})
                     omitidas = self.env.context.get('asignaciones_omitidas', [])
@@ -254,13 +268,40 @@ class HrSalaryAssignment(models.Model):
                     _logger.info("Actualizando asignación consolidando diferencias en ID %s ", existing.id)
 
                     # Reemplazar horas solo si hay nuevas
-                    if horas_nuevas and any(v > 0 for v in horas_nuevas.values()):
+                    # if horas_nuevas and any(v > 0 for v in horas_nuevas.values()):
+                    #     existing.horas_extras_ids.unlink()
+                    #     self.env['hr.horas.extras'].create({
+                    #         'salary_assignment_id': existing.id,
+                    #         **horas_dict,
+                    #         'descripcion': descripcion_final,
+                    #     })
+
+                    if existing.horas_extras_ids:
                         existing.horas_extras_ids.unlink()
                         self.env['hr.horas.extras'].create({
                             'salary_assignment_id': existing.id,
                             **horas_dict,
                             'descripcion': descripcion_final,
                         })
+
+                elif hay_horas_aportadas:
+                    horas_sumadas = {campo: horas_existentes.get(campo, 0.0) + horas_aportadas.get(campo, 0.0)
+                                     for campo in horas_campos}
+                    nuevo_monto = float_round(self._calcular_monto_horas_extras(existing.employee_id, horas_sumadas), 2)
+
+                    existing.write({
+                        'monto': nuevo_monto,
+                        'description': descripcion_final,
+                    })
+
+                    if existing.horas_extras_ids:
+                        existing.horas_extras_ids.unlink()
+                    self.env['hr.horas.extras'].create({
+                        'salary_assignment_id': existing.id,
+                        **horas_sumadas,
+                        'descripcion': descripcion_final,
+                    })
+
                 else:
                     # Solo consolidar monto y descripción
                     monto_total = float_round(self._as_float(existing.monto) + self._as_float(vals.get('monto', 0.0)), 2)
