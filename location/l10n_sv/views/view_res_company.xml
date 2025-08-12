@@ -7,21 +7,23 @@
             <field name="inherit_id" ref="base.view_company_form"/>
             <field name="arch" type="xml">
                 <field name="vat" position="after">
-                    <field name="nrc" />
-                    <field name="giro" invisible="1" />
-                    <field name="sit_uuid" />
-                    <field name="nombre_comercial" />
-                </field>     
-            <!-- <xpath expr="//sheet" position="before">
-                <header>
-                    <button name="generar_uuid"
-                        type="object"
-                        string="Generar uuid"
-                        class="oe_highlight"
-                        help="Genera el UUID de esta instancia, su valor debe ser único"
-                        />
-                </header>
-            </xpath> -->
+                    <xpath expr="//field[@name='vat']" position="after">
+                        <field name="nrc" string="NRC"/>
+                        <field name="giro" invisible="1"/>
+                        <field name="sit_uuid" string="NIT"/>
+                        <field name="nombre_comercial" string="Nombre comercial"/>
+                    </xpath>
+                </field>
+                <!-- <xpath expr="//sheet" position="before">
+                    <header>
+                        <button name="generar_uuid"
+                            type="object"
+                            string="Generar uuid"
+                            class="oe_highlight"
+                            help="Genera el UUID de esta instancia, su valor debe ser único"
+                            />
+                    </header>
+                </xpath> -->
             </field>
         </record>
     </data>
