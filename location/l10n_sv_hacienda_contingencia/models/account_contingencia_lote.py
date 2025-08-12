@@ -27,11 +27,12 @@ import pytz
 _logger = logging.getLogger(__name__)
 try:
     from odoo.addons.common_utils.utils import config_utils
+    from odoo.addons.common_utils.utils import constants
     _logger.info("SIT Modulo config_utils [hacienda ws-account_contingencia_lote]")
 except ImportError as e:
     _logger.error(f"Error al importar 'config_utils': {e}")
     config_utils = None
-
+    constants = None
 
 class sit_AccountContingencia(models.Model):
     _inherit = "account.contingencia1"
@@ -95,125 +96,135 @@ class sit_AccountContingencia(models.Model):
         version = None
 
         for lote in self.lote_ids:
-            nro_factura += 1
-            _logger.info('SIT action_lote_generate lote a firmar = %s', lote.id)
+            # Validar que la contingencia relacionada esté recibida
+            contingencia = lote.sit_contingencia  # asumo que lote tiene campo Many2one a contingencia
+            if not contingencia or contingencia.si_selloRecibido in (False, None, '', 'False', '0'):
+                raise UserError(f"La contingencia relacionada al lote {lote.id} no ha sido recibida por MH.")
 
-            if lote.hacienda_codigoLote_lote:
-                _logger.info("SIT Lote ya procesado, se omite: %s", lote.id)
-                continue
+                nro_factura += 1
+                _logger.info('SIT action_lote_generate lote a firmar = %s', lote.id)
 
-            facturas = self.env['account.move'].search([
-                ('sit_lote_contingencia', '=', lote.id)
-            ])
+                if lote.hacienda_codigoLote_lote:
+                    _logger.info("SIT Lote ya procesado, se omite: %s", lote.id)
+                    continue
 
-            for invoice in facturas:
-                validation_type = self._compute_validation_type_2()
-                ambiente = "00"
-                if validation_type == 'homologacioin':
+                facturas = self.env['account.move'].search([
+                    ('sit_lote_contingencia', '=', lote.id)
+                ])
+
+                for invoice in facturas:
+                    validation_type = self._compute_validation_type_2()
                     ambiente = "00"
-                    _logger.info("SIT Factura de Prueba")
-                elif validation_type == 'production':
-                    _logger.info("SIT Factura de Producción")
-                    ambiente = "01"
-                emisor = self.company_id.vat
-                emisor = emisor.replace("-", "").replace(".", "")
+                    if validation_type == 'homologacioin':
+                        ambiente = "00"
+                        _logger.info("SIT Factura de Prueba")
+                    elif validation_type == 'production':
+                        _logger.info("SIT Factura de Producción")
+                        ambiente = "01"
+                    emisor = self.company_id.vat
+                    emisor = emisor.replace("-", "").replace(".", "")
 
-                if not emisor:
-                    raise UserError("SIT Se requiere definir compañia")
+                    if not emisor:
+                        raise UserError("SIT Se requiere definir compañia")
 
-                if not invoice.sit_json_respuesta or invoice.sit_json_respuesta.strip() in ['', '{}', '[]']:
-                    _logger.info("SIT Creando json factura relacionada(contingencia)")
-                    sit_tipo_documento = invoice.journal_id.sit_tipo_documento.codigo
-                    payload = invoice.obtener_payload('production', sit_tipo_documento)
-                else:
-                    payload = invoice.sit_json_respuesta
+                    if not invoice.sit_json_respuesta or invoice.sit_json_respuesta.strip() in ['', '{}', '[]']:
+                        _logger.info("SIT Creando json factura relacionada(contingencia)")
+                        sit_tipo_documento = invoice.journal_id.sit_tipo_documento.codigo
+                        payload = invoice.obtener_payload('production', sit_tipo_documento)
+                    else:
+                        payload = invoice.sit_json_respuesta
 
-                # Convertir payload a dict si no lo es
-                if not isinstance(payload, dict):
+                    # Convertir payload a dict si no lo es
+                    if not isinstance(payload, dict):
+                        try:
+                            payload = json.loads(payload)
+                        except Exception as e:
+                            _logger.error("Error al convertir payload a JSON: %s", e)
+                            raise UserError("El payload no es un JSON válido.")
+
+                    # Si dteJson existe en payload, convertirlo a dict
+                    if "dteJson" in payload and not isinstance(payload["dteJson"], dict):
+                        try:
+                            payload["dteJson"] = json.loads(payload["dteJson"])
+                        except Exception as e:
+                            _logger.error("Error al convertir dteJson a dict: %s", e)
+                            raise UserError("El campo dteJson no es un JSON válido.")
+                    version = payload.get("dteJson", {}).get("identificacion", {}).get("ambiente") or \
+                              payload.get("identificacion", {}).get("ambiente")
+                    _logger.info("SIT json dte: %s", payload)
+
+                    payload_dte_firma = self.sit_obtener_payload_lote_dte_firma(emisor, self.company_id.sit_passwordPri,
+                                                                                payload)
+                    _logger.info("SIT payload: %s", payload_dte_firma)
+
+                    firmando = self.firmar_documento('production', payload_dte_firma)
+                    if firmando:
+                        facturas_firmadas.append(firmando)
+                    else:
+                        raise UserError(f"Factura no firmada = {invoice.name}")
+
+                    # version = payload["dteJson"]["identificacion"]["ambiente"]
+                    payload_dte_envio_mh = self.sit_obtener_payload_lote_dte_info(ambiente, facturas_firmadas, emisor,
+                                                                                  version)
+
+                    if nro_factura > 20:
+                        raise UserError(f"Factura firmada = {firmado}")
+
+                    # Generando el DTE
+                    dte_lote = self.generar_dte_lote(validation_type, payload_dte_envio_mh, len(facturas_firmadas))
+                    _logger.info("SIT Respuesta MH=%s", dte_lote)
+
+                    # Guardar json respuesta SOLO si la factura no lo tenía
+                    if not invoice.sit_json_respuesta or invoice.sit_json_respuesta.strip() in ['', '{}', '[]']:
+                        invoice.write({
+                            'sit_json_respuesta': payload["dteJson"] if payload["dteJson"] else None
+                        })
+
+                    hacienda_fhProcesamiento_lote = None
                     try:
-                        payload = json.loads(payload)
+                        fh = dte_lote.get('fhProcesamiento')
+                        _logger.info("SIT Fecha de procesamiento (%s)%s", type(fh), fh)
+                        if fh:
+                            hacienda_fhProcesamiento_lote = datetime.strptime(fh, '%d/%m/%Y %H:%M:%S')
+                            _logger.info("hacienda_fhProcesamiento_lote = %s", hacienda_fhProcesamiento_lote)
                     except Exception as e:
-                        _logger.error("Error al convertir payload a JSON: %s", e)
-                        raise UserError("El payload no es un JSON válido.")
+                        _logger.warning("No se pudo parsear fecha de procesamiento lote: %s", e)
 
-                # Si dteJson existe en payload, convertirlo a dict
-                if "dteJson" in payload and not isinstance(payload["dteJson"], dict):
-                    try:
-                        payload["dteJson"] = json.loads(payload["dteJson"])
-                    except Exception as e:
-                        _logger.error("Error al convertir dteJson a dict: %s", e)
-                        raise UserError("El campo dteJson no es un JSON válido.")
-                version = payload.get("dteJson", {}).get("identificacion", {}).get("ambiente") or \
-                          payload.get("identificacion", {}).get("ambiente")
-                _logger.info("SIT json dte: %s", payload)
+                    # Guardar datos de account.lote
+                    lote_vals = {
+                        'hacienda_estado_lote': dte_lote.get('estado', ''),
+                        'hacienda_idEnvio_lote': dte_lote.get('idEnvio', ''),
+                        'hacienda_fhProcesamiento_lote': hacienda_fhProcesamiento_lote,
+                        'hacienda_codigoLote_lote': dte_lote.get('codigoLote', ''),
+                        'hacienda_codigoMsg_lote': dte_lote.get('codigoMsg', ''),
+                        'hacienda_descripcionMsg_lote': dte_lote.get('descripcionMsg', ''),
+                        'state': "posted_lote" if dte_lote.get('estado') == 'RECIBIDO' else 'draft',
+                        'lote_recibido_mh': bool(dte_lote.get('codigoLote')),
+                        'sit_json_respuesta': json.dumps(dte_lote) if isinstance(dte_lote, dict) else str(dte_lote)
+                    }
 
-                payload_dte_firma = self.sit_obtener_payload_lote_dte_firma(emisor, self.company_id.sit_passwordPri,
-                                                                            payload)
-                _logger.info("SIT payload: %s", payload_dte_firma)
+                    if lote.exists():
+                        lote.write(lote_vals)
+                        lote_record = lote
+                    # else:
+                    #     lote_record = self.env['account.lote'].create(lote_vals)
 
-                firmando = self.firmar_documento('production', payload_dte_firma)
-                if firmando:
-                    facturas_firmadas.append(firmando)
-                else:
-                    raise UserError(f"Factura no firmada = {invoice.name}")
+                    # Asignar lote a todas las facturas del lote procesado
+                    # facturas.write({'sit_lote_contingencia': lote_record.id})
+                    _logger.info("Registro de lote creado con ID %s y asignado a facturas %s", lote_record.id,
+                                 facturas.ids)
 
-                # version = payload["dteJson"]["identificacion"]["ambiente"]
-                payload_dte_envio_mh = self.sit_obtener_payload_lote_dte_info(ambiente, facturas_firmadas, emisor,
-                                                                              version)
+                    # Verificar cuántas facturas se han asignado a este lote y si se excede el límite de lotes
+                    if len(facturas_firmadas) >= 400 * 100:
+                        _logger.info(
+                            "Se ha alcanzado el límite de 400 lotes. Facturas restantes para próxima contingencia.")
+                        break  # Salir del ciclo, ya no se añaden más facturas a la contingencia actual
 
-                if nro_factura > 20:
-                    raise UserError(f"Factura firmada = {firmado}")
+                # Verificar que se hayan creado los lotes y no se hayan excedido
+                if len(facturas_firmadas) > 400 * 100:
+                    raise UserError("La cantidad de facturas excede el límite de lotes permitido (400 lotes).")
 
-                # Generando el DTE
-                dte_lote = self.generar_dte_lote(validation_type, payload_dte_envio_mh, len(facturas_firmadas))
-                _logger.info("SIT Respuesta MH=%s", dte_lote)
-
-                # Guardar json respuesta en todas las facturas del lote
-                facturas.write({'sit_json_respuesta': json.dumps(dte_lote) if isinstance(dte_lote, dict) else str(dte_lote)})
-
-                hacienda_fhProcesamiento_lote = None
-                try:
-                    fh = dte_lote.get('fhProcesamiento')
-                    _logger.info("SIT Fecha de procesamiento (%s)%s", type(fh), fh)
-                    if fh:
-                        hacienda_fhProcesamiento_lote = datetime.strptime(fh, '%d/%m/%Y %H:%M:%S')
-                        _logger.info("hacienda_fhProcesamiento_lote = %s", hacienda_fhProcesamiento_lote)
-                except Exception as e:
-                    _logger.warning("No se pudo parsear fecha de procesamiento lote: %s", e)
-
-                # Guardar datos de account.lote
-                lote_vals = {
-                    'hacienda_estado_lote': dte_lote.get('estado', ''),
-                    'hacienda_idEnvio_lote': dte_lote.get('idEnvio', ''),
-                    'hacienda_fhProcesamiento_lote': hacienda_fhProcesamiento_lote,
-                    'hacienda_codigoLote_lote': dte_lote.get('codigoLote', ''),
-                    'hacienda_codigoMsg_lote': dte_lote.get('codigoMsg', ''),
-                    'hacienda_descripcionMsg_lote': dte_lote.get('descripcionMsg', ''),
-                    'state': "posted_lote" if dte_lote.get('estado') == 'RECIBIDO' else 'draft',
-                    'lote_recibido_mh': bool(dte_lote.get('codigoLote')),
-                }
-
-                if lote.exists():
-                    lote.write(lote_vals)
-                    lote_record = lote
-                # else:
-                #     lote_record = self.env['account.lote'].create(lote_vals)
-
-                # Asignar lote a todas las facturas del lote procesado
-                #facturas.write({'sit_lote_contingencia': lote_record.id})
-                _logger.info("Registro de lote creado con ID %s y asignado a facturas %s", lote_record.id, facturas.ids)
-
-                # Verificar cuántas facturas se han asignado a este lote y si se excede el límite de lotes
-                if len(facturas_firmadas) >= 400 * 100:
-                    _logger.info(
-                        "Se ha alcanzado el límite de 400 lotes. Facturas restantes para próxima contingencia.")
-                    break  # Salir del ciclo, ya no se añaden más facturas a la contingencia actual
-
-            # Verificar que se hayan creado los lotes y no se hayan excedido
-            if len(facturas_firmadas) > 400 * 100:
-                raise UserError("La cantidad de facturas excede el límite de lotes permitido (400 lotes).")
-
-        _logger.info("SIT Fin generar lote")
+            _logger.info("SIT Fin generar lote")
 
     def generar_dte_lote(self, enviroment_type, payload_envio_mh, lotes_firmados):
         _logger.info("SIT  Generando DTE")
@@ -697,12 +708,17 @@ class sit_AccountContingencia(models.Model):
             raise UserError(_('El Nombre de la compañía no definido'))        
         if not self.invoice_user_id.partner_id.name: #if not self.company_id.partner_id.user_id.partner_id.name:
             raise UserError(_('El Nombre de Responsable no definido'))        
-        if not self.invoice_user_id.partner_id.fax and not self.invoice_user_id.partner_id.dui:
+        if not self.invoice_user_id.partner_id.vat and not self.invoice_user_id.partner_id.dui:
             raise UserError(_('El Número de Documento no definido')) # raise UserError(_('El Número de RFC no definido'))
         if not self.company_id.tipoEstablecimiento.codigo:
             raise UserError(_('El tipoEstablecimiento no definido'))        
         if not self.sit_tipo_contingencia:
-            raise UserError(_('El motivoContingencia no definido'))        
+            raise UserError(_('El tipoContingencia no definido'))
+
+        _logger.info("Tipo contingencia: %s | Constante motivo: %s | Motivo contingencia: %s", self.sit_tipo_contingencia.codigo, constants.MOT_CONTIN_OTRO, self.sit_tipo_contingencia_otro)
+        if self.sit_tipo_contingencia and self.sit_tipo_contingencia.codigo == constants.MOT_CONTIN_OTRO:
+            if not self.sit_tipo_contingencia_otro or not self.sit_tipo_contingencia_otro.strip():
+                raise UserError(_('El motivoContingencia no definido'))
         if not self.sit_fFin_hFin:
             raise UserError(_('El campo Fecha de Fin de Contingencia - Hacienda (sit_fFin_hFin) no definido'))        
 
