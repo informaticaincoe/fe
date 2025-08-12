@@ -23,8 +23,10 @@ import traceback
 from datetime import datetime, timedelta
 import pytz
 from functools import cached_property
+import ast
 
 _logger = logging.getLogger(__name__)
+
 
 try:
     from odoo.addons.common_utils.utils import config_utils
@@ -357,13 +359,13 @@ class AccountMove(models.Model):
                 }
                 if (
                         len(rec.commercial_partner_id.l10n_latam_identification_type_id)
-                        and rec.commercial_partner_id.fax
+                        and rec.commercial_partner_id.vat
                 ):
                     qr_dict["tipoDocRec"] = int(
                         rec.commercial_partner_id.l10n_latam_identification_type_id.l10n_ar_afip_code
                     )
                     qr_dict["nroDocRec"] = int(
-                        rec.commercial_partner_id.fax.replace("-", "").replace(".", "")
+                        rec.commercial_partner_id.vat.replace("-", "").replace(".", "")
                     )
                 qr_data = base64.encodestring(
                     json.dumps(qr_dict, indent=None).encode("ascii")
@@ -751,14 +753,14 @@ class AccountMove(models.Model):
                         if not invoice.partner_id.parent_id:
                             if not invoice.partner_id.nrc:
                                 invoice.msg_error("N.R.C.")
-                            if not invoice.partner_id.fax and not invoice.partner_id.dui:
+                            if not invoice.partner_id.vat and not invoice.partner_id.dui:
                                 invoice.msg_error("N.I.T O D.U.I.")
                             if not invoice.partner_id.codActividad:
                                 invoice.msg_error("Giro o Actividad Económica")
                         else:
                             if not invoice.partner_id.parent_id.nrc:
                                 invoice.msg_error("N.R.C.")
-                            if not invoice.partner_id.parent_id.fax and not invoice.partner_id.parent_id.dui:
+                            if not invoice.partner_id.parent_id.vat and not invoice.partner_id.parent_id.dui:
                                 invoice.msg_error("N.I.T O D.U.I.")
                             if not invoice.partner_id.parent_id.codActividad:
                                 invoice.msg_error("Giro o Actividad Económica")
@@ -768,7 +770,7 @@ class AccountMove(models.Model):
                         if not invoice.partner_id.parent_id:
                             if not invoice.partner_id.nrc:
                                 invoice.msg_error("N.R.C.")
-                            if not invoice.partner_id.fax:
+                            if not invoice.partner_id.vat:
                                 invoice.msg_error("N.I.T.")
                             if not invoice.partner_id.codActividad:
                                 invoice.msg_error("Giro o Actividad Económica")
@@ -776,7 +778,7 @@ class AccountMove(models.Model):
                             parent = invoice.partner_id.parent_id
                             if not invoice.partner_id.parent_id.nrc:
                                 invoice.msg_error("N.R.C.")
-                            if not invoice.partner_id.parent_id.fax:
+                            if not invoice.partner_id.parent_id.vat:
                                 invoice.msg_error("N.I.T.")
                             if not invoice.partner_id.parent_id.codActividad:
                                 invoice.msg_error("Giro o Actividad Económica")
@@ -1015,15 +1017,15 @@ class AccountMove(models.Model):
 
     # FIMAR FIMAR FIRMAR =======
     def firmar_documento(self, enviroment_type, payload):
+        dte_json = None
+        # 1) inicializar la lista donde acumularás status/cuerpo o errores
+        resultado = []
+
         try:
             _logger.info("SIT  Firmando documento")
             _logger.info("SIT Documento a FIRMAR = %s", payload)
 
-            # 1) inicializar la lista donde acumularás status/cuerpo o errores
-            resultado = []
-
             max_intentos = 3
-            resultado = []
             # host = self.company_id.sit_firmador
             url = self.url_firma  # "http://192.168.2.49:8113/firmardocumento/"  # host + '/firmardocumento/'
             _logger.info("SIT Url firma: %s", url)
@@ -1035,38 +1037,49 @@ class AccountMove(models.Model):
             nit = payload.get("nit")
             passwordPri = payload.get("passwordPri")
             raw_dte = payload.get("dteJson")
-            dte_json = None
 
             # Validar que dteJson exista y no esté vacío
             if not raw_dte or not str(raw_dte).strip():
-                _logger.error("No se puede firmar: el JSON del DTE está vacío o inválido")
-                raise UserError(_("No se puede firmar el documento: el JSON del DTE está vacío o inválido."))
+                error_msg = "El JSON del DTE está vacío o inválido"
+                _logger.error(error_msg)
+                resultado.append({"status": "ERROR", "mensaje": error_msg})
+                return resultado  # Retorna error sin raise
 
             # Solo cambio aquí: si dteJson es string JSON, parsear a dict
-            if isinstance(raw_dte, str):
+            if isinstance(raw_dte, dict):
+                dte_json_str = json.dumps(raw_dte, ensure_ascii=False)
+            elif isinstance(raw_dte, str):
+                # Si es string, puede ser JSON válido o no
                 try:
-                    dte_json = json.loads(raw_dte)
+                    # Intentar parsear
+                    parsed = json.loads(raw_dte)
+                    dte_json_str = json.dumps(parsed, ensure_ascii=False)
                     _logger.debug("SIT dteJson parseado desde string a objeto para evitar doble escape.")
                 except json.JSONDecodeError:
                     # Si no es JSON válido, dejar tal cual para que falle luego si es necesario
-                    dte_json = raw_dte
+                    dte_json_str = raw_dte
                     _logger.warning("El dteJson es string pero no JSON válido, se usará tal cual.")
-            elif isinstance(raw_dte, dict):
-                dte_json = raw_dte
+
             else:
-                dte_json = raw_dte
+                dte_json_str = raw_dte
 
             # **Chequeo adicional**: si dte_json sigue siendo string, intentar manejarlo o lanzar error claro
-            if isinstance(dte_json, str):
+            if isinstance(dte_json_str, str):
                 try:
-                    dte_json = json.loads(dte_json)
+                    dte_json = json.loads(dte_json_str)
                     _logger.debug("Parseado doble de dteJson string anidado.")
                 except Exception:
-                    raise UserError(_("El campo dteJson no contiene JSON válido."))
+                    error_msg = "El campo dteJson no contiene JSON válido."
+                    _logger.error(error_msg)
+                    resultado.append({"status": "ERROR", "mensaje": error_msg})
+                    return resultado
 
             # Asegurar que ahora sea dict para evitar errores posteriores
             if not isinstance(dte_json, dict):
-                raise UserError(_("El campo dteJson debe ser un diccionario válido después del parseo."))
+                error_msg = "El campo dteJson debe ser un diccionario válido después del parseo."
+                _logger.error(error_msg)
+                resultado.append({"status": "ERROR", "mensaje": error_msg})
+                return resultado
 
             payload_firma = {
                 "nit": nit,  # <--- aquí estaba el error, decía 'liendre'
@@ -1092,9 +1105,9 @@ class AccountMove(models.Model):
                         MENSAJE_ERROR = f"Código de Error: {status}, Error: {error}, Detalle: {message}"
                         # raise UserError(_(MENSAJE_ERROR))
                         _logger.warning("Error de firma intento %s: %s", intento, MENSAJE_ERROR)
-
+                        resultado.append({"status": status, "mensaje": MENSAJE_ERROR})
                         if intento == max_intentos:
-                            raise UserError(_(MENSAJE_ERROR))
+                            return resultado
                         continue
 
                     if status in ['ERROR', 401, 402]:
@@ -1199,6 +1212,7 @@ class AccountMove(models.Model):
         3) Envía el JWT firmado a Hacienda.
         4) Gestiona el caso 004 (YA EXISTE) para no dejar en borrador.
         """
+        _logger.info("SIT Generando Dte account_move | payload: %s", payload_original)
         data = None
         max_intentos = 3
         url_receive = None
@@ -1211,15 +1225,33 @@ class AccountMove(models.Model):
         # url_receive = f"{host}/fesv/recepciondte1"
 
         # Validar y parsear dteJson si es string
-        dte_json = payload_original.get("dteJson")
-        if isinstance(dte_json, str):
+        dte_json_raw = payload_original.get("dteJson")
+
+        if not dte_json_raw or not str(dte_json_raw).strip():
+            _logger.error("El JSON del DTE está vacío o inválido")
+            raise UserError("El JSON del DTE está vacío o inválido")
+
+        if isinstance(dte_json_raw, str):
             try:
-                dte_json = json.loads(dte_json)
-                payload_original["dteJson"] = dte_json
+                # Intentar parsear como JSON válido
+                dte_json = json.loads(dte_json_raw)
                 _logger.info("dteJson parseado correctamente en generar_dte")
-            except Exception as e:
-                _logger.warning(f"No se pudo parsear dteJson en generar_dte: {e}")
-                raise UserError(_("Error interno: dteJson no válido."))
+            except json.JSONDecodeError:
+                # Intentar parsear como string de diccionario Python (comillas simples)
+                try:
+                    # Intentar convertir dict-string Python
+                    dte_dict = ast.literal_eval(dte_json_raw)
+                    # Convertir a JSON válido
+                    dte_json = json.loads(json.dumps(dte_dict))
+                    _logger.info("dteJson convertido desde dict-string a dict Python y reconvertido a JSON")
+                except Exception as e:
+                    _logger.error(f"No se pudo convertir dteJson: {e}")
+                    raise UserError("Error interno: dteJson no válido.")
+        else:
+            dte_json = dte_json_raw
+
+        # Guardar siempre la versión dict en payload_original
+        payload_original["dteJson"] = dte_json  # Guardar versión corregida
 
         if not isinstance(dte_json, dict):
             _logger.warning(f"dteJson no es un diccionario: {dte_json}")
@@ -1350,6 +1382,21 @@ class AccountMove(models.Model):
                 mensaje = f"Error MH (HTTP {resp.status_code}): {data or resp.text}"
                 _logger.warning(mensaje)
                 if intento == max_intentos:
+                    observaciones = ""
+                    if isinstance(data, dict):
+                        obs_list = data.get("observaciones") or []
+                        if isinstance(obs_list, list):
+                            observaciones = ", ".join(obs_list)
+                        else:
+                            observaciones = str(obs_list)
+                    else:
+                        observaciones = str(resp.text)
+
+                    self.write({
+                        "hacienda_estado": f"Error HTTP {resp.status_code}",
+                        "hacienda_descripcionMsg": str(data or resp.text),
+                        "hacienda_observaciones": observaciones,
+                    })
                     self._crear_contingencia(resp, data, mensaje)
                     raise UserError(_("Error MH estado !=200 (HTTP %s): %s") % (resp.status_code, data or resp.text))
                 continue  # intenta de nuevo
@@ -1360,6 +1407,12 @@ class AccountMove(models.Model):
                 mensaje = f"Rechazado por MH: {data.get('clasificaMsg')} - {data.get('descripcionMsg')}"
                 _logger.warning(mensaje)
                 if intento == max_intentos:
+                    self.write({
+                        "hacienda_estado": data.get("estado", "RECHAZADO"),
+                        "hacienda_clasificaMsg": data.get("clasificaMsg"),
+                        "hacienda_descripcionMsg": data.get("descripcionMsg"),
+                        "hacienda_observaciones": ", ".join(data.get("observaciones") or []),
+                    })
                     self._crear_contingencia(resp, data, mensaje)
                     raise UserError(
                         _("Rechazado por MH: %s – %s") % (data.get('clasificaMsg'), data.get('descripcionMsg')))
@@ -1489,7 +1542,7 @@ class AccountMove(models.Model):
                 raise UserError(_('El receptor no tiene NOMBRE configurado para facturas tipo 01.'))
         elif tipo_dte == '03':
             # Validaciones completas para DTE tipo 03
-            if not self.partner_id.fax and self.partner_id.is_company:
+            if not self.partner_id.vat and self.partner_id.is_company:
                 _logger.info("SIT, es compañia se requiere NIT")
                 raise UserError(_('El receptor no tiene NIT configurado.'))
             if not self.partner_id.nrc and self.partner_id.is_company:

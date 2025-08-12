@@ -148,7 +148,7 @@ class AccountMove(models.Model):
         if self.partner_id and self.partner_id.dui:
             nit = self.partner_id.dui.replace("-", "") if self.partner_id.dui and isinstance(self.partner_id.dui, str) else None
         else:
-            nit = self.partner_id.fax.replace("-", "") if self.partner_id.fax and isinstance(self.partner_id.fax, str) else None
+            nit = self.partner_id.vat.replace("-", "") if self.partner_id.vat and isinstance(self.partner_id.vat, str) else None
         invoice_info["numDocumento"] = nit
 
         # Establece 'tipoDocumento' como None si 'nit' es None
