@@ -98,7 +98,7 @@ class sit_AccountContingencia(models.Model):
         for lote in self.lote_ids:
             # Validar que la contingencia relacionada esté recibida
             contingencia = lote.sit_contingencia  # asumo que lote tiene campo Many2one a contingencia
-            if not contingencia or contingencia.si_selloRecibido in (False, None, '', 'False', '0'):
+            if not contingencia or contingencia.sit_selloRecibido in (False, None, '', 'False', '0'):
                 raise UserError(f"La contingencia relacionada al lote {lote.id} no ha sido recibida por MH.")
 
                 nro_factura += 1
@@ -153,8 +153,7 @@ class sit_AccountContingencia(models.Model):
                               payload.get("identificacion", {}).get("ambiente")
                     _logger.info("SIT json dte: %s", payload)
 
-                    payload_dte_firma = self.sit_obtener_payload_lote_dte_firma(emisor, self.company_id.sit_passwordPri,
-                                                                                payload)
+                    payload_dte_firma = self.sit_obtener_payload_lote_dte_firma(emisor, self.company_id.sit_passwordPri, payload)
                     _logger.info("SIT payload: %s", payload_dte_firma)
 
                     firmando = self.firmar_documento('production', payload_dte_firma)
@@ -164,8 +163,7 @@ class sit_AccountContingencia(models.Model):
                         raise UserError(f"Factura no firmada = {invoice.name}")
 
                     # version = payload["dteJson"]["identificacion"]["ambiente"]
-                    payload_dte_envio_mh = self.sit_obtener_payload_lote_dte_info(ambiente, facturas_firmadas, emisor,
-                                                                                  version)
+                    payload_dte_envio_mh = self.sit_obtener_payload_lote_dte_info(ambiente, facturas_firmadas, emisor, version)
 
                     if nro_factura > 20:
                         raise UserError(f"Factura firmada = {firmado}")
@@ -198,9 +196,9 @@ class sit_AccountContingencia(models.Model):
                         'hacienda_codigoLote_lote': dte_lote.get('codigoLote', ''),
                         'hacienda_codigoMsg_lote': dte_lote.get('codigoMsg', ''),
                         'hacienda_descripcionMsg_lote': dte_lote.get('descripcionMsg', ''),
-                        'state': "posted_lote" if dte_lote.get('estado') == 'RECIBIDO' else 'draft',
+                        'state': "posted" if dte_lote.get('estado') == 'RECIBIDO' else 'draft',
                         'lote_recibido_mh': bool(dte_lote.get('codigoLote')),
-                        'sit_json_respuesta': json.dumps(dte_lote) if isinstance(dte_lote, dict) else str(dte_lote)
+                        'sit_json_respuesta': json.dumps(dte_lote) if isinstance(dte_lote, dict) else str(dte_lote),
                     }
 
                     if lote.exists():
@@ -399,7 +397,7 @@ class sit_AccountContingencia(models.Model):
                     invoice.sit_mensaje = Resultado['mensaje']
                     invoice.sit_selloRecibido = Resultado['selloRecibido']
                     invoice.sit_observaciones = Resultado['observaciones']
-                    invoice.state = "posted"
+                    invoice.state = "posted" if Resultado['estado'] == 'RECIBIDO' else 'draft',
 
 
 

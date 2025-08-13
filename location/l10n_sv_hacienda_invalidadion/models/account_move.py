@@ -205,7 +205,31 @@ class AccountMove(models.Model):
                 })
                 _logger.info("SIT Estado de factura actualizado a cancelado: %s", invoice.name)
 
-                invalidation.button_anul()
+                resultado = invalidation.button_anul()
+                _logger.info("SIT Método button_anul ejecutado correctamente para ID: %s", invalidation.id)
+                if not resultado.get('exito'):
+                    # Retornamos la acción para mostrar notificación sin error popup
+                    return {
+                        'type': 'ir.actions.client',
+                        'tag': 'display_notification',
+                        'params': {
+                            'title': 'Error',
+                            'message': resultado.get('mensaje'),
+                            'type': 'warning',
+                            'sticky': False,
+                        }
+                    }
+                if resultado.get('notificar'):
+                    return {
+                        'type': 'ir.actions.client',
+                        'tag': 'display_notification',
+                        'params': {
+                            'title': 'Invalidación Exitosa',
+                            'message': 'Se invalidó el DTE. El sello de Hacienda fue recibido correctamente.',
+                            'type': 'success',
+                            'sticky': False,
+                        }
+                    }
                 _logger.info("SIT Método button_anul ejecutado correctamente para ID: %s", invalidation.id)
 
             except Exception as e:
