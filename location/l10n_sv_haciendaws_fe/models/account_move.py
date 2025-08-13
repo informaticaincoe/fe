@@ -689,6 +689,7 @@ class AccountMove(models.Model):
         - Diarios sale: generar/validar DTE y enviar a Hacienda.
         - Resto: usar secuencia estándar y omitir DTE.
         """
+        mensajes_contingencia = []
         Resultado = None
         payload = None
         invoices_to_post = self
@@ -812,9 +813,7 @@ class AccountMove(models.Model):
                         _logger.warning("SIT Resultado. =%s, estado=%s", Resultado, Resultado.get('estado', ''))
 
                         # Si el resp es un rechazo por número de control
-                        if isinstance(Resultado, dict) and Resultado.get('estado',
-                                                                         '').strip().lower() == 'rechazado' and Resultado.get(
-                            'codigoMsg') == '004':
+                        if isinstance(Resultado, dict) and Resultado.get('estado', '').strip().lower() == 'rechazado' and Resultado.get('codigoMsg') == '004':
                             error_text = json.dumps(Resultado).lower()
                             descripcion = Resultado.get('descripcionMsg', '')
                             _logger.warning("SIT Descripcion error: %s", descripcion)
@@ -952,7 +951,7 @@ class AccountMove(models.Model):
                                 'hacienda_codigoMsg': Resultado['codigoMsg'],
                                 'hacienda_descripcionMsg': Resultado['descripcionMsg'],
                                 'hacienda_observaciones': str(Resultado.get('observaciones', '')),
-                                'state': 'draft',
+                                'state': 'posted',
                                 'recibido_mh': True,
                             })
 
@@ -962,7 +961,11 @@ class AccountMove(models.Model):
                                                   from_invalidacion=False).sit_enviar_correo_dte_automatico()
                             except Exception as e:
                                 _logger.warning("SIT | Error al enviar DTE por correo o generar PDF: %s", str(e))
+
+                        if isinstance(Resultado, dict) and Resultado.get('type') == 'ir.actions.client':
+                            mensajes_contingencia.append(Resultado)
                         else:
+                            _logger.info("=== SIT Error en DTE")
                             # Lanzar error al final si fue rechazado
                             if estado:
                                 if estado == 'rechazado':
@@ -992,6 +995,7 @@ class AccountMove(models.Model):
                     'state': 'draft',
                     'sit_es_configencia': False,
                 })
+
                 # errores_dte.append("Factura %s: %s" % (invoice.name or invoice.id, str(e)))
                 # UserError(_("Error al procesar la factura %s:\n%s") % (invoice.name or invoice.id, str(e)))
         # if errores_dte:
@@ -1397,7 +1401,18 @@ class AccountMove(models.Model):
                         "hacienda_descripcionMsg": str(data or resp.text),
                         "hacienda_observaciones": observaciones,
                     })
-                    self._crear_contingencia(resp, data, mensaje)
+                    resultado = self._crear_contingencia(resp, data, mensaje)
+                    if resultado and resultado.get('notificar'):
+                        return {
+                            'type': 'ir.actions.client',
+                            'tag': 'display_notification',
+                            'params': {
+                                'title': resultado.get('title', 'Información'),
+                                'message': resultado.get('message', ''),
+                                'type': resultado.get('type', 'info'),
+                                'sticky': False,
+                            }
+                        }
                     raise UserError(_("Error MH estado !=200 (HTTP %s): %s") % (resp.status_code, data or resp.text))
                 continue  # intenta de nuevo
             # data = resp.json()
@@ -1413,7 +1428,18 @@ class AccountMove(models.Model):
                         "hacienda_descripcionMsg": data.get("descripcionMsg"),
                         "hacienda_observaciones": ", ".join(data.get("observaciones") or []),
                     })
-                    self._crear_contingencia(resp, data, mensaje)
+                    resultado = self._crear_contingencia(resp, data, mensaje)
+                    if resultado and resultado.get('notificar'):
+                        return {
+                            'type': 'ir.actions.client',
+                            'tag': 'display_notification',
+                            'params': {
+                                'title': resultado.get('title', 'Información'),
+                                'message': resultado.get('message', ''),
+                                'type': resultado.get('type', 'info'),
+                                'sticky': False,
+                            }
+                        }
                     raise UserError(
                         _("Rechazado por MH: %s – %s") % (data.get('clasificaMsg'), data.get('descripcionMsg')))
                 continue
@@ -1763,8 +1789,30 @@ class AccountMove(models.Model):
             })
             _logger.info("Creada nueva contingencia y lote: %s, %s", contingencia_activa.name, lote_asignado.name)
 
-        _logger.info("Factura %s asignada a contingencia %s y lote %s", self.name, contingencia_activa.name,
-                     lote_asignado.name if lote_asignado else "N/A")
+        _logger.info("Factura %s asignada a contingencia %s y lote %s", self.name, contingencia_activa.name, lote_asignado.name if lote_asignado else "N/A")
+        return {
+            'notificar': True,
+            'title': 'El DTE se guardo en contingencia',
+            'message': f"Dte {self.name} asignado a contingencia {contingencia_activa.name} y lote {lote_asignado.name if lote_asignado else 'N/A'}.",
+            'type': 'success',
+        }
+
+    def action_post(self):
+        res = super().action_post()
+        facturas_con_contingencia = self.filtered(lambda inv: inv.sit_es_configencia)
+        if facturas_con_contingencia:
+            mensajes = "\n".join(f"{inv.name} guardado en contingencia." for inv in facturas_con_contingencia)
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': 'Contingencias DTE',
+                    'message': mensajes,
+                    'type': 'warning',
+                    'sticky': False,
+                }
+            }
+        return res
 
     def sit_enviar_correo_dte_automatico(self):
         from_button = self.env.context.get('from_email_button',

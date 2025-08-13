@@ -24,6 +24,7 @@
         # "l10n_invoice_sv",
         # "account_debit_note",
         "l10n_sv_haciendaws_fe",
+        #'common_utils',
     ],
 
     # always loaded

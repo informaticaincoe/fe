@@ -4,7 +4,7 @@
 ##############################################################################
 from odoo import fields, models, api, _
 from odoo.exceptions import UserError
-from datetime import datetime, timedelta
+from datetime import datetime, date, timedelta
 import base64
 import pyqrcode
 import pytz
@@ -162,31 +162,42 @@ class AccountMove(models.Model):
 
         # --- Procesamiento robusto de fecha ---
         fecha_facturacion = None
-        raw_date = self.fecha_facturacion_hacienda
+        raw_date = self.invoice_date #self.fecha_facturacion_hacienda
+        _logger.info("Fecha facturacion: %s", raw_date)
         try:
             if not raw_date:
-                _logger.warning("No hay valor en 'fecha_facturacion_hacienda'.")
-                #fecha_facturacion  = datetime.now(tz_el_salvador)
+                _logger.info("No hay valor en 'fecha_facturacion_hacienda'.")
                 raise UserError("No se encontró la fecha de facturación enviada a Hacienda")
+
             elif isinstance(raw_date, str):
                 try:
-                    fecha_facturacion  = datetime.fromisoformat(raw_date)
+                    fecha_facturacion = datetime.fromisoformat(raw_date)
                 except ValueError:
                     try:
-                        fecha_facturacion  = datetime.strptime(raw_date, '%Y-%m-%d %H:%M:%S')
+                        fecha_facturacion = datetime.strptime(raw_date, '%Y-%m-%d %H:%M:%S')
                     except ValueError:
-                        fecha_facturacion  = datetime.strptime(raw_date, '%Y-%m-%d')
-                if fecha_facturacion .tzinfo is None:
-                    fecha_facturacion  = tz_el_salvador.localize(fecha_facturacion )
+                        fecha_facturacion = datetime.strptime(raw_date, '%Y-%m-%d')
+                if fecha_facturacion.tzinfo is None:
+                    fecha_facturacion = tz_el_salvador.localize(fecha_facturacion)
+                # Ajuste de zona horaria
+                fecha_facturacion -= timedelta(hours=6)
+
             elif isinstance(raw_date, datetime):
-                fecha_facturacion  = raw_date
-                if fecha_facturacion .tzinfo is None:
-                    fecha_facturacion  = tz_el_salvador.localize(fecha_facturacion )
+                fecha_facturacion = raw_date
+                if fecha_facturacion.tzinfo is None:
+                    fecha_facturacion = tz_el_salvador.localize(fecha_facturacion)
+                fecha_facturacion -= timedelta(hours=6)
+
+            elif isinstance(raw_date, date):
+                fecha_facturacion = datetime.combine(raw_date, datetime.min.time())
+                fecha_facturacion = tz_el_salvador.localize(fecha_facturacion)
+                _logger.info("Fecha tipo Date: %s", fecha_facturacion)
+
             else:
                 raise ValueError(f"'fecha_facturacion_hacienda' no es un valor válido: {type(raw_date)}")
 
-            adjusted = fecha_facturacion  - timedelta(hours=6)
-            invoice_info["fecEmi"] = adjusted.strftime('%Y-%m-%d')
+            invoice_info["fecEmi"] = fecha_facturacion.strftime('%Y-%m-%d')
+
         except Exception as e:
             _logger.error("fecha_facturacion no es datetime, es: %s, %s", type(fecha_facturacion), fecha_facturacion)
             raise ValueError("fecha_facturacion no es un datetime válido")
@@ -205,7 +216,11 @@ class AccountMove(models.Model):
             elif isinstance(self.partner_id.vat,str) and self.partner_id.vat.strip():
                 nit = self.partner_id.vat.replace("-", "")
         else:
-            nit = self.partner_id.vat.replace("-", "") if isinstance(self.partner_id.vat,str) and self.partner_id.vat.strip() else None
+            #nit = self.partner_id.vat.replace("-", "") if isinstance(self.partner_id.vat,str) and self.partner_id.vat.strip() else None
+            if isinstance(self.partner_id.vat,str) and self.partner_id.vat.strip():
+                nit = self.partner_id.vat.replace("-", "")
+            elif isinstance(self.partner_id.dui,str) and self.partner_id.dui.strip():
+                dui = self.partner_id.dui.replace("-", "")
         _logger.info("SIT Numero de documento: %s, %s", dui, nit)
         #invoice_info["codigoGeneracionR"] = None  # ó self.sit_codigoGeneracionR
 
