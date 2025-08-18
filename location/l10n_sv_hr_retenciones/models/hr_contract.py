@@ -40,12 +40,13 @@ class HrContract(models.Model):
         se usa como salario base en lugar de self.wage.
         """
         self.ensure_one()
+
         fecha_inicio = payslip.date_from if payslip else None
         fecha_fin = payslip.date_to if payslip else None
 
         # Usa bruto de payslip si está definido, de lo contrario usa wage
         bruto = salario_bruto_payslip if salario_bruto_payslip is not None else self.wage or 0.0
-        _logger.info("Salario base del contrato ID %s = %.2f", self.id, bruto)
+        _logger.info("Salario base del contrato ID PRIEMRA QUINCEAN %s = %.2f", self.id, bruto)
 
         if not self.employee_id:
             _logger.warning("Contrato %s no tiene empleado asignado. Retornando solo salario base.", self.id)
@@ -75,10 +76,52 @@ class HrContract(models.Model):
             asignaciones = []
 
         monto_extra = sum(asignacion.monto for asignacion in asignaciones)
+        _logger.info("monto_extra %s: %s", self.id, monto_extra)
         bruto_total = bruto + monto_extra
         _logger.info("Bruto total para contrato ID %s: salario base %.2f + asignaciones %.2f = %.2f", self.id, bruto, monto_extra, bruto_total)
 
         return bruto_total
+
+    def calculo_afp_mensual(self, salario_mensual, payslip):
+
+        afp_empleado = None
+        if self.afp_id and self.afp_id == constants.AFP_IPSFA:
+            afp_empleado = self.env['hr.retencion.afp'].search([('tipo', '=', constants.DEDUCCION_IPSFA_EMPLEADO)],
+                                                               limit=1)
+        elif self.afp_id and self.afp_id == constants.AFP_CONFIA:
+            afp_empleado = self.env['hr.retencion.afp'].search([('tipo', '=', constants.DEDUCCION_AFP_CONF_EMPLEADO)],
+                                                               limit=1)
+        else:
+            afp_empleado = self.env['hr.retencion.afp'].search([('tipo', '=', constants.DEDUCCION_EMPLEADO)], limit=1)
+
+        if not afp_empleado:
+            # Si no se encuentra configuración para AFP, se registra una advertencia y se retorna 0.0
+            _logger.warning("No se encontró configuración AFP para empleado.")
+            return 0.0
+
+        porcentaje_afp = afp_empleado.porcentaje or 0.0  # Porcentaje de deducción AFP
+        techo = afp_empleado.techo or 0.0  # Techo máximo de deducción AFP
+
+
+        primera_quincena = self.env['hr.payslip'].search(
+            [('employee_id', '=', payslip.employee_id.id), ('period_quincena', "=", '1'),
+             ('period_month', "=", payslip.period_month)], limit=1)
+        afp_names = ["Deducción AFP", "AFP CONFIA", "AIPSFA"]
+        afp_primera_quincena = primera_quincena.input_line_ids.filtered(
+            lambda l: l.name in afp_names
+        )
+
+        _logger.info("afp_primera_quincena ENCONTRADO= %s", afp_primera_quincena)
+
+        _logger.info("PRIMERA CALCULO QUINCENA AFP= %.2f", afp_primera_quincena.amount)
+        _logger.info("SAlARIO MENSUAL %s = %.2f", self.id, salario_mensual)
+        _logger.info("SAlARIO TECHO %s = %.2f", self.id, techo)
+        base_mensual = min(salario_mensual, techo * 2) if techo > 0 else salario_mensual
+        _logger.info("base= %.2f", base_mensual)
+        deduccion_mensual_aux = base_mensual * (porcentaje_afp / 100.0)  # Cálculo de la deducción ISSS mensual
+        deduccion_segunda_quincena = deduccion_mensual_aux
+
+        return deduccion_segunda_quincena
 
     # Método para calcular la deducción AFP (Administradora de Fondos de Pensiones)
     def calcular_afp(self, salario_bruto=None, payslip=None):
@@ -87,9 +130,25 @@ class HrContract(models.Model):
             _logger.info("Contrato con servicios profesionales, no se aplica AFP.")
             return 0.0
 
+        salario_mensual_bruto = 0.0
+        salario_mensual = 0.0
+        if payslip.period_quincena == '2':
+            primera_quincena = self.env['hr.payslip'].search(
+                [('employee_id', '=', payslip.employee_id.id), ('period_quincena', "=", '1'),
+                 ('period_month', "=", payslip.period_month)], limit=1)
+            _logger.info(">>>  %s primera_quincena", primera_quincena)
+
+            bono = primera_quincena.input_line_ids.filtered(lambda l: l.name == "Bono")
+            comisiones = primera_quincena.input_line_ids.filtered(lambda l: l.name == "Comision")
+
+            salario_mensual_bruto = self.wage + comisiones.amount + bono.amount + primera_quincena.contract_id.wage
+            salario_mensual = self.get_salario_bruto_total(payslip=payslip, salario_bruto_payslip=salario_mensual_bruto)
+
         salario = self.get_salario_bruto_total(payslip=payslip, salario_bruto_payslip=salario_bruto)
+
         _logger.info("AFP: salario bruto =%s", salario_bruto)
         _logger.info("AFP: salario base para contrato ID %s = %.2f", self.id, salario)
+        _logger.info("SAlARIO MENSUAL %s = %.2f", self.id, salario_mensual)
 
         # Buscar el porcentaje y techo configurado para el empleado
         afp_empleado = None
@@ -100,6 +159,8 @@ class HrContract(models.Model):
         else:
             afp_empleado = self.env['hr.retencion.afp'].search([('tipo', '=', constants.DEDUCCION_EMPLEADO)], limit=1)
 
+        _logger.info("AFP EMPLEADO %s", afp_empleado)
+        _logger.info("AFP EMPLEADO TIPO%s", afp_empleado.tipo)
         if not afp_empleado:
             # Si no se encuentra configuración para AFP, se registra una advertencia y se retorna 0.0
             _logger.warning("No se encontró configuración AFP para empleado.")
@@ -114,6 +175,25 @@ class HrContract(models.Model):
         # Si hay techo definido (> 0), se aplica como límite para la base de cálculo
         base = min(salario, techo) if techo > 0 else salario
         deduccion = base * (porcentaje_afp / 100.0)  # Cálculo de la deducción AFP
+
+        if payslip.period_quincena == '2':
+            primera_quincena = self.env['hr.payslip'].search(
+                [('employee_id', '=', payslip.employee_id.id), ('period_quincena', "=", '1'),
+                 ('period_month', "=", payslip.period_month)], limit=1)
+
+            _logger.info("AFP PRIMERA QUINCENA IDDDDDDD= %s", primera_quincena)
+
+            afp_names = ["Deducción AFP", "AFP CONFIA", "AIPSFA"]
+            afp_primera_quincena = primera_quincena.input_line_ids.filtered(
+                lambda l: l.name in afp_names
+            )
+
+            _logger.info("afp_primera_quincena ENCONTRADO= %s", afp_primera_quincena)
+
+            _logger.info("AFP PRIMERA QUINCENA ASD= %.2f", afp_primera_quincena.amount)
+            _logger.info("AFP AJUSTADA QUINCENA ASD= %.2f", self.calculo_afp_mensual(salario_mensual,payslip))
+            deduccion_segunda_quincena = self.calculo_afp_mensual(salario_mensual,payslip) - abs(afp_primera_quincena.amount)
+            return deduccion_segunda_quincena
         _logger.info("AFP base calculada = %.2f", base)
 
         _logger.info("base %.2f", base)
@@ -122,6 +202,39 @@ class HrContract(models.Model):
         _logger.info("AFP para contrato ID %d: base %.2f * %.2f%% = %.2f", self.id, base, porcentaje_afp, deduccion)
         return deduccion
 
+    def calculo_de_techo_mensual(self, payslip, deduccion):
+        primera_quincena = self.env['hr.payslip'].search(
+            [('employee_id', '=', payslip.employee_id.id), ('period_quincena', "=", '1'),
+             ('period_month', "=", payslip.period_month)], limit=1)
+        _logger.info(">>>  %s primera_quincena", primera_quincena)
+        return deduccion.techo * 2
+
+    def calcular_isss_mensual(self, payslip, salario_mensual):
+
+        isss_empleado = self.env['hr.retencion.isss'].search([('tipo', '=', constants.DEDUCCION_EMPLEADO)], limit=1)
+        if not isss_empleado:
+            # Si no se encuentra configuración para ISSS, se registra una advertencia y se retorna 0.0
+            _logger.warning("No se encontró configuración ISSS para empleado.")
+            return 0.0
+
+        _logger.info("Config ISSS encontrada: techo=%.2f, porcentaje=%.2f%%", isss_empleado.techo,
+                     isss_empleado.porcentaje)
+
+        porcentaje = isss_empleado.porcentaje or 0.0  # Porcentaje de deducción ISSS
+        techo = isss_empleado.techo or 0.0  # Techo máximo de deducción ISSS
+
+        primera_quincena = self.env['hr.payslip'].search(
+            [('employee_id', '=', payslip.employee_id.id), ('period_quincena', "=", '1'),
+             ('period_month', "=", payslip.period_month)], limit=1)
+        isss_primera_quincena = primera_quincena.input_line_ids.filtered(lambda l: l.name == "Deducción ISSS")
+        _logger.info("PRIMERA CALCULO QUINCENA ISSS= %.2f", isss_primera_quincena.amount)
+
+        base = min(salario_mensual, techo * 2) if techo > 0 else salario_mensual
+        deduccion_mensual_aux = base * (porcentaje / 100.0)  # Cálculo de la deducción ISSS mensual
+        deduccion_segunda_quincena = deduccion_mensual_aux
+
+        return deduccion_segunda_quincena
+
     # Método para calcular la deducción ISSS (Instituto Salvadoreño del Seguro Social)
     def calcular_isss(self, salario_bruto=None, payslip=None):
         self.ensure_one()  # Garantiza que el cálculo se realice solo en un solo registro
@@ -129,9 +242,25 @@ class HrContract(models.Model):
             _logger.info("Contrato con servicios profesionales, no se aplica ISSS.")
             return 0.0
 
+        salario_mensual_bruto = 0.0
+        salario_mensual = 0.0
+        if payslip.period_quincena == '2':
+            primera_quincena = self.env['hr.payslip'].search(
+                [('employee_id', '=', payslip.employee_id.id), ('period_quincena', "=", '1'),
+                 ('period_month', "=", payslip.period_month)], limit=1)
+            _logger.info(">>>  %s primera_quincena", primera_quincena)
+
+            bono = primera_quincena.input_line_ids.filtered(lambda l: l.name == "Bono")
+            comisiones = primera_quincena.input_line_ids.filtered(lambda l: l.name == "Comision")
+
+            salario_mensual_bruto = self.wage + comisiones.amount + bono.amount + primera_quincena.contract_id.wage
+            salario_mensual = self.get_salario_bruto_total(payslip=payslip, salario_bruto_payslip=salario_mensual_bruto)
+
         salario = self.get_salario_bruto_total(payslip=payslip, salario_bruto_payslip=salario_bruto)
+
         _logger.info("ISSS: salario bruto =%s", salario_bruto)
         _logger.info("ISSS: salario base para contrato ID %s = %.2f", self.id, salario)
+        _logger.info("SAlARIO MENSUAL %s = %.2f", self.id, salario_mensual)
 
         # Buscar la configuración de ISSS para el empleado
         isss_empleado = self.env['hr.retencion.isss'].search([('tipo', '=', constants.DEDUCCION_EMPLEADO)], limit=1)
@@ -143,12 +272,27 @@ class HrContract(models.Model):
         _logger.info("Config ISSS encontrada: techo=%.2f, porcentaje=%.2f%%", isss_empleado.techo, isss_empleado.porcentaje)
 
         porcentaje = isss_empleado.porcentaje or 0.0  # Porcentaje de deducción ISSS
-        techo = isss_empleado.techo or 0.0  # Techo máximo de deducción ISSS
+        techo = isss_empleado.techo or 0.0   # Techo máximo de deducción ISSS
 
-        # Se aplica el techo si está definido
         base = min(salario, techo) if techo > 0 else salario
         deduccion = base * (porcentaje / 100.0)  # Cálculo de la deducción ISSS
+
+        if payslip.period_quincena == '2':
+            primera_quincena = self.env['hr.payslip'].search(
+                        [('employee_id', '=', payslip.employee_id.id), ('period_quincena', "=", '1'),
+                         ('period_month', "=", payslip.period_month)], limit=1)
+            isss_primera_quincena = primera_quincena.input_line_ids.filtered(lambda l: l.name == "Deducción ISSS")
+
+            deduccion_segunda_quincena = self.calcular_isss_mensual(payslip, salario_mensual) - abs(
+            isss_primera_quincena.amount)  # Caluclo real para segunda quincena
+            _logger.info("isss_primera_quincena.amount= %.2f", isss_primera_quincena.amount)
+            _logger.info("deduccion_segunda_quincena = %.2f", deduccion_segunda_quincena)
+            return deduccion_segunda_quincena
+
+        # Se aplica el techo si está definido
+
         _logger.info("ISSS base calculada = %.2f", base)
+        _logger.info("deduccion= %.2f", deduccion)
 
         # Registro de la información de la deducción para referencia
         _logger.info("ISSS empleado para contrato ID %d: base %.2f * %.2f%% = %.2f", self.id, base, porcentaje, deduccion)
@@ -157,11 +301,24 @@ class HrContract(models.Model):
     # Método para calcular la deducción de renta del empleado
     def calcular_deduccion_renta(self, salario_bruto=None, payslip=None):
         self.ensure_one()  # Garantiza que el cálculo se realice solo en un solo registro
-        _logger.info("Cálculo de deducción de renta iniciado para contrato ID %s | base imponible=%s ", self.id, salario_bruto)
+        _logger.info("############################## CALCULO DE RENTA para contrato ID %s | base imponible=%s ", self.id, salario_bruto)
 
-        # Si el valor 'bruto' no es proporcionado, se usa el salario del contrato
-        salario = self.get_salario_bruto_total(payslip=payslip, salario_bruto_payslip=salario_bruto) #bruto if bruto is not None else self.get_salario_bruto_total()
-        _logger.info("RENTA: salario= %s | salario bruto =%s", salario, salario_bruto)
+        salario_bruto_mensual = 0.0
+        if payslip.period_quincena == '2':
+            primera_quincena = self.env['hr.payslip'].search(
+                [('employee_id', '=', payslip.employee_id.id), ('period_quincena', "=", '1'),
+                 ('period_month', "=", payslip.period_month)], limit=1)
+            _logger.info(">>>  %s primera_quincena", primera_quincena)
+
+            bono = primera_quincena.input_line_ids.filtered(lambda l: l.name == "Bono")
+            comisiones = primera_quincena.input_line_ids.filtered(lambda l: l.name == "Comision")
+
+            salario_bruto_mensual = self.wage + comisiones.amount + bono.amount + primera_quincena.contract_id.wage
+            _logger.info(">>>  RENTA: salario_bruto_mensual =%s", salario_bruto_mensual)
+
+        salario = self.get_salario_bruto_total(payslip=payslip, salario_bruto_payslip=salario_bruto)  # bruto if bruto is not None else self.get_salario_bruto_total()
+        salario_mensual = self.get_salario_bruto_total(payslip=payslip, salario_bruto_payslip=salario_bruto_mensual)  # bruto if bruto is not None else self.get_salario_bruto_total()
+        _logger.info(">>>  RENTA: salario= %s", salario)
 
         # Si es servicios profesionales: 10% directo
         if self.wage_type == constants.SERVICIOS_PROFESIONALES:
@@ -194,18 +351,48 @@ class HrContract(models.Model):
             return 0.0
 
         # Buscar la tabla de remuneración gravada según el código
+        if payslip.period_quincena == '2':
+            tabla_mensual = self.env['hr.retencion.renta'].search([('codigo', '=', constants.RET_MENSUAL)], limit=1)
+            _logger.warning("tabla mensual 1'%s'", tabla_mensual)
+
         tabla = self.env['hr.retencion.renta'].search([('codigo', '=', codigo)], limit=1)
+        _logger.warning("quincenal '%s'", tabla)
         if not tabla:
             # Si no se encuentra la tabla correspondiente, se registra una advertencia y se retorna 0.0
             _logger.warning("No se encontró tabla de remuneración gravada con código '%s'", codigo)
             return 0.0
 
+
         # Calcular base imponible restando AFP e ISSS
         afp = self.calcular_afp(salario_bruto=salario_bruto, payslip=payslip)
         isss = self.calcular_isss(salario_bruto=salario_bruto, payslip=payslip)
         base_imponible = float_round( (salario - afp - isss), precision_digits=2)
+
+        if payslip.period_quincena == '2': #calculo de afp, iss y base imponible mensual
+            primera_quincena = self.env['hr.payslip'].search(
+                [('employee_id', '=', payslip.employee_id.id), ('period_quincena', "=", '1'),
+                 ('period_month', "=", payslip.period_month)], limit=1)
+
+            _logger.info(">>>  %s primera_quincena", primera_quincena)
+
+            # Calcular base imponible restando AFP e ISSS
+            isss_mensual= self.calcular_isss_mensual(payslip, salario_mensual)
+            afp_mensual =  self.calculo_afp_mensual(salario_mensual, payslip)
+
+            _logger.info("isss_mensual AJUSTADO %f", isss_mensual)
+            _logger.info("afp_mensual AJUSTADO %f", afp_mensual)
+            _logger.warning("salario_mensual '%s'", salario_mensual)
+
+            base_imponible_mensual = float_round((salario_mensual - afp_mensual - isss_mensual), precision_digits=2)
+
+            _logger.info("###### AFP = %.2f ", afp)
+            _logger.info("###### isss = %.2f ", isss)
+            _logger.info("###### base_imponible = %.2f ",  base_imponible)
+
         _logger.info("Base imponible renta = %.2f - %.2f - %.2f = %.2f", salario, afp, isss, base_imponible)
 
+        renta = 0.0
+        devolucion_renta = 0.0
         # Se itera sobre los tramos de la tabla para determinar el tramo aplicable
         tramos = tabla.tramo_ids.sorted(key=lambda t: t.desde)
         for tramo in tramos:
@@ -213,13 +400,52 @@ class HrContract(models.Model):
             if (not tramo.hasta or base_imponible <= tramo.hasta) and base_imponible >= tramo.desde:
                 # Si es así, calcular la deducción de renta basada en el tramo
                 exceso = float_round(base_imponible - tramo.exceso_sobre, precision_digits=2)
+                _logger.info("tramo.exceso_sobre %f", tramo.exceso_sobre)
+                _logger.info("exceso %f", exceso)
                 resultado = tramo.cuota_fija + (exceso * tramo.porcentaje_excedente / 100)
                 _logger.info("Deducción de renta calculada: %.2f (tramo aplicado)", resultado)
-                return resultado
+                renta = resultado
 
-        # Si no se encuentra un tramo aplicable, se registra un mensaje de información y se retorna 0.0
-        _logger.info("No se encontró tramo aplicable para la base imponible.")
-        return 0.0
+        _logger.info("RENTA NORMAL %f", renta)
+
+        if payslip.period_quincena == '2': #calculo de afp, iss y base imponible mensual
+            primera_quincena = self.env['hr.payslip'].search(
+                [('employee_id', '=', payslip.employee_id.id), ('period_quincena', "=", '1'),
+                 ('period_month', "=", payslip.period_month)], limit=1)
+
+            tramos_mensual = tabla_mensual.tramo_ids.sorted(key=lambda t: t.desde)
+            for tramo in tramos_mensual:
+                # Verificar si la base imponible cae dentro del tramo
+                if (not tramo.hasta or base_imponible_mensual <= tramo.hasta) and base_imponible_mensual >= tramo.desde:
+                    # Si es así, calcular la deducción de renta basada en el tramo
+                    exceso = float_round(base_imponible_mensual - tramo.exceso_sobre, precision_digits=2)
+                    _logger.info("tramo.exceso_sobre AJUSTADO %f", tramo.exceso_sobre)
+
+                    _logger.info("base_imponible_mensual AJUSTADO %f", base_imponible_mensual)
+                    _logger.info("tramo.exceso_sobre %f", exceso)
+                    _logger.info("base imponible AJUSTADo %f", base_imponible_mensual)
+                    resultado = tramo.cuota_fija + (exceso * tramo.porcentaje_excedente / 100)
+                    _logger.info("Deducción de renta calculada AJUSTADA: %.2f (tramo aplicado)", resultado)
+
+                    renta_primera_quincena = primera_quincena.input_line_ids.filtered(
+                        lambda l: l.name == "Deducción Renta")
+
+                    _logger.info("RENTA PRIMERA QUINCENA AJUSTADA: %.2f (tramo aplicado)", renta_primera_quincena.amount)
+
+
+                    renta = resultado - abs(renta_primera_quincena.amount)
+                    _logger.info("REEEE: %.2f ", renta_primera_quincena.amount)
+                    _logger.info("RESULTSSS: %.2f ", resultado)
+
+                    if abs(renta_primera_quincena.amount) > abs(resultado):
+                        _logger.info("RENTA FINAL %f", - renta)
+                        devolucion_renta = abs(renta)
+                        renta = 0.0
+                        # AGREGAR LA REGLA SALARIAL PARA ASIGNACION
+
+        _logger.info("RENTA AJUSTADO %f", renta)
+
+        return renta, devolucion_renta
 
     # Método para calcular el aporte patronal ISSS (empleador)
     def calcular_aporte_patronal(self, tipo, salario_bruto=None, payslip=None):

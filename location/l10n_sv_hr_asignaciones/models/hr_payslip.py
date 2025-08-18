@@ -49,13 +49,18 @@ class HrPayslip(models.Model):
             constants.ASIGNACION_VIATICOS.upper(),
             constants.ASIGNACION_BONOS.upper(),
             constants.ASIGNACION_HORAS_EXTRA.upper(),
+            constants.DEVOLUCION_RENTA_CODE.upper(),
         ]
+
+        _logger.info("ASIGNACIONES %s", tipos_asignacion)
 
         for slip in self:
             # Buscar los tipos de entrada hr.payslip.input.type según los códigos en la lista
             tipos_inputs = self.env['hr.payslip.input.type'].search([
                 ('code', 'in', tipos_asignacion)
             ])
+
+            _logger.info("tipos_inputs %s", tipos_inputs)
 
             # Eliminar entradas anteriores que sean de los tipos definidos
             entradas_a_borrar = slip.input_line_ids.filtered(lambda l: l.input_type_id in tipos_inputs)
