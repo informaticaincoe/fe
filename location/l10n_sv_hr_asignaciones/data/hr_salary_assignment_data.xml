@@ -65,5 +65,24 @@
             <field name="input_type_id" ref="l10n_sv_hr_asignaciones.input_type_comision"/>
             <field name="amount_other_input_id" ref="l10n_sv_hr_asignaciones.input_type_comision"/>
         </record>
+
+        <record id="input_devolucion_renta" model="hr.payslip.input.type">
+            <field name="name">Devolución Renta</field>
+            <field name="code">DEV_RENTA</field>
+        </record>
+
+        <record id="hr_rule_dev_renta" model="hr.salary.rule">
+            <field name="name">Devolución de Renta</field>
+            <field name="code">DEV_RENTA</field>
+            <field name="sequence">10</field>
+            <field name="category_id" ref="hr_payroll.BASIC"/>
+            <field name="amount_select">input</field>
+            <field name="appears_on_payslip" eval="True"/>
+            <field name="struct_id" ref="l10n_sv_hr_retenciones.structure_incoe"/>
+            <field name="condition_select">none</field>
+            <field name="input_type_id" ref="l10n_sv_hr_asignaciones.input_devolucion_renta"/>
+            <field name="amount_other_input_id" ref="l10n_sv_hr_asignaciones.input_devolucion_renta"/>
+            <field name="appears_on_payslip" eval="True"/>
+        </record>
     </data>
 </odoo>

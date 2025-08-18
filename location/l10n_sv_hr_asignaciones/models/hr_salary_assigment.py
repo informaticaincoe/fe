@@ -35,6 +35,8 @@ class HrSalaryAssignment(models.Model):
         ('COMISION', 'Comisión'),
         ('VIATICO', 'Viáticos'),
         ('BONO', 'Bono'),
+        ('DEV_RENTA', 'Devolucion de renta'),
+
     ], string='Tipo')
     monto = fields.Float("Monto", required=False)
     periodo = fields.Date("Periodo", required=True)

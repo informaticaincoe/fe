@@ -102,8 +102,10 @@ class HrPayslip(models.Model):
         # Registra el inicio del cálculo personalizado de la nómina
         _logger.info(">>> [INICIO] compute_sheet personalizado para %d nóminas", len(self))
 
+
         # 1. Crear inputs necesarios ANTES del cálculo estándar
         for payslip in self:
+
             if self.es_nomina_de_vacacion(payslip):
                 _logger.info("Detectada nómina de vacaciones %s → preparando inputs antes del cálculo", payslip.name)
                 self._agregar_regla_vacaciones(payslip)
@@ -123,9 +125,25 @@ class HrPayslip(models.Model):
 
             base_imponible = sum(payslip.worked_days_line_ids.mapped('amount'))
             _logger.info("Base imponible (total días trabajados) = %.2f", base_imponible)
+            _logger.info("period_quincena = %s", payslip.period_quincena)
 
             # Usar el método centralizado para crear los inputs
             self._crear_inputs_deducciones(payslip, contract, base_imponible)
+            _logger.info("period_quincena = %s", payslip.period_quincena)
+            #Obtener la nomina de la primera quincena
+            if payslip.period_quincena == '2' :
+                primera_quincena = self.env['hr.payslip'].search([('employee_id', '=', payslip.employee_id.id), ('period_quincena', "=", '1'),('period_month', "=", payslip.period_month)], limit=1)
+                _logger.info(">>>  %s primera_quincena", primera_quincena)
+
+                ISSS_anterior = primera_quincena.input_line_ids.filtered(lambda l: l.name == "Deducción ISSS")
+                ISSS_actual = payslip.input_line_ids.filtered(lambda l: l.name == "Deducción ISSS")
+
+                _logger.info(">>>  %s ISS quincena anterior", ISSS_anterior.amount)
+                _logger.info(">>>  %s ISS quincena actual", ISSS_actual.amount)
+
+                _logger.info(">>>  %s pago mensual", contract.monthly_yearly_costs)
+
+
 
         # 3. Aplicar descuento de séptimo por faltas injustificadas
         self._aplicar_descuento_septimo_por_faltas()
@@ -138,7 +156,7 @@ class HrPayslip(models.Model):
 
     def _obtener_deducciones(self, payslip, contract, base_imponible):
         try:
-            renta = contract.calcular_deduccion_renta(salario_bruto=base_imponible, payslip=payslip)
+            renta, devolucion_renta = contract.calcular_deduccion_renta(salario_bruto=base_imponible, payslip=payslip)
             afp = contract.calcular_afp(salario_bruto=base_imponible, payslip=payslip)
             isss = contract.calcular_isss(salario_bruto=base_imponible, payslip=payslip)
             afp_patronal = contract.calcular_aporte_patronal(constants.TIPO_DED_AFP, salario_bruto=base_imponible, payslip=payslip)
@@ -148,7 +166,7 @@ class HrPayslip(models.Model):
             _logger.error("Error al calcular deducciones para contrato %s: %s", contract.id, e)
             raise UserError(_("Ocurrió un error al calcular deducciones: %s") % str(e))
 
-        return renta, afp, isss, afp_patronal, isss_patronal, incaf
+        return renta, devolucion_renta, afp, isss, afp_patronal, isss_patronal, incaf
 
     def _crear_inputs_deducciones(self, slip, contract, base_total):
         """
@@ -158,20 +176,20 @@ class HrPayslip(models.Model):
         _logger.info("Iniciando creación de inputs de deducción para nómina ID=%s | contrato ID=%s | base_total=%.2f", slip.id, contract.id, base_total)
 
         # Primero eliminamos entradas previas para evitar duplicados
-        for code in constants.DEDUCCION_CODES:
+        for code in (constants.DEDUCCION_CODES + [constants.DEVOLUCION_RENTA_CODE]):
             old_inputs = slip.input_line_ids.filtered(lambda l: l.code == code)
             if old_inputs:
                 _logger.info("Eliminando %d inputs previos con código %s para nómina ID=%d", len(old_inputs), code, slip.id)
                 old_inputs.unlink()
 
         # Obtener valores de deducciones
-        renta, afp, isss, afp_patronal, isss_patronal, incaf = self._obtener_deducciones(payslip=slip, contract=contract, base_imponible=base_total)
+        renta, devolucion_renta, afp, isss, afp_patronal, isss_patronal, incaf = self._obtener_deducciones(payslip=slip, contract=contract, base_imponible=base_total)
 
         _logger.info( "Deducciones obtenidas → renta=%.2f, afp=%.2f, isss=%.2f, afp_patronal=%.2f, isss_patronal=%.2f, incaf=%.2f", renta, afp, isss, afp_patronal, isss_patronal, incaf)
 
         tipos = {
             code: self.env['hr.payslip.input.type'].search([('code', '=', code)], limit=1)
-            for code in constants.DEDUCCION_CODES
+            for code in (constants.DEDUCCION_CODES + [constants.DEVOLUCION_RENTA_CODE])
         }
 
         # Validar existencia de tipos de input
@@ -203,6 +221,13 @@ class HrPayslip(models.Model):
             valores.append(('RENTA_SP', -abs(renta)))
             _logger.info("Contrato de servicios profesionales → Solo se agrega RENTA_SP con valor %.2f", -abs(renta))
         else:
+            # === Ajuste clave: si hay devolución, anular RENTA e inyectar DEV_RENTA ===
+            if devolucion_renta and devolucion_renta > 0:
+                _logger.info("Se detectó DEVOLUCIÓN de renta=%.2f → anular RENTA en 2Q y crear DEV_RENTA",
+                             devolucion_renta)
+                variables['renta'] = 0.0  # ← anula RENTA para que BASE_DEDUCCIONES no descuente
+            # -------------------------------------------------------------------------
+
             # Deducciones base
             base_vals = [
                 (code, abs(variables[var]) * sign)
@@ -230,6 +255,12 @@ class HrPayslip(models.Model):
             ]
             valores += afp_vals
             _logger.info("Deducciones AFP: %s", afp_vals)
+
+
+        # EXTRA: crear input de asignación por devolución (positivo)
+        if devolucion_renta and devolucion_renta > 0:
+            valores.append((constants.DEVOLUCION_RENTA_CODE, float_round(abs(devolucion_renta), 2)))
+            _logger.info("Asignación DEV_RENTA=+%.2f agregada", devolucion_renta)
 
         # Crear inputs en la nómina
         for code, valor in valores:
@@ -567,3 +598,8 @@ class HrPayslip(models.Model):
             if leave_type:
                 return True
         return False
+
+
+
+
+########################################################################################################################
