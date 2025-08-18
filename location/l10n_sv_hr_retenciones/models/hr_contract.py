@@ -45,7 +45,7 @@ class HrContract(models.Model):
         fecha_fin = payslip.date_to if payslip else None
 
         # Usa bruto de payslip si está definido, de lo contrario usa wage
-        bruto = salario_bruto_payslip if salario_bruto_payslip is not None else self.wage or 0.0
+        bruto = salario_bruto_payslip if salario_bruto_payslip is not None else payslip.basic_wage or 0.0
         _logger.info("Salario base del contrato ID PRIEMRA QUINCEAN %s = %.2f", self.id, bruto)
 
         if not self.employee_id:
@@ -106,7 +106,7 @@ class HrContract(models.Model):
         primera_quincena = self.env['hr.payslip'].search(
             [('employee_id', '=', payslip.employee_id.id), ('period_quincena', "=", '1'),
              ('period_month', "=", payslip.period_month)], limit=1)
-        afp_names = ["Deducción AFP", "AFP CONFIA", "AIPSFA"]
+        afp_names = ["Deducción AFP","AFP CRECER", "AFP CONFIA", "AIPSFA"]
         afp_primera_quincena = primera_quincena.input_line_ids.filtered(
             lambda l: l.name in afp_names
         )
@@ -136,12 +136,14 @@ class HrContract(models.Model):
             primera_quincena = self.env['hr.payslip'].search(
                 [('employee_id', '=', payslip.employee_id.id), ('period_quincena', "=", '1'),
                  ('period_month', "=", payslip.period_month)], limit=1)
+
             _logger.info(">>>  %s primera_quincena", primera_quincena)
 
             bono = primera_quincena.input_line_ids.filtered(lambda l: l.name == "Bono")
             comisiones = primera_quincena.input_line_ids.filtered(lambda l: l.name == "Comision")
 
-            salario_mensual_bruto = self.wage + comisiones.amount + bono.amount + primera_quincena.contract_id.wage
+            salario_mensual_bruto = salario_bruto + comisiones.amount + bono.amount + primera_quincena.basic_wage
+            _logger.info("AFP: salario_mensual_bruto=%s", salario_mensual_bruto)
             salario_mensual = self.get_salario_bruto_total(payslip=payslip, salario_bruto_payslip=salario_mensual_bruto)
 
         salario = self.get_salario_bruto_total(payslip=payslip, salario_bruto_payslip=salario_bruto)
@@ -183,7 +185,7 @@ class HrContract(models.Model):
 
             _logger.info("AFP PRIMERA QUINCENA IDDDDDDD= %s", primera_quincena)
 
-            afp_names = ["Deducción AFP", "AFP CONFIA", "AIPSFA"]
+            afp_names = ["Deducción AFP","AFP CRECER", "AFP CONFIA", "AIPSFA"]
             afp_primera_quincena = primera_quincena.input_line_ids.filtered(
                 lambda l: l.name in afp_names
             )
@@ -193,6 +195,7 @@ class HrContract(models.Model):
             _logger.info("AFP PRIMERA QUINCENA ASD= %.2f", afp_primera_quincena.amount)
             _logger.info("AFP AJUSTADA QUINCENA ASD= %.2f", self.calculo_afp_mensual(salario_mensual,payslip))
             deduccion_segunda_quincena = self.calculo_afp_mensual(salario_mensual,payslip) - abs(afp_primera_quincena.amount)
+            _logger.info("AFP base deduccion_segunda_quincena = %.2f", deduccion_segunda_quincena)
             return deduccion_segunda_quincena
         _logger.info("AFP base calculada = %.2f", base)
 
@@ -253,7 +256,7 @@ class HrContract(models.Model):
             bono = primera_quincena.input_line_ids.filtered(lambda l: l.name == "Bono")
             comisiones = primera_quincena.input_line_ids.filtered(lambda l: l.name == "Comision")
 
-            salario_mensual_bruto = self.wage + comisiones.amount + bono.amount + primera_quincena.contract_id.wage
+            salario_mensual_bruto = salario_bruto + comisiones.amount + bono.amount + primera_quincena.basic_wage
             salario_mensual = self.get_salario_bruto_total(payslip=payslip, salario_bruto_payslip=salario_mensual_bruto)
 
         salario = self.get_salario_bruto_total(payslip=payslip, salario_bruto_payslip=salario_bruto)
@@ -303,6 +306,7 @@ class HrContract(models.Model):
         self.ensure_one()  # Garantiza que el cálculo se realice solo en un solo registro
         _logger.info("############################## CALCULO DE RENTA para contrato ID %s | base imponible=%s ", self.id, salario_bruto)
 
+        primera_quincena = None
         salario_bruto_mensual = 0.0
         if payslip.period_quincena == '2':
             primera_quincena = self.env['hr.payslip'].search(
@@ -313,7 +317,7 @@ class HrContract(models.Model):
             bono = primera_quincena.input_line_ids.filtered(lambda l: l.name == "Bono")
             comisiones = primera_quincena.input_line_ids.filtered(lambda l: l.name == "Comision")
 
-            salario_bruto_mensual = self.wage + comisiones.amount + bono.amount + primera_quincena.contract_id.wage
+            salario_bruto_mensual = salario_bruto + comisiones.amount + bono.amount + primera_quincena.basic_wage
             _logger.info(">>>  RENTA: salario_bruto_mensual =%s", salario_bruto_mensual)
 
         salario = self.get_salario_bruto_total(payslip=payslip, salario_bruto_payslip=salario_bruto)  # bruto if bruto is not None else self.get_salario_bruto_total()
@@ -368,10 +372,10 @@ class HrContract(models.Model):
         isss = self.calcular_isss(salario_bruto=salario_bruto, payslip=payslip)
         base_imponible = float_round( (salario - afp - isss), precision_digits=2)
 
-        if payslip.period_quincena == '2': #calculo de afp, iss y base imponible mensual
-            primera_quincena = self.env['hr.payslip'].search(
-                [('employee_id', '=', payslip.employee_id.id), ('period_quincena', "=", '1'),
-                 ('period_month', "=", payslip.period_month)], limit=1)
+        if payslip.period_quincena == '2' and len(primera_quincena) != 0: #calculo de afp, iss y base imponible mensual
+            # primera_quincena = self.env['hr.payslip'].search(
+            #     [('employee_id', '=', payslip.employee_id.id), ('period_quincena', "=", '1'),
+            #      ('period_month', "=", payslip.period_month)], limit=1)
 
             _logger.info(">>>  %s primera_quincena", primera_quincena)
 
@@ -408,10 +412,10 @@ class HrContract(models.Model):
 
         _logger.info("RENTA NORMAL %f", renta)
 
-        if payslip.period_quincena == '2': #calculo de afp, iss y base imponible mensual
-            primera_quincena = self.env['hr.payslip'].search(
-                [('employee_id', '=', payslip.employee_id.id), ('period_quincena', "=", '1'),
-                 ('period_month', "=", payslip.period_month)], limit=1)
+        if payslip.period_quincena == '2' and len(primera_quincena) != 0: #calculo de afp, iss y base imponible mensual
+            # primera_quincena = self.env['hr.payslip'].search(
+            #     [('employee_id', '=', payslip.employee_id.id), ('period_quincena', "=", '1'),
+            #      ('period_month', "=", payslip.period_month)], limit=1)
 
             tramos_mensual = tabla_mensual.tramo_ids.sorted(key=lambda t: t.desde)
             for tramo in tramos_mensual:
@@ -466,6 +470,7 @@ class HrContract(models.Model):
         _logger.info("Cálculo de aporte patronal para contrato ID %s. Tipo: %s. Salario base: %.2f", self.id, tipo, salario)
 
         if tipo == constants.TIPO_DED_ISSS:
+
             tipo_isss = self.env['hr.retencion.isss'].search([('tipo', '=', constants.DEDUCCION_EMPLEADOR)], limit=1)
             if tipo_isss:
                 base = salario if tipo_isss.techo == 0.0 else min(salario, tipo_isss.techo)
@@ -481,8 +486,9 @@ class HrContract(models.Model):
             elif self.afp_id and self.afp_id == constants.AFP_CONFIA:
                 tipo_afp = self.env['hr.retencion.afp'].search([('tipo', '=', constants.DEDUCCION_AFP_CONF_EMPLEADOR)], limit=1)
             else:
-                tipo_afp = self.env['hr.retencion.afp'].search([('tipo', '=', constants.DEDUCCION_EMPLEADO)], limit=1)
-
+                tipo_afp = self.env['hr.retencion.afp'].search([('tipo', '=', constants.DEDUCCION_EMPLEADOR)], limit=1)
+            _logger.info("TIPO AFP %s ", tipo_afp)
+            _logger.info("TIPO AFP %s", tipo_afp.porcentaje)
             if tipo_afp:
                 base = salario if tipo_afp.techo == 0.0 else min(salario, tipo_afp.techo)
                 resultado = base * (tipo_afp.porcentaje / 100)

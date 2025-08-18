@@ -473,16 +473,17 @@ class HrPayslip(models.Model):
             # Buscar el tipo de otras entradas VACACIONES
             vacacion = constants.REGLASAL_VACACION or 'VACACIONES'
             tipo_vacaciones = self.env['hr.payslip.input.type'].search([('code', '=', vacacion)], limit=1)
+            _logger.info(f"Tipo vacaciones DD {tipo_vacaciones}")
             if not tipo_vacaciones:
                 _logger.error("No existe tipo de entrada VACACIONES en Otras Entradas")
                 return
 
             # Buscar si ya existe input VACACIONES en este slip
             input_existente = slip.input_line_ids.filtered(lambda i: i.code == vacacion)
-
+            _logger.info(f"Tipo vacaciones DD {tipo_vacaciones}")
             if input_existente:
                 input_existente.write({'amount': float_round(datos_vac["extra_30"], precision_digits=2)})
-                _logger.info(f"Actualizado input VACACIONES → {datos_vac['extra_30']}")
+                _logger.info(f"input existente {datos_vac['extra_30']}")
             else:
                 slip.input_line_ids.create({
                     'name': tipo_vacaciones.name,
