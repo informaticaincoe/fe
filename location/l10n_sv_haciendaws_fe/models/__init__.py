@@ -6,3 +6,4 @@ from . import account_move
 from . import account_move_ws
 from . import account_move_reversal_ext
 from . import account_debit
+from . import sale_order
