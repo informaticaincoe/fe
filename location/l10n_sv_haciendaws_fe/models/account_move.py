@@ -1052,7 +1052,7 @@ class AccountMove(models.Model):
             return environment_type
 
     # FIMAR FIMAR FIRMAR =======
-    
+
     # ======================== FIRMA ===========================
     def firmar_documento(self, enviroment_type, payload):
         """
@@ -1141,9 +1141,11 @@ class AccountMove(models.Model):
 
                     # Errores conocidos
                     if status in [400, 401, 402, 'ERROR']:
+                        _logger.info("SIT Error 40X  =%s", status)
                         error = json_response.get('error')
                         message = json_response.get('message')
                         MENSAJE_ERROR = f"Código de Error: {status}, Error: {error}, Detalle: {message}"
+                        # raise UserError(_(MENSAJE_ERROR))
                         _logger.warning("Error de firma intento %s: %s", intento, MENSAJE_ERROR)
                         resultado.append({"status": status, "mensaje": MENSAJE_ERROR})
                         if intento == max_intentos:
@@ -1319,7 +1321,7 @@ class AccountMove(models.Model):
                 "nit": dte_json["emisor"]["nit"],
                 "activo": True,
                 "passwordPri": payload_original.get("passwordPri")
-                               or self.company_id.sit_password
+                               or self.company_id.sit_passwordPri
                                or dte_json.get("passwordPri"),
                 "dteJson": dte_json,
             }
