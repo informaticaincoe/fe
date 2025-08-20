@@ -20,7 +20,9 @@ import requests
 import logging
 import sys
 import traceback
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time, date
+from decimal import Decimal
+from copy import deepcopy
 import pytz
 from functools import cached_property
 import ast
@@ -36,6 +38,36 @@ try:
 except ImportError as e:
     _logger.error(f"Error al importar 'config_utils': {e}")
     config_utils = None
+
+def _json_default(o):
+        if isinstance(o, datetime):
+            return o.strftime('%Y-%m-%dT%H:%M:%S')
+        if isinstance(o, date):
+            return o.strftime('%Y-%m-%d')
+        if isinstance(o, time):
+            return o.strftime('%H:%M:%S')
+        if isinstance(o, Decimal):
+            return float(o)
+        if isinstance(o, (bytes, bytearray)):
+            return base64.b64encode(o).decode('ascii')
+        return str(o)
+
+def _sanitize(obj):
+    if isinstance(obj, dict):
+        return {k: _sanitize(v) if v is not None else None for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_sanitize(x) for x in obj]
+    if isinstance(obj, datetime):
+        return obj.strftime('%Y-%m-%dT%H:%M:%S')
+    if isinstance(obj, date):
+        return obj.strftime('%Y-%m-%d')
+    if isinstance(obj, time):
+        return obj.strftime('%H:%M:%S')
+    if isinstance(obj, Decimal):
+        return float(obj)
+    if isinstance(obj, (bytes, bytearray)):
+        return base64.b64encode(obj).decode('ascii')
+    return obj
 
 
 class AccountMove(models.Model):
@@ -1020,22 +1052,32 @@ class AccountMove(models.Model):
             return environment_type
 
     # FIMAR FIMAR FIRMAR =======
+    
+    # ======================== FIRMA ===========================
     def firmar_documento(self, enviroment_type, payload):
-        dte_json = None
-        # 1) inicializar la lista donde acumularás status/cuerpo o errores
+        """
+        Envía al firmador un payload con:
+        {
+            "nit": "...",
+            "activo": true,
+            "passwordPri": "...",
+            "dteJson": { ... }   # SIEMPRE dict (no string)
+        }
+        Sanitiza fechas/horas/Decimal/bytes antes de serializar.
+        Retorna el body parseado (dict) cuando status == 'OK'.
+        """
         resultado = []
+        dte_json = None  # para logging en except
 
         try:
             _logger.info("SIT  Firmando documento")
-            _logger.info("SIT Documento a FIRMAR = %s", payload)
+            _logger.info("SIT Documento a FIRMAR (raw) = %s", payload)
 
-            max_intentos = 3
-            # host = self.company_id.sit_firmador
-            url = self.url_firma  # "http://192.168.2.49:8113/firmardocumento/"  # host + '/firmardocumento/'
+            url = getattr(self, 'url_firma', None) or "http://192.168.2.49:8113/firmardocumento/"
             _logger.info("SIT Url firma: %s", url)
 
             headers = {
-                'Content-Type': str(self.content_type)  # 'application/json'
+                'Content-Type': 'application/json'
             }
 
             nit = payload.get("nit")
@@ -1043,136 +1085,109 @@ class AccountMove(models.Model):
             raw_dte = payload.get("dteJson")
 
             # Validar que dteJson exista y no esté vacío
-            if not raw_dte or not str(raw_dte).strip():
-                error_msg = "El JSON del DTE está vacío o inválido"
-                _logger.error(error_msg)
-                resultado.append({"status": "ERROR", "mensaje": error_msg})
-                return resultado  # Retorna error sin raise
+            if not raw_dte or (isinstance(raw_dte, str) and not raw_dte.strip()):
+                msg = "El JSON del DTE está vacío o inválido"
+                _logger.error(msg)
+                return [{"status": "ERROR", "mensaje": msg}]
 
-            # Solo cambio aquí: si dteJson es string JSON, parsear a dict
-            if isinstance(raw_dte, dict):
-                dte_json_str = json.dumps(raw_dte, ensure_ascii=False)
-            elif isinstance(raw_dte, str):
-                # Si es string, puede ser JSON válido o no
+            # Asegurar que dteJson sea dict (no string JSON)
+            if isinstance(raw_dte, str):
                 try:
-                    # Intentar parsear
-                    parsed = json.loads(raw_dte)
-                    dte_json_str = json.dumps(parsed, ensure_ascii=False)
-                    _logger.debug("SIT dteJson parseado desde string a objeto para evitar doble escape.")
+                    dte_json = json.loads(raw_dte)
+                    _logger.debug("SIT dteJson parseado desde string a dict.")
                 except json.JSONDecodeError:
-                    # Si no es JSON válido, dejar tal cual para que falle luego si es necesario
-                    dte_json_str = raw_dte
-                    _logger.warning("El dteJson es string pero no JSON válido, se usará tal cual.")
-
+                    msg = "El campo dteJson no contiene JSON válido."
+                    _logger.error(msg)
+                    return [{"status": "ERROR", "mensaje": msg}]
+            elif isinstance(raw_dte, dict):
+                dte_json = raw_dte
             else:
-                dte_json_str = raw_dte
+                msg = "El campo dteJson debe ser dict o string JSON."
+                _logger.error(msg)
+                return [{"status": "ERROR", "mensaje": msg}]
 
-            # **Chequeo adicional**: si dte_json sigue siendo string, intentar manejarlo o lanzar error claro
-            if isinstance(dte_json_str, str):
-                try:
-                    dte_json = json.loads(dte_json_str)
-                    _logger.debug("Parseado doble de dteJson string anidado.")
-                except Exception:
-                    error_msg = "El campo dteJson no contiene JSON válido."
-                    _logger.error(error_msg)
-                    resultado.append({"status": "ERROR", "mensaje": error_msg})
-                    return resultado
-
-            # Asegurar que ahora sea dict para evitar errores posteriores
-            if not isinstance(dte_json, dict):
-                error_msg = "El campo dteJson debe ser un diccionario válido después del parseo."
-                _logger.error(error_msg)
-                resultado.append({"status": "ERROR", "mensaje": error_msg})
-                return resultado
-
+            # Sanitizar recursivamente (fechas/horas/decimal/bytes)
             payload_firma = {
-                "nit": nit,  # <--- aquí estaba el error, decía 'liendre'
+                "nit": nit,
                 "activo": True,
                 "passwordPri": passwordPri,
-                "dteJson": dte_json,
+                "dteJson": _sanitize(deepcopy(dte_json)),
             }
 
+            # Log de lo que realmente se envía (serializado seguro)
+            _logger.info("SIT Payload a firmador (sanitizado) = %s",
+                        json.dumps(payload_firma, default=_json_default, ensure_ascii=False))
+
+            max_intentos = 3
             for intento in range(1, max_intentos + 1):
                 _logger.info("Intento %s de %s para firmar el documento", intento, max_intentos)
                 try:
-                    response = requests.post(url, headers=headers, data=json.dumps(payload_firma, default=str))
-                    _logger.info("SIT firmar_documento response =%s", response.text)
-                    _logger.info("SIT dte json =%s", dte_json)
+                    # Usa json=... para que requests ponga Content-Type y encodee;
+                    # igual ya sanitizamos, así que no habrá problema con fechas/Decimal
+                    response = requests.post(url, headers=headers, json=payload_firma, timeout=30)
+                    txt = response.text
+                    _logger.info("SIT firmar_documento response.status=%s body=%s", response.status_code, txt)
 
-                    json_response = response.json()
+                    # Si no es JSON, error claro
+                    try:
+                        json_response = response.json()
+                    except ValueError:
+                        if intento == max_intentos:
+                            raise UserError(_("Respuesta no JSON de firmador: %s") % txt)
+                        _logger.warning("Respuesta no JSON, reintentando...")
+                        continue
+
                     status = json_response.get('status')
-                    # Manejo de errores 400–402
+
+                    # Errores conocidos
                     if status in [400, 401, 402, 'ERROR']:
-                        _logger.info("SIT Error 40X  =%s", status)
                         error = json_response.get('error')
                         message = json_response.get('message')
                         MENSAJE_ERROR = f"Código de Error: {status}, Error: {error}, Detalle: {message}"
-                        # raise UserError(_(MENSAJE_ERROR))
                         _logger.warning("Error de firma intento %s: %s", intento, MENSAJE_ERROR)
                         resultado.append({"status": status, "mensaje": MENSAJE_ERROR})
                         if intento == max_intentos:
                             return resultado
                         continue
 
-                    if status in ['ERROR', 401, 402]:
-                        _logger.info("SIT Error 40X  =%s", json_response.get('status'))
+                    # OK
+                    if status == 'OK':
                         body = json_response.get('body')
-
-                        # Si body es string, parsear a dict
+                        # body puede venir ya como dict o como string JSON
                         if isinstance(body, str):
                             try:
                                 body = json.loads(body)
-                                _logger.debug("Parseado body de string a dict para error.")
+                                _logger.info("SIT Body parseado a JSON correctamente")
                             except Exception:
-                                _logger.warning("No se pudo parsear body de error, se usa tal cual.")
+                                _logger.info("SIT Body no era JSON, se retorna tal cual como string")
+                        _logger.info("SIT Firma OK, regresando al post")
+                        return body
 
-                        if isinstance(body, dict):
-                            codigo = body.get('codigo', 'Desconocido')
-                            message = body.get('mensaje', '')
-                        else:
-                            codigo = 'Desconocido'
-                            message = str(body)
-
-                        resultado = [status, codigo, message]
-                        MENSAJE_ERROR = f"Código de Error: {status}, Codigo: {codigo}, Detalle: {message}"
-                        if intento == max_intentos:
-                            raise UserError(_(MENSAJE_ERROR))
-                        continue
-                    elif json_response.get('status') == 'OK':
-                        body = json_response['body']
-                        try:
-                            body_parsed = json.loads(body)
-                            _logger.info("Body parseado a JSON correctamente")
-                        except Exception:
-                            body_parsed = body
-                        resultado = [status, body]
-                        _logger.info("Firma ok regresando al post")
-                        return body_parsed
-
-                    # Otros casos, repetir intento o lanzar error
+                    # Respuesta inesperada
                     _logger.warning("Respuesta inesperada en firma, intento %s: %s", intento, json_response)
                     if intento == max_intentos:
                         raise UserError(_("No se pudo firmar el documento. Respuesta inesperada."))
-                    continue
                 except Exception as e:
                     _logger.warning("Excepción en firma intento %s: %s", intento, str(e))
                     if intento == max_intentos:
-                        error = str(e)
-                        _logger.info('SIT error= %s, ', error)
+                        # Mensaje claro para usuario
                         try:
-                            error_dict = json.loads(error) if isinstance(error, str) else error
-                            MENSAJE_ERROR = f"{error_dict.get('status', '')}, {error_dict.get('error', '')}, {error_dict.get('message', '')}"
+                            # algunos errores vienen con JSON embebido en el texto
+                            ed = json.loads(str(e)) if isinstance(e, str) else {}
+                            MENSAJE_ERROR = f"{ed.get('status','')}, {ed.get('error','')}, {ed.get('message','')}"
                         except Exception:
-                            MENSAJE_ERROR = error
+                            MENSAJE_ERROR = str(e)
                         raise UserError(_(MENSAJE_ERROR))
                     continue
-            # Si todos los intentos fallan sin lanzar excepciones
+
+            # Fallback si no retornó antes
             raise UserError(_("No se pudo firmar el documento. Inténtelo nuevamente más tarde."))
+
         except Exception as e_general:
             _logger.info("Error general en firmar_documento: %s", e_general)
-            _logger.info("Tipo de dte_json (si existe): %s",
-                         type(dte_json) if 'dte_json' in locals() else 'No definido')
-            _logger.info("Contenido de dte_json (si existe): %s", dte_json if 'dte_json' in locals() else 'No definido')
+            _logger.info("Tipo de dte_json (si existe): %s", type(dte_json) if dte_json is not None else 'No definido')
+            _logger.info("Contenido de dte_json (si existe): %s", dte_json if dte_json is not None else 'No definido')
+            raise
 
     def obtener_payload(self, enviroment_type, sit_tipo_documento):
         _logger.info("SIT  Obteniendo payload")

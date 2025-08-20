@@ -27,8 +27,13 @@ import re
 # from datetime import datetime
 
 _logger = logging.getLogger(__name__)
+<<<<<<< Updated upstream
 #EXTRA_ADDONS = r'C:\Users\Admin\Documents\GitHub\fe\location\mnt\extra-addons\src'
 EXTRA_ADDONS = r'C:\Users\INCOE\Documents\GitHub\fe\location\mnt\extra-addons\src'
+=======
+EXTRA_ADDONS = r'C:\Users\Administrador\Documents\fe\location\mnt\src'
+#EXTRA_ADDONS = r'C:\Users\INCOE\Documents\GitHub\fe\location\mnt\extra-addons\src'
+>>>>>>> Stashed changes
 
 try:
     from odoo.addons.common_utils.utils import config_utils
