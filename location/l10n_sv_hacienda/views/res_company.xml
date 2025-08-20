@@ -10,6 +10,7 @@
                 <group>
                     <separator string="Información para Hacienda" class="mt32 o_group_col_12" colspan="4"/>
                     <group>
+                        <field name="sit_facturacion" string="Genera Facturación Electrónica?" readonly="0"/>
                         <field name="codActividad" string="codActividad" readonly="0"/>
                         <field name="tipoEstablecimiento" string="tipoEstablecimiento" readonly="0"/>
                     </group>
