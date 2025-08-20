@@ -33,6 +33,7 @@ class ResCompany(models.Model):
     nombreComercial = fields.Char(related="partner_id.nombreComercial", string="Nombre Comercial")
     tipoEstablecimiento = fields.Many2one("account.move.tipo_establecimiento.field", string="Tipo de Establecimiento")
     configuration_ids = fields.One2many('res.configuration', 'company_id', string='Configuraciones')
+    sit_facturacion = fields.Boolean('Facturación Electrónica ')
 
     #Plan de cuentas para descuentos globales
     account_discount_id = fields.Many2one(
