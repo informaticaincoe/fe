@@ -11,6 +11,7 @@
         "l10n_sv",  # needed for CUIT and also demo data
         # "l10n_sv_dpto",  # needed for CUIT and also demo data
         "contacts",
+        #"web"
         # TODO this module should be merged with l10n_ar_afipws_fe as the dependencies are the same
     ],
     # "external_dependencies": {"python": ["pyafipws", "OpenSSL", "pysimplesoap"]},
@@ -29,6 +30,7 @@
         "security/security.xml",
         "data/ir.actions.url_data.xml",
         "data/res.configuration.csv",
+        "views/res_company_config.xml",
     ],
     "demo": [
         "demo/certificate_demo.xml",

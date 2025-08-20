@@ -59,14 +59,23 @@
             <xpath expr="//page[@name='general_info']" position="after">
                 <page string="Configuración Empresa" name="configuracion_empresa">
                     <group>
-                        <field name="configuration_ids">
-                            <list editable="bottom">
+                        <field name="configuration_ids" context="{'default_company_id': id}" nolabel="1" mode="list,form">
+                            <list string="Configuraciones">
                                 <field name="clave"/>
                                 <field name="value_text"/>
                                 <field name="description"/>
                                 <field name="pwd" password="True"/>
                                 <field name="active"/>
                             </list>
+                            <form string="Configuración Empresa">
+                                <group>
+                                    <field name="clave"/>
+                                    <field name="value_text"/>
+                                    <field name="description"/>
+                                    <field name="pwd" password="True"/>
+                                    <field name="active"/>
+                                </group>
+                            </form>
                         </field>
                     </group>
                 </page>

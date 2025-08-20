@@ -92,7 +92,7 @@ CUENTAS_ASIGNACIONES = {
     'cuenta_salarial_deducciones_credito': 'cuenta_salarial_deducciones',
     'cuenta_salarial_deducciones_debito': 'cuenta_salarial_debito',
 }
-CODIGOS_REGLAS_ASIGNACIONES = ['COMISION', 'VIATICO', 'BONO', 'OVERTIME']
+CODIGOS_REGLAS_ASIGNACIONES = ['COMISION', 'VIATICO', 'BONO', 'OVERTIME', 'DEV_RENTA']
 
 # Conversión de schedule_pay → factor para convertir a salario mensual
 SCHEDULE_PAY_CONVERSION = {
@@ -113,3 +113,6 @@ STRUCTURE_PLAN_PROD = "PLAN_PRO"
 
 ITEM_SERVICIOS = "2"
 COD_TD_DUI = "13"
+
+DEVOLUCION_RENTA_CODE = 'DEV_RENTA'
+
