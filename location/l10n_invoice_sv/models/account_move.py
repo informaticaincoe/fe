@@ -173,55 +173,64 @@ class AccountMove(models.Model):
         '''validamos que partner cumple los requisitos basados en el tipo
         de documento de la sequencia del diario selecionado'''
         for invoice in self:
+            _logger("PRUEBA EN _POST accounT MOVE -------------- ",invoice.move_type)
             if invoice.move_type != 'entry':
+
                 type_report = invoice.journal_id.type_report
                 _logger.info("Tipo dte=%s", type_report)
 
-                if type_report == 'fcf':
-                    if not invoice.partner_id.parent_id:
-                        if not invoice.partner_id.vat:
-                            # invoice.msg_error("N.I.T.")
-                            pass
-                        if invoice.partner_id.company_type == 'person':
-                            if not invoice.partner_id.dui:
-                                # invoice.msg_error("D.U.I.")
+                _logger.info("invoice.company_id.sit_facturacion:=%s", invoice.company_id.sit_facturacion)
+                if invoice.company_id.sit_facturacion:
+                    if type_report == 'fcf':
+                        if not invoice.partner_id.parent_id:
+                            if not invoice.partner_id.vat:
+                                # invoice.msg_error("N.I.T.")
                                 pass
-                    else:
-                        if not invoice.partner_id.parent_id.vat:
-                            # invoice.msg_error("N.I.T.")
-                            pass
-                        if invoice.partner_id.parent_id.company_type == 'person':
-                            if not invoice.partner_id.dui:
-                                # invoice.msg_error("D.U.I.")
+                            if invoice.partner_id.company_type == 'person':
+                                if not invoice.partner_id.dui:
+                                    # invoice.msg_error("D.U.I.")
+                                    pass
+                        else:
+                            if not invoice.partner_id.parent_id.vat:
+                                # invoice.msg_error("N.I.T.")
                                 pass
+                            if invoice.partner_id.parent_id.company_type == 'person':
+                                if not invoice.partner_id.dui:
+                                    # invoice.msg_error("D.U.I.")
+                                    pass
 
-                if type_report == 'exp':
-                    for l in invoice.invoice_line_ids:
-                        if l and l.product_id and not l.product_id.arancel_id:
-                            _logger.info("Producto: =%s", l)
-                            invoice.msg_error("Posicion Arancelaria del Producto %s" % l.product_id.name)
+                    if type_report == 'exp':
+                        for l in invoice.invoice_line_ids:
+                            if l and l.product_id and not l.product_id.arancel_id:
+                                _logger.info("Producto: =%s", l)
+                                invoice.msg_error("Posicion Arancelaria del Producto %s" % l.product_id.name)
 
-                # si es retificativa
-                if type_report == 'ndc':
-                    if not invoice.partner_id.parent_id:
-                        if not invoice.partner_id.nrc:
-                            invoice.msg_error("N.R.C.")
-                        if not invoice.partner_id.vat:
-                            invoice.msg_error("N.I.T.")
-                        if not invoice.partner_id.codActividad:
-                            invoice.msg_error("Actividad Economica")
-                    else:
-                        if not invoice.partner_id.parent_id.nrc:
-                            invoice.msg_error("N.R.C.")
-                        if not invoice.partner_id.parent_id.vat:
-                            invoice.msg_error("N.I.T.")
-                        if not invoice.partner_id.parent_id.codActividad:
-                            invoice.msg_error("Actividad Economica")
+                    # si es retificativa
+                    if type_report == 'ndc':
+                        if not invoice.partner_id.parent_id:
+                            if not invoice.partner_id.nrc:
+                                invoice.msg_error("N.R.C.")
+                            if not invoice.partner_id.vat:
+                                invoice.msg_error("N.I.T.")
+                            if not invoice.partner_id.codActividad:
+                                invoice.msg_error("Actividad Economica")
+                        else:
+                            if not invoice.partner_id.parent_id.nrc:
+                                invoice.msg_error("N.R.C.")
+                            if not invoice.partner_id.parent_id.vat:
+                                invoice.msg_error("N.I.T.")
+                            if not invoice.partner_id.parent_id.codActividad:
+                                invoice.msg_error("Actividad Economica")
+                else:
+                    #Flujo de facturas preimpresas
+                    if not invoice.name or invoice.name == '/':
+                        raise UserError("Debe asignar el número de la factura preimpresa.")
+
 
         return super(AccountMove, self)._post()
 
     # ---------------------------------------------------------------------------------------------------------
-
+    #No se esta utilizando
     def sit_action_send_mail(self):
         _logger.info("SIT enviando correo = %s", self)
         """ Open a window to compose an email, with the edi invoice template
@@ -274,7 +283,9 @@ class AccountMove(models.Model):
         default_model = None
         try:
             # template = self.env.ref(self._get_mail_template(), raise_if_not_found=False)
+
             template = self.env.ref(self._get_mail_template_sv(), raise_if_not_found=False)
+
             _logger.info("SIT | Plantilla de correo obtenida: %s", template and template.name or 'No encontrada')
             print(template)
 
@@ -348,98 +359,97 @@ class AccountMove(models.Model):
 
                 _logger.info("SIT | Tipo de movimiento: %s", invoice.move_type)
                 _logger.info("SIT | Email destino: %s", invoice.partner_id.email)
-
-                # Si fue procesado por Hacienda, añadir JSON
-                if not es_invalidacion and (invoice.hacienda_selloRecibido or invoice.recibido_mh):
-                    _logger.info("SIT | Factura %s fue PROCESADA por Hacienda", invoice.name)
-                    default_model = "account.move"
-                    json_name = self._sanitize_attachment_name(invoice.name.replace('/', '_') + '.json')
-                    json_attachment = self.env['ir.attachment'].search([
-                        ('res_id', '=', invoice.id),
-                        ('res_model', '=', invoice._name),
-                        ('name', '=', json_name)
-                    ], limit=1)
-
-                    _logger.warning("SIT | JSON: %s", json_attachment)
-                    if json_attachment.exists():
-                        _logger.warning("SIT | JSON encontrado: %s", json_attachment)
-                        if self._has_nul_bytes(json_attachment):
-                            _logger.warning("SIT | JSON %s contiene byte nulo en contenido", json_attachment.name)
-                        if json_attachment.id not in attachment_ids:
-                            _logger.info("SIT | JSON de Hacienda encontrado: %s", json_attachment.name)
-                            attachment_ids.append(json_attachment.id)
-                            _logger.info("SIT | Archivo JSON de Hacienda encontrado: %s", json_attachment.name)
-                    else:
-                        _logger.info("SIT | JSON de Hacienda no encontrado, se procederá a generarlo.")
-
-                        if invoice.sit_json_respuesta:
-                            try:
-                                # Validar si el contenido es JSON válido
-                                json.loads(invoice.sit_json_respuesta)
-
-                                # Crear attachment
-                                json_attachment = self.env['ir.attachment'].create({
-                                    'name': json_name,
-                                    'type': 'binary',
-                                    'datas': base64.b64encode(invoice.sit_json_respuesta.encode('utf-8')),
-                                    'res_model': invoice._name,
-                                    'res_id': invoice.id,
-                                    'mimetype': 'application/json',
-                                })
-                                _logger.info("SIT | JSON generado y adjuntado: %s", json_attachment.name)
-                                attachment_ids.append(json_attachment.id)
-
-                            except json.JSONDecodeError:
-                                _logger.error("SIT | El campo 'sit_json_respuesta' no contiene un JSON válido.")
-                            except Exception as e:
-                                _logger.error("SIT | Error al generar el archivo JSON: %s", str(e))
-                        else:
-                            _logger.warning(
-                                "SIT | No se pudo generar el JSON porque el campo 'sit_json_respuesta' está vacío.")
-
-                # === JSON INVALIDACIÓN ===
-                elif es_invalidacion and (invoice.sit_evento_invalidacion.hacienda_selloRecibido_anulacion or invoice.sit_evento_invalidacion.invalidacion_recibida_mh):
-                    default_model = "account.move.invalidation"
-                    invalidacion = self.env['account.move.invalidation'].search([
-                        ('sit_factura_a_reemplazar', '=', invoice.id)
-                    ], limit=1)
-
-                    if not invalidacion:
-                        _logger.warning("SIT | No se encontró invalidación para %s", invoice.name)
-                    else:
-                        json_name = self._sanitize_attachment_name('invalidacion ' + invoice.name.replace('/',
-                                                                                                          '_') + '.json')  # ejemplo de json de invalidacion Invalidacion DTE-01-0000M001-000000000000082.json
+                if invoice.company_id.sit_facturacion:
+                    if not es_invalidacion and (invoice.hacienda_selloRecibido or invoice.recibido_mh):
+                        _logger.info("SIT | Factura %s fue PROCESADA por Hacienda", invoice.name)
+                        default_model = "account.move"
+                        json_name = self._sanitize_attachment_name(invoice.name.replace('/', '_') + '.json')
                         json_attachment = self.env['ir.attachment'].search([
-                            ('res_model', '=', 'account.move.invalidation'),
-                            ('res_id', '=', invoice.sit_evento_invalidacion.id),
-                            ('name', '=', json_name),
+                            ('res_id', '=', invoice.id),
+                            ('res_model', '=', invoice._name),
+                            ('name', '=', json_name)
                         ], limit=1)
 
+                        _logger.warning("SIT | JSON: %s", json_attachment)
                         if json_attachment.exists():
-                            _logger.info("SIT | JSON Invalidación ya existe: %s", json_attachment.name)
+                            _logger.warning("SIT | JSON encontrado: %s", json_attachment)
                             if self._has_nul_bytes(json_attachment):
-                                _logger.warning("SIT | JSON %s contiene byte nulo", json_attachment.name)
-                            attachment_ids.append(json_attachment.id)
-                        elif invalidacion.sit_json_respuesta_invalidacion:
-                            try:
-                                json.loads(invalidacion.sit_json_respuesta_invalidacion)
-                                json_attachment = self.env['ir.attachment'].create({
-                                    'name': json_name,
-                                    'type': 'binary',
-                                    'datas': base64.b64encode(
-                                        invalidacion.sit_json_respuesta_invalidacion.encode('utf-8')),
-                                    'res_model': 'account.move.invalidation',
-                                    'res_id': invoice.sit_evento_invalidacion.id,
-                                    'mimetype': 'application/json',
-                                })
-                                _logger.info("SIT | JSON Invalidación generado: %s", json_attachment.name)
+                                _logger.warning("SIT | JSON %s contiene byte nulo en contenido", json_attachment.name)
+                            if json_attachment.id not in attachment_ids:
+                                _logger.info("SIT | JSON de Hacienda encontrado: %s", json_attachment.name)
                                 attachment_ids.append(json_attachment.id)
-                            except json.JSONDecodeError:
-                                _logger.error("SIT | JSON Invalidación inválido para %s", invoice.name)
-                            except Exception as e:
-                                _logger.error("SIT | Error creando JSON Invalidación: %s", str(e))
+                                _logger.info("SIT | Archivo JSON de Hacienda encontrado: %s", json_attachment.name)
                         else:
-                            _logger.warning("SIT | Campo sit_json_respuesta_invalidacion vacío para %s", invoice.name)
+                            _logger.info("SIT | JSON de Hacienda no encontrado, se procederá a generarlo.")
+
+                            if invoice.sit_json_respuesta:
+                                try:
+                                    # Validar si el contenido es JSON válido
+                                    json.loads(invoice.sit_json_respuesta)
+
+                                    # Crear attachment
+                                    json_attachment = self.env['ir.attachment'].create({
+                                        'name': json_name,
+                                        'type': 'binary',
+                                        'datas': base64.b64encode(invoice.sit_json_respuesta.encode('utf-8')),
+                                        'res_model': invoice._name,
+                                        'res_id': invoice.id,
+                                        'mimetype': 'application/json',
+                                    })
+                                    _logger.info("SIT | JSON generado y adjuntado: %s", json_attachment.name)
+                                    attachment_ids.append(json_attachment.id)
+
+                                except json.JSONDecodeError:
+                                    _logger.error("SIT | El campo 'sit_json_respuesta' no contiene un JSON válido.")
+                                except Exception as e:
+                                    _logger.error("SIT | Error al generar el archivo JSON: %s", str(e))
+                            else:
+                                _logger.warning(
+                                    "SIT | No se pudo generar el JSON porque el campo 'sit_json_respuesta' está vacío.")
+
+                    # === JSON INVALIDACIÓN ===
+                    elif es_invalidacion and (invoice.sit_evento_invalidacion.hacienda_selloRecibido_anulacion or invoice.sit_evento_invalidacion.invalidacion_recibida_mh):
+                        default_model = "account.move.invalidation"
+                        invalidacion = self.env['account.move.invalidation'].search([
+                            ('sit_factura_a_reemplazar', '=', invoice.id)
+                        ], limit=1)
+
+                        if not invalidacion:
+                            _logger.warning("SIT | No se encontró invalidación para %s", invoice.name)
+                        else:
+                            json_name = self._sanitize_attachment_name('invalidacion ' + invoice.name.replace('/',
+                                                                                                              '_') + '.json')  # ejemplo de json de invalidacion Invalidacion DTE-01-0000M001-000000000000082.json
+                            json_attachment = self.env['ir.attachment'].search([
+                                ('res_model', '=', 'account.move.invalidation'),
+                                ('res_id', '=', invoice.sit_evento_invalidacion.id),
+                                ('name', '=', json_name),
+                            ], limit=1)
+
+                            if json_attachment.exists():
+                                _logger.info("SIT | JSON Invalidación ya existe: %s", json_attachment.name)
+                                if self._has_nul_bytes(json_attachment):
+                                    _logger.warning("SIT | JSON %s contiene byte nulo", json_attachment.name)
+                                attachment_ids.append(json_attachment.id)
+                            elif invalidacion.sit_json_respuesta_invalidacion:
+                                try:
+                                    json.loads(invalidacion.sit_json_respuesta_invalidacion)
+                                    json_attachment = self.env['ir.attachment'].create({
+                                        'name': json_name,
+                                        'type': 'binary',
+                                        'datas': base64.b64encode(
+                                            invalidacion.sit_json_respuesta_invalidacion.encode('utf-8')),
+                                        'res_model': 'account.move.invalidation',
+                                        'res_id': invoice.sit_evento_invalidacion.id,
+                                        'mimetype': 'application/json',
+                                    })
+                                    _logger.info("SIT | JSON Invalidación generado: %s", json_attachment.name)
+                                    attachment_ids.append(json_attachment.id)
+                                except json.JSONDecodeError:
+                                    _logger.error("SIT | JSON Invalidación inválido para %s", invoice.name)
+                                except Exception as e:
+                                    _logger.error("SIT | Error creando JSON Invalidación: %s", str(e))
+                            else:
+                                _logger.warning("SIT | Campo sit_json_respuesta_invalidacion vacío para %s", invoice.name)
 
             if any(not x.is_sale_document(include_receipts=True) for x in self):
                 _logger.warning("SIT | Documento no permitido para envío por correo.")

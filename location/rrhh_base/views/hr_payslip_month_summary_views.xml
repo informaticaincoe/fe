@@ -1,0 +1,59 @@
+<odoo>
+    <data>
+
+        <record id="view_hr_payslip_month_summary_list" model="ir.ui.view">
+            <field name="name">hr.payslip.month.summary.list</field>
+            <field name="model">hr.payslip.month.summary</field>
+            <field name="arch" type="xml">
+                <list string="Nómina mensual (sumas)" create="0" edit="0" delete="0">
+                    <field name="employee_id"/>
+                    <field name="period_year" width="60"/>
+                    <field name="period_month" width="80"/>
+                    <field name="salario_pagar" sum="Total salario"/>
+                    <field name="comisiones" sum="Total comisiones"/>
+                    <field name="bonos" sum="Total bonos"/>
+                    <field name="viaticos" sum="Total viáticos"/>
+                    <field name="total_overtime" sum="Total H.E."/>
+                    <field name="total_viaticos_a_pagar" sum="Total V+HE"/>
+                    <field name="total_devengado" sum="Total devengado"/>
+                    <field name="isss" sum="Total ISSS"/>
+                    <field name="isr" sum="Total ISR"/>
+                    <field name="afp" sum="Total AFP"/>
+                    <field name="afp_confia" sum="Total AFP Confia"/>
+                    <field name="afp_IPSFA" sum="Total IPSFA"/>
+                    <field name="otros" sum="Total otros"/>
+                    <field name="bancos" sum="Total bancos"/>
+                    <field name="venta_empleados" sum="Total venta emp."/>
+                    <field name="prestamos_incoe" sum="Total préstamos"/>
+                    <field name="fsv" sum="Total FSV"/>
+                    <field name="total_descuentos" sum="Total descuentos"/>
+                    <field name="sueldo_liquido" sum="Total líquido"/>
+                </list>
+            </field>
+        </record>
+
+
+        <!-- SEARCH (para el modelo resumen) -->
+        <record id="hr_payslip_month_summary_search" model="ir.ui.view">
+            <field name="name">hr.payslip.month.summary.search</field>
+            <field name="model">hr.payslip.month.summary</field>
+            <field name="arch" type="xml">
+                <search string="Búsqueda mensual (sumas)">
+                    <group expand="0" string="Agrupar por">
+                        <filter name="group_by_employee" string="Empleado" context="{'group_by':'employee_id'}"/>
+                        <filter name="group_by_period_year" string="Año" context="{'group_by':'period_year'}"/>
+                        <filter name="group_by_period_month" string="Mes" context="{'group_by':'period_month'}"/>
+                    </group>
+
+                    <searchpanel>
+                        <field name="period_year" select="one" enable_counters="1"/>
+                        <field name="period_month" select="one" enable_counters="1"/>
+                        <field name="employee_id" select="one" enable_counters="1"/>
+                    </searchpanel>
+                </search>
+            </field>
+        </record>
+
+
+    </data>
+</odoo>

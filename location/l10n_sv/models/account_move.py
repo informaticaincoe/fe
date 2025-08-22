@@ -29,6 +29,12 @@ class sit_account_move(models.Model):
         store=True
     )
 
+    sit_facturacion = fields.Boolean(
+        related='company_id.sit_facturacion',
+        readonly=True,
+        store=False,
+    )
+
     def _get_condiciones_pago_selection(self):
         return [
             ('1', '1-Contado'),
