@@ -102,6 +102,8 @@ class HrPayslip(models.Model):
         # Registra el inicio del cálculo personalizado de la nómina
         _logger.info(">>> [INICIO] compute_sheet personalizado para %d nóminas", len(self))
 
+        # 3. Aplicar descuento de séptimo por faltas injustificadas
+        self._aplicar_descuento_septimo_por_faltas()
 
         # 1. Crear inputs necesarios ANTES del cálculo estándar
         for payslip in self:
@@ -145,8 +147,7 @@ class HrPayslip(models.Model):
 
 
 
-        # 3. Aplicar descuento de séptimo por faltas injustificadas
-        self._aplicar_descuento_septimo_por_faltas()
+
 
         # 2. Llamar al cálculo estándar, que ahora usará los inputs ya creados
         res = super(HrPayslip, self).compute_sheet()
@@ -339,14 +340,17 @@ class HrPayslip(models.Model):
                 if not faltas_entries:
                     _logger.info("[%s] No hay faltas en quincena %s → no descuenta séptimo", slip.employee_id.name, f"{fecha_ini} a {fecha_fin}")
                     continue
-
+                _logger.info("faltas_entries %s", faltas_entries)
                 # Agrupar las semanas ISO en las que hubo al menos una falta
                 semanas_con_falta = set()
                 for entry in faltas_entries:
                     fecha_falta = fields.Date.to_date(entry.date_start)
-                    semana_iso = fecha_falta.isocalendar()[1]
-                    semanas_con_falta.add(semana_iso)
+                    _logger.info("fecha_falta %s", fecha_falta)
+                    # semana_iso = fecha_falta.isocalendar()[1]
+                    # _logger.info("semana_iso %s", semana_iso)
+                    semanas_con_falta.add(fecha_falta)
 
+                _logger.info("semanas_con_falta %s", semanas_con_falta)
                 total_semanas_afectadas = len(semanas_con_falta)
                 _logger.info("[%s] Quincena %s → semanas con faltas: %d", slip.employee_id.name, f"{fecha_ini} a {fecha_fin}", total_semanas_afectadas)
 
@@ -473,16 +477,17 @@ class HrPayslip(models.Model):
             # Buscar el tipo de otras entradas VACACIONES
             vacacion = constants.REGLASAL_VACACION or 'VACACIONES'
             tipo_vacaciones = self.env['hr.payslip.input.type'].search([('code', '=', vacacion)], limit=1)
+            _logger.info(f"Tipo vacaciones DD {tipo_vacaciones}")
             if not tipo_vacaciones:
                 _logger.error("No existe tipo de entrada VACACIONES en Otras Entradas")
                 return
 
             # Buscar si ya existe input VACACIONES en este slip
             input_existente = slip.input_line_ids.filtered(lambda i: i.code == vacacion)
-
+            _logger.info(f"Tipo vacaciones DD {tipo_vacaciones}")
             if input_existente:
                 input_existente.write({'amount': float_round(datos_vac["extra_30"], precision_digits=2)})
-                _logger.info(f"Actualizado input VACACIONES → {datos_vac['extra_30']}")
+                _logger.info(f"input existente {datos_vac['extra_30']}")
             else:
                 slip.input_line_ids.create({
                     'name': tipo_vacaciones.name,
