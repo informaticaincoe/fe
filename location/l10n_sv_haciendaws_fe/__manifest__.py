@@ -24,7 +24,8 @@
         'views/view_account_move_hacienda_tab.xml',
         "data/l10n_latam.document.type.csv",
         "views/account_move_reversal_view.xml",
-        "views/account_move_nc_view.xml"
+        "views/account_move_nc_view.xml",
+        "data/res.configuration.csv"
     ],
     "demo": [],
     "images": [],
