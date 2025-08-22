@@ -15,7 +15,8 @@ class Company(models.Model):
     sit_uuid = fields.Char(string="UUID")
     nrc = fields.Char(related="partner_id.nrc")
     nombre_comercial = fields.Char(string="Nombre Comercial")
-        
+    sit_facturacion = fields.Boolean('Facturación Electrónica ', default=False)
+
     @api.onchange('company_registry')
     def change_company_registry(self):
         self.partner_id.nrc = self.company_registry

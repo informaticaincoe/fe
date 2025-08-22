@@ -104,40 +104,39 @@
         </record>
 
         <record id="hr_payslip_search_incoe_custom" model="ir.ui.view">
-          <field name="name">hr.payslip.search.incoe.custom</field>
-          <field name="model">hr.payslip</field>
-          <field name="arch" type="xml">
-            <search string="Búsqueda INCOE">
-              <!-- Agrupar por Lote -->
-              <group expand="0" string="Agrupar por">
-                <filter name="group_by_payslip_run"
-                        string="Lote"
-                        context="{'group_by': 'payslip_run_id'}"/>
-              </group>
+            <field name="name">hr.payslip.search.incoe.custom</field>
+            <field name="model">hr.payslip</field>
+            <field name="arch" type="xml">
+                <search string="Búsqueda INCOE">
+                    <!-- Agrupar por Lote -->
+                    <group expand="0" string="Agrupar por">
+                        <filter name="group_by_payslip_run" string="Lote de Nómina"
+                                context="{'group_by': 'payslip_run_id'}"/>
+                    </group>
 
-              <!-- Tu panel: Año / Mes / Quincena -->
-              <searchpanel>
-                <field name="period_year" string="AÑO" select="one" enable_counters="1"/>
-                <field name="period_month" string="MES" select="one" enable_counters="1"/>
-                <field name="period_quincena" string="QUINCENA" select="one" enable_counters="1"/>
-              </searchpanel>
+                    <!-- Tu panel: Año / Mes / Quincena -->
+                    <searchpanel>
+                        <field name="period_year" string="AÑO" select="one" enable_counters="1"/>
+                        <field name="period_month" string="MES" select="one" enable_counters="1"/>
+                        <field name="period_quincena" string="QUINCENA" select="one" enable_counters="1"/>
+                    </searchpanel>
 
-              <!-- (Opcional) Filtros rápidos -->
-              <filter name="mes_actual"
-                      string="Mes actual"
-                      domain="[('period_year','=', time.strftime('%%Y')), ('period_month','=', time.strftime('%%m'))]"/>
-              <filter name="q1_mes_actual"
-                      string="1ª quincena (mes actual)"
-                      domain="[('period_year','=', time.strftime('%%Y')),
+                    <!-- (Opcional) Filtros rápidos -->
+                    <filter name="mes_actual"
+                            string="Mes actual"
+                            domain="[('period_year','=', time.strftime('%%Y')), ('period_month','=', time.strftime('%%m'))]"/>
+                    <filter name="q1_mes_actual"
+                            string="1ª quincena (mes actual)"
+                            domain="[('period_year','=', time.strftime('%%Y')),
                                ('period_month','=', time.strftime('%%m')),
                                ('period_quincena','=','1')]"/>
-              <filter name="q2_mes_actual"
-                      string="2ª quincena (mes actual)"
-                      domain="[('period_year','=', time.strftime('%%Y')),
+                    <filter name="q2_mes_actual"
+                            string="2ª quincena (mes actual)"
+                            domain="[('period_year','=', time.strftime('%%Y')),
                                ('period_month','=', time.strftime('%%m')),
                                ('period_quincena','=','2')]"/>
-            </search>
-          </field>
+                </search>
+            </field>
         </record>
 
         <record id="action_reporte_hr_plantilla_incoe" model="ir.actions.act_window">
@@ -156,4 +155,6 @@
             </field>
         </record>
     </data>
+
+
 </odoo>

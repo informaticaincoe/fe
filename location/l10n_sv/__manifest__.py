@@ -31,7 +31,7 @@
     'currency': 'USD',
     'license': 'GPL-3',
     'category': 'Localization',
-    'version': '17.1',
+    'version': '17.1.1',
     'depends': ['base',
                 'base_sv',
                 'account',
@@ -39,7 +39,6 @@
                 # 'l10n_sv_dpto',
                 # 'l10n_latam_invoice_document',
                 'l10n_latam_base',
-
                 ],
     'data': [
         "security/ir.model.access.csv",
@@ -84,9 +83,7 @@
         'data/account.move.regimen.field.csv',
         'data/account_tax_sv.xml',
         'data/account.journal.tipo_modelo.field.csv',
-
         #'views/anexos_report_views.xml'
-
     ],
     'demo': [
         # 'demo.xml',
@@ -94,6 +91,7 @@
     'installable': True,
     'application': False,
     'auto_install': False,
+    'pre_init_hook': 'migrate',
     'country_code': 'SV',
     # 'post_init_hook': 'drop_data',
 }
