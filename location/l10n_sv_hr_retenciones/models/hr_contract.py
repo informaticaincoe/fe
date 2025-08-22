@@ -174,8 +174,8 @@ class HrContract(models.Model):
             bono = primera_quincena.input_line_ids.filtered(lambda l: l.name == "Bono")
             comisiones = primera_quincena.input_line_ids.filtered(lambda l: l.name == "Comision")
 
-            salario_bruto_q1 = self.get_salario_bruto_total(payslip=primera_quincena, salario_bruto_payslip=None)
-            salario_bruto_q2 = self.get_salario_bruto_total(payslip=payslip, salario_bruto_payslip=None)
+            salario_bruto_q1 = self.get_salario_bruto_total(payslip=primera_quincena, salario_bruto_payslip=salario_bruto)
+            salario_bruto_q2 = self.get_salario_bruto_total(payslip=payslip, salario_bruto_payslip=salario_bruto)
             salario_bruto_mensual = salario_bruto_q1 + salario_bruto_q2
 
         salario = self.get_salario_bruto_total(payslip=payslip, salario_bruto_payslip=salario_bruto)
@@ -288,8 +288,8 @@ class HrContract(models.Model):
             bono = primera_quincena.input_line_ids.filtered(lambda l: l.name == "Bono")
             comisiones = primera_quincena.input_line_ids.filtered(lambda l: l.name == "Comision")
 
-            salario_bruto_q1 = self.get_salario_bruto_total(payslip=primera_quincena, salario_bruto_payslip=None)
-            salario_bruto_q2 = self.get_salario_bruto_total(payslip=payslip, salario_bruto_payslip=None)
+            salario_bruto_q1 = self.get_salario_bruto_total(payslip=primera_quincena, salario_bruto_payslip=salario_bruto)
+            salario_bruto_q2 = self.get_salario_bruto_total(payslip=payslip, salario_bruto_payslip=salario_bruto)
             salario_bruto_mensual = salario_bruto_q1 + salario_bruto_q2
 
         salario = self.get_salario_bruto_total(payslip=payslip, salario_bruto_payslip=salario_bruto)
@@ -350,14 +350,14 @@ class HrContract(models.Model):
             bono = primera_quincena.input_line_ids.filtered(lambda l: l.name == "Bono")
             comisiones = primera_quincena.input_line_ids.filtered(lambda l: l.name == "Comision")
 
-            salario_bruto_q1= self.get_salario_bruto_total(payslip=primera_quincena, salario_bruto_payslip=None)
-            salario_bruto_q2 = self.get_salario_bruto_total(payslip=payslip, salario_bruto_payslip=None)
+            salario_bruto_q1= self.get_salario_bruto_total(payslip=primera_quincena, salario_bruto_payslip=primera_quincena.basic_wage)
+            salario_bruto_q2 = self.get_salario_bruto_total(payslip=payslip, salario_bruto_payslip=salario_bruto)
             salario_bruto_mensual = salario_bruto_q1 + salario_bruto_q2
             _logger.info(">>>  RENTA: salario_bruto_mensual =%s", salario_bruto_mensual)
             _logger.info(">>>  RENTA: salario_bruto_q1 =%s", salario_bruto_q1)
             _logger.info(">>>  RENTA: salario_bruto_q2 =%s", salario_bruto_q2)
 
-        salario = self.get_salario_bruto_total(payslip=payslip, salario_bruto_payslip=None)  # bruto if bruto is not None else self.get_salario_bruto_total()
+        salario = self.get_salario_bruto_total(payslip=payslip, salario_bruto_payslip=salario_bruto)  # bruto if bruto is not None else self.get_salario_bruto_total()
         _logger.info(">>>  RENTA: salario= %s", salario)
 
         # Si es servicios profesionales: 10% directo

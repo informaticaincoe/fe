@@ -28,6 +28,5 @@
             <field name="binding_type">report</field>
             <field name="paperformat_id" ref="rrhh_base.paperformat_payslip_recipe"/>
         </record>
-
     </data>
 </odoo>
