@@ -1,36 +1,41 @@
-# En tu módulo personalizado, por ejemplo: l10n_sv_haciendaws_fe/models/ir_sequence_ext.py
-
-from odoo import models
+# l10n_sv_haciendaws_fe/models/ir_sequence_ext.py
+from odoo import models, fields
 from odoo.tools import frozendict
 from odoo.exceptions import UserError
 from datetime import datetime
 import pytz
 import logging
-from odoo import models, fields
-
-from ..models.utils.decorators import only_fe
 
 _logger = logging.getLogger(__name__)
 
 class IrSequence(models.Model):
     _inherit = 'ir.sequence'
 
-    @only_fe
     def _get_prefix_suffix(self, date=None, date_range=None):
+        """
+        NUNCA retornar bool/None. Siempre una tupla (prefix, suffix).
+        Si la FE está desactivada, delega al super() para comportamiento estándar.
+        """
+        # Usa env.company (más claro que self.company_id aquí)
+        if not self.env.company.sit_facturacion:
+            return super()._get_prefix_suffix(date=date, date_range=date_range)
+
         def _interpolate(s, d):
             return (s % d) if s else ''
 
         def _interpolation_dict():
-            tz_name = self._context.get('tz') or 'UTC'
+            # Usa env.context (preferible a self._context)
+            tz_name = self.env.context.get('tz') or 'UTC'
             now = range_date = effective_date = datetime.now(pytz.timezone(tz_name))
-            if date or self._context.get('ir_sequence_date'):
-                effective_date = fields.Datetime.from_string(date or self._context.get('ir_sequence_date'))
-            if date_range or self._context.get('ir_sequence_date_range'):
-                range_date = fields.Datetime.from_string(date_range or self._context.get('ir_sequence_date_range'))
+
+            if date or self.env.context.get('ir_sequence_date'):
+                effective_date = fields.Datetime.from_string(date or self.env.context.get('ir_sequence_date'))
+            if date_range or self.env.context.get('ir_sequence_date_range'):
+                range_date = fields.Datetime.from_string(date_range or self.env.context.get('ir_sequence_date_range'))
 
             sequences = {
-                'year': '%Y','month': '%m','day': '%d','y': '%y','doy': '%j','woy': '%W',
-                'weekday': '%w','h24': '%H','h12': '%I','min': '%M','sec': '%S',
+                'year': '%Y', 'month': '%m', 'day': '%d', 'y': '%y', 'doy': '%j', 'woy': '%W',
+                'weekday': '%w', 'h24': '%H', 'h12': '%I', 'min': '%M', 'sec': '%S',
             }
             res = {}
             for key, fmt in sequences.items():
@@ -38,11 +43,11 @@ class IrSequence(models.Model):
                 res['range_' + key] = range_date.strftime(fmt)
                 res['current_' + key] = now.strftime(fmt)
 
-            # Variables DTE personalizadas
-            res['dte'] = self._context.get('dte', '')
-            res['estable'] = self._context.get('estable', '')
-            res['tipo_dte'] = self._context.get('tipo_dte', '')
-
+            # Variables DTE personalizadas (poner defaults seguros)
+            ctx = self.env.context
+            res['dte'] = ctx.get('dte', '')
+            res['estable'] = ctx.get('estable', '')
+            res['tipo_dte'] = ctx.get('tipo_dte', '')
             return frozendict(res)
 
         self.ensure_one()
@@ -51,6 +56,8 @@ class IrSequence(models.Model):
             interpolated_prefix = _interpolate(self.prefix, d)
             interpolated_suffix = _interpolate(self.suffix, d)
         except (ValueError, TypeError, KeyError) as e:
+            # Mensaje claro y NUNCA retornes False aquí
             raise UserError('Secuencia mal definida "%s": %s' % (self.name, str(e)))
 
-        return interpolated_prefix, interpolated_suffix
+        # Siempre devuelve tupla de strings (posiblemente vacíos)
+        return interpolated_prefix or '', interpolated_suffix or ''
