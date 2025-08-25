@@ -10,7 +10,7 @@
                     <group invisible="journal_code == 'SLR'">
                         <field name="sit_referencia" invisible="journal_code == 'SLR'"/>
                         <field name="sit_observaciones" invisible="0"/>
-                        <field name="sit_regimen" string="Régimen de Exportación" invisible="0"/>
+                        <field name="sit_regimen" string="Régimen de Exportación" invisible="journal_code != 'EXP'"/>
                     </group>
                 </xpath>
                 <xpath expr="//label[@for='journal_id']" position="before">
@@ -31,7 +31,9 @@
                             <field name="sit_qr_hacienda" widget="image" invisible="0"/>
                             <field name="sit_json_respuesta" invisible="1"/>
                         </group>
-                        <group>
+                        <group modifiers='{"invisible": [["sit_facturacion","=", false]]}' invisible="not sit_facturacion">
+                            <field name="sit_facturacion" invisible="1"/>
+
                             <field name="sit_tipo_contingencia" options="{'no_open': True, 'no_create': True}"/>
                             <field name="sit_tipo_contingencia_valores" invisible="1"/>
                             <field name="sit_tipo_contingencia_otro" options="{'no_open': True, 'no_create': True}"/>

@@ -1,4 +1,4 @@
-from odoo import models, api, _, fields
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 import logging
 import base64
@@ -224,28 +224,17 @@ class HrPayslip(models.Model):
                 lambda l: l.name in ('Asistencia', 'Vacaciones')
             )
 
-            # Filtrar líneas con código DESC_FALTA_SEPTIMO y amount ≠ 0
-            insasistencia_injustificada_line = record.line_ids.filtered(
-                lambda l: l.code == 'DESC_FALTA_SEPTIMO' and l.amount != 0
-            )
-
-            inansistencia_injustificada_cantidad = sum(insasistencia_injustificada_line.mapped('quantity'))
-
             total_days = sum(asistencia_lines.mapped('number_of_days'))
-            record.total_worked_days = total_days - inansistencia_injustificada_cantidad
+            record.total_worked_days = total_days
 
     @api.depends('worked_days_line_ids.number_of_hours')
     def _compute_worked_hours_total(self):
         for record in self:
             asistencia_lines = record.worked_days_line_ids.filtered(
                 lambda l: l.name == 'Asistencia' or l.name == 'Vacaciones')
-            inasistencia_injustificada_lines = record.worked_days_line_ids.filtered(
-                lambda l: l.name == 'Falta Injustificada')
-
-            inansistencia_injustificada_horas = sum(inasistencia_injustificada_lines.mapped('number_of_hours'))
 
             total_hours = sum(asistencia_lines.mapped('number_of_hours'))
-            record.total_worked_hours = total_hours - inansistencia_injustificada_horas
+            record.total_worked_hours = total_hours
 
     @api.depends('line_ids.amount', 'basic_wage')
     def _compute_salario_pagar(self):
@@ -291,8 +280,15 @@ class HrPayslip(models.Model):
     @api.depends('line_ids.amount')
     def _compute_isr(self):
         for record in self:
-            overtime_lines = record.line_ids.filtered(lambda l: l.code == 'RENTA')
-            record.isr = abs(sum(overtime_lines.mapped('amount')))
+            lineas_renta = record.line_ids.filtered(lambda l: l.code == 'RENTA')
+            lineas_dev_renta = record.line_ids.filtered(lambda l: l.code == 'DEV_RENTA')
+
+            total_renta = record.isr = abs(sum(lineas_renta.mapped('amount')))
+            total_dev_renta =  record.isr = abs(sum(lineas_dev_renta.mapped('amount')))
+            if total_renta > 0:
+                record.isr = total_renta
+            else:
+                record.isr = - total_dev_renta
 
     @api.depends('line_ids.amount')
     def _compute_afp(self):
@@ -406,28 +402,53 @@ class HrPayslip(models.Model):
             vacaciones_lines = record.line_ids.filtered(lambda l: l.code == 'VACACIONES')
             record.vacaciones = abs(sum(vacaciones_lines.mapped('amount')))
 
+    from odoo import _, api, models
+    from odoo.exceptions import UserError
+    import base64
+
     def action_send_payslip_email(self):
         self.ensure_one()
 
-        # Obtener plantilla
+        # 0) Elegir un idioma ACTIVO y seguro (no fallará aunque el usuario tenga es_ES)
+        active_langs = set(self.env['res.lang'].search([('active', '=', True)]).mapped('code'))
+        candidates = [
+            getattr(self.employee_id.user_id, 'lang', None),
+            self.env.user.lang,
+            self.env.context.get('lang'),
+            'es_419',  # tu preferido
+            'en_US',  # último fallback
+        ]
+        lang_ctx = next((c for c in candidates if c and c in active_langs), 'en_US')
+
+        # 1) Obtener y validar plantilla
         template = self.env.ref('rrhh_base.rrhh_email_template_payslip', raise_if_not_found=False)
-        rendered_body = template._render_field('body_html', [self.id])[self.id]
-        _logger.warning("CUERPO RENDERIZADO:\n%s", rendered_body)
-
         if not template:
-            raise UserError("No se encontró la plantilla de correo para la boleta de pago.")
+            raise UserError(("No se encontró la plantilla de correo para la boleta de pago."))
         if not self.employee_id.work_email:
-            raise UserError("El empleado no tiene un correo configurado.")
+            raise UserError(("El empleado no tiene un correo configurado."))
 
-        _logger.warning("TYPE CHECK >> about to resolve report: %s", type('rrhh_base.hr_payslip_report'))
+        # Usar SIEMPRE el mismo lang en la plantilla
+        template_ctx = template.with_context(lang=lang_ctx)
 
-        report = self.env.ref('rrhh_base.report_payslip')
+        # (Opcional) Log del body en el idioma elegido
+        try:
+            rendered_body = template_ctx._render_field('body_html', [self.id])[self.id]
+            _logger.debug("CUERPO RENDERIZADO (%s):\n%s", lang_ctx, rendered_body)
+        except Exception as e:
+            _logger.warning("No se pudo pre-renderizar el body_html: %s", e)
 
-        _logger.warning("RESOLVED REPORT: %s | TYPE: %s", report, type(report))
-        # Renderizar PDF
-        report_name = 'rrhh_base.report_boleta_pago_template'
-        pdf_content, _ = self.env['ir.actions.report']._render_qweb_pdf(report.report_name, [self.id])
+        # 2) Resolver acción de reporte (usa el ID que tengas definido)
+        report_action = (self.env.ref('rrhh_base.hr_payslip_report', raise_if_not_found=False)
+                         or self.env.ref('rrhh_base.report_payslip', raise_if_not_found=False))
+        if not report_action:
+            raise UserError(("No se encontró la acción de reporte de la boleta de pago."))
 
+        # 3) Renderizar PDF con el MISMO idioma
+        pdf_content, _ = self.env['ir.actions.report'].with_context(lang=lang_ctx)._render_qweb_pdf(
+            report_action.report_name, [self.id]
+        )
+
+        # 4) Adjuntar PDF a la nómina
         filename = f"Boleta_{self.employee_id.name.replace(' ', '_')}_{self.date_to}.pdf"
         attachment = self.env['ir.attachment'].create({
             'name': filename,
@@ -438,14 +459,16 @@ class HrPayslip(models.Model):
             'mimetype': 'application/pdf',
         })
 
-        # Enviar correo
+        # 5) Enviar correo respetando lang_ctx
         try:
-            template.send_mail(self.id, force_send=True, email_values={
-                'attachment_ids': [(6, 0, [attachment.id])]
+            template_ctx.send_mail(self.id, force_send=True, email_values={
+                'attachment_ids': [(6, 0, [attachment.id])],
             })
             _logger.info("Correo enviado a %s con archivo %s", self.employee_id.work_email, filename)
         except Exception as e:
-            raise UserError(_("Error al enviar el correo: %s") % str(e))
+            raise UserError(_("Error al enviar el correo: ") + str(e))
+
+        return True
 
     def year_selection(self):
         """Rango de años que se mostrarán en el panel."""

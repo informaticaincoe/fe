@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import base64
+
 from odoo import fields, models, api, _
 from odoo.exceptions import UserError
 import pytz
@@ -49,6 +51,7 @@ class sit_account_move(models.Model):
         # NUMERO_FACTURA= super(AccountMove, self).action_post()
         # _logger.info("SIT NUMERO FACTURA =%s", NUMERO_FACTURA)
         for invoice in self:
+
             MENSAJE = "action_post_contingencia -->" + str(self.name)
             # raise UserError(_(MENSAJE))
             if invoice.name == "/" or not invoice.name:
@@ -56,11 +59,11 @@ class sit_account_move(models.Model):
             else:
                 NUMERO_FACTURA = "/"
             _logger.info("SIT NUMERO FACTURA =%s", NUMERO_FACTURA)
-            if invoice.sit_es_configencia:
+            if invoice.sit_es_configencia and invoice.company_id.sit_facturacion:
                 sello_contingencia = invoice.sit_factura_de_contingencia.sit_selloRecibido
                 if sello_contingencia:
                     #invoice.sit_block_hacienda = False
-                    invoice.action_post()        
+                    invoice.action_post()
                 else:
                     #invoice.sit_block_hacienda = True
                     MENSAJE = "Se requiere el sello de contingencia para proceder a validar esta factura"

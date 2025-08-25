@@ -56,6 +56,7 @@ class HrContract(models.Model):
             constants.ASIGNACION_HORAS_EXTRA.upper(),
             constants.ASIGNACION_BONOS.upper(),
             constants.ASIGNACION_COMISIONES.upper(),
+            constants.REGLASAL_VACACION.upper(),
         ]
 
         faltas_codes = []
@@ -174,8 +175,8 @@ class HrContract(models.Model):
             bono = primera_quincena.input_line_ids.filtered(lambda l: l.name == "Bono")
             comisiones = primera_quincena.input_line_ids.filtered(lambda l: l.name == "Comision")
 
-            salario_bruto_q1 = self.get_salario_bruto_total(payslip=primera_quincena, salario_bruto_payslip=None)
-            salario_bruto_q2 = self.get_salario_bruto_total(payslip=payslip, salario_bruto_payslip=None)
+            salario_bruto_q1 = self.get_salario_bruto_total(payslip=primera_quincena, salario_bruto_payslip=salario_bruto)
+            salario_bruto_q2 = self.get_salario_bruto_total(payslip=payslip, salario_bruto_payslip=salario_bruto)
             salario_bruto_mensual = salario_bruto_q1 + salario_bruto_q2
 
         salario = self.get_salario_bruto_total(payslip=payslip, salario_bruto_payslip=salario_bruto)
@@ -268,6 +269,9 @@ class HrContract(models.Model):
         deduccion_mensual_aux = base * (porcentaje / 100.0)  # Cálculo de la deducción ISSS mensual
         deduccion_segunda_quincena = deduccion_mensual_aux
 
+        _logger.info("ISSS MENSUAL AJUSTADO PRUEBA BASE= %.2f", salario_mensual)
+        _logger.info("ISSS MENSUAL AJUSTADO PRUEBA 2= %.2f", salario_mensual * 0.075)
+
         return deduccion_segunda_quincena
 
     # Método para calcular la deducción ISSS (Instituto Salvadoreño del Seguro Social)
@@ -288,8 +292,8 @@ class HrContract(models.Model):
             bono = primera_quincena.input_line_ids.filtered(lambda l: l.name == "Bono")
             comisiones = primera_quincena.input_line_ids.filtered(lambda l: l.name == "Comision")
 
-            salario_bruto_q1 = self.get_salario_bruto_total(payslip=primera_quincena, salario_bruto_payslip=None)
-            salario_bruto_q2 = self.get_salario_bruto_total(payslip=payslip, salario_bruto_payslip=None)
+            salario_bruto_q1 = self.get_salario_bruto_total(payslip=primera_quincena, salario_bruto_payslip=salario_bruto)
+            salario_bruto_q2 = self.get_salario_bruto_total(payslip=payslip, salario_bruto_payslip=salario_bruto)
             salario_bruto_mensual = salario_bruto_q1 + salario_bruto_q2
 
         salario = self.get_salario_bruto_total(payslip=payslip, salario_bruto_payslip=salario_bruto)
@@ -350,14 +354,14 @@ class HrContract(models.Model):
             bono = primera_quincena.input_line_ids.filtered(lambda l: l.name == "Bono")
             comisiones = primera_quincena.input_line_ids.filtered(lambda l: l.name == "Comision")
 
-            salario_bruto_q1= self.get_salario_bruto_total(payslip=primera_quincena, salario_bruto_payslip=None)
-            salario_bruto_q2 = self.get_salario_bruto_total(payslip=payslip, salario_bruto_payslip=None)
+            salario_bruto_q1= self.get_salario_bruto_total(payslip=primera_quincena, salario_bruto_payslip=primera_quincena.basic_wage)
+            salario_bruto_q2 = self.get_salario_bruto_total(payslip=payslip, salario_bruto_payslip=salario_bruto)
             salario_bruto_mensual = salario_bruto_q1 + salario_bruto_q2
             _logger.info(">>>  RENTA: salario_bruto_mensual =%s", salario_bruto_mensual)
             _logger.info(">>>  RENTA: salario_bruto_q1 =%s", salario_bruto_q1)
             _logger.info(">>>  RENTA: salario_bruto_q2 =%s", salario_bruto_q2)
 
-        salario = self.get_salario_bruto_total(payslip=payslip, salario_bruto_payslip=None)  # bruto if bruto is not None else self.get_salario_bruto_total()
+        salario = self.get_salario_bruto_total(payslip=payslip, salario_bruto_payslip=salario_bruto)  # bruto if bruto is not None else self.get_salario_bruto_total()
         _logger.info(">>>  RENTA: salario= %s", salario)
 
         # Si es servicios profesionales: 10% directo
@@ -500,15 +504,63 @@ class HrContract(models.Model):
             return 0.0
 
         # Si me pasaron salario_bruto, usarlo. Si no, calcular salario bruto total del contrato
-        salario = self.get_salario_bruto_total(payslip=payslip, salario_bruto_payslip=salario_bruto)
-        _logger.info("Aporte patronal: salario bruto =%s", salario_bruto)
+
+        if payslip.period_quincena == '2':
+            primera_quincena = self.env['hr.payslip'].search(
+                [('employee_id', '=', payslip.employee_id.id), ('period_quincena', "=", '1'),
+                 ('period_month', "=", payslip.period_month)], limit=1)
+            _logger.info(">>>  %s primera_quincena", primera_quincena)
+
+            # líneas calculadas (hr.payslip.line) dentro del slip
+            bono_lines = primera_quincena.line_ids.filtered(lambda l: (l.code or '').upper() == 'BONO')
+            # ejemplo: total del bono
+            bono_total = sum(bono_lines.mapped('total'))
+
+            # líneas calculadas (hr.payslip.line) dentro del slip
+            comisiones_lines = primera_quincena.line_ids.filtered(lambda l: (l.code or '').upper() == 'COMISION')
+            # ejemplo: total del comisiones
+            comisiones_total = sum(comisiones_lines.mapped('total'))
+
+            # comisiones = primera_quincena.input_line_ids.filtered(lambda l: l.code == "Comision")
+
+            _logger.info(">>> bono %s", bono_total)
+            _logger.info(">>> comisiones_total %s", comisiones_total)
+
+            salario_bruto_q1= self.get_salario_bruto_total(payslip=primera_quincena, salario_bruto_payslip=(primera_quincena.basic_wage ))
+            salario_bruto_q2 = self.get_salario_bruto_total(payslip=payslip, salario_bruto_payslip=salario_bruto)
+            salario = salario_bruto_q1 + salario_bruto_q2
+            _logger.info(">>>  RENTA: salario_bruto_mensual =%s", salario)
+            _logger.info(">>>  RENTA: salario_bruto_q1 patorn =%s", salario_bruto_q1)
+            _logger.info(">>>  RENTA: salario_bruto_q2 oatirn =%s", salario_bruto_q2)
+        else:
+            salario = self.get_salario_bruto_total(payslip=payslip, salario_bruto_payslip=salario_bruto)
+        _logger.info("Aporte patronal: salario bruto =%s", salario)
 
         _logger.info("Cálculo de aporte patronal para contrato ID %s. Tipo: %s. Salario base: %.2f", self.id, tipo, salario)
 
         if tipo == constants.TIPO_DED_ISSS:
-
             tipo_isss = self.env['hr.retencion.isss'].search([('tipo', '=', constants.DEDUCCION_EMPLEADOR)], limit=1)
+
             if tipo_isss:
+                if payslip.period_quincena == '2':
+                    primera_quincena = self.env['hr.payslip'].search(
+                        [('employee_id', '=', payslip.employee_id.id), ('period_quincena', "=", '1'),
+                         ('period_month', "=", payslip.period_month)], limit=1)
+                    _logger.info(">>>  %s primera_quincena", primera_quincena)
+
+                    # líneas calculadas (hr.payslip.line) dentro del slip
+                    rete_patronal_isss_line = primera_quincena.line_ids.filtered(lambda l: (l.code or '').upper() == 'ISSS_EMP')
+                    # ejemplo: total del bono
+                    rete_patronal_isss = sum(rete_patronal_isss_line.mapped('total'))
+
+                    base = salario if tipo_isss.techo == 0.0 else min(salario, tipo_isss.techo * 2)
+                    resultado = base * (tipo_isss.porcentaje / 100)
+                    _logger.info("ISSS Patronal: base=%.2f, porcentaje=%.2f%%, resultado=%.2f", base,
+                                 tipo_isss.porcentaje * 100, resultado)
+
+                    _logger.info("2 quincena patronal isss =%.2f", resultado - rete_patronal_isss)
+                    return resultado - rete_patronal_isss
+
                 base = salario if tipo_isss.techo == 0.0 else min(salario, tipo_isss.techo)
                 resultado = base * (tipo_isss.porcentaje / 100)
                 _logger.info("ISSS Patronal: base=%.2f, porcentaje=%.2f%%, resultado=%.2f", base, tipo_isss.porcentaje * 100, resultado)

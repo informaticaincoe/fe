@@ -12,13 +12,17 @@ class AccountDebitNote(models.TransientModel):
         _logger.info("SIT: Entrando al método create_debit personalizado: %s", self)
         self.ensure_one()
 
+        if not (self.company_id and self.company_id.sit_facturacion):
+            _logger.info("SIT: La empresa %s no aplica a facturación electrónica. Saltando validaciones DTE/Hacienda para ND.", self.company_id.name)
+            return  # Si no aplica, no continuar con la lógica de ND electrónica
+
         if not self.journal_id:
             raise UserError(_("Debe seleccionar un diario antes de continuar."))
 
         if self.journal_id.type == 'sale' and not self.journal_id.sit_tipo_documento:
             raise UserError(_("No se encontró el tipo de documento (06) Nota de Débito."))
 
-            # Obtener el código del tipo de documento desde el diario
+        # Obtener el código del tipo de documento desde el diario
         doc_code = (
                 getattr(self.journal_id.sit_tipo_documento, "codigo", False)
                 or getattr(self.journal_id.sit_tipo_documento, "code", False)

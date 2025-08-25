@@ -27,6 +27,10 @@ class AccountMoveReversal(models.TransientModel):
         self.ensure_one()
         _logger.info("SIT refund_moves_custom iniciado con move_ids=%s", self.move_ids)
 
+        if not (self.company_id and self.company_id.sit_facturacion):
+            _logger.info("SIT: La empresa %s no aplica a facturación electrónica, saltando validaciones DTE/Hacienda para NC.", self.company_id.name)
+            return
+
         if not self.journal_id:
             raise UserError(_("Debe seleccionar un diario antes de continuar."))
 
@@ -101,7 +105,8 @@ class AccountMoveReversal(models.TransientModel):
             default_vals['invoice_line_ids'] = invoice_lines_vals
             _logger.info("SIT listado de productos=%s", default_vals['invoice_line_ids'])
 
-            if not move.name or move.name == '/' or not move.name.startswith("DTE-"):
+            prefix = (config_utils.get_config_value(self.env, 'dte_prefix', self.company_id.id) or "DTE-").lower()
+            if not move.name or move.name == '/' or not move.name.startswith(prefix):
                 move_temp = self.env['account.move'].new(default_vals)
                 move_temp.journal_id = self.journal_id
                 nombre_generado = move_temp._generate_dte_name()
@@ -131,7 +136,7 @@ class AccountMoveReversal(models.TransientModel):
 
         if new_move.codigo_tipo_documento == constants.COD_DTE_NC and new_move.reversed_entry_id:
             _logger.info("SIT NC creada: ID=%s | reversed_entry_id=%s | inv_refund_id=%s | name=%s",
-                         move.id, move.reversed_entry_id.id, move.inv_refund_id.id, move.name)
+                         new_move.id, new_move.reversed_entry_id.id, new_move.inv_refund_id.id, new_move.name)
             new_move._copiar_retenciones_desde_documento_relacionado()
 
         return {
@@ -152,6 +157,10 @@ class AccountMoveReversal(models.TransientModel):
     def refund_or_debit_custom(self):
         self.ensure_one()
         _logger.info("SIT refund_or_debit_custom iniciado para account.move.reversal con ID=%s", self.id)
+
+        if not (self.company_id and self.company_id.sit_facturacion):
+            _logger.info("SIT: La empresa %s no aplica a facturación electrónica, saltando lógica personalizada de refund/debit.", self.company_id.name)
+            return super().refund_or_debit()
 
         doc_type = self.l10n_latam_document_type_id.code
         _logger.info("SIT Tipo de documento detectado: %s", doc_type)

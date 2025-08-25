@@ -33,10 +33,12 @@ EXTRA_ADDONS = r'C:\Users\Administrador\Documents\fe\location\mnt\src'
 
 try:
     from odoo.addons.common_utils.utils import config_utils
+    from odoo.addons.common_utils.utils import constants
     _logger.info("SIT Modulo config_utils invalidacion")
 except ImportError as e:
     _logger.error(f"Error al importar 'config_utils': {e}")
     config_utils = None
+    constants = None
 
 class AccountMoveInvalidation(models.Model):
     _name = "account.move.invalidation"
@@ -166,6 +168,11 @@ class AccountMoveInvalidation(models.Model):
     def button_anul(self):
         '''Generamos la Anulación de la Factura'''
         _logger.info("SIT [INICIO] button_anul para invoices: %s", self.ids)
+
+        if not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion):
+            _logger.info("SIT No aplica facturación electrónica. Se omite invalidacion de documentos electronicos.")
+            return False
+
         resultado_final = {
             "exito": False,
             "mensaje": "",
@@ -191,7 +198,7 @@ class AccountMoveInvalidation(models.Model):
 
                 # invoice.sit_fec_hor_Anula = fhProcesamiento
 
-                if sit_tipo_documento not in ['01', '11']:
+                if sit_tipo_documento not in [constants.COD_DTE_FE, constants.COD_DTE_FEX]:
                     _logger.info("SIT Validando tiempo límite para anulación (24h)")
                     fecha_facturacion_hacienda = invoice.sit_factura_a_reemplazar.fecha_facturacion_hacienda
                     if fecha_facturacion_hacienda:
@@ -428,7 +435,12 @@ class AccountMoveInvalidation(models.Model):
         return resultado_final
 
     def _compute_validation_type_2(self):
+        validation_type = False
         for rec in self:
+            if not (rec.sit_factura_a_reemplazar.company_id and rec.sit_factura_a_reemplazar.company_id.sit_facturacion):
+                _logger.info("SIT _compute_validation_type_2: empresa %s no tiene facturación electrónica, se asigna False", rec.sit_factura_a_reemplazar.company_id.id if rec.sit_factura_a_reemplazar.company_id else None)
+                continue
+
             validation_type = self.env["res.company"]._get_environment_type()
             _logger.info("SIT _compute_validation_type_2 =%s ", validation_type)
             # if validation_type == "homologation":
@@ -436,11 +448,16 @@ class AccountMoveInvalidation(models.Model):
             # rec.company_id.get_key_and_certificate(validation_type)
             # except Exception:
             # validation_type = False
-            return validation_type
+        return validation_type
 
     # FIMAR FIMAR FIRMAR =====================================================================================================
     def firmar_documento_anu(self, enviroment_type, payload):
         _logger.info("SIT  Firmando de documento")
+
+        # Validación de empresa
+        if not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion):
+            raise UserError(_("Solo se pueden firmar documentos de empresas con facturación electrónica."))
+
         _logger.info("SIT Documento a FIRMAR =%s", payload)
         if enviroment_type == 'homologation':
             ambiente = "00"
@@ -453,8 +470,7 @@ class AccountMoveInvalidation(models.Model):
         #url = host + '/firmardocumento/'
         url = config_utils.get_config_value(self.env, 'url_firma', self.sit_factura_a_reemplazar.company_id.id)
         if not url:
-            _logger.error("SIT | No se encontró 'url_firma' en la configuración para la compañía ID %s",
-                          self.company_id.id)
+            _logger.error("SIT | No se encontró 'url_firma' en la configuración para la compañía ID %s", self.sit_factura_a_reemplazar.company_id.id)
             raise UserError(_("La URL de firma no está configurada en la empresa."))
         headers = {
             'Content-Type': 'application/json'
@@ -498,6 +514,12 @@ class AccountMoveInvalidation(models.Model):
 
     def obtener_payload_anulacion(self, enviroment_type):
         _logger.info("SIT  Obteniendo payload")
+
+        # Validación de empresa
+        if not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion):
+            _logger.info("SIT La empresa %s no aplica a facturación electrónica, se detiene la obtención de obtener payload.", self.sit_factura_a_reemplazar.company_id.id if self.sit_factura_a_reemplazar.company_id else None)
+            return
+
         if enviroment_type == 'homologation':
             ambiente = "00"
         else:
@@ -511,6 +533,12 @@ class AccountMoveInvalidation(models.Model):
 
     def generar_dte_invalidacion(self, enviroment_type, payload, payload_original):
         _logger.info("SIT  Generando DTE Invalidacion =%s", payload)
+
+        # Validación de empresa
+        if not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion):
+            _logger.info("SIT La empresa %s no aplica a facturación electrónica, se detiene la generación de DTE.", self.sit_factura_a_reemplazar.company_id.id if self.sit_factura_a_reemplazar.company_id else None)
+            return  # No continuar si la empresa no aplica
+
         if enviroment_type == 'homologation':
             # host = 'https://apitest.dtes.mh.gob.sv'
             host = "https://api.dtes.mh.gob.sv"
@@ -589,6 +617,11 @@ class AccountMoveInvalidation(models.Model):
 
     def _autenticar(self,user,pwd,):
         _logger.info("SIT self = %s", self)
+
+        if not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion):
+            _logger.info("SIT No aplica facturación electrónica. Se omite autenticación.")
+            return False
+
         _logger.info("SIT self = %s, %s", user, pwd)
         enviroment_type = self._get_environment_type()
         _logger.info("SIT Modo = %s", enviroment_type)
@@ -625,6 +658,11 @@ class AccountMoveInvalidation(models.Model):
 
     def _generar_qr(self, ambiente, codGen, fechaEmi):
         _logger.info("SIT generando qr___ = %s", self)
+
+        if not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion):
+            _logger.info("SIT No aplica facturación electrónica. Se omite generación de QR(_generar_qr) en evento de invalidacion.")
+            return False
+
         # enviroment_type = self._get_environment_type()
         # enviroment_type = self.env["res.company"]._get_environment_type()
         enviroment_type = 'homologation'
@@ -670,6 +708,11 @@ class AccountMoveInvalidation(models.Model):
 
     def generar_qr(self):
         _logger.info("SIT generando qr xxx= %s", self)
+
+        if not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion):
+            _logger.info("SIT No aplica facturación electrónica. Se omite generación de QR(generar_qr) en evento de invalidacion.")
+            return False
+
         enviroment_type = 'homologation'
         if enviroment_type == 'homologation':
             host = 'https://admin.factura.gob.sv'
@@ -712,6 +755,10 @@ class AccountMoveInvalidation(models.Model):
         return
 
     def check_parametros_invalidacion(self):
+        if not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion):
+            _logger.info("SIT No aplica facturación electrónica. Se omite generación de check_parametros_invalidacion en evento de invalidacion.")
+            return False
+
         if not self.sit_factura_a_reemplazar.name:
             raise UserError(_('El Número de control no definido'))
         if not self.sit_factura_a_reemplazar.company_id.tipoEstablecimiento.codigo:
@@ -721,6 +768,10 @@ class AccountMoveInvalidation(models.Model):
             raise UserError(_('El tipoAnulacion no definido'))
 
     def check_parametros_firmado_anu(self):
+        if not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion):
+            _logger.info("SIT No aplica facturación electrónica. Se omite validación de parámetros de firmado en invalidacion.")
+            return False
+
         if not self.sit_factura_a_reemplazar.journal_id.sit_tipo_documento.codigo:
             raise UserError(_('El Tipo de  DTE no definido.'))
         if not self.sit_factura_a_reemplazar.name:
@@ -785,6 +836,11 @@ class AccountMoveInvalidation(models.Model):
             raise UserError(_('La factura no tiene LINEAS DE PRODUCTOS asociada.'))
 
     def check_parametros_dte_invalidacion(self, generacion_dte):
+        # Validación de empresa
+        if not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion):
+            _logger.info("SIT check_parametros_dte_invalidacion: empresa %s no aplica a facturación electrónica, se detiene la validación.", self.sit_factura_a_reemplazar.company_id.id if self.sit_factura_a_reemplazar.company_id else None)
+            return
+
         if not generacion_dte["ambiente"]:
             ERROR = 'El ambiente  no está definido.'
             raise UserError(_(ERROR))

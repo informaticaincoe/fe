@@ -1,0 +1,2 @@
+id,company_id:id,pwd,value_type,value_text,description,active,clave
+config_dte_prefix,base.main_company,,text,DTE-,Prefijo correlativo para facturación electrónica,True,dte_prefix
