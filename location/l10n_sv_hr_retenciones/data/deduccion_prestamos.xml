@@ -7,6 +7,7 @@
             <field name="code">PRESTAMOS</field>
             <field name="is_quantity">true</field>
             <field name="available_in_attachments">true</field>
+            <field name="country_id" eval="False"/>
         </record>
 
         <!-- Crear regla salarial de deducción de renta -->

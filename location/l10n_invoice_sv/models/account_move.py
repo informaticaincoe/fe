@@ -173,7 +173,7 @@ class AccountMove(models.Model):
         '''validamos que partner cumple los requisitos basados en el tipo
         de documento de la sequencia del diario selecionado'''
         for invoice in self:
-            _logger("PRUEBA EN _POST accounT MOVE -------------- ",invoice.move_type)
+            _logger.info("PRUEBA EN _POST accounT MOVE -------------- ",invoice.move_type)
             if invoice.move_type != 'entry':
 
                 type_report = invoice.journal_id.type_report
