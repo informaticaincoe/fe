@@ -58,6 +58,14 @@ class AccountMove(models.Model):
         _logger.info("SIT [INICIO] sit_anulacion_base_map_invoice_info: self.id=%s, sel.factura_reemplazar=%s", self.id, self.sit_factura_a_reemplazar.company_id)
 
         invoice_info = {}
+
+        # Validación de empresa
+        if not (self.company_id and self.company_id.sit_facturacion):
+            _logger.info("SIT sit_anulacion_base_map_invoice_info: empresa %s no aplica a facturación electrónica, no se genera payload.", self.company_id.id if self.company_id else None)
+            return {}
+
+        _logger.info("SIT [INICIO] sit_anulacion_base_map_invoice_info: self.id=%s, sel.factura_reemplazar=%s", self.id, self.sit_factura_a_reemplazar.company_id)
+
         vat = self.sit_factura_a_reemplazar.company_id.vat
         if isinstance(vat, str):
             nit = vat.replace("-", "")
@@ -274,6 +282,7 @@ class AccountMove(models.Model):
             numDocumento = numDocumento.replace("-", "")
 
         #Cat-022 Tipo de documento
+        tipo_doc = getattr(self.partner_id.l10n_latam_identification_type_id, 'codigo', None)
 
         invoice_info = {
             "tipoAnulacion": int(self.sit_tipoAnulacion),
@@ -282,7 +291,7 @@ class AccountMove(models.Model):
             "tipDocResponsable": "36",
             "numDocResponsable": numDocumento,
             "nombreSolicita": self.partner_id.name,
-            "tipDocSolicita": "36" if self.partner_id and self.partner_id.vat else "13",
+            "tipDocSolicita": tipo_doc, #"36" if self.partner_id and self.partner_id.vat else "13",
             "numDocSolicita": nit
         }
 
@@ -311,6 +320,11 @@ class AccountMove(models.Model):
 
     def sit_obtener_payload_anulacion_dte_info(self, ambiente, doc_firmado):
         _logger.info("SIT [INICIO] Payload envío DTE anulado: self.id=%s", self.id)
+
+        # Validación de empresa
+        if not (self.company_id and self.company_id.sit_facturacion):
+            _logger.info("SIT sit_obtener_payload_anulacion_dte_info: empresa %s no aplica a facturación electrónica, no se genera payload.", self.company_id.id if self.company_id else None)
+            return {}
 
         nit = self.company_id.vat.replace("-", "")
         invoice_info = {

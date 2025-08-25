@@ -73,6 +73,13 @@ class AccountMove(models.Model):
         return True
 
     def sit__ccf_base_map_invoice_info(self):
+        self.ensure_one()
+
+        # Validación: empresa no aplica a facturación electrónica
+        if not (self.company_id and self.company_id.sit_facturacion):
+            _logger.info("SIT: La empresa %s no tiene facturación electrónica habilitada, omitiendo sit__ccf_base_map_invoice_info.", self.company_id.name)
+            return {}
+
         invoice_info = {}
         nit = None
         if self.company_id and self.company_id.vat:
@@ -506,6 +513,11 @@ class AccountMove(models.Model):
     def sit_base_map_invoice_info(self):
         _logger.info("SIT sit_base_map_invoice_info self = %s", self)
         invoice_info = {}
+
+        if not (self.company_id and self.company_id.sit_facturacion):
+            _logger.info("SIT: La empresa %s no tiene facturación electrónica habilitada, omitiendo sit_base_map_invoice_info.", self.company_id.name)
+            return {}
+
         nit = None
 
         if self.company_id and self.company_id.vat:
@@ -824,8 +836,7 @@ class AccountMove(models.Model):
             self.check_parametros_linea_firmado(line_temp)
         return lines, codigo_tributo, total_Gravada, float(totalIva)
 
-    def sit_base_map_invoice_info_resumen(self, tributo_hacienda, total_Gravada, totalIva, identificacion,
-                                          cuerpo_documento):
+    def sit_base_map_invoice_info_resumen(self, tributo_hacienda, total_Gravada, totalIva, identificacion, cuerpo_documento):
         _logger.info("SIT sit_base_map_invoice_info_resumen self = %s", self)
         total_des = 0
         total_gral = self.amount_total + total_des
@@ -955,6 +966,11 @@ class AccountMove(models.Model):
     def sit_obtener_payload_dte_info(self, ambiente, doc_firmado):
         _logger.info("Generando payload FCF (cg):%s", self.hacienda_codigoGeneracion_identificacion)
         invoice_info = {}
+
+        if not (self.company_id and self.company_id.sit_facturacion):
+            _logger.info("SIT: La empresa %s no tiene facturación electrónica habilitada, omitiendo sit_obtener_payload_dte_info.", self.company_id.name)
+            return {}
+
         invoice_info["ambiente"] = ambiente
         invoice_info["idEnvio"] = "00001"
         invoice_info["tipoDte"] = self.journal_id.sit_tipo_documento.codigo
@@ -975,6 +991,11 @@ class AccountMove(models.Model):
     def sit_base_map_invoice_info_ndc(self):
         _logger.info("SIT sit_base_map_invoice_info_ndc self = %s", self)
         invoice_info = {}
+
+        if not (self.company_id and self.company_id.sit_facturacion):
+            _logger.info("SIT: La empresa %s no tiene facturación electrónica habilitada, omitiendo sit_base_map_invoice_info_ndc.", self.company_id.name)
+            return {}
+
         nit = None
         if self.company_id and self.company_id.vat:
             nit = self.company_id.vat.replace("-", "")
@@ -1321,6 +1342,12 @@ class AccountMove(models.Model):
     def sit_base_map_invoice_info_ndd(self):
         """Envoltorio principal para Nota de Débito (DTE tipo 05)."""
         _logger.info("SIT sit_base_map_invoice_info_ndd self = %s", self)
+        invoice_info = {}
+
+        if not (self.company_id and self.company_id.sit_facturacion):
+            _logger.info("SIT: La empresa %s no tiene facturación electrónica habilitada, omitiendo sit_base_map_invoice_info_ndd.", self.company_id.name)
+            return {}
+
         nit = None
         if self.company_id and self.company_id.vat:
             nit = self.company_id.vat.replace("-", "")
