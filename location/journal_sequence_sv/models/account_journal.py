@@ -3,6 +3,7 @@
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError, ValidationError
 
+from ..models.utils.decorators import only_fe
 
 class AccountJournal(models.Model):
     _inherit = "account.journal"
@@ -38,6 +39,7 @@ class AccountJournal(models.Model):
         help="Prefijo usado al generar el número de control del DTE."
     )
 
+    @only_fe
     @api.model
     def _create_sequence(self, vals, refund=False):
         # 1. Determinar un código válido (vals, o self.code, o vals['name'] como última opción)
@@ -67,6 +69,7 @@ class AccountJournal(models.Model):
         seq_range.sudo().number_next = start
         return seq
 
+    @only_fe
     def create_sequence(self, refund):
         prefix = self._get_sequence_prefix(self.code, refund)
         seq_name = refund and self.code + _(': Refund') or self.code
@@ -88,6 +91,7 @@ class AccountJournal(models.Model):
         )
         return seq
 
+    @only_fe
     def create_journal_sequence(self):
         if not self.sequence_id:
             seq = self.create_sequence(refund=False)
@@ -96,6 +100,7 @@ class AccountJournal(models.Model):
             seq = self.create_sequence(refund=True)
             self.refund_sequence_id = seq.id
 
+    @only_fe
     @api.depends('sequence_id.use_date_range', 'sequence_id.number_next_actual')
     def _compute_seq_number_next(self):
         for journal in self:
@@ -105,12 +110,14 @@ class AccountJournal(models.Model):
             else:
                 journal.sequence_number_next = 1
 
+    @only_fe
     def _inverse_seq_number_next(self):
         for journal in self:
             if journal.sequence_id and journal.sequence_number_next:
                 sequence = journal.sequence_id._get_current_sequence()
                 sequence.sudo().number_next = journal.sequence_number_next
 
+    @only_fe
     @api.depends('refund_sequence_id.use_date_range', 'refund_sequence_id.number_next_actual')
     def _compute_refund_seq_number_next(self):
         for journal in self:
@@ -120,12 +127,14 @@ class AccountJournal(models.Model):
             else:
                 journal.refund_sequence_number_next = 1
 
+    @only_fe
     def _inverse_refund_seq_number_next(self):
         for journal in self:
             if journal.refund_sequence_id and journal.refund_sequence_number_next:
                 sequence = journal.refund_sequence_id._get_current_sequence()
                 sequence.sudo().number_next = journal.refund_sequence_number_next
 
+    @only_fe
     @api.model
     def _get_sequence_prefix(self, code, refund=False):
         # Si se ha definido un prefijo DTE en el diario, úsalo;
@@ -145,6 +154,7 @@ class AccountJournal(models.Model):
         # Añadir formato de rango de fecha si se requiere
         return prefix + '/%(range_year)s/'
 
+    @only_fe
     @api.model
     def create(self, vals):
         if not vals.get('sequence_id'):
@@ -153,6 +163,7 @@ class AccountJournal(models.Model):
             vals['refund_sequence_id'] = self.sudo()._create_sequence(vals, refund=True).id
         return super(AccountJournal, self.with_context(mail_create_nolog=True)).create(vals)
 
+    @only_fe
     def write(self, vals):
         # Al cambiar code o mantener prefijo, actualizamos prefix de secuencia
         res = super(AccountJournal, self).write(vals)

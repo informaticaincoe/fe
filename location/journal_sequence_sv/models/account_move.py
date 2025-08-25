@@ -2,13 +2,14 @@
 
 from odoo import api, fields, models, _
 from odoo.exceptions import RedirectWarning, UserError, ValidationError, AccessError
-
+from ..models.utils.decorators import only_fe
 
 class AccountMove(models.Model):
     _inherit = "account.move"
 
     name = fields.Char(string='Number', required=True, readonly=False, copy=False, default='/')
 
+    @only_fe
     def _get_sequence(self):
         self.ensure_one()
         journal = self.journal_id
@@ -20,6 +21,7 @@ class AccountMove(models.Model):
             return journal.refund_sequence_id
         return
 
+    @only_fe
     @api.model
     def _get_standard_sequence(self):
         """Devuelve la secuencia normal (no-DTE) para el diario."""
@@ -32,6 +34,7 @@ class AccountMove(models.Model):
         # Para notas de crédito, uso refund_sequence_id si existe
         return journal.refund_sequence_id
 
+    @only_fe
     def _post(self, soft=True):
         # 1) Solo asigno la secuencia estándar para diarios NO sale
         non_sales = self.filtered(lambda m: m.journal_id.type != 'sale')
@@ -56,14 +59,17 @@ class AccountMove(models.Model):
         #    - todo lo demás continúe con la lógica de Odoo
         return super(AccountMove, self)._post(soft=soft)
 
+    @only_fe
     @api.onchange('journal_id')
     def onchange_journal_id(self):
         self.name = '/'
         self._compute_name()
 
+    @only_fe
     def _constrains_date_sequence(self):
         return
 
+    @only_fe
     def write(self, vals):
         # para evitar que pongan name = False
         if 'name' in vals and vals['name'] is False:

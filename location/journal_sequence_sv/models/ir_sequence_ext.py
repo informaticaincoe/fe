@@ -8,12 +8,14 @@ import pytz
 import logging
 from odoo import models, fields
 
+from ..models.utils.decorators import only_fe
 
 _logger = logging.getLogger(__name__)
 
 class IrSequence(models.Model):
     _inherit = 'ir.sequence'
 
+    @only_fe
     def _get_prefix_suffix(self, date=None, date_range=None):
         def _interpolate(s, d):
             return (s % d) if s else ''

@@ -9,6 +9,7 @@ import base64
 import pyqrcode
 
 import pytz
+from ..models.utils.decorators import only_fe
 
 # Definir la zona horaria de El Salvador
 tz_el_salvador = pytz.timezone('America/El_Salvador')
@@ -33,7 +34,7 @@ class AccountMove(models.Model):
 
 
 ######################################### FCE-EXPORTACION
-
+    @only_fe
     def sit_base_map_invoice_info_fex(self):
         _logger.info("SIT sit_base_map_invoice_info self = %s", self)
 
@@ -53,7 +54,7 @@ class AccountMove(models.Model):
             invoice_info["dteJson"] = self.sit__fex_base_map_invoice_info_dtejson()
         return invoice_info
 
-
+    @only_fe
     def sit__fex_base_map_invoice_info_dtejson(self):
         _logger.info("SIT sit_base_map_invoice_info_dtejson self = %s", self)
         invoice_info = {}
@@ -71,8 +72,9 @@ class AccountMove(models.Model):
             raise UserError(_('La Factura no tiene linea de Productos Valida.'))        
         invoice_info["resumen"] = self.sit_fex_base_map_invoice_info_resumen()
         invoice_info["apendice"] = None
-        return invoice_info        
+        return invoice_info
 
+    @only_fe
     def sit__fex_base_map_invoice_info_identificacion(self):
         _logger.info("SIT sit_base_map_invoice_info_identificacion self = %s", self)
         invoice_info = {}
@@ -114,7 +116,7 @@ class AccountMove(models.Model):
         _logger.info("SIT sit_fex_ base_map_invoice_info_identificacion1 = %s", invoice_info)
         return invoice_info
 
-
+    @only_fe
     def sit__fex_base_map_invoice_info_emisor(self):
         _logger.info("SIT sit__fex_base_map_invoice_info_emisor self = %s", self)
         invoice_info = {}
@@ -189,6 +191,7 @@ class AccountMove(models.Model):
 
         return invoice_info
 
+    @only_fe
     def sit__fex_base_map_invoice_info_receptor(self):
         _logger.info("SIT sit_base_map_invoice_info_receptor self = %s", self)
 
@@ -243,6 +246,7 @@ class AccountMove(models.Model):
             invoice_info["correo"] = None
         return invoice_info
 
+    @only_fe
     def sit_fex_base_map_invoice_info_cuerpo_documento(self):
         _logger.info("SIT sit_base_map_invoice_info_cuerpo_documento self = %s", self)
 
@@ -334,6 +338,7 @@ class AccountMove(models.Model):
         _logger.info("SIT totalIVA ______1 =%s", totalIva)
         return lines, codigo_tributo, total_Gravada, line.tax_ids, totalIva
 
+    @only_fe
     def sit_fex_base_map_invoice_info_resumen(self):
         _logger.info("SIT sit_base_map_invoice_info_resumen self = %s", self)
         invoice_info = {}
@@ -367,8 +372,9 @@ class AccountMove(models.Model):
             pagos["plazo"] = None    # Temporal
             pagos["periodo"] = None   #30      #  Es un nuevo campo entero            
             invoice_info["pagos"] = [pagos]   # por ahora queda en null.
-        return invoice_info        
+        return invoice_info
 
+    @only_fe
     def sit_obtener_payload_fex_dte_info(self,  ambiente, doc_firmado):
         _logger.info("SIT sit_obtener_payload_exp_dte_info self = %s", self)
         invoice_info = {}
@@ -379,8 +385,9 @@ class AccountMove(models.Model):
         invoice_info["version"] = 1
         invoice_info["documento"] = doc_firmado
         invoice_info["codigoGeneracion"] = self.sit_generar_uuid()
-        return invoice_info      
+        return invoice_info
 
+    @only_fe
     def sit_generar_uuid(self):
         import uuid
         # Genera un UUID versión 4 (basado en números aleatorios)

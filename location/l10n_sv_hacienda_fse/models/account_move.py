@@ -17,7 +17,7 @@ import io
 base64.encodestring = base64.encodebytes
 import json
 import requests
-
+from ..models.utils.decorators import only_fe
 import logging
 import sys
 import traceback
@@ -171,7 +171,7 @@ class AccountMove(models.Model):
     #         resultado.append(status)
     #         resultado.append(body)
     #         return body
-
+    @only_fe
     def obtener_payload_fex(self, enviroment_type, sit_tipo_documento):
         _logger.info("SIT  Obteniendo payload")
         if enviroment_type == 'homologation': 
@@ -183,8 +183,8 @@ class AccountMove(models.Model):
         self.check_parametros_firmado_fex()
         _logger.info("SIT payload_data =%s", invoice_info)
         return invoice_info
-    
 
+    @only_fe
     def generar_dte_fex(self, enviroment_type, payload, payload_original):
         _logger.info("SIT  Generando DTE")
         if enviroment_type == 'homologation': 
@@ -251,16 +251,17 @@ class AccountMove(models.Model):
             raise UserError(_(MENSAJE_ERROR))
         if json_response['estado'] in [  "PROCESADO" ] :
             return json_response
-    
 
+    @only_fe
     def check_parametros_fex(self):
         if not self.name:
              raise UserError(_('El Número de control no definido'))       
         if not self.company_id.tipoEstablecimiento.codigo:
             raise UserError(_('El tipoEstablecimiento no definido'))        
         if not self.sit_tipoAnulacion or self.sit_tipoAnulacion == False:
-            raise UserError(_('El tipoAnulacion no definido'))        
+            raise UserError(_('El tipoAnulacion no definido'))
 
+    @only_fe
     def check_parametros_firmado_fex(self):
         if not self.journal_id.sit_tipo_documento.codigo:
             raise UserError(_('El Tipo de  DTE no definido.'))
@@ -315,6 +316,7 @@ class AccountMove(models.Model):
         if not self.invoice_line_ids:
             raise UserError(_('La factura no tiene LINEAS DE PRODUCTOS asociada.'))
 
+    @only_fe
     def check_parametros_linea_firmado_fex(self, line_temp):
         if not line_temp["codigo"]:
             ERROR = 'El CODIGO del producto  ' + line_temp["descripcion"] + ' no está definido.'
@@ -329,6 +331,7 @@ class AccountMove(models.Model):
             ERROR = 'La UNIVAD DE MEDIDA del producto  ' + line_temp["descripcion"] + ' no está definido.'
             raise UserError(_(ERROR))
 
+    @only_fe
     def check_parametros_dte_fex(self, generacion_dte):
         if not generacion_dte["ambiente"]:
             ERROR = 'El ambiente  no está definido.'
@@ -343,6 +346,7 @@ class AccountMove(models.Model):
             ERROR = 'La version dte no está definida.'
             raise UserError(_(ERROR))
 
+    @only_fe
     def sit_debug_mostrar_json_fse(self):
         """Solo muestra el JSON generado de la factura FSE sin enviarlo."""
         if len(self) != 1:

@@ -3,16 +3,19 @@
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError, ValidationError
 
+from ..models.utils.decorators import only_fe
 
 class AccountPayment(models.Model):
     _inherit = 'account.payment'
 
     name = fields.Char(readonly=False, copy=False, default='/')
 
+    @only_fe
     @api.onchange('posted_before', 'state', 'journal_id', 'date')
     def _onchange_journal_date(self):
         return
 
+    @only_fe
     def action_post(self):
         for rec in self:
             if rec.state != 'draft':
