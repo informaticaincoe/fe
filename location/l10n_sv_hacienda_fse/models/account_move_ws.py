@@ -10,6 +10,8 @@ import pyqrcode
 
 import pytz
 
+from ..models.utils.decorators import only_fe
+
 # Definir la zona horaria de El Salvador
 tz_el_salvador = pytz.timezone('America/El_Salvador')
 
@@ -25,7 +27,7 @@ class AccountMove(models.Model):
 
 
 ######################################### FCE-EXPORTACION
-
+    @only_fe
     def sit_base_map_invoice_info_fse(self):
         _logger.info("SIT sit_base_map_invoice_info self = %s", self)
 
@@ -40,7 +42,7 @@ class AccountMove(models.Model):
         invoice_info["dteJson"] = self.sit__fse_base_map_invoice_info_dtejson()
         return invoice_info
 
-
+    @only_fe
     def sit__fse_base_map_invoice_info_dtejson(self):
         _logger.info("SIT sit_base_map_invoice_info_dtejson self = %s", self)
         invoice_info = {}
@@ -60,6 +62,7 @@ class AccountMove(models.Model):
 
         return invoice_info
 
+    @only_fe
     def sit__fse_base_map_invoice_info_identificacion(self):
         _logger.info("SIT sit_base_map_invoice_info_identificacion self = %s", self)
         invoice_info = {}
@@ -110,6 +113,7 @@ class AccountMove(models.Model):
         _logger.info("SIT sit_fse_ base_map_invoice_info_identificacion1 = %s", invoice_info)
         return invoice_info
 
+    @only_fe
     def sit__fse_base_map_invoice_info_emisor(self):
         _logger.info("SIT sit__fse_base_map_invoice_info_emisor self = %s", self)
         invoice_info = {}
@@ -140,6 +144,7 @@ class AccountMove(models.Model):
         invoice_info["codPuntoVenta"] =  self.journal_id.sit_codpuntoventa
         return invoice_info
 
+    @only_fe
     def sit__fse_base_map_invoice_info_sujeto_excluido(self):
         _logger.info("SIT sit_base_map_invoice_info_receptor self = %s", self)
         direccion_rec = {}
@@ -177,6 +182,7 @@ class AccountMove(models.Model):
             invoice_info["correo"] = None
         return invoice_info
 
+    @only_fe
     def sit_fse_base_map_invoice_info_cuerpo_documento(self):
             _logger.info("SIT sit_base_map_invoice_info_cuerpo_documento self = %s", self)
 
@@ -272,6 +278,7 @@ class AccountMove(models.Model):
                     self.check_parametros_linea_firmado(line_temp)
             return lines, codigo_tributo, total_Gravada, float(totalIva)
 
+    @only_fe
     def sit_fse_base_map_invoice_info_resumen(self):
         _logger.info("SIT sit_base_map_invoice_info_resumen self = %s", self)
         invoice_info = {}
@@ -332,6 +339,7 @@ class AccountMove(models.Model):
 
         return invoice_info
 
+    @only_fe
     def sit_obtener_payload_fse_dte_info(self,  ambiente, doc_firmado):
         _logger.info("SIT sit_obtener_payload_exp_dte_info self = %s", self)
         invoice_info = {}
@@ -344,6 +352,7 @@ class AccountMove(models.Model):
         invoice_info["codigoGeneracion"] = self.sit_generar_uuid()
         return invoice_info
 
+    @only_fe
     def sit_generar_uuid(self):
         import uuid
         # Genera un UUID versión 4 (basado en números aleatorios)
@@ -351,7 +360,7 @@ class AccountMove(models.Model):
         uuid_cadena = str(uuid_aleatorio)
         return uuid_cadena.upper()
 
-
+    @only_fe
     def sit_debug_mostrar_json_fse(self):
         """Solo muestra el JSON generado de la factura FSE sin enviarlo."""
         if len(self) != 1:

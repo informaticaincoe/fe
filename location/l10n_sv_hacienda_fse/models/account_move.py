@@ -171,42 +171,44 @@ class AccountMove(models.Model):
     #         resultado.append(status)
     #         resultado.append(body)
     #         return body
-
     def obtener_payload_fex(self, enviroment_type, sit_tipo_documento):
+        """Construye el payload FEX solo si la FE está activa."""
+        if not self.env.company.sit_facturacion:
+            _logger.info("FE OFF: omitiendo obtener_payload_fex en %s", self._name)
+            return None
+
         _logger.info("SIT  Obteniendo payload")
-        if enviroment_type == 'homologation': 
-            ambiente = "00"
-        else:
-            ambiente = "01"
+        ambiente = "00" if enviroment_type == 'homologation' else "01"
         invoice_info = self.sit_fex_base_map_invoice_info()
         _logger.info("SIT invoice_info FExportacion= %s", invoice_info)
         self.check_parametros_firmado_fex()
         _logger.info("SIT payload_data =%s", invoice_info)
         return invoice_info
-    
 
     def generar_dte_fex(self, enviroment_type, payload, payload_original):
+        """Genera el DTE FEX solo si la FE está activa."""
+        if not self.env.company.sit_facturacion:
+            _logger.info("FE OFF: omitiendo generar_dte_fex en %s", self._name)
+            return None
+
         _logger.info("SIT  Generando DTE")
-        if enviroment_type == 'homologation': 
-            host = 'https://apitest.dtes.mh.gob.sv' 
-        else:
-            host = 'https://api.dtes.mh.gob.sv'
+        host = 'https://apitest.dtes.mh.gob.sv' if enviroment_type == 'homologation' else 'https://api.dtes.mh.gob.sv'
         url = host + '/fesv/recepciondte'
 
         if not self.company_id.sit_token_fecha:
             self.company_id.get_generar_token()
-        elif self.company_id.sit_token_fecha.date() and  self.company_id.sit_token_fecha.date() < self.date:
+        elif self.company_id.sit_token_fecha.date() and self.company_id.sit_token_fecha.date() < self.date:
             self.company_id.get_generar_token()
-        agente = self.company_id.sit_token_user
-        authorization = self.company_id.sit_token
+
         headers = {
-         'Content-Type': 'application/json', 
-         'User-Agent': agente,
-         'Authorization': authorization
+            'Content-Type': 'application/json',
+            'User-Agent': self.company_id.sit_token_user,
+            'Authorization': self.company_id.sit_token,
         }
+
         if 'version' not in payload:
-            # Si no existe, añadirlo con el valor 3
             payload['version'] = 3
+
         _logger.info("SIT = requests.request(POST, %s, headers=%s, data=%s)", url, headers, payload)
         try:
             _logger.info("________________________________________________ =%s", payload)
@@ -216,52 +218,66 @@ class AccountMove(models.Model):
             _logger.info("SIT DTE response.text =%s", response.text)
         except Exception as e:
             error = str(e)
-            _logger.info('SIT error= %s, ', error)       
+            _logger.info('SIT error= %s, ', error)
             if "error" in error or "" in error:
-                MENSAJE_ERROR = str(error['status']) + ", " + str(error['error']) +", " +  str(error['message'])  
+                MENSAJE_ERROR = str(error['status']) + ", " + str(error['error']) + ", " + str(error['message'])
                 raise UserError(_(MENSAJE_ERROR))
             else:
                 raise UserError(_(error))
-        resultado = []    
-        _logger.info("SIT DTE decodificando respuestas")
-        if response.status_code in [  401 ] :
-            MENSAJE_ERROR = "ERROR de conexión : " + str(response )   
+
+        if response.status_code in [401]:
+            MENSAJE_ERROR = "ERROR de conexión : " + str(response)
             raise UserError(_(MENSAJE_ERROR))
+
         json_response = response.json()
         _logger.info("SIT json_responset =%s", json_response)
-        if json_response['estado'] in [  "RECHAZADO", 402 ] :
-            status=json_response['estado']
-            ambiente=json_response['ambiente']
-            if json_response['ambiente'] == '00':
-                ambiente = 'TEST'
-            else:
-                ambiente = 'PROD'
-            clasificaMsg=json_response['clasificaMsg']
-            message=json_response['descripcionMsg']
-            observaciones=json_response['observaciones']
-            MENSAJE_ERROR = "Código de Error..:" + str(status) + ", Ambiente:" + ambiente + ", ClasificaciónMsje:" + str(clasificaMsg) +", Descripcion:" + str(message) +", Detalle:" +  str(observaciones) +", DATA:  " +  str(json.dumps(payload_original))  
-            self.hacienda_estado= status
+
+        if json_response.get('estado') in ["RECHAZADO", 402]:
+            estado = json_response.get('estado')
+            amb = 'TEST' if json_response.get('ambiente') == '00' else 'PROD'
+            clasificaMsg = json_response.get('clasificaMsg')
+            message = json_response.get('descripcionMsg')
+            observaciones = json_response.get('observaciones')
+            MENSAJE_ERROR = (
+                f"Código de Error..:{estado}, Ambiente:{amb}, "
+                f"ClasificaciónMsje:{clasificaMsg}, Descripcion:{message}, "
+                f"Detalle:{observaciones}, DATA: {json.dumps(payload_original)}"
+            )
+            self.hacienda_estado = estado
             raise UserError(_(MENSAJE_ERROR))
+
         status = json_response.get('status')
-        if status and status in [400, 401, 402]:
-            _logger.info("SIT Error 40X  =%s", status)
-            error = json_response.get('error', 'Error desconocido')  # Si 'error' no existe, devuelve 'Error desconocido'
-            message = json_response.get('message', 'Mensaje no proporcionado')  # Si 'message' no existe, devuelve 'Mensaje no proporcionado'
-            MENSAJE_ERROR = "Código de Error:" + str(status) + ", Error:" + str(error) + ", Detalle:" + str(message)
+        if status in [400, 401, 402]:
+            error = json_response.get('error', 'Error desconocido')
+            message = json_response.get('message', 'Mensaje no proporcionado')
+            MENSAJE_ERROR = f"Código de Error:{status}, Error:{error}, Detalle:{message}"
             raise UserError(_(MENSAJE_ERROR))
-        if json_response['estado'] in [  "PROCESADO" ] :
+
+        if json_response.get('estado') == "PROCESADO":
             return json_response
-    
+
+        return None
 
     def check_parametros_fex(self):
+        """Valida solo si la FE está activa."""
+        if not self.env.company.sit_facturacion:
+            _logger.info("FE OFF: omitiendo check_parametros_fex en %s", self._name)
+            return None
+
         if not self.name:
-             raise UserError(_('El Número de control no definido'))       
+            raise UserError(_('El Número de control no definido'))
         if not self.company_id.tipoEstablecimiento.codigo:
-            raise UserError(_('El tipoEstablecimiento no definido'))        
-        if not self.sit_tipoAnulacion or self.sit_tipoAnulacion == False:
-            raise UserError(_('El tipoAnulacion no definido'))        
+            raise UserError(_('El tipoEstablecimiento no definido'))
+        if not self.sit_tipoAnulacion:
+            raise UserError(_('El tipoAnulacion no definido'))
+        return None
 
     def check_parametros_firmado_fex(self):
+        """Valida solo si la FE está activa."""
+        if not self.env.company.sit_facturacion:
+            _logger.info("FE OFF: omitiendo check_parametros_firmado_fex en %s", self._name)
+            return None
+
         if not self.journal_id.sit_tipo_documento.codigo:
             raise UserError(_('El Tipo de  DTE no definido.'))
         if not self.name:
@@ -290,19 +306,17 @@ class AccountMove(models.Model):
             raise UserError(_('El Tipo de DTE no definido.'))
         if not self.name:
             raise UserError(_('El Número de control no definido'))
+
         tipo_dte = self.journal_id.sit_tipo_documento.codigo
         if tipo_dte == '11':
-            # Solo validar el nombre para DTE tipo 01
             if not self.partner_id.name:
                 raise UserError(_('El receptor no tiene NOMBRE configurado para facturas tipo 01.'))
-            if not self.partner_id.vat and self.partner_id.is_company:
+            if self.partner_id.is_company and not self.partner_id.vat:
                 _logger.info("SIT, es compañia se requiere NIT")
                 raise UserError(_('El receptor no tiene NIT configurado.'))
-            if not self.partner_id.nrc and self.partner_id.is_company:
+            if self.partner_id.is_company and not self.partner_id.nrc:
                 _logger.info("SIT, es compañia se requiere NRC")
                 raise UserError(_('El receptor no tiene NRC configurado.'))
-            if not self.partner_id.name:
-                raise UserError(_('El receptor no tiene NOMBRE configurado.'))
             if not self.partner_id.codActividad:
                 raise UserError(_('El receptor no tiene CODIGO DE ACTIVIDAD configurado.'))
             if not self.partner_id.state_id:
@@ -314,37 +328,46 @@ class AccountMove(models.Model):
 
         if not self.invoice_line_ids:
             raise UserError(_('La factura no tiene LINEAS DE PRODUCTOS asociada.'))
+        return None
 
     def check_parametros_linea_firmado_fex(self, line_temp):
-        if not line_temp["codigo"]:
-            ERROR = 'El CODIGO del producto  ' + line_temp["descripcion"] + ' no está definido.'
-            raise UserError(_(ERROR))
-        if not line_temp["cantidad"]:
-            ERROR = 'La CANTIDAD del producto  ' + line_temp["descripcion"] + ' no está definida.'
-            raise UserError(_(ERROR))
-        if not  line_temp["precioUni"]:
-            ERROR = 'El PRECIO UNITARIO del producto  ' + line_temp["descripcion"] + ' no está definido.'
-            raise UserError(_(ERROR))
-        if not line_temp["uniMedida"]:
-            ERROR = 'La UNIVAD DE MEDIDA del producto  ' + line_temp["descripcion"] + ' no está definido.'
-            raise UserError(_(ERROR))
+        """Valida líneas solo si la FE está activa."""
+        if not self.env.company.sit_facturacion:
+            _logger.info("FE OFF: omitiendo check_parametros_linea_firmado_fex en %s", self._name)
+            return None
+
+        if not line_temp.get("codigo"):
+            raise UserError(_('El CODIGO del producto  %s no está definido.') % line_temp.get("descripcion"))
+        if not line_temp.get("cantidad"):
+            raise UserError(_('La CANTIDAD del producto  %s no está definida.') % line_temp.get("descripcion"))
+        if not line_temp.get("precioUni"):
+            raise UserError(_('El PRECIO UNITARIO del producto  %s no está definido.') % line_temp.get("descripcion"))
+        if not line_temp.get("uniMedida"):
+            raise UserError(_('La UNIDAD DE MEDIDA del producto  %s no está definida.') % line_temp.get("descripcion"))
+        return None
 
     def check_parametros_dte_fex(self, generacion_dte):
-        if not generacion_dte["ambiente"]:
-            ERROR = 'El ambiente  no está definido.'
-            raise UserError(_(ERROR))
-        if not generacion_dte["idEnvio"]:
-            ERROR = 'El IDENVIO  no está definido.'
-            raise UserError(_(ERROR))        
-        if not generacion_dte["documento"]:
-            ERROR = 'El DOCUMENTO  no está presente.'
-            raise UserError(_(ERROR))
-        if not generacion_dte["version"]:
-            ERROR = 'La version dte no está definida.'
-            raise UserError(_(ERROR))
+        """Valida el DTE solo si la FE está activa."""
+        if not self.env.company.sit_facturacion:
+            _logger.info("FE OFF: omitiendo check_parametros_dte_fex en %s", self._name)
+            return None
+
+        if not generacion_dte.get("ambiente"):
+            raise UserError(_('El ambiente  no está definido.'))
+        if not generacion_dte.get("idEnvio"):
+            raise UserError(_('El IDENVIO  no está definido.'))
+        if not generacion_dte.get("documento"):
+            raise UserError(_('El DOCUMENTO  no está presente.'))
+        if not generacion_dte.get("version"):
+            raise UserError(_('La version dte no está definida.'))
+        return None
 
     def sit_debug_mostrar_json_fse(self):
         """Solo muestra el JSON generado de la factura FSE sin enviarlo."""
+        if not self.env.company.sit_facturacion:
+            _logger.info("FE OFF: omitiendo sit_debug_mostrar_json_fse")
+            return True  # no bloquea la UI
+
         if len(self) != 1:
             raise UserError("Selecciona una sola factura para depurar el JSON.")
 
