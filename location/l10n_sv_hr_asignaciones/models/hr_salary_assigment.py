@@ -362,10 +362,10 @@ class HrSalaryAssignment(models.Model):
         try:
             records = []
             asignaciones_omitidas = []
-            horas_validas = False
+            #horas_validas = False
 
             for vals in vals_list:
-                self._validar_asignacion(vals)
+                #self._validar_asignacion(vals)
                 empleado = None
                 _logger.info("Creando asignación con datos: %s", vals)
                 if vals.get("tipo") == "COMISION":
@@ -385,19 +385,19 @@ class HrSalaryAssignment(models.Model):
                     _logger.info("Procesando asignación tipo: %s", tipo)
 
                     # Validación correcta de horas extras
-                    if tipo == constants.ASIGNACION_HORAS_EXTRA.upper():
-                        horas_validas = False
-                    for cmd in vals.get('horas_extras_ids', []):
-                        if cmd[0] == 0 and isinstance(cmd[2], dict):
-                            if any(float(cmd[2].get(campo, 0) or 0) > 0 for campo in [
-                                constants.HORAS_DIURNAS, constants.HORAS_NOCTURNAS,
-                                constants.HORAS_DIURNAS_DESCANSO, constants.HORAS_NOCTURNAS_DESCANSO,
-                                constants.HORAS_DIURNAS_ASUETO, constants.HORAS_NOCTURNAS_ASUETO
-                            ]):
-                                horas_validas = True
-                                break
-                    if not horas_validas:
-                        raise UserError("No puede guardar una asignación de horas extras sin ingresar al menos una hora.")
+                    # if tipo == constants.ASIGNACION_HORAS_EXTRA.upper():
+                    #     horas_validas = False
+                    # for cmd in vals.get('horas_extras_ids', []):
+                    #     if cmd[0] == 0 and isinstance(cmd[2], dict):
+                    #         if any(float(cmd[2].get(campo, 0) or 0) > 0 for campo in [
+                    #             constants.HORAS_DIURNAS, constants.HORAS_NOCTURNAS,
+                    #             constants.HORAS_DIURNAS_DESCANSO, constants.HORAS_NOCTURNAS_DESCANSO,
+                    #             constants.HORAS_DIURNAS_ASUETO, constants.HORAS_NOCTURNAS_ASUETO
+                    #         ]):
+                    #             horas_validas = True
+                    #             break
+                    # if not horas_validas:
+                    #     raise UserError("No puede guardar una asignación de horas extras sin ingresar al menos una hora.")
 
                     # Buscar empleado por código o ID
                     codigo_empleado = vals.get('codigo_empleado')
@@ -490,8 +490,8 @@ class HrSalaryAssignment(models.Model):
                         vals['monto'] = float_round(monto_total, precision_digits=2)
 
                         # Validar que el monto sea mayor que cero
-                        if not vals['monto'] or vals['monto'] <= 0:
-                            raise ValidationError(_("El monto de horas extras debe ser mayor que cero."))
+                        # if not vals['monto'] or vals['monto'] <= 0:
+                        #     raise ValidationError(_("El monto de horas extras debe ser mayor que cero."))
                         # También guarda la descripción en las horas extras
                         if 'horas_extras_ids' in vals and horas_dict:
                             for cmd in vals['horas_extras_ids']:
@@ -532,20 +532,20 @@ class HrSalaryAssignment(models.Model):
             raise
 
 
-    def _validar_asignacion(self, vals, record=None):
-        """
-        Valida que:
-        - Exista empleado
-        - Exista tipo de asignacion
-        """
-        empleado_id = vals.get('employee_id') or (record and record.employee_id.id)
-        tipo = vals.get('tipo') or (record and record.tipo)
-
-        if not empleado_id:
-            raise ValidationError(_("Debe seleccionar un empleado."))
-
-        if not tipo:
-            raise ValidationError(_("Debe seleccionar el tipo de asignación."))
+    # def _validar_asignacion(self, vals, record=None):
+    #     """
+    #     Valida que:
+    #     - Exista empleado
+    #     - Exista tipo de asignacion
+    #     """
+    #     empleado_id = vals.get('employee_id') or (record and record.employee_id.id)
+    #     tipo = vals.get('tipo') or (record and record.tipo)
+    #
+    #     if not empleado_id:
+    #         raise ValidationError(_("Debe seleccionar un empleado."))
+    #
+    #     if not tipo:
+    #         raise ValidationError(_("Debe seleccionar el tipo de asignación."))
 
     def action_descargar_plantilla(self):
         """
