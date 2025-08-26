@@ -137,7 +137,7 @@ def get_monthly_wage_from_contract(contract):
     _logger.info("Contrato %s | wage=%.2f | schedule_pay=%s | factor=%.4f", contract.name, contract.wage, contract.schedule_pay, SCHEDULE_PAY_CONVERSION.get(contract.schedule_pay or 'monthly', 1.0))
     return contract.wage * factor
 
-def get_hourly_rate_from_contract(contract):
+def get_hourly_rate_from_contract(contract):#Se utilizaba para vacaciones parciales
     """
     Devuelve el valor por hora del contrato.
     - Si wage_type=hourly → usa contract.hourly_wage (lanza error si falta)
