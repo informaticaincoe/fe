@@ -27,7 +27,6 @@
         "report/report_payslip_incoe.xml",
         "report/report_override_lang.xml",
         "views/hr_payslip_views.xml",
-        #"views/hr_payslip_month_summary_views.xml",
         'data/mail_template_payslip.xml'
         # 'views/hr_payroll_reports_vacations.xml'
     ],
