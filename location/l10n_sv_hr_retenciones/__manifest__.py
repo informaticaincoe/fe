@@ -39,6 +39,7 @@
         "views/hr_leave_vacation_type.xml",
 
         "views/hr_contract_form_view.xml",
+        "views/hr_payroll_structure_form_inherit_view.xml",
     ],
     "installable": True,
     "auto_install": False,

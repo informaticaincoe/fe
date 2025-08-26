@@ -1,0 +1,12 @@
+<odoo>
+    <record id="view_hr_payroll_structure_form_inherit_vacacion" model="ir.ui.view">
+        <field name="name">hr.payroll.structure.form.vacacion</field>
+        <field name="model">hr.payroll.structure</field>
+        <field name="inherit_id" ref="hr_payroll_account.hr_payroll_structure_view_form"/>
+        <field name="arch" type="xml">
+            <field name="type_id" position="after">
+                <field name="is_vacation"/>
+            </field>
+        </field>
+    </record>
+</odoo>

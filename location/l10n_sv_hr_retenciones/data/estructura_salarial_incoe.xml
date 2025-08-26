@@ -9,6 +9,7 @@
         <record id="structure_type_incoe" model="hr.payroll.structure.type">
             <field name="name">Planilla de Pagos</field>
             <field name="default_schedule_pay">semi-monthly</field>
+            <field name="country_id" eval="False"/>
         </record>
 
         <!-- ===========================
@@ -21,6 +22,7 @@
             <field name="name">Planilla - Empleado</field>
             <field name="code">INCOE</field>
             <field name="type_id" ref="l10n_sv_hr_retenciones.structure_type_incoe"/>
+            <field name="country_id" eval="False"/>
         </record>
         <record id="structure_type_incoe" model="hr.payroll.structure.type">
             <field name="default_struct_id" ref="l10n_sv_hr_retenciones.structure_incoe"/>
@@ -31,9 +33,12 @@
             <field name="name">Planilla - Vacaciones</field>
             <field name="code">PLAN_VAC</field>
             <field name="type_id" ref="structure_type_incoe"/>
+            <field name="country_id" eval="False"/>
+            <field name="is_vacation" eval="True"/>
         </record>
         <record id="structure_type_incoe" model="hr.payroll.structure.type">
             <field name="default_struct_id" ref="l10n_sv_hr_retenciones.structure_incoe"/>
+            <field name="country_id" eval="False"/>
         </record>
 
         <!-- Servicios profesionales hereda reglas -->
@@ -41,9 +46,11 @@
             <field name="name">Planilla - Servicios Profesionales</field>
             <field name="code">PLAN_PRO</field>
             <field name="type_id" ref="structure_type_incoe"/>
+            <field name="country_id" eval="False"/>
         </record>
         <record id="structure_type_incoe" model="hr.payroll.structure.type">
             <field name="default_struct_id" ref="l10n_sv_hr_retenciones.structure_incoe"/>
+            <field name="country_id" eval="False"/>
         </record>
 
     </data>

@@ -5,6 +5,7 @@
         <record id="input_type_deduccion_fondo_pensiones" model="hr.payslip.input.type">
             <field name="name">Fondo de pensiones</field>
             <field name="code">FONDO_PENSIONES</field>
+            <field name="country_id" eval="False"/>
         </record>
 
         <record id="attachment_type_fondo_pensiones" model="hr.payslip.input.type">
@@ -13,6 +14,7 @@
             <field name="code">FONDO_PENSIONES</field>
             <field name="create_uid">2</field>
             <field name="write_uid">2</field>
+            <field name="country_id" eval="False"/>
         </record>
 
         <!-- Crear regla salarial de deducción de renta -->

@@ -108,9 +108,16 @@ class HrPayslip(models.Model):
         # 1. Crear inputs necesarios ANTES del cálculo estándar
         for payslip in self:
 
-            if self.es_nomina_de_vacacion(payslip):
+            if payslip.es_nomina_de_vacacion(payslip):
                 _logger.info("Detectada nómina de vacaciones %s → preparando inputs antes del cálculo", payslip.name)
-                self._agregar_regla_vacaciones(payslip)
+
+                if not payslip.struct_id.is_vacation:
+                    raise UserError(
+                        "La estructura seleccionada (%s) no está configurada como de vacaciones. "
+                        "Por favor, seleccione una estructura válida." % (payslip.struct_id.name or "N/A")
+                    )
+
+                #payslip._agregar_regla_vacaciones(payslip)
             contract = payslip.contract_id
             _logger.info("Procesando nómina normal: %s para contrato %s", payslip.name, contract.name if contract else "N/A")
 
@@ -138,12 +145,14 @@ class HrPayslip(models.Model):
                 _logger.info(">>>  %s primera_quincena", primera_quincena)
 
                 ISSS_anterior = primera_quincena.input_line_ids.filtered(lambda l: l.name == "Deducción ISSS")
+                _logger.info(">>>Quincena anterior: %s ", ISSS_anterior)
+
                 ISSS_actual = payslip.input_line_ids.filtered(lambda l: l.name == "Deducción ISSS")
 
                 _logger.info(">>>  %s ISS quincena anterior", ISSS_anterior.amount)
                 _logger.info(">>>  %s ISS quincena actual", ISSS_actual.amount)
 
-                _logger.info(">>>  %s pago mensual", contract.monthly_yearly_costs)
+                #_logger.info(">>>  %s pago mensual", contract.monthly_yearly_costs)
 
 
 
@@ -451,7 +460,7 @@ class HrPayslip(models.Model):
         dias_tomados = self._get_dias_vacaciones_tomados(slip)
 
         # Primero ajusta las líneas worked_days según work_entries reales
-        self._ajustar_lineas_vacaciones()
+        #self._ajustar_lineas_vacaciones()
 
         # NUEVO: obtener el importe real ya calculado en worked_days_line_ids para vacaciones
         base_vacaciones = sum(
