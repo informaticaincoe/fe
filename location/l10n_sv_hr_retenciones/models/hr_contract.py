@@ -558,6 +558,7 @@ class HrContract(models.Model):
 
         _logger.info("Cálculo de aporte patronal para contrato ID %s. Tipo: %s. Salario base: %.2f", self.id, tipo, salario)
 
+        tipo_isss = None
         if tipo == constants.TIPO_DED_ISSS:
             tipo_isss = self.env['hr.retencion.isss'].search([('tipo', '=', constants.DEDUCCION_EMPLEADOR)], limit=1)
 
@@ -578,29 +579,51 @@ class HrContract(models.Model):
                                  tipo_isss.porcentaje * 100, resultado)
 
                     _logger.info("2 quincena patronal isss =%.2f", resultado - rete_patronal_isss)
-                    return resultado - rete_patronal_isss
+                    return float_round(resultado - rete_patronal_isss, precision_digits=2)
 
                 base = salario if tipo_isss.techo == 0.0 else min(salario, tipo_isss.techo)
                 resultado = base * (tipo_isss.porcentaje / 100)
                 _logger.info("ISSS Patronal: base=%.2f, porcentaje=%.2f%%, resultado=%.2f", base, tipo_isss.porcentaje * 100, resultado)
-                return resultado
+                return float_round(resultado, precision_digits=2)
             _logger.warning("No se encontró configuración ISSS para empleador.")
             return 0.0
         elif tipo != constants.TIPO_DED_ISSS:  # afp
             tipo_afp = None
+            tipo_af_ded = None
             if self.afp_id and self.afp_id == constants.AFP_IPSFA:
                 tipo_afp = self.env['hr.retencion.afp'].search([('tipo', '=', constants.DEDUCCION_IPSFA_EMPLEADOR)], limit=1)
+                tipo_af_ded = constants.COD_IPSFA_EMP
             elif self.afp_id and self.afp_id == constants.AFP_CONFIA:
                 tipo_afp = self.env['hr.retencion.afp'].search([('tipo', '=', constants.DEDUCCION_AFP_CONF_EMPLEADOR)], limit=1)
+                tipo_af_ded = constants.COD_AFP_CONF_EMP
             else:
                 tipo_afp = self.env['hr.retencion.afp'].search([('tipo', '=', constants.DEDUCCION_EMPLEADOR)], limit=1)
-            _logger.info("TIPO AFP %s ", tipo_afp)
+                tipo_af_ded = constants.COD_AFP_EMP
+            _logger.info("TIPO AFP: %s | COD TIPO DE ENTRADA: %s", tipo_afp, tipo_af_ded)
             _logger.info("TIPO AFP %s", tipo_afp.porcentaje)
+
             if tipo_afp:
+                rete_patronal_afp = 0.0
+                if payslip.period_quincena == '2':
+                    if primera_quincena:
+                        _logger.info(">>>  %s primera_quincena afp", primera_quincena)
+
+                        # líneas calculadas (hr.payslip.line) dentro del slip
+                        rete_patronal_afp_line = primera_quincena.line_ids.filtered(lambda l: (l.code or '').upper() == tipo_af_ded)
+                        # ejemplo: total del bono
+                        rete_patronal_afp = sum(rete_patronal_afp_line.mapped('total'))
+
+                    base = salario if tipo_afp.techo == 0.0 else min(salario, tipo_afp.techo * 2)
+                    resultado = base * (tipo_afp.porcentaje / 100)
+                    _logger.info("AFP Patronal: base=%.2f, porcentaje=%.2f%%, resultado=%s, retencion patronical=%s", base, tipo_afp.porcentaje * 100, resultado, rete_patronal_afp)
+
+                    _logger.info("2 quincena patronal afp =%s", resultado - rete_patronal_afp)
+                    return float_round((resultado - rete_patronal_afp), precision_digits=2)
+
                 base = salario if tipo_afp.techo == 0.0 else min(salario, tipo_afp.techo)
                 resultado = base * (tipo_afp.porcentaje / 100)
                 _logger.info("AFP Patronal: base=%.2f, porcentaje=%.2f%%, resultado=%.2f", base, tipo_afp.porcentaje * 100, resultado)
-                return resultado
+                return float_round(resultado, precision_digits=2)
             _logger.warning("No se encontró configuración AFP para empleador.")
             return 0.0
 
@@ -638,8 +661,10 @@ class HrContract(models.Model):
             _logger.info("Config INCAF encontrada: porcentaje=%.2f%%", isss_incaf.porcentaje)
 
             porcentaje = isss_incaf.porcentaje or 0.0  # Porcentaje de deducción INCAF
-            resultado = salario * (porcentaje / 100.0)
+            techo = isss_incaf.techo or 0.0
 
+            base = min(salario, techo) if techo > 0 else salario
+            resultado = base * (porcentaje / 100.0)
             _logger.info("INCAF para contrato ID %s: %.2f * 1%% = %.2f", self.id, salario, resultado)
             return resultado
 

@@ -108,16 +108,15 @@ class HrPayslip(models.Model):
         # 1. Crear inputs necesarios ANTES del cálculo estándar
         for payslip in self:
 
-            if payslip.es_nomina_de_vacacion(payslip):
+            if self.es_nomina_de_vacacion(payslip):
                 _logger.info("Detectada nómina de vacaciones %s → preparando inputs antes del cálculo", payslip.name)
 
-                if not payslip.struct_id.is_vacation:
-                    raise UserError(
-                        "La estructura seleccionada (%s) no está configurada como de vacaciones. "
-                        "Por favor, seleccione una estructura válida." % (payslip.struct_id.name or "N/A")
-                    )
-
-                #payslip._agregar_regla_vacaciones(payslip)
+                # if not payslip.struct_id.is_vacation:
+                #     raise UserError(
+                #         "La estructura seleccionada (%s) no está configurada como de vacaciones. "
+                #         "Por favor, seleccione una estructura válida." % (payslip.struct_id.name or "N/A")
+                #     )
+                payslip._agregar_regla_vacaciones(payslip)
             contract = payslip.contract_id
             _logger.info("Procesando nómina normal: %s para contrato %s", payslip.name, contract.name if contract else "N/A")
 
@@ -283,8 +282,7 @@ class HrPayslip(models.Model):
                     'payslip_id': slip.id,
                     'input_type_id': tipo.id,
                 })
-                _logger.info("Input agregado: código=%s, nombre=%s, monto=%.2f, nómina ID=%d", code, tipo.name, valor,
-                             slip.id)
+                _logger.info("Input agregado: código=%s, nombre=%s, monto=%.2f, nómina ID=%d", code, tipo.name, valor, slip.id)
             else:
                 _logger.warning("Tipo de input para código %s no encontrado, no se creó input", code)
 
