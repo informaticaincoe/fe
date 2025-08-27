@@ -28,8 +28,13 @@ import re
 
 _logger = logging.getLogger(__name__)
 
-EXTRA_ADDONS = r'C:\Users\Administrador\Documents\fe\location\mnt\src'
+
+#EXTRA_ADDONS = r'C:\Users\Administrador\Documents\fe\location\mnt\src'
 #EXTRA_ADDONS = r'C:\Users\INCOE\Documents\GitHub\fe\location\mnt\extra-addons\src'
+
+# Ruta raíz del proyecto (donde está tu carpeta 'fe')
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+EXTRA_ADDONS = os.path.join(PROJECT_ROOT, "mnt", "extra-addons", "src")
 
 try:
     from odoo.addons.common_utils.utils import config_utils
@@ -143,6 +148,7 @@ class AccountMoveInvalidation(models.Model):
 
     display_name = fields.Char(compute='_compute_display_name')
     correo_enviado_invalidacion = fields.Boolean(string="Correo enviado en la creacion del dte", copy=False)
+    company_id = fields.Many2one('res.company', string="Compañía")
 
     @api.model
     def _get_tipo_Anulacion_selection(self):
@@ -406,6 +412,7 @@ class AccountMoveInvalidation(models.Model):
                                     'sit_json_respuesta_invalidacion': invoice.sit_json_respuesta_invalidacion,
                                     'state': 'annulment',
                                     'invalidacion_recibida_mh': True,
+                                    'company_id': self.company_id.id
                                 })
 
                                 # Guardar archivo .pdf y enviar correo al cliente

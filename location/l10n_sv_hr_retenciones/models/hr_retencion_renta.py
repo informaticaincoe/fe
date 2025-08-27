@@ -12,3 +12,4 @@ class HrRetencionRenta(models.Model):
     codigo = fields.Char("Código", required=True)
     nombre = fields.Char("Tipo de retencion", required=True)
     tramo_ids = fields.One2many('hr.retencion.tramo', 'retencion_id', string="Tramos de Renta")
+    company_id = fields.Many2one('res.company', string="Compañía", ondelete="set null")

@@ -87,10 +87,13 @@ class HrPayslip(models.Model):
                     _logger.warning(f"[{tipo}] Tipo de entrada '{tipo}' no encontrado, se omite.")
                     continue
 
+                company_id = self.env.company.id or slip.company_id.id
+
                 # 1. Liberar asignaciones previas
                 asignaciones_previas = self.env['hr.salary.assignment'].search([
                     ('payslip_id', '=', slip.id),
                     ('tipo', '=', tipo),
+                    ('company_id', '=', company_id),
                 ])
                 asignaciones_previas.write({'payslip_id': False})
                 _logger.info(f"[{tipo}] Asignaciones previas liberadas: {len(asignaciones_previas)}")
@@ -102,6 +105,7 @@ class HrPayslip(models.Model):
                     ('payslip_id', '=', False),
                     ('periodo', '>=', slip.date_from),
                     ('periodo', '<=', slip.date_to),
+                    ('company_id', '=', company_id),
                 ])
                 _logger.info(f"[{tipo}] Asignaciones encontradas: {len(asignaciones)}")
 
@@ -112,6 +116,7 @@ class HrPayslip(models.Model):
                         'input_type_id': input_type.id,
                         'amount': float_round(asignacion.monto, precision_digits=2),
                         'name': asignacion.description or tipo.title(),
+                        'company_id': company_id,
                     })
                     asignacion.payslip_id = slip.id  # Marcamos como ya utilizada en este recibo
                     _logger.info(f"[{tipo}] Asignación {asignacion.id} aplicada con monto: {asignacion.monto}")

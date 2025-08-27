@@ -11,3 +11,4 @@ class HrRetencionTramo(models.Model):
     porcentaje_excedente = fields.Float("Porcentaje aplicable (%)", required=True)
     exceso_sobre = fields.Float("Sobre el exceso de", required=True)
     cuota_fija = fields.Float("Cuota fija", required=True)
+    company_id = fields.Many2one('res.company', string="Compañía", ondelete="set null")

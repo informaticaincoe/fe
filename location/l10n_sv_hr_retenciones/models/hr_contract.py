@@ -45,6 +45,9 @@ class HrContract(models.Model):
         fecha_inicio = payslip.date_from if payslip else None
         fecha_fin = payslip.date_to if payslip else None
 
+        # Determinar la empresa correcta
+        company_id = payslip.company_id.id if payslip else self.env.company.id
+
         # Usa bruto de payslip si está definido, de lo contrario usa wage
         bruto = salario_bruto_payslip if salario_bruto_payslip is not None else payslip.basic_wage or 0.0
         _logger.info("Salario base del contrato ID PRIEMRA QUINCEAN %s = %.2f", self.id, bruto)
@@ -64,7 +67,7 @@ class HrContract(models.Model):
         if code_desc_septimo:
             faltas_codes.append(str(code_desc_septimo).upper())
         else:
-            faltas_codes.append('DESC_FALTA_SEPTIMO')  # fallback razonable
+            faltas_codes.append('DESC_FALTA_SEPTIMO')
 
         if payslip and payslip.is_vacation_payslip:
             faltas_codes.append(constants.REGLASAL_VACACION.upper())
@@ -74,6 +77,7 @@ class HrContract(models.Model):
         domain = [
             ('employee_id', '=', self.employee_id.id),
             ('tipo', 'in', tipos_incluidos),
+            ('company_id', '=', company_id),
         ]
 
         if fecha_inicio and fecha_fin:
@@ -82,8 +86,11 @@ class HrContract(models.Model):
 
         try:
             asignaciones = self.env['hr.salary.assignment'].search(domain)
-            #tabla hr_playslip_input y hr_playslip_input_type buscar
-            _logger.info("Se encontraron %d asignaciones para contrato ID %s en el rango %s - %s", len(asignaciones), self.id, fecha_inicio, fecha_fin)
+            # tabla hr_playslip_input y hr_playslip_input_type buscar
+            _logger.info(
+                "Se encontraron %d asignaciones para contrato ID %s en el rango %s - %s (empresa %s)",
+                len(asignaciones), self.id, fecha_inicio, fecha_fin, company_id
+            )
         except Exception as e:
             _logger.error("Error al buscar asignaciones para contrato %s: %s", self.id, e)
             asignaciones = []
@@ -92,28 +99,39 @@ class HrContract(models.Model):
         faltas_total = 0.0
         if payslip:
             # 1) Buscar los tipos de input cuyo code esté en faltas_codes
-            input_types = self.env['hr.payslip.input.type'].search([('code', 'in', faltas_codes)])
+            input_types = self.env['hr.payslip.input.type'].search([
+                ('code', 'in', faltas_codes),
+                ('company_id', '=', company_id),
+            ])
             if not input_types:
-                _logger.warning("No existen hr.payslip.input.type para códigos de faltas %s. Verificar datos.", faltas_codes)
+                _logger.warning(
+                    "No existen hr.payslip.input.type para códigos %s en empresa %s",
+                    faltas_codes, company_id
+                )
             else:
                 # 2) Buscar inputs del payslip que pertenezcan a esos tipos
                 inputs_faltas = self.env['hr.payslip.input'].search([
                     ('payslip_id', '=', payslip.id),
                     ('input_type_id', 'in', input_types.ids),
+                    ('company_id', '=', company_id),
                 ])
                 # Importante: en tu implementación de séptimos, pones los montos en negativo.
                 # Aquí simplemente sumamos (serán negativos y por tanto restarán al bruto).
                 faltas_total = sum(inp.amount for inp in inputs_faltas)
 
                 _logger.info(
-                    "Faltas detectadas para payslip %s: tipos=%s | inputs=%d | total=%.2f",
-                    payslip.number or payslip.id, [t.code for t in input_types], len(inputs_faltas), faltas_total
+                    "Faltas detectadas para payslip %s (empresa %s): tipos=%s | inputs=%d | total=%.2f",
+                    payslip.number or payslip.id, company_id,
+                    [t.code for t in input_types], len(inputs_faltas), faltas_total
                 )
 
         monto_extra = sum(asignacion.monto for asignacion in asignaciones)
         _logger.info("monto_extra %s: %s", self.id, monto_extra)
         bruto_total = bruto + monto_extra + faltas_total
-        _logger.info("Bruto total para contrato ID %s: salario base %.2f + faltas_total %.2f +asignaciones %.2f = %.2f", self.id, bruto, faltas_total, monto_extra, bruto_total)
+        _logger.info(
+            "Bruto total para contrato ID %s (empresa %s): salario base %.2f + faltas_total %.2f + asignaciones %.2f = %.2f",
+            self.id, company_id, bruto, faltas_total, monto_extra, bruto_total
+        )
 
         return bruto_total
 
@@ -121,11 +139,9 @@ class HrContract(models.Model):
 
         afp_empleado = None
         if self.afp_id and self.afp_id == constants.AFP_IPSFA:
-            afp_empleado = self.env['hr.retencion.afp'].search([('tipo', '=', constants.DEDUCCION_IPSFA_EMPLEADO)],
-                                                               limit=1)
+            afp_empleado = self.env['hr.retencion.afp'].search([('tipo', '=', constants.DEDUCCION_IPSFA_EMPLEADO)], limit=1)
         elif self.afp_id and self.afp_id == constants.AFP_CONFIA:
-            afp_empleado = self.env['hr.retencion.afp'].search([('tipo', '=', constants.DEDUCCION_AFP_CONF_EMPLEADO)],
-                                                               limit=1)
+            afp_empleado = self.env['hr.retencion.afp'].search([('tipo', '=', constants.DEDUCCION_AFP_CONF_EMPLEADO)], limit=1)
         else:
             afp_empleado = self.env['hr.retencion.afp'].search([('tipo', '=', constants.DEDUCCION_EMPLEADO)], limit=1)
 
@@ -137,10 +153,10 @@ class HrContract(models.Model):
         porcentaje_afp = afp_empleado.porcentaje or 0.0  # Porcentaje de deducción AFP
         techo = afp_empleado.techo or 0.0  # Techo máximo de deducción AFP
 
-
         primera_quincena = self.env['hr.payslip'].search(
-            [('employee_id', '=', payslip.employee_id.id), ('period_quincena', "=", '1'),
-             ('period_month', "=", payslip.period_month)], limit=1)
+            [('employee_id', '=', payslip.employee_id.id), ('period_quincena', '=', '1'),
+             ('period_month', '=', payslip.period_month),  ('company_id', '=', payslip.company_id.id),], limit=1)
+
         afp_names = ["Deducción AFP","AFP CRECER", "AFP CONFIA", "AIPSFA"]
         afp_primera_quincena = primera_quincena.input_line_ids.filtered(
             lambda l: l.name in afp_names
@@ -172,8 +188,8 @@ class HrContract(models.Model):
         salario_bruto_mensual = 0.0
         if payslip.period_quincena == '2':
             primera_quincena = self.env['hr.payslip'].search(
-                [('employee_id', '=', payslip.employee_id.id), ('period_quincena', "=", '1'),
-                 ('period_month', "=", payslip.period_month)], limit=1)
+                [('employee_id', '=', payslip.employee_id.id), ('period_quincena', '=', '1'),
+                 ('period_month', '=', payslip.period_month), ('company_id', '=', payslip.company_id.id), ], limit=1)
 
             _logger.info(">>>  %s primera_quincena", primera_quincena)
 
@@ -244,8 +260,9 @@ class HrContract(models.Model):
 
     def calculo_de_techo_mensual(self, payslip, deduccion):
         primera_quincena = self.env['hr.payslip'].search(
-            [('employee_id', '=', payslip.employee_id.id), ('period_quincena', "=", '1'),
-             ('period_month', "=", payslip.period_month)], limit=1)
+            [('employee_id', '=', payslip.employee_id.id), ('period_quincena', '=', '1'),
+             ('period_month', '=', payslip.period_month), ('company_id', '=', payslip.company_id.id), ], limit=1)
+
         _logger.info(">>>  %s primera_quincena", primera_quincena)
         return deduccion.techo * 2
 
@@ -261,10 +278,10 @@ class HrContract(models.Model):
 
         porcentaje = isss_empleado.porcentaje or 0.0  # Porcentaje de deducción ISSS
         techo = isss_empleado.techo or 0.0  # Techo máximo de deducción ISSS
-
         primera_quincena = self.env['hr.payslip'].search(
-            [('employee_id', '=', payslip.employee_id.id), ('period_quincena', "=", '1'),
-             ('period_month', "=", payslip.period_month)], limit=1)
+            [('employee_id', '=', payslip.employee_id.id), ('period_quincena', '=', '1'),
+            ('period_month', '=', payslip.period_month), ('company_id', '=', payslip.company_id.id), ], limit=1)
+
         isss_primera_quincena = primera_quincena.input_line_ids.filtered(lambda l: l.name == "Deducción ISSS")
         _logger.info("PRIMERA CALCULO QUINCENA ISSS= %.2f", isss_primera_quincena.amount)
 
@@ -291,8 +308,9 @@ class HrContract(models.Model):
         salario_bruto_mensual = 0.0
         if payslip.period_quincena == '2':
             primera_quincena = self.env['hr.payslip'].search(
-                [('employee_id', '=', payslip.employee_id.id), ('period_quincena', "=", '1'),
-                 ('period_month', "=", payslip.period_month)], limit=1)
+                [('employee_id', '=', payslip.employee_id.id), ('period_quincena', '=', '1'),
+                ('period_month', '=', payslip.period_month), ('company_id', '=', payslip.company_id.id), ], limit=1)
+
             _logger.info(">>>  %s primera_quincena", primera_quincena)
 
             if primera_quincena:
@@ -355,8 +373,8 @@ class HrContract(models.Model):
         salario_bruto_mensual = 0.0
         if payslip.period_quincena == '2':
             primera_quincena = self.env['hr.payslip'].search(
-                [('employee_id', '=', payslip.employee_id.id), ('period_quincena', "=", '1'),
-                 ('period_month', "=", payslip.period_month)], limit=1)
+                [('employee_id', '=', payslip.employee_id.id), ('period_quincena', '=', '1'),
+                ('period_month', '=', payslip.period_month), ('company_id', '=', payslip.company_id.id), ], limit=1)
             _logger.info(">>>  %s primera_quincena", primera_quincena)
 
             if primera_quincena:
@@ -526,8 +544,8 @@ class HrContract(models.Model):
         salario_bruto_q1 = 0.0
         if payslip.period_quincena == '2':
             primera_quincena = self.env['hr.payslip'].search(
-                [('employee_id', '=', payslip.employee_id.id), ('period_quincena', "=", '1'),
-                 ('period_month', "=", payslip.period_month)], limit=1)
+                [('employee_id', '=', payslip.employee_id.id), ('period_quincena', '=', '1'),
+                 ('period_month', '=', payslip.period_month), ('company_id', '=', payslip.company_id.id), ], limit=1)
             _logger.info(">>>  %s primera_quincena", primera_quincena)
 
             # líneas calculadas (hr.payslip.line) dentro del slip

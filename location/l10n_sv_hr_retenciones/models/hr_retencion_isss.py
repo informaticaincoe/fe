@@ -11,3 +11,4 @@ class HrRetencionISSS(models.Model):
         ('patron', 'Patrón'),
         ('incaf', 'INCAF')
     ], string="Tipo de Aportante", required=True)
+    company_id = fields.Many2one('res.company', string="Compañía", ondelete="set null")

@@ -14,3 +14,4 @@ class HrRetencionAFP(models.Model):
         ('ipsfa_empleado', 'IPSFA Empleado'),
         ('ipsfa_empleador', 'IPSFA Empleador')
     ], string="Tipo de Aportante", required=True)
+    company_id = fields.Many2one('res.company', string="Compañía", ondelete="set null")

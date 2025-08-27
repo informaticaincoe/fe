@@ -117,6 +117,7 @@ class sit_account_lote(models.Model):
     ]
 
     journal_id = fields.Many2one('account.journal', string='Diario', required=False)
+    company_id = fields.Many2one('res.company', string="Compañía")
 
     @api.model_create_multi
     def create(self, vals_list):
