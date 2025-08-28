@@ -436,8 +436,9 @@ class AccountMoveInvalidation(models.Model):
                     resultado_final["mensaje"] = f"Invalidación rechazada o error MH: {mensaje}"
                     resultado_final["resultado_mh"] = Resultado
             except Exception as e:
-                resultado_final["mensaje"] = str(e)
-                _logger.error("Error en button_anul: %s", e)
+                error_message = str(e) if e else "Error desconocido"
+                resultado_final["mensaje"] = error_message
+                _logger.error("Error en button_anul: %s", error_message)
         _logger.info("SIT [FIN] button_anul")
         return resultado_final
 

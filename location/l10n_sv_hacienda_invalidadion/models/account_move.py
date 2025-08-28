@@ -28,8 +28,11 @@ from pytz import timezone, UTC
 
 _logger = logging.getLogger(__name__)
 
-EXTRA_ADDONS = r'C:\Users\Administrador\Documents\fe\location\mnt\src'
+#EXTRA_ADDONS = r'C:\Users\Administrador\Documents\fe\location\mnt\src'
 #EXTRA_ADDONS = r'C:\Users\INCOE\Documents\GitHub\fe\location\mnt\extra-addons\src'
+
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+EXTRA_ADDONS = os.path.join(PROJECT_ROOT, "mnt", "extra-addons", "src")
 
 try:
     from odoo.addons.common_utils.utils import constants

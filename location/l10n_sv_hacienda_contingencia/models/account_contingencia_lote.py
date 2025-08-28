@@ -202,6 +202,7 @@ class sit_AccountContingencia(models.Model):
                     'sit_json_respuesta': json.dumps(dte_lote) if isinstance(dte_lote, dict) else str(dte_lote),
                 }
 
+                lote_record = None
                 if lote.exists():
                     lote.write(lote_vals)
                     lote_record = lote
