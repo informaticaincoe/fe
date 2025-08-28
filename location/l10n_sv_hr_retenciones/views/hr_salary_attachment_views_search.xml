@@ -1,0 +1,53 @@
+<odoo>
+    <data>
+        <record id="view_hr_salary_attachment_search_inherit" model="ir.ui.view">
+            <field name="name">hr.salary.attachment.search.inherit</field>
+            <field name="model">hr.salary.attachment</field>
+            <!-- Asegúrate de que este ID de herencia es correcto para tu instalación de Odoo -->
+            <field name="inherit_id" ref="hr_payroll.hr_salary_attachment_view_search"/>
+            <field name="arch" type="xml">
+                <xpath expr="//search" position="inside">
+                    <field name="employee_ids" filter_domain="[('employee_ids.name', 'ilike', self)]"
+                           string="Empleado"/>
+                    <field name="description" string="Descripción"/>
+
+                    <group expand="0" string="Agrupar Por">
+                        <filter name="group_by_employee_name" string="Empleado"
+                                context="{'group_by': 'employee_name'}"/>
+                        <filter name="group_by_date_start" string="Fecha Completa"
+                                context="{'group_by': 'date_start:day'}"/>
+                    </group>
+
+                    <searchpanel>
+                        <field name="period_year" string="AÑO" select="one" enable_counters="1"/>
+                        <field name="period_month" string="MES" select="one" enable_counters="1"/>
+                        <field name="period_quincena" string="QUINCENA" select="one" enable_counters="1"/>
+                    </searchpanel>
+
+                    <filter name="mes_actual"
+                            string="Mes actual"
+                            domain="[('period_year','=', time.strftime('%%Y')), ('period_month','=', time.strftime('%%m'))]"/>
+                    <filter name="q1_mes_actual"
+                            string="1ª quincena (mes actual)"
+                            domain="[('period_year','=', time.strftime('%%Y')),
+                               ('period_month','=', time.strftime('%%m')),
+                               ('period_quincena','=','1')]"/>
+                    <filter name="q2_mes_actual"
+                            string="2ª quincena (mes actual)"
+                            domain="[('period_year','=', time.strftime('%%Y')),
+                               ('period_month','=', time.strftime('%%m')),
+                               ('period_quincena','=','2')]"/>
+                </xpath>
+            </field>
+        </record>
+
+        <record id="action_hr_salary_attachment_custom" model="ir.actions.act_window">
+            <field name="name">Deducciones Salariales (Custom)</field>
+            <field name="res_model">hr.salary.attachment</field>
+            <field name="view_mode">tree,form</field>
+            <field name="search_view_id" ref="view_hr_salary_attachment_search_inherit"/>
+            <field name="context">{'group_by': 'date_start:day'}</field>
+        </record>
+
+    </data>
+</odoo>

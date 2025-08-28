@@ -102,6 +102,7 @@ def copiar_reglas_a_estructuras(env, mapping):
         'quantity', 'note',
         'account_debit', 'account_credit',
         'amount_other_input_id',
+        'condition_other_input_id'
     ]
 
     fields_available = env['hr.salary.rule'].fields_get().keys()

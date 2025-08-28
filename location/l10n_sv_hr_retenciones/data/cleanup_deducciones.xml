@@ -1,0 +1,164 @@
+<odoo>
+  <data noupdate="0">
+
+    <!-- ======== BANCO ======== -->
+    <!-- 1) Re-mapear HR Salary Attachments al canónico -->
+    <function model="hr.salary.attachment" name="write" context="{'active_test': False}">
+      <function model="hr.salary.attachment" name="search" context="{'active_test': False}">
+        <value eval="[('input_type_id.code','=','BANCO'),
+                      ('input_type_id','!=', ref('l10n_sv_hr_retenciones.input_type_deduccion_bancos'))]"/>
+      </function>
+      <value eval="{'input_type_id': ref('l10n_sv_hr_retenciones.input_type_deduccion_bancos')}"/>
+    </function>
+    <!-- 2) Re-mapear líneas de nómina que apunten a duplicados -->
+    <function model="hr.payslip.input" name="write" context="{'active_test': False}">
+      <function model="hr.payslip.input" name="search" context="{'active_test': False}">
+        <value eval="[('input_type_id.code','=','BANCO'),
+                      ('input_type_id','!=', ref('l10n_sv_hr_retenciones.input_type_deduccion_bancos'))]"/>
+      </function>
+      <value eval="{'input_type_id': ref('l10n_sv_hr_retenciones.input_type_deduccion_bancos')}"/>
+    </function>
+    <!-- 3) Desactivar input types BANCO duplicados -->
+    <function model="hr.payslip.input.type" name="write" context="{'active_test': False}">
+      <function model="hr.payslip.input.type" name="search" context="{'active_test': False}">
+        <value eval="[('code','=','BANCO'),
+                      ('id','!=', ref('l10n_sv_hr_retenciones.input_type_deduccion_bancos'))]"/>
+      </function>
+      <value eval="{'active': False, 'available_in_attachments': False}"/>
+    </function>
+    <!-- 4) Desactivar reglas BANCO duplicadas en la estructura INCOE -->
+    <function model="hr.salary.rule" name="write" context="{'active_test': False}">
+      <function model="hr.salary.rule" name="search" context="{'active_test': False}">
+        <value eval="[('code','=','BANCO'),
+                      ('struct_id','=', ref('l10n_sv_hr_retenciones.structure_incoe')),
+                      ('id','!=', ref('l10n_sv_hr_retenciones.salary_rule_bancos'))]"/>
+      </function>
+      <value eval="{'active': False}"/>
+    </function>
+
+    <!-- ======== FSV ======== -->
+    <function model="hr.salary.attachment" name="write" context="{'active_test': False}">
+      <function model="hr.salary.attachment" name="search" context="{'active_test': False}">
+        <value eval="[('input_type_id.code','=','FSV'),
+                      ('input_type_id','!=', ref('l10n_sv_hr_retenciones.input_type_deduccion_fsv'))]"/>
+      </function>
+      <value eval="{'input_type_id': ref('l10n_sv_hr_retenciones.input_type_deduccion_fsv')}"/>
+    </function>
+    <function model="hr.payslip.input" name="write" context="{'active_test': False}">
+      <function model="hr.payslip.input" name="search" context="{'active_test': False}">
+        <value eval="[('input_type_id.code','=','FSV'),
+                      ('input_type_id','!=', ref('l10n_sv_hr_retenciones.input_type_deduccion_fsv'))]"/>
+      </function>
+      <value eval="{'input_type_id': ref('l10n_sv_hr_retenciones.input_type_deduccion_fsv')}"/>
+    </function>
+    <function model="hr.payslip.input.type" name="write" context="{'active_test': False}">
+      <function model="hr.payslip.input.type" name="search" context="{'active_test': False}">
+        <value eval="[('code','=','FSV'),
+                      ('id','!=', ref('l10n_sv_hr_retenciones.input_type_deduccion_fsv'))]"/>
+      </function>
+      <value eval="{'active': False, 'available_in_attachments': False}"/>
+    </function>
+    <function model="hr.salary.rule" name="write" context="{'active_test': False}">
+      <function model="hr.salary.rule" name="search" context="{'active_test': False}">
+        <value eval="[('code','=','FSV'),
+                      ('struct_id','=', ref('l10n_sv_hr_retenciones.structure_incoe')),
+                      ('id','!=', ref('l10n_sv_hr_retenciones.salary_rule_deduccion_fsv'))]"/>
+      </function>
+      <value eval="{'active': False}"/>
+    </function>
+
+    <!-- ======== FONDO_PENSIONES ======== -->
+    <function model="hr.salary.attachment" name="write" context="{'active_test': False}">
+      <function model="hr.salary.attachment" name="search" context="{'active_test': False}">
+        <value eval="[('input_type_id.code','=','FONDO_PENSIONES'),
+                      ('input_type_id','!=', ref('l10n_sv_hr_retenciones.input_type_deduccion_fondo_pensiones'))]"/>
+      </function>
+      <value eval="{'input_type_id': ref('l10n_sv_hr_retenciones.input_type_deduccion_fondo_pensiones')}"/>
+    </function>
+    <function model="hr.payslip.input" name="write" context="{'active_test': False}">
+      <function model="hr.payslip.input" name="search" context="{'active_test': False}">
+        <value eval="[('input_type_id.code','=','FONDO_PENSIONES'),
+                      ('input_type_id','!=', ref('l10n_sv_hr_retenciones.input_type_deduccion_fondo_pensiones'))]"/>
+      </function>
+      <value eval="{'input_type_id': ref('l10n_sv_hr_retenciones.input_type_deduccion_fondo_pensiones')}"/>
+    </function>
+    <function model="hr.payslip.input.type" name="write" context="{'active_test': False}">
+      <function model="hr.payslip.input.type" name="search" context="{'active_test': False}">
+        <value eval="[('code','=','FONDO_PENSIONES'),
+                      ('id','!=', ref('l10n_sv_hr_retenciones.input_type_deduccion_fondo_pensiones'))]"/>
+      </function>
+      <value eval="{'active': False, 'available_in_attachments': False}"/>
+    </function>
+    <function model="hr.salary.rule" name="write" context="{'active_test': False}">
+      <function model="hr.salary.rule" name="search" context="{'active_test': False}">
+        <value eval="[('code','=','FONDO_PENSIONES'),
+                      ('struct_id','=', ref('l10n_sv_hr_retenciones.structure_incoe')),
+                      ('id','!=', ref('l10n_sv_hr_retenciones.salary_rule_fondo_pensiones'))]"/>
+      </function>
+      <value eval="{'active': False}"/>
+    </function>
+
+    <!-- ======== OTROS ======== -->
+    <function model="hr.salary.attachment" name="write" context="{'active_test': False}">
+      <function model="hr.salary.attachment" name="search" context="{'active_test': False}">
+        <value eval="[('input_type_id.code','=','OTROS'),
+                      ('input_type_id','!=', ref('l10n_sv_hr_retenciones.input_type_deduccion_otros'))]"/>
+      </function>
+      <value eval="{'input_type_id': ref('l10n_sv_hr_retenciones.input_type_deduccion_otros')}"/>
+    </function>
+    <function model="hr.payslip.input" name="write" context="{'active_test': False}">
+      <function model="hr.payslip.input" name="search" context="{'active_test': False}">
+        <value eval="[('input_type_id.code','=','OTROS'),
+                      ('input_type_id','!=', ref('l10n_sv_hr_retenciones.input_type_deduccion_otros'))]"/>
+      </function>
+      <value eval="{'input_type_id': ref('l10n_sv_hr_retenciones.input_type_deduccion_otros')}"/>
+    </function>
+    <function model="hr.payslip.input.type" name="write" context="{'active_test': False}">
+      <function model="hr.payslip.input.type" name="search" context="{'active_test': False}">
+        <value eval="[('code','=','OTROS'),
+                      ('id','!=', ref('l10n_sv_hr_retenciones.input_type_deduccion_otros'))]"/>
+      </function>
+      <value eval="{'active': False, 'available_in_attachments': False}"/>
+    </function>
+    <function model="hr.salary.rule" name="write" context="{'active_test': False}">
+      <function model="hr.salary.rule" name="search" context="{'active_test': False}">
+        <value eval="[('code','=','OTROS'),
+                      ('struct_id','=', ref('l10n_sv_hr_retenciones.structure_incoe')),
+                      ('id','!=', ref('l10n_sv_hr_retenciones.salary_rule_otros'))]"/>
+      </function>
+      <value eval="{'active': False}"/>
+    </function>
+
+    <!-- ======== VENTA_EMPLEADOS ======== -->
+    <function model="hr.salary.attachment" name="write" context="{'active_test': False}">
+      <function model="hr.salary.attachment" name="search" context="{'active_test': False}">
+        <value eval="[('input_type_id.code','=','VENTA_EMPLEADOS'),
+                      ('input_type_id','!=', ref('l10n_sv_hr_retenciones.input_type_deduccion_venta_empleados'))]"/>
+      </function>
+      <value eval="{'input_type_id': ref('l10n_sv_hr_retenciones.input_type_deduccion_venta_empleados')}"/>
+    </function>
+    <function model="hr.payslip.input" name="write" context="{'active_test': False}">
+      <function model="hr.payslip.input" name="search" context="{'active_test': False}">
+        <value eval="[('input_type_id.code','=','VENTA_EMPLEADOS'),
+                      ('input_type_id','!=', ref('l10n_sv_hr_retenciones.input_type_deduccion_venta_empleados'))]"/>
+      </function>
+      <value eval="{'input_type_id': ref('l10n_sv_hr_retenciones.input_type_deduccion_venta_empleados')}"/>
+    </function>
+    <function model="hr.payslip.input.type" name="write" context="{'active_test': False}">
+      <function model="hr.payslip.input.type" name="search" context="{'active_test': False}">
+        <value eval="[('code','=','VENTA_EMPLEADOS'),
+                      ('id','!=', ref('l10n_sv_hr_retenciones.input_type_deduccion_venta_empleados'))]"/>
+      </function>
+      <value eval="{'active': False, 'available_in_attachments': False}"/>
+    </function>
+    <function model="hr.salary.rule" name="write" context="{'active_test': False}">
+      <function model="hr.salary.rule" name="search" context="{'active_test': False}">
+        <value eval="[('code','=','VENTA_EMPLEADOS'),
+                      ('struct_id','=', ref('l10n_sv_hr_retenciones.structure_incoe')),
+                      ('id','!=', ref('l10n_sv_hr_retenciones.salary_rule_venta_empleados'))]"/>
+      </function>
+      <value eval="{'active': False}"/>
+    </function>
+
+  </data>
+</odoo>
