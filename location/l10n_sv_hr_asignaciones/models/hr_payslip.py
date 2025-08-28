@@ -116,7 +116,7 @@ class HrPayslip(models.Model):
                         'input_type_id': input_type.id,
                         'amount': float_round(asignacion.monto, precision_digits=2),
                         'name': asignacion.description or tipo.title(),
-                        'company_id': company_id,
+                        # 'company_id': company_id,
                     })
                     asignacion.payslip_id = slip.id  # Marcamos como ya utilizada en este recibo
                     _logger.info(f"[{tipo}] Asignación {asignacion.id} aplicada con monto: {asignacion.monto}")

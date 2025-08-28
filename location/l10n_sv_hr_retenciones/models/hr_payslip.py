@@ -284,7 +284,7 @@ class HrPayslip(models.Model):
                     'amount': float_round(valor, precision_digits=2),
                     'payslip_id': slip.id,
                     'input_type_id': tipo.id,
-                    'company_id': slip.company_id.id,  # <-- agregamos la empresa
+                    #'company_id': slip.company_id.id,  # <-- agregamos la empresa
                 })
                 _logger.info("Input agregado: código=%s, nombre=%s, monto=%.2f, nómina ID=%d", code, tipo.name, valor,
                              slip.id)
@@ -509,7 +509,7 @@ class HrPayslip(models.Model):
                     'amount': float_round(datos_vac["extra_30"], precision_digits=2),
                     'payslip_id': slip.id,
                     'input_type_id': tipo_vacaciones.id,
-                    'company_id': slip.company_id.id,
+                    # 'company_id': slip.company_id.id,
                 })
                 _logger.info(f"Creado input VACACIONES en {slip.name} → días={datos_vac['dias_vacaciones']} extra={datos_vac['extra_30']}")
 

@@ -101,7 +101,7 @@ class HrContract(models.Model):
             # 1) Buscar los tipos de input cuyo code esté en faltas_codes
             input_types = self.env['hr.payslip.input.type'].search([
                 ('code', 'in', faltas_codes),
-                ('company_id', '=', company_id),
+                # ('company_id', '=', company_id),
             ])
             if not input_types:
                 _logger.warning(
@@ -113,7 +113,7 @@ class HrContract(models.Model):
                 inputs_faltas = self.env['hr.payslip.input'].search([
                     ('payslip_id', '=', payslip.id),
                     ('input_type_id', 'in', input_types.ids),
-                    ('company_id', '=', company_id),
+                    # ('company_id', '=', company_id),
                 ])
                 # Importante: en tu implementación de séptimos, pones los montos en negativo.
                 # Aquí simplemente sumamos (serán negativos y por tanto restarán al bruto).
