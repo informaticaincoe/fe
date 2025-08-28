@@ -26,6 +26,8 @@ from copy import deepcopy
 import pytz
 from functools import cached_property
 import ast
+import re
+import string
 
 _logger = logging.getLogger(__name__)
 
@@ -249,6 +251,7 @@ class AccountMove(models.Model):
 
         # if self.journal_id and self.journal_id.type_report == 'ndc':  # Ajusta según tu configuración de tipo de diario
         # self.l10n_latam_document_type_id = self.journal_id.sit_tipo_documento
+
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -484,8 +487,6 @@ class AccountMove(models.Model):
 
             tipo = journal.sit_tipo_documento.codigo
             estable = journal.sit_codestable
-            # seq_code = f'dte.{tipo}' #
-            # date_range = None
             _logger.info("SIT tipo documento: %s, cod estable: %s", tipo, estable)
 
             if not journal.sequence_id:
@@ -531,7 +532,49 @@ class AccountMove(models.Model):
 
             # nuevo_name = f"DTE-{tipo}-0000{estable}-{str(nuevo_numero).zfill(15)}"
             # Los placeholders tipo/estable se sustituyen desde el contexto
-            nuevo_name = journal.sequence_id.with_context(dte=tipo, estable=estable).next_by_id()
+            dte_param_tipo = config_utils.get_config_value(self.env, 'dte_prefix_tipo', self.company_id.id)  # 'dte'
+            dte_param_estable = config_utils.get_config_value(self.env, 'dte_prefix_codEstable', self.company_id.id)  # 'estable'
+            _logger.info("SIT Parametros numero de control= tipo dte: %s(%s), cod estable: %s(%s)", dte_param_tipo, tipo, dte_param_estable, estable)
+
+            if not dte_param_tipo or not dte_param_estable:
+                raise UserError(_("Configure los parámetros de la plantilla de prefijo DTE para la empresa '%s'.") % self.company_id.name)
+
+            # Enviar parametros del prefijo de la secuencia
+            ctx = {
+                dte_param_tipo: tipo,  # tipo dte
+                dte_param_estable: estable,  # codigo establecimiento
+            }
+
+            # 1) obtener prefijo de la secuencia
+            prefix = (journal.sequence_id.prefix or '').strip()
+            _logger.info("SIT Prefijo secuencia raw: %s", prefix)
+
+            # 2) extraer placeholders estilo %(... )s
+            placeholders_in_prefix = re.findall(r'%\(([^)]+)\)s', prefix)
+
+            # 3) fallback: si no hay, intentar formato con {} (str.format)
+            if not placeholders_in_prefix:
+                placeholders_in_prefix = [fname for _, fname, _, _ in string.Formatter().parse(prefix) if fname]
+
+            _logger.info("SIT placeholders extraidos de la secuencia: %s", placeholders_in_prefix)
+
+            # 4) validar coincidencia (respetando case; opcional: normalizar .lower())
+            missing = [ph for ph in placeholders_in_prefix if ph not in ctx]
+            extra = [k for k in ctx.keys() if k not in placeholders_in_prefix]
+
+            if missing or extra:
+                msg_parts = []
+                if missing:
+                    msg_parts.append("Faltan valores para los placeholders en la secuencia: %s" % missing)
+                if extra:
+                    msg_parts.append(
+                        "Hay parámetros configurados que no aparecen en el prefijo de la secuencia: %s" % extra)
+                # log informativo y raise para que el usuario corrija configuración/sequence
+                _logger.error("SIT Error coincidencia placeholders: %s", "; ".join(msg_parts))
+                raise UserError(_("Error en parámetros DTE: %s") % ("; ".join(msg_parts)))
+
+            #nuevo_name = journal.sequence_id.with_context(dte=tipo, estable=estable).next_by_id()
+            nuevo_name = journal.sequence_id.with_context(**ctx).next_by_id() # **ctx convierte un diccionario en argumentos separados
 
             # Verificar duplicado antes de retornar
             if self.search_count([('name', '=', nuevo_name), ('journal_id', '=', journal.id)]):
@@ -1848,6 +1891,7 @@ class AccountMove(models.Model):
                 ('sit_contingencia', '=', contingencia_activa.id),
                 ('hacienda_codigoLote_lote', 'in', [False, '', None]),
                 ('lote_activo', '=', True),
+                ('company_id', '=', self.company_id.id),
                 # ('lote_recibido_mh', '=', False),
             ])
 
@@ -1866,6 +1910,7 @@ class AccountMove(models.Model):
                     ('name', '=', False),
                     ('name', '=', ''),
                     ('name', '=ilike', ' '),
+                    ('company_id', '=', self.company_id.id),
                 ])
                 if lotes_vacios:
                     _logger.warning("Se eliminarán lotes vacíos sin nombre antes de crear uno nuevo: %s",
@@ -1885,6 +1930,7 @@ class AccountMove(models.Model):
                         'sit_contingencia': contingencia_activa.id,
                         'lote_activo': True,
                         'journal_id': journal_lote.id,
+                        'company_id': contingencia_activa.company_id.id,
                     })
                     self.write({'sit_lote_contingencia': lote_asignado.id})
                     _logger.info("Factura asignada a nuevo lote: %s", lote_asignado.name)
@@ -1919,6 +1965,7 @@ class AccountMove(models.Model):
                 'sit_contingencia': contingencia_activa.id,
                 'lote_activo': True,
                 'journal_id': journal_lote.id,
+                'company_id': contingencia_activa.company_id.id,
             })
             self.write({
                 'sit_lote_contingencia': lote_asignado.id,

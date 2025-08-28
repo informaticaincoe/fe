@@ -140,7 +140,10 @@ class HrPayslip(models.Model):
             _logger.info("period_quincena = %s", payslip.period_quincena)
             #Obtener la nomina de la primera quincena
             if payslip.period_quincena == '2' :
-                primera_quincena = self.env['hr.payslip'].search([('employee_id', '=', payslip.employee_id.id), ('period_quincena', "=", '1'),('period_month', "=", payslip.period_month)], limit=1)
+                primera_quincena = self.env['hr.payslip'].search(
+                    [('employee_id', '=', payslip.employee_id.id), ('period_quincena', '=', '1'),
+                    ('period_month', '=', payslip.period_month), ('company_id', '=', payslip.company_id.id), ], limit=1)
+
                 _logger.info(">>>  %s primera_quincena", primera_quincena)
 
                 ISSS_anterior = primera_quincena.input_line_ids.filtered(lambda l: l.name == "Deducción ISSS")
@@ -281,10 +284,12 @@ class HrPayslip(models.Model):
                     'amount': float_round(valor, precision_digits=2),
                     'payslip_id': slip.id,
                     'input_type_id': tipo.id,
+                    'company_id': slip.company_id.id,  # <-- agregamos la empresa
                 })
                 _logger.info("Input agregado: código=%s, nombre=%s, monto=%.2f, nómina ID=%d", code, tipo.name, valor, slip.id)
             else:
                 _logger.warning("Tipo de input para código %s no encontrado, no se creó input", code)
+
 
     # ==========FALTAS INJUSTIFICADAS
     def _aplicar_descuento_septimo_por_faltas(self):
@@ -341,7 +346,8 @@ class HrPayslip(models.Model):
                     ('employee_id', '=', slip.employee_id.id),
                     ('date_start', '>=', fecha_ini),
                     ('date_stop', '<=', fecha_fin),
-                    ('work_entry_type_id.code', '=', falta_code)
+                    ('work_entry_type_id.code', '=', falta_code),
+                    ('company_id', '=', slip.company_id.id),
                 ])
 
                 if not faltas_entries:
@@ -502,6 +508,7 @@ class HrPayslip(models.Model):
                     'amount': float_round(datos_vac["extra_30"], precision_digits=2),
                     'payslip_id': slip.id,
                     'input_type_id': tipo_vacaciones.id,
+                    'company_id': slip.company_id.id,
                 })
                 _logger.info(f"Creado input VACACIONES en {slip.name} → días={datos_vac['dias_vacaciones']} extra={datos_vac['extra_30']}")
 
@@ -549,6 +556,7 @@ class HrPayslip(models.Model):
                 ('employee_id', '=', slip.employee_id.id),
                 ('date_start', '>=', slip.date_from),
                 ('date_start', '<', date_to_plus),
+                ('company_id', '=', slip.company_id.id),
             ]).filtered(lambda we: we.duration > 0)
 
             # Filtrar solo entradas que cuentan como asistencia
@@ -587,6 +595,7 @@ class HrPayslip(models.Model):
             ('holiday_status_id.is_vacation', '=', True),
             ('date_from', '<=', slip.date_to),
             ('date_to', '>=', slip.date_from),
+            ('company_id', '>=', slip.company_id.id),
         ])
 
         # Sumar los días aprobados en ese período

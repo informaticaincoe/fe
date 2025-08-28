@@ -1,0 +1,15 @@
+<odoo noupdate="1">
+    <record id="dte_prefix_param1" model="res.configuration">
+        <field name="company_id" ref="base.main_company"/>
+        <field name="value_text">dte</field>
+        <field name="clave">dte_prefix_tipo</field>
+        <field name="active">True</field>
+    </record>
+
+    <record id="dte_prefix_param2" model="res.configuration">
+        <field name="company_id" ref="base.main_company"/>
+        <field name="value_text">estable</field>
+        <field name="clave">dte_prefix_codEstable</field>
+        <field name="active">True</field>
+    </record>
+</odoo>

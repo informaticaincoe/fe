@@ -25,7 +25,8 @@
         "data/l10n_latam.document.type.csv",
         "views/account_move_reversal_view.xml",
         "views/account_move_nc_view.xml",
-        "data/res.configuration.csv"
+        "data/res.configuration.csv",
+        "data/dte_config.xml",
     ],
     "demo": [],
     "images": [],

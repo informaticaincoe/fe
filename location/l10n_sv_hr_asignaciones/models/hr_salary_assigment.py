@@ -54,6 +54,8 @@ class HrSalaryAssignment(models.Model):
 
     codigo_empleado = fields.Char(string="Código de empleado", store=False)
 
+    company_id = fields.Many2one("res.company", string="Compañía", required=True, default=lambda self: self.env.company, index=True,)
+
     def unlink(self):
         for asignacion in self:
             payslip = asignacion.payslip_id
@@ -75,12 +77,16 @@ class HrSalaryAssignment(models.Model):
 
     def _calcular_monto_horas_extras(self, empleado, horas_dict):
         try:
-            dias_mes = 30
-            horas_laboradas = 8
-
             contrato = empleado.contract_id
             if not contrato:
                 raise UserError("No se encontró contrato para el empleado.")
+
+            dias_mes = config_utils.get_dias_promedio_salario(self.env, self.env.company.id)  # 30
+
+            calendar = contrato.resource_calendar_id
+            if not calendar:
+                raise UserError("No se encontró el horario de trabajo para el empleado.")
+            horas_laboradas = calendar.hours_per_day if calendar else 8
 
             conversion = {
                 'monthly': 1, 'semi-monthly': 2, 'bi-weekly': 52 / 12 / 2,
@@ -145,6 +151,7 @@ class HrSalaryAssignment(models.Model):
                 ('employee_id', '=', vals.get('employee_id')),
                 ('tipo', '=', vals.get('tipo')),
                 ('periodo', '=', vals.get('periodo')),
+                ('company_id', '=', self.env.company.id),
             ]
 
             # Solo agregar la condición de 'mostrar_horas_extras' si el tipo es VIATICO
@@ -411,7 +418,9 @@ class HrSalaryAssignment(models.Model):
                         if not codigo_empleado:
                             raise UserError("Debe proporcionar el código de empleado (codigo_empleado).")
 
-                        empleado = self.env['hr.employee'].search([('barcode', '=', codigo_empleado)], limit=1)
+                        empleado = self.env['hr.employee'].search([
+                            ('barcode', '=', codigo_empleado),
+                            ('company_id', '=', vals.get('company_id') or self.env.company.id)], limit=1)
                         if not empleado:
                             raise UserError(f"No se encontró un empleado con código: {codigo_empleado}")
                         vals['employee_id'] = empleado.id
@@ -554,7 +563,10 @@ class HrSalaryAssignment(models.Model):
         Si no se encuentra, muestra una notificación de error al usuario.
         """
         # Busca el archivo adjunto con la plantilla
-        attachment = self.env['ir.attachment'].search([('name', '=', constants.NOMBRE_PLANTILLA_ASIGNACIONES)], limit=1)
+        attachment = self.env['ir.attachment'].search([
+            ('name', '=', constants.NOMBRE_PLANTILLA_ASIGNACIONES),
+            ('company_id', '=', self.env.company.id)
+        ], limit=1)
         if not attachment:
             return {
                 'type': 'ir.actions.client',
