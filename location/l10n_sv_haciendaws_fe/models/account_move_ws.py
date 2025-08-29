@@ -88,7 +88,12 @@ class AccountMove(models.Model):
         invoice_info["nit"] = nit
         invoice_info["activo"] = True
         invoice_info["passwordPri"] = self.company_id.sit_passwordPri
-        invoice_info["dteJson"] = self.sit__ccf_base_map_invoice_info_dtejson()
+        if not self.hacienda_selloRecibido and self.sit_factura_de_contingencia and self.sit_json_respuesta:
+            _logger.info("SIT sit_base_map_invoice_info ccf")
+            invoice_info["dteJson"] = self.sit_json_respuesta
+        else:
+            _logger.info("SIT sit_base_map_invoice_info dte ccf")
+            invoice_info["dteJson"] = self.sit__ccf_base_map_invoice_info_dtejson()
         return invoice_info
 
     def sit__ccf_base_map_invoice_info_dtejson(self):
@@ -526,7 +531,7 @@ class AccountMove(models.Model):
         invoice_info["nit"] = nit
         invoice_info["activo"] = True
         invoice_info["passwordPri"] = self.company_id.sit_passwordPri
-        if not self.hacienda_selloRecibido and self.sit_factura_de_contingencia and not self.sit_json_respuesta:
+        if not self.hacienda_selloRecibido and self.sit_factura_de_contingencia and self.sit_json_respuesta:
             _logger.info("SIT sit_base_map_invoice_info contingencia")
             invoice_info["dteJson"] = self.sit_json_respuesta
         else:
@@ -1002,7 +1007,12 @@ class AccountMove(models.Model):
         invoice_info["nit"] = nit
         invoice_info["activo"] = True
         invoice_info["passwordPri"] = self.company_id.sit_passwordPri
-        invoice_info["dteJson"] = self.sit_base_map_invoice_info_ndc_dtejson()
+        if not self.hacienda_selloRecibido and self.sit_factura_de_contingencia and self.sit_json_respuesta:
+            _logger.info("SIT sit_base_map_invoice_info ndc")
+            invoice_info["dteJson"] = self.sit_json_respuesta
+        else:
+            _logger.info("SIT sit_base_map_invoice_info dte ndc")
+            invoice_info["dteJson"] = self.sit_base_map_invoice_info_ndc_dtejson()
         return invoice_info
 
     def sit_base_map_invoice_info_ndc_dtejson(self):
@@ -1355,8 +1365,14 @@ class AccountMove(models.Model):
             'nit': nit,
             'activo': True,
             'passwordPri': self.company_id.sit_passwordPri,
-            'dteJson': self.sit_base_map_invoice_info_ndd_dtejson(),
+            #'dteJson': self.sit_base_map_invoice_info_ndd_dtejson(),
         }
+        if not self.hacienda_selloRecibido and self.sit_factura_de_contingencia and self.sit_json_respuesta:
+            _logger.info("SIT sit_base_map_invoice_info ndd")
+            invoice_info["dteJson"] = self.sit_json_respuesta
+        else:
+            _logger.info("SIT sit_base_map_invoice_info dte ndd")
+            invoice_info["dteJson"] = self.sit_base_map_invoice_info_ndd_dtejson()
         return invoice_info
 
     def sit_base_map_invoice_info_ndd_dtejson(self):

@@ -28,6 +28,7 @@ from functools import cached_property
 import ast
 import re
 import string
+from odoo.exceptions import ValidationError
 
 _logger = logging.getLogger(__name__)
 
@@ -492,12 +493,8 @@ class AccountMove(models.Model):
             if not journal.sequence_id:
                 raise UserError(_("Configure la secuencia en el diario '%s'.") % journal.name)
 
-            # Buscar el último DTE emitido con este tipo y establecimiento
-            # domain = [
-            # ('journal_id', '=', journal.id),
-            # ('name', 'like', f'DTE-{tipo}-0000{estable}-%')
-            # ]
-            # ultimo = self.search(domain, order='name desc', limit=1)
+            sequence = journal.sequence_id
+            seq_code = sequence.code
 
             # if ultimo:
             #     try:
@@ -540,13 +537,68 @@ class AccountMove(models.Model):
                 raise UserError(_("Configure los parámetros de la plantilla de prefijo DTE para la empresa '%s'.") % self.company_id.name)
 
             # Enviar parametros del prefijo de la secuencia
-            ctx = {
-                dte_param_tipo: tipo,  # tipo dte
-                dte_param_estable: estable,  # codigo establecimiento
-            }
+            ctx = {dte_param_tipo: tipo, dte_param_estable: estable}
+            prefix_rendered = None
+            res = sequence.with_context(**ctx)._get_prefix_suffix()
+            if isinstance(res, tuple):
+                prefix_rendered = res[0] or ''
+            elif isinstance(res, dict):
+                prefix_rendered = res.get('prefix', '') or ''
+            else:
+                prefix_rendered = ''
+            _logger.info("SIT Prefijo resuelto: %s", prefix_rendered)
+
+            # Si Odoo ya puso un nombre que empieza con este prefijo → lo reusamos
+            if self.name and self.name.startswith(prefix_rendered):
+                _logger.info("SIT Reutilizando número ya asignado por Odoo: %s", self.name)
+                return self.name
+
+            # Buscar último documento usando prefijo dinámico
+            domain = [
+                ('journal_id', '=', journal.id),
+                ('name', 'like', prefix_rendered + '%'),
+                ('company_id', '=', self.company_id.id)
+            ]
+            ultimo = self.search(domain, order='name desc', limit=1)
+
+            # Ajuste de secuencia según último DTE emitido
+            if ultimo:
+                try:
+                    ultima_parte = int(ultimo.name.split('-')[-1])
+                except ValueError:
+                    raise UserError(_("No se pudo interpretar el número del último DTE: %s") % ultimo.name)
+                siguiente_dte  = ultima_parte + 1
+            else:
+                ultima_parte = 0
+                siguiente_dte  = 1
+
+            # Obtener secuencia configurada
+            date_range = None
+            _logger.info("SIT Ultimo num. control: %s(correlativo: %s) | Siguiente numero:%s ", ultimo.name, ultima_parte, siguiente_dte)
+            if sequence:
+                _logger.info("SIT | Sequence: %s", sequence)
+                if sequence.use_date_range:
+                    today = fields.Date.context_today(self)
+                    date_range = self.env['ir.sequence.date_range'].search([
+                        ('sequence_id', '=', sequence.id),
+                        ('date_from', '<=', today),
+                        ('date_to', '>=', today)
+                    ], limit=1)
+                    #if date_range and date_range.number_next_actual < nuevo_numero:
+                    if date_range:
+                        if date_range.number_next_actual != siguiente_dte:
+                            _logger.warning("SIT | Corrigiendo desfase secuencia: estaba %s, ajustando a %s",
+                                            date_range.number_next_actual, siguiente_dte)
+                            date_range.number_next_actual = siguiente_dte
+                        nuevo_numero = siguiente_dte
+                else:
+                    #if sequence.number_next_actual < nuevo_numero:
+                    nuevo_numero = max(sequence.number_next_actual, siguiente_dte)
+                    _logger.info("SIT | Ajustando número desde secuencia directa: %s > %s", sequence.number_next_actual, nuevo_numero)
+                    sequence.number_next_actual = nuevo_numero
 
             # 1) obtener prefijo de la secuencia
-            prefix = (journal.sequence_id.prefix or '').strip()
+            prefix = (sequence.prefix or '').strip()
             _logger.info("SIT Prefijo secuencia raw: %s", prefix)
 
             # 2) extraer placeholders estilo %(... )s
@@ -574,7 +626,7 @@ class AccountMove(models.Model):
                 raise UserError(_("Error en parámetros DTE: %s") % ("; ".join(msg_parts)))
 
             #nuevo_name = journal.sequence_id.with_context(dte=tipo, estable=estable).next_by_id()
-            nuevo_name = journal.sequence_id.with_context(**ctx).next_by_id() # **ctx convierte un diccionario en argumentos separados
+            nuevo_name = sequence.with_context(**ctx).next_by_id()  # **ctx convierte un diccionario en argumentos separados
 
             # Verificar duplicado antes de retornar
             if self.search_count([('name', '=', nuevo_name), ('journal_id', '=', journal.id)]):
@@ -583,17 +635,19 @@ class AccountMove(models.Model):
             _logger.info("SIT Nombre DTE generado manualmente: %s", nuevo_name)
 
             # Actualizar secuencia (ir.sequence o ir.sequence.date_range)
-            # if actualizar_secuencia and sequence:
-            # next_num = nuevo_numero + 1
-            # if sequence.use_date_range:
-            # if date_range and date_range.number_next_actual < next_num:
-            # date_range.number_next_actual = next_num
-            # _logger.info("SIT Secuencia con date_range '%s' actualizada a %s", seq_code, next_num)
-            # else:
-            # if sequence.number_next_actual < next_num:
-            # sequence.number_next_actual = next_num
-            # _logger.info("SIT Secuencia '%s' actualizada a %s", seq_code, next_num)
-            # _logger.info("SIT Actualizar secuencia _generar_dte_name(): %s", actualizar_secuencia)
+            if actualizar_secuencia and sequence:
+                next_num = nuevo_numero + 1
+                if sequence.use_date_range:
+                    if date_range and date_range.number_next_actual < next_num:
+                        date_range.number_next_actual = next_num
+                        _logger.info("SIT Secuencia con date_range '%s' actualizada a %s", seq_code, next_num)
+                else:
+                    if sequence.number_next_actual < next_num:
+                        sequence.number_next_actual = next_num
+                        _logger.info("SIT Secuencia '%s' actualizada a %s", seq_code, next_num)
+
+            _logger.info("SIT Actualizar secuencia _generar_dte_name(): %s", actualizar_secuencia)
+
             return nuevo_name
         else:
             return None  # <--- Omitir, que Odoo siga normal
@@ -1003,9 +1057,11 @@ class AccountMove(models.Model):
                                     invoice.sit_json_respuesta = json_dte
                                 else:
                                     # Era un JSON string válido → ahora es dict
-                                    invoice.sit_json_respuesta = json.dumps(json_dte, ensure_ascii=False)
+                                    #invoice.sit_json_respuesta = json.dumps(json_dte, ensure_ascii=False)
+                                    invoice.sit_json_respuesta = json.dumps(_sanitize(json_dte), ensure_ascii=False)
                             elif isinstance(json_dte, dict):
-                                invoice.sit_json_respuesta = json.dumps(json_dte, ensure_ascii=False)
+                                #invoice.sit_json_respuesta = json.dumps(json_dte, ensure_ascii=False)
+                                invoice.sit_json_respuesta = json.dumps(_sanitize(json_dte), ensure_ascii=False)
                             else:
                                 # Otro tipo de dato no esperado
                                 invoice.sit_json_respuesta = str(json_dte)
@@ -1146,7 +1202,13 @@ class AccountMove(models.Model):
                 # UserError(_("Error al procesar la factura %s:\n%s") % (invoice.name or invoice.id, str(e)))
         _logger.info("SIT Fin _post")
 
-        return super(AccountMove, self)._post(soft=soft)
+        # Solo llamar al super si quedan invoices sin postear
+        draft_invoices = invoices_to_post.filtered(lambda m: m.state == 'draft')
+        if draft_invoices:
+            return super(AccountMove, draft_invoices)._post(soft=soft)
+        return True
+
+        # return super(AccountMove, self)._post(soft=soft)
 
     def _compute_validation_type_2(self):
         environment_type = False
@@ -1203,6 +1265,7 @@ class AccountMove(models.Model):
             nit = payload.get("nit")
             passwordPri = payload.get("passwordPri")
             raw_dte = payload.get("dteJson")
+            _logger.info("Json DTE a firmar= %s", raw_dte)
 
             # Validar que dteJson exista y no esté vacío
             if not raw_dte or (isinstance(raw_dte, str) and not raw_dte.strip()):
@@ -1896,7 +1959,7 @@ class AccountMove(models.Model):
             ])
 
             for lote in lotes_validos:
-                if len(lote.move_ids) < 2:  # 100
+                if len(lote.move_ids) < 100:  # 100
                     self.write({'sit_lote_contingencia': lote.id})
                     lote_asignado = lote
                     _logger.info("Factura asignada a lote existente: %s", lote.id)
@@ -1920,7 +1983,7 @@ class AccountMove(models.Model):
                 num_lotes = Lote.search_count([('sit_contingencia', '=', contingencia_activa.id)])
                 _logger.info("Cantidad lotes existentes en contingencia %s: %d", contingencia_activa.name, num_lotes)
 
-                if num_lotes < 2:
+                if num_lotes <= 400:
                     nuevo_nombre_lote = self.env['account.lote'].generar_nombre_lote(journal=journal_lote,
                                                                                      actualizar_secuencia=True)
                     if not nuevo_nombre_lote or not nuevo_nombre_lote.strip():
@@ -1985,6 +2048,12 @@ class AccountMove(models.Model):
         if not all(inv.company_id and inv.company_id.sit_facturacion for inv in self):
             _logger.info( "SIT No aplica facturación electrónica para alguna factura. Se omite notificación de contingencia.")
             return super().action_post()
+
+        if not self.invoice_date:
+            raise ValidationError("Debe seleccionar la fecha de la Factura.")
+
+        if not self.condiciones_pago:
+            raise ValidationError("Debe seleccionar una Condicion de la Operación.")
 
         res = super().action_post()
         facturas_con_contingencia = self.filtered(lambda inv: inv.sit_es_configencia)
