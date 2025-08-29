@@ -797,10 +797,11 @@ class sit_AccountContingencia(models.Model):
     def _generate_contingencia_name(self, journal=None, actualizar_secuencia=False):
         journal = journal or self.journal_id
 
+        # Validaciones
         version_contingencia = config_utils.get_config_value(
             self.env, 'version_contingencia', journal.company_id.id
         )
-        _logger.info("Version contingencia: %s | Compañia: %s", version_contingencia, journal.company_id)
+        _logger.info("Versión contingencia: %s | Compañía: %s", version_contingencia, journal.company_id)
 
         if version_contingencia is None:
             raise UserError(_("Debe definir la versión de la contingencia."))
@@ -808,19 +809,40 @@ class sit_AccountContingencia(models.Model):
         if not journal.sit_codestable:
             raise UserError(_("Configure Código de Establecimiento en diario '%s'.") % journal.name)
 
+        if not journal.sequence_id:
+            raise UserError(_("Configure una secuencia de contingencia en el diario '%s'.") % journal.name)
+
+        # Obtener secuencia configurada para actualizar el número, no para generar el nombre
+        sequence = journal.sequence_id  # self.env['ir.sequence'].search([('code', '=', seq_code)], limit=1)
+        if not sequence or not sequence.exists():
+            raise UserError(_("El diario '%s' no tiene una secuencia configurada para contingencia.") % journal.name)
+
+        # Tomar el prefix de la secuencia y reemplazar placeholders dinámicamente
+        prefix = sequence.prefix or ''  # prefijo dinámico de la secuencia
+        _logger.info("Prefix contingencia: %s ", prefix)
+
         version_str = str(version_contingencia).zfill(2)
         if not version_str.strip():
             raise UserError("La versión de contingencia no puede estar vacía.")
         estable = journal.sit_codestable
-        seq_code = 'CONT'
+        # seq_code = 'CONT'
+
+        # Diccionario para reemplazar los placeholders dinámicamente
+        replacements = {
+            'con': version_str,  # Reemplazo para %(con)s
+            'estable': estable,  # Reemplazo para %(estable)s
+        }
+
+        # Reemplazar los placeholders en el prefix de la secuencia
+        pattern_prefix = prefix
+        for key, value in replacements.items():
+            pattern_prefix = pattern_prefix.replace(f'%({key})s', value)
+
+        _logger.info("Prefijo dinámico final contingencia: %s", pattern_prefix)
 
         # Buscar el último nombre generado que coincida con el patrón
-        domain = [
-            ('journal_id', '=', journal.id),
-            ('name', 'like', f'CON-{version_str}-%{estable}-%')  # patrón que usas
-        ]
-        ultimo = self.search(domain, order='name desc', limit=1)
-
+        ultimo = self.search([('journal_id', '=', journal.id), ('name', 'like', f'{pattern_prefix}%')],
+                             order='name desc', limit=1)
         if ultimo:
             try:
                 ultima_parte = int(ultimo.name.split('-')[-1])
@@ -831,21 +853,18 @@ class sit_AccountContingencia(models.Model):
         else:
             nuevo_numero = 1
 
-        # Obtener secuencia configurada para actualizar el número, no para generar el nombre
-        sequence = self.env['ir.sequence'].search([('code', '=', seq_code)], limit=1)
-        if not sequence:
-            raise UserError(_("No se encontró la secuencia con código '%s'.") % seq_code)
-
-        nuevo_name = f"CON-{version_str}-0000{estable}-{str(nuevo_numero).zfill(15)}"
+        # nuevo_name = f"CON-{version_str}-0000{estable}-{str(nuevo_numero).zfill(15)}"
+        # Generar el nuevo nombre con el prefix de la secuencia
+        nuevo_name = f"{pattern_prefix}{str(nuevo_numero).zfill(15)}"
 
         # Verificar duplicado
         if self.search_count([('name', '=', nuevo_name), ('journal_id', '=', journal.id)]):
             raise UserError(_("El número de contingencia generado ya existe: %s") % nuevo_name)
 
-        _logger.info("Nombre de contingencia generado manualmente: %s", nuevo_name)
+        _logger.info("Nombre de contingencia generado dinámicamente con prefix: %s", nuevo_name)
 
         # Actualizar secuencia (ir.sequence o ir.sequence.date_range)
-        if actualizar_secuencia and sequence:
+        if actualizar_secuencia:
             next_num = nuevo_numero + 1
             if sequence.use_date_range:
                 today = fields.Date.context_today(self)
@@ -856,10 +875,10 @@ class sit_AccountContingencia(models.Model):
                 ], limit=1)
                 if date_range and date_range.number_next_actual < next_num:
                     date_range.number_next_actual = next_num
-                    _logger.info("Secuencia con date_range '%s' actualizada a %s", seq_code, next_num)
+                    _logger.info("Secuencia con date_range '%s' actualizada a %s", sequence.code, next_num)
             else:
                 if sequence.number_next_actual < next_num:
                     sequence.number_next_actual = next_num
-                    _logger.info("Secuencia '%s' actualizada a %s", seq_code, next_num)
+                    _logger.info("Secuencia '%s' actualizada a %s", sequence.code, next_num)
 
         return nuevo_name

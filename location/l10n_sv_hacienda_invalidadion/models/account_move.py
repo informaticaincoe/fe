@@ -210,13 +210,16 @@ class AccountMove(models.Model):
 
                 # Continuar con el flujo para ambos casos
                 invoice.write({
-                    'state': 'cancel',
                     'sit_evento_invalidacion': invalidation.id
                 })
                 _logger.info("SIT Estado de factura actualizado a cancelado: %s", invoice.name)
 
                 resultado = invalidation.button_anul()
                 _logger.info("SIT Método button_anul ejecutado correctamente para ID: %s", invalidation.id)
+                if resultado.get('exito'):
+                    invoice.write({
+                        'state': 'cancel',
+                    })
                 if not resultado.get('exito'):
                     # Retornamos la acción para mostrar notificación sin error popup
                     return {

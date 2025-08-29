@@ -47,14 +47,27 @@ class AccountMoveLine(models.Model):
             # Calcular precio total con descuento
             # Se verifica el tipo de documento a generar, si es factura el precio debe contener impuesto(IVA), si es CCF no debe tener impuestos(IVA)
             if line.move_id.journal_id.sit_tipo_documento.codigo == "01":
-                precio_total = round( (line.price_unit * line.quantity * (1 - (line.discount or 0.0) / 100.0)), 6)
-                line.precio_unitario = round(line.price_unit, 6)
+                # Calcular precio unitario con descuento aplicado
+                price_after_discount = line.price_unit * (1 - (line.discount or 0.0) / 100.0)
+
+                # Usamos compute_all para sumar impuestos
+                taxes = line.tax_ids.compute_all(
+                    price_after_discount,
+                    quantity=line.quantity,
+                    product=line.product_id,
+                    partner=line.move_id.partner_id
+                )
+
+                #precio_total = round( (line.price_subtotal * line.quantity * (1 - (line.discount or 0.0) / 100.0)), 6)
+                precio_total = round(taxes['total_included'], 6)  # Incluye impuestos
+                #line.precio_unitario = round(line.price_unit, 6)
+                line.precio_unitario = round(price_after_discount, 6)
 
             elif line.move_id.journal_id.sit_tipo_documento.codigo != "01" and line.move_id.journal_id.sit_tipo_documento.codigo != "11":
-                precio_total = round( (line.price_unit * line.quantity * (1 - (line.discount or 0.0) / 100.0)), 6)
+                precio_total = round( (line.price_subtotal * line.quantity * (1 - (line.discount or 0.0) / 100.0)), 6)
                 line.precio_unitario = round(line.price_unit, 6)
             elif line.move_id.journal_id.sit_tipo_documento.codigo == "11":
-                precio_total = round((line.price_unit * line.quantity * (1 - (line.discount or 0.0) / 100.0)), 6)
+                precio_total = round((line.price_subtotal * line.quantity * (1 - (line.discount or 0.0) / 100.0)), 6)
                 line.precio_unitario = round(line.price_unit, 6)
             _logger.info("SIT Precio total con descuento: %s", precio_total)
 

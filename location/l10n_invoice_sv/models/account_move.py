@@ -136,9 +136,9 @@ class AccountMove(models.Model):
                 tipo_doc = move.journal_id.sit_tipo_documento.codigo
                 move.iva_percibido_amount = ((move.sub_total_ventas / 1.13) - move.descuento_global) * 0.01
 
-    def _post(self, soft=True):
-        self._create_retencion_renta_line()
-        return super()._post(soft=soft)
+    # def _post(self, soft=True):
+    #     self._create_retencion_renta_line()
+    #     return super()._post(soft=soft)
 
     @api.depends('amount_total')
     def _amount_to_text(self):
@@ -169,65 +169,65 @@ class AccountMove(models.Model):
         raise ValidationError("No puede emitir un documento si falta un campo Legal " \
                               "Verifique %s" % campo)
 
-    def _post(self, soft=True):
-        '''validamos que partner cumple los requisitos basados en el tipo
-        de documento de la sequencia del diario selecionado'''
-        for invoice in self:
-            _logger.info("PRUEBA EN _POST accounT MOVE -------------- %s", invoice.move_type)
-            if invoice.move_type != 'entry':
-
-                type_report = invoice.journal_id.type_report
-                _logger.info("Tipo dte=%s", type_report)
-
-                _logger.info("invoice.company_id.sit_facturacion:=%s", invoice.company_id.sit_facturacion)
-                if invoice.company_id.sit_facturacion:
-                    if type_report == 'fcf':
-                        if not invoice.partner_id.parent_id:
-                            if not invoice.partner_id.vat:
-                                # invoice.msg_error("N.I.T.")
-                                pass
-                            if invoice.partner_id.company_type == 'person':
-                                if not invoice.partner_id.dui:
-                                    # invoice.msg_error("D.U.I.")
-                                    pass
-                        else:
-                            if not invoice.partner_id.parent_id.vat:
-                                # invoice.msg_error("N.I.T.")
-                                pass
-                            if invoice.partner_id.parent_id.company_type == 'person':
-                                if not invoice.partner_id.dui:
-                                    # invoice.msg_error("D.U.I.")
-                                    pass
-
-                    if type_report == 'exp':
-                        for l in invoice.invoice_line_ids:
-                            if l and l.product_id and not l.product_id.arancel_id:
-                                _logger.info("Producto: =%s", l)
-                                invoice.msg_error("Posicion Arancelaria del Producto %s" % l.product_id.name)
-
-                    # si es retificativa
-                    if type_report == 'ndc':
-                        if not invoice.partner_id.parent_id:
-                            if not invoice.partner_id.nrc:
-                                invoice.msg_error("N.R.C.")
-                            if not invoice.partner_id.vat:
-                                invoice.msg_error("N.I.T.")
-                            if not invoice.partner_id.codActividad:
-                                invoice.msg_error("Actividad Economica")
-                        else:
-                            if not invoice.partner_id.parent_id.nrc:
-                                invoice.msg_error("N.R.C.")
-                            if not invoice.partner_id.parent_id.vat:
-                                invoice.msg_error("N.I.T.")
-                            if not invoice.partner_id.parent_id.codActividad:
-                                invoice.msg_error("Actividad Economica")
-                else:
-                    #Flujo de facturas preimpresas
-                    if not invoice.name or invoice.name == '/':
-                        raise UserError("Debe asignar el número de la factura preimpresa.")
-
-
-        return super(AccountMove, self)._post()
+    # def _post(self, soft=True):
+    #     '''validamos que partner cumple los requisitos basados en el tipo
+    #     de documento de la sequencia del diario selecionado'''
+    #     for invoice in self:
+    #         _logger.info("PRUEBA EN _POST accounT MOVE -------------- %s", invoice.move_type)
+    #         if invoice.move_type != 'entry':
+    #
+    #             type_report = invoice.journal_id.type_report
+    #             _logger.info("Tipo dte=%s", type_report)
+    #
+    #             _logger.info("invoice.company_id.sit_facturacion:=%s", invoice.company_id.sit_facturacion)
+    #             if invoice.company_id.sit_facturacion:
+    #                 if type_report == 'fcf':
+    #                     if not invoice.partner_id.parent_id:
+    #                         if not invoice.partner_id.vat:
+    #                             # invoice.msg_error("N.I.T.")
+    #                             pass
+    #                         if invoice.partner_id.company_type == 'person':
+    #                             if not invoice.partner_id.dui:
+    #                                 # invoice.msg_error("D.U.I.")
+    #                                 pass
+    #                     else:
+    #                         if not invoice.partner_id.parent_id.vat:
+    #                             # invoice.msg_error("N.I.T.")
+    #                             pass
+    #                         if invoice.partner_id.parent_id.company_type == 'person':
+    #                             if not invoice.partner_id.dui:
+    #                                 # invoice.msg_error("D.U.I.")
+    #                                 pass
+    #
+    #                 if type_report == 'exp':
+    #                     for l in invoice.invoice_line_ids:
+    #                         if l and l.product_id and not l.product_id.arancel_id:
+    #                             _logger.info("Producto: =%s", l)
+    #                             invoice.msg_error("Posicion Arancelaria del Producto %s" % l.product_id.name)
+    #
+    #                 # si es retificativa
+    #                 if type_report == 'ndc':
+    #                     if not invoice.partner_id.parent_id:
+    #                         if not invoice.partner_id.nrc:
+    #                             invoice.msg_error("N.R.C.")
+    #                         if not invoice.partner_id.vat:
+    #                             invoice.msg_error("N.I.T.")
+    #                         if not invoice.partner_id.codActividad:
+    #                             invoice.msg_error("Actividad Economica")
+    #                     else:
+    #                         if not invoice.partner_id.parent_id.nrc:
+    #                             invoice.msg_error("N.R.C.")
+    #                         if not invoice.partner_id.parent_id.vat:
+    #                             invoice.msg_error("N.I.T.")
+    #                         if not invoice.partner_id.parent_id.codActividad:
+    #                             invoice.msg_error("Actividad Economica")
+    #             else:
+    #                 #Flujo de facturas preimpresas
+    #                 if not invoice.name or invoice.name == '/':
+    #                     raise UserError("Debe asignar el número de la factura preimpresa.")
+    #
+    #
+    #     return super(AccountMove, self)._post()
 
     # ---------------------------------------------------------------------------------------------------------
     #No se esta utilizando
