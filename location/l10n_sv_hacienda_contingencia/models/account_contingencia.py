@@ -219,8 +219,8 @@ class sit_account_contingencia(models.Model):
                 facturas_en_contingencia_count = len(facturas_en_contingencia)
 
                 # Verificar si las facturas no superan los 400 lotes de 100 facturas por lote
-                max_lotes = 2  # 400
-                facturas_por_lote = 2  # 100
+                max_lotes = 400  # 400
+                facturas_por_lote = 100  # 100
 
                 total_lotes = ((facturas_en_contingencia_count // facturas_por_lote) +
                                (1 if facturas_en_contingencia_count % facturas_por_lote != 0 else 0))

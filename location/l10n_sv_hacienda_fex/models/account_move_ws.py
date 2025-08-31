@@ -266,6 +266,11 @@ class AccountMove(models.Model):
             if codigo_tributo_codigo:
                 lines_tributes.append(codigo_tributo_codigo)
 
+            if lines_tributes == None:
+                line_temp["tributos"] = lines_tributes
+            else:
+                line_temp["tributos"] = None
+
             # Si no hay impuestos, base = qty * price_unit
             vat_taxes_amounts = line.tax_ids.compute_all(
                 line.price_unit, self.currency_id, line.quantity,

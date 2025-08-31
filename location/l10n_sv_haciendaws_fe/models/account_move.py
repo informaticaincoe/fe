@@ -472,11 +472,15 @@ class AccountMove(models.Model):
     #     return result
 
     def _generate_dte_name(self, journal=None, actualizar_secuencia=False):
-        """Genera nombre DTE solo si aplica facturación electrónica."""
+        """Genera nombre DTE solo si aplica facturación electrónica.
+        Si actualizar_secuencia=True, consume la secuencia con next_by_id y la actualiza en BD.
+        Si actualizar_secuencia=False, devuelve una previsualización sin consumir.
+        """
         if self.company_id and self.company_id.sit_facturacion:
             self.ensure_one()
+            nuevo_numero = 0
             journal = journal or self.journal_id
-            _logger.info("SIT diario: %s, tipo. %s", journal, journal.type)
+            _logger.info("SIT diario: %s, tipo. %s | Actualizar secuencia? %s", journal, journal.type, actualizar_secuencia)
 
             if journal.type not in ('sale', 'purchase'):
                 return False
@@ -495,37 +499,6 @@ class AccountMove(models.Model):
 
             sequence = journal.sequence_id
             seq_code = sequence.code
-
-            # if ultimo:
-            #     try:
-            #         ultima_parte = int(ultimo.name.split('-')[-1])
-            #     except ValueError:
-            #         raise UserError(_("No se pudo interpretar el número del último DTE: %s") % ultimo.name)
-            #     nuevo_numero = ultima_parte + 1
-            # else:
-            #     ultima_parte = 0
-            #     nuevo_numero = 1
-
-            # Obtener secuencia configurada
-            # sequence = self.env['ir.sequence'].search([('code', '=', seq_code)], limit=1)
-            # if sequence:
-            #     _logger.info("SIT | Sequence: %s", sequence)
-            #     if sequence.use_date_range:
-            #         today = fields.Date.context_today(self)
-            #         date_range = self.env['ir.sequence.date_range'].search([
-            #             ('sequence_id', '=', sequence.id),
-            #             ('date_from', '<=', today),
-            #             ('date_to', '>=', today)
-            #         ], limit=1)
-            #         if date_range and date_range.number_next_actual > nuevo_numero:
-            #             _logger.info("SIT | Ajustando número desde secuencia con rango: %s > %s",
-            #                          date_range.number_next_actual, nuevo_numero)
-            #             nuevo_numero = date_range.number_next_actual
-            #     else:
-            #         if sequence.number_next_actual > nuevo_numero:
-            #             _logger.info("SIT | Ajustando número desde secuencia directa: %s > %s", sequence.number_next_actual,
-            #                          nuevo_numero)
-            #             nuevo_numero = sequence.number_next_actual
 
             # nuevo_name = f"DTE-{tipo}-0000{estable}-{str(nuevo_numero).zfill(15)}"
             # Los placeholders tipo/estable se sustituyen desde el contexto
@@ -549,7 +522,7 @@ class AccountMove(models.Model):
             _logger.info("SIT Prefijo resuelto: %s", prefix_rendered)
 
             # Si Odoo ya puso un nombre que empieza con este prefijo → lo reusamos
-            if self.name and self.name.startswith(prefix_rendered):
+            if not actualizar_secuencia and self.name and self.name.startswith(prefix_rendered):
                 _logger.info("SIT Reutilizando número ya asignado por Odoo: %s", self.name)
                 return self.name
 
@@ -567,14 +540,17 @@ class AccountMove(models.Model):
                     ultima_parte = int(ultimo.name.split('-')[-1])
                 except ValueError:
                     raise UserError(_("No se pudo interpretar el número del último DTE: %s") % ultimo.name)
-                siguiente_dte  = ultima_parte + 1
+                siguiente_dte = ultima_parte + 1
             else:
                 ultima_parte = 0
-                siguiente_dte  = 1
+                siguiente_dte = 1
+
+            _logger.info("SIT Ultimo num. control: %s(correlativo: %s) | Siguiente numero:%s ", ultimo.name if ultimo else None, ultima_parte, siguiente_dte)
 
             # Obtener secuencia configurada
             date_range = None
-            _logger.info("SIT Ultimo num. control: %s(correlativo: %s) | Siguiente numero:%s ", ultimo.name, ultima_parte, siguiente_dte)
+            _logger.info("SIT Ultimo num. control: %s(correlativo: %s) | Siguiente numero:%s ", ultimo.name,
+                         ultima_parte, siguiente_dte)
             if sequence:
                 _logger.info("SIT | Sequence: %s", sequence)
                 if sequence.use_date_range:
@@ -584,29 +560,29 @@ class AccountMove(models.Model):
                         ('date_from', '<=', today),
                         ('date_to', '>=', today)
                     ], limit=1)
-                    #if date_range and date_range.number_next_actual < nuevo_numero:
-                    if date_range:
-                        if date_range.number_next_actual != siguiente_dte:
-                            _logger.warning("SIT | Corrigiendo desfase secuencia: estaba %s, ajustando a %s",
-                                            date_range.number_next_actual, siguiente_dte)
-                            date_range.number_next_actual = siguiente_dte
-                        nuevo_numero = siguiente_dte
+                    if date_range and date_range.number_next_actual < siguiente_dte:
+                        _logger.info("SIT | Corrigiendo desfase date_range: estaba %s, ajustando a %s",
+                                     date_range.number_next_actual, siguiente_dte)
+                        date_range.number_next_actual = siguiente_dte
+                        candidate_num = date_range.number_next_actual if date_range else sequence.number_next_actual
                 else:
-                    #if sequence.number_next_actual < nuevo_numero:
-                    nuevo_numero = max(sequence.number_next_actual, siguiente_dte)
-                    _logger.info("SIT | Ajustando número desde secuencia directa: %s > %s", sequence.number_next_actual, nuevo_numero)
-                    sequence.number_next_actual = nuevo_numero
+                    # if sequence.number_next_actual < nuevo_numero:
+                    if sequence.number_next_actual < siguiente_dte:
+                        _logger.info("SIT | Corrigiendo desfase sequence: estaba %s, ajustando a %s",
+                                     sequence.number_next_actual, siguiente_dte)
+                    sequence.number_next_actual = siguiente_dte
+                candidate_num = sequence.number_next_actual
 
             # 1) obtener prefijo de la secuencia
-            prefix = (sequence.prefix or '').strip()
-            _logger.info("SIT Prefijo secuencia raw: %s", prefix)
+            prefix_raw = (sequence.prefix or '').strip()
+            _logger.info("SIT Prefijo secuencia raw: %s", prefix_raw)
 
             # 2) extraer placeholders estilo %(... )s
-            placeholders_in_prefix = re.findall(r'%\(([^)]+)\)s', prefix)
+            placeholders_in_prefix = re.findall(r'%\(([^)]+)\)s', prefix_raw)
 
             # 3) fallback: si no hay, intentar formato con {} (str.format)
             if not placeholders_in_prefix:
-                placeholders_in_prefix = [fname for _, fname, _, _ in string.Formatter().parse(prefix) if fname]
+                placeholders_in_prefix = [fname for _, fname, _, _ in string.Formatter().parse(prefix_raw) if fname]
 
             _logger.info("SIT placeholders extraidos de la secuencia: %s", placeholders_in_prefix)
 
@@ -625,28 +601,51 @@ class AccountMove(models.Model):
                 _logger.error("SIT Error coincidencia placeholders: %s", "; ".join(msg_parts))
                 raise UserError(_("Error en parámetros DTE: %s") % ("; ".join(msg_parts)))
 
-            #nuevo_name = journal.sequence_id.with_context(dte=tipo, estable=estable).next_by_id()
-            nuevo_name = sequence.with_context(**ctx).next_by_id()  # **ctx convierte un diccionario en argumentos separados
+            # nuevo_name = journal.sequence_id.with_context(dte=tipo, estable=estable).next_by_id()
+            # Si queremos consumir/actualizar la secuencia -> usar next_by_id (esto YA actualiza ir.sequence)
+
+            # ----------------------------
+            # GENERACIÓN FINAL DEL NOMBRE
+            # ----------------------------
+            nuevo_name = None
+            if actualizar_secuencia:
+                # Consume la secuencia y actualiza ir.sequence/date_range automáticamente
+                nuevo_name = sequence.with_context(**ctx).next_by_id(
+                    sequence_date=self.invoice_date)  # **ctx convierte un diccionario en argumentos separados
+                # Ahora forzamos el incremento si ya está actualizado
+                if int(nuevo_name.split('-')[-1]) != siguiente_dte:
+                    siguiente_dte = int(nuevo_name.split('-')[-1]) + 1
+                    nuevo_name = f"{prefix_rendered}{str(siguiente_dte).zfill(15)}"
+
+                # Forzar la actualización del siguiente número en la secuencia
+                if sequence.use_date_range and date_range:
+                    date_range.number_next_actual = siguiente_dte
+                else:
+                    sequence.number_next_actual = siguiente_dte
+            else:
+                # Solo previsualización, construimos nombre sin afectar secuencia
+                nuevo_name = f"{prefix_rendered}{str(siguiente_dte).zfill(15)}"
 
             # Verificar duplicado antes de retornar
-            if self.search_count([('name', '=', nuevo_name), ('journal_id', '=', journal.id)]):
-                raise UserError(_("El número DTE generado ya existe: %s") % nuevo_name)
-
-            _logger.info("SIT Nombre DTE generado manualmente: %s", nuevo_name)
+            # if self.search_count([('name', '=', nuevo_name), ('journal_id', '=', journal.id)]):
+            #     raise UserError(_("El número DTE generado ya existe en la base de datos: %s") % nuevo_name)
+            # _logger.info("SIT Nombre DTE generado y secuencia consumida: %s", nuevo_name)
 
             # Actualizar secuencia (ir.sequence o ir.sequence.date_range)
-            if actualizar_secuencia and sequence:
-                next_num = nuevo_numero + 1
-                if sequence.use_date_range:
-                    if date_range and date_range.number_next_actual < next_num:
-                        date_range.number_next_actual = next_num
-                        _logger.info("SIT Secuencia con date_range '%s' actualizada a %s", seq_code, next_num)
-                else:
-                    if sequence.number_next_actual < next_num:
-                        sequence.number_next_actual = next_num
-                        _logger.info("SIT Secuencia '%s' actualizada a %s", seq_code, next_num)
+            # if actualizar_secuencia and sequence:
+            #   next_num = nuevo_numero + 1
+            #  if sequence.use_date_range:
+            #     if date_range and date_range.number_next_actual < next_num:
+            #        #date_range.number_next_actual = next_num
+            #       nuevo_numero = seq.next_by_id(sequence_date=self.invoice_date, context=ctx)
+            #      _logger.info("SIT Secuencia con date_range '%s' actualizada a %s", seq_code, next_num)
+            # else:
+            #   if sequence.number_next_actual < next_num:
+            #      #sequence.number_next_actual = next_num
+            #     nuevo_numero = seq._next_do(sequence_date=self.invoice_date, context=ctx)
+            #    _logger.info("SIT Secuencia '%s' actualizada a %s", seq_code, next_num)
 
-            _logger.info("SIT Actualizar secuencia _generar_dte_name(): %s", actualizar_secuencia)
+            # _logger.info("SIT Actualizar secuencia _generar_dte_name(): %s", actualizar_secuencia)
 
             return nuevo_name
         else:
@@ -879,6 +878,11 @@ class AccountMove(models.Model):
         # 2) Facturas que sí aplican a DTE
         for invoice in invoices_to_post:
 
+            # Si el dte ya está posteado, no seguimos
+            if invoice.state == "posted":
+                _logger.warning("El documento ID %s ya está en estado 'publicado', se omite el reproceso." % invoice.id)
+                continue
+
             # Condicional: Si la empresa no aplica a facturación electrónica, usar el flujo estándar
             if not (invoice.company_id and invoice.company_id.sit_facturacion):
                 _logger.info("Empresa aplica a facturacion? %s" % invoice.company_id.sit_facturacion)
@@ -947,7 +951,7 @@ class AccountMove(models.Model):
                     _logger.info("SIT action_post sit_tipo_documento = %s", sit_tipo_documento)
                     _logger.info("SIT Receptor = %s, info=%s", invoice.partner_id, invoice.partner_id.parent_id)
                     # Validación del partner y otros parámetros según el tipo de DTE
-                    if type_report.lower() == constants.TYPE_REPORT_CCF:
+                    if type_report and type_report.lower() == constants.TYPE_REPORT_CCF:
                         # Validaciones específicas para CCF
                         if not invoice.partner_id.parent_id:
                             if not invoice.partner_id.nrc:
@@ -964,7 +968,7 @@ class AccountMove(models.Model):
                             if not invoice.partner_id.parent_id.codActividad:
                                 invoice.msg_error("Giro o Actividad Económica")
 
-                    elif type_report.lower() == constants.TYPE_REPORT_NDC:
+                    elif type_report and type_report.lower() == constants.TYPE_REPORT_NDC:
                         # Asignar el partner_id relacionado con el crédito fiscal si no existe parent_id
                         if not invoice.partner_id.parent_id:
                             if not invoice.partner_id.nrc:
@@ -1011,20 +1015,26 @@ class AccountMove(models.Model):
                         _logger.warning("SIT Resultado. =%s, estado=%s", Resultado, Resultado.get('estado', ''))
 
                         # Si el resp es un rechazo por número de control
-                        if isinstance(Resultado, dict) and Resultado.get('estado',
-                                                                         '').strip().lower() == 'rechazado' and Resultado.get(
-                            'codigoMsg') == '004':
+                        if isinstance(Resultado, dict) and Resultado.get('estado', '').strip().lower() == 'rechazado' and Resultado.get('codigoMsg') == '004':
                             error_text = json.dumps(Resultado).lower()
                             descripcion = Resultado.get('descripcionMsg', '')
                             _logger.warning("SIT Descripcion error: %s", descripcion)
                             if 'identificacion.numerocontrol' in descripcion.lower():
-                                _logger.warning(
-                                    "SIT DTE rechazado por número de control duplicado. Generando nuevo número.")
+                                _logger.warning("SIT DTE rechazado por número de control duplicado. Generando nuevo número.")
 
                                 # Generar nuevo número de control
-                                nuevo_nombre = invoice._generate_dte_name()
-                                invoice.write({'name': nuevo_nombre})
-                                invoice.sequence_number = int(nuevo_nombre.split("-")[-1])
+                                nuevo_nombre = invoice._generate_dte_name(actualizar_secuencia=True)
+                                # Verifica si el nuevo nombre es diferente antes de actualizar
+                                if nuevo_nombre != invoice.name:
+                                    _logger.info("SIT Actualizando nombre DTE: %s a %s", invoice.name, nuevo_nombre)
+                                    invoice.write({'name': nuevo_nombre})  # Actualiza el nombre
+                                    invoice.sequence_number = int(nuevo_nombre.split("-")[-1])
+                                    _logger.info("SIT name actualizado: %s | sequence number: %s", invoice.name, invoice.sequence_number)
+
+                                    # Forzar un commit explícito a la base de datos
+                                    invoice._cr.commit()
+                                else:
+                                    _logger.info("SIT El nombre ya está actualizado, no se requiere escribir.")
 
                                 # Reemplazar numeroControl en el payload original
                                 payload['dteJson']['identificacion']['numeroControl'] = nuevo_nombre
@@ -1983,7 +1993,7 @@ class AccountMove(models.Model):
                 num_lotes = Lote.search_count([('sit_contingencia', '=', contingencia_activa.id)])
                 _logger.info("Cantidad lotes existentes en contingencia %s: %d", contingencia_activa.name, num_lotes)
 
-                if num_lotes <= 400:
+                if num_lotes < 400:
                     nuevo_nombre_lote = self.env['account.lote'].generar_nombre_lote(journal=journal_lote,
                                                                                      actualizar_secuencia=True)
                     if not nuevo_nombre_lote or not nuevo_nombre_lote.strip():
@@ -2054,6 +2064,9 @@ class AccountMove(models.Model):
 
         if not self.condiciones_pago:
             raise ValidationError("Debe seleccionar una Condicion de la Operación.")
+
+        if not self.forma_pago:
+            raise ValidationError("Seleccione una Forma de Pago.")
 
         res = super().action_post()
         facturas_con_contingencia = self.filtered(lambda inv: inv.sit_es_configencia)

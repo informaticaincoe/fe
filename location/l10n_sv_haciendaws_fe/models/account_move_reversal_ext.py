@@ -6,10 +6,12 @@ _logger = logging.getLogger(__name__)
 
 try:
     from odoo.addons.common_utils.utils import constants
+    from odoo.addons.common_utils.utils import config_utils
     _logger.info("SIT Modulo config_utils [Reverse] Nota de credito")
 except ImportError as e:
     _logger.error(f"Error al importar 'config_utils': {e}")
     config_utils = None
+    constants = None
 
 class AccountMoveReversal(models.TransientModel):
     _inherit = "account.move.reversal"
