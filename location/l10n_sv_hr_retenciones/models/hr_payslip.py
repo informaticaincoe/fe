@@ -210,7 +210,7 @@ class HrPayslip(models.Model):
                 _logger.error("No se encontró tipo de input con código %s", code)
                 raise UserError(_("No se encontró el tipo de input para %s.") % code)
             else:
-                _logger.debug("Tipo de input encontrado → código=%s, nombre=%s", code, tipo.name)
+                _logger.info("Tipo de input encontrado → código=%s, nombre=%s", code, tipo.name)
 
         # Determinar si es contrato profesional
         is_professional = contract.wage_type == constants.SERVICIOS_PROFESIONALES
@@ -284,9 +284,10 @@ class HrPayslip(models.Model):
                     'amount': float_round(valor, precision_digits=2),
                     'payslip_id': slip.id,
                     'input_type_id': tipo.id,
-                    'company_id': slip.company_id.id,  # <-- agregamos la empresa
+                    #'company_id': slip.company_id.id,  # <-- agregamos la empresa
                 })
-                _logger.info("Input agregado: código=%s, nombre=%s, monto=%.2f, nómina ID=%d", code, tipo.name, valor, slip.id)
+                _logger.info("Input agregado: código=%s, nombre=%s, monto=%.2f, nómina ID=%d", code, tipo.name, valor,
+                             slip.id)
             else:
                 _logger.warning("Tipo de input para código %s no encontrado, no se creó input", code)
 
@@ -508,7 +509,7 @@ class HrPayslip(models.Model):
                     'amount': float_round(datos_vac["extra_30"], precision_digits=2),
                     'payslip_id': slip.id,
                     'input_type_id': tipo_vacaciones.id,
-                    'company_id': slip.company_id.id,
+                    # 'company_id': slip.company_id.id,
                 })
                 _logger.info(f"Creado input VACACIONES en {slip.name} → días={datos_vac['dias_vacaciones']} extra={datos_vac['extra_30']}")
 
@@ -560,8 +561,6 @@ class HrPayslip(models.Model):
             ]).filtered(lambda we: we.duration > 0)
 
             # Filtrar solo entradas que cuentan como asistencia
-            _logger.info("Entradas de trabajo encontradas: %d para %s (%s → %s)", len(work_entries), slip.employee_id.name, slip.date_from, slip.date_to)
-
             _logger.info("Entradas de trabajo encontradas: %d para %s (%s → %s)", len(work_entries), slip.employee_id.name, slip.date_from, slip.date_to)
 
             # Calcular horas totales

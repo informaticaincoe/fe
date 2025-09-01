@@ -1,10 +1,13 @@
 <odoo>
-    <data noupdate="0">
+    <data noupdate="1">
 
         <!-- Tipo de entrada: Calculo -->
         <record id="input_type_deduccion_bancos" model="hr.payslip.input.type">
             <field name="name">Bancos</field>
             <field name="code">BANCO</field>
+            <field name="active">true</field>
+            <field name="available_in_attachments">true</field>
+            <field name="is_quantity">true</field>
             <field name="country_id" eval="False"/>
         </record>
 
@@ -22,6 +25,5 @@
             <field name="amount_other_input_id" ref="input_type_deduccion_bancos"/>
             <field name="appears_on_payslip" eval="True"/>
         </record>
-
     </data>
 </odoo>

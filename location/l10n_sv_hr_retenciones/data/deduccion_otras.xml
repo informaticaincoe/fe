@@ -5,15 +5,9 @@
         <record id="input_type_deduccion_otros" model="hr.payslip.input.type">
             <field name="name">Otros</field>
             <field name="code">OTROS</field>
-            <field name="country_id" eval="False"/>
-        </record>
-
-        <record id="attachment_type_otros" model="hr.payslip.input.type">
-            <field name="name">Otros</field>
+            <field name="active">true</field>
+            <field name="available_in_attachments">true</field>
             <field name="is_quantity">true</field>
-            <field name="code">OTROS</field>
-            <field name="create_uid">2</field>
-            <field name="write_uid">2</field>
             <field name="country_id" eval="False"/>
         </record>
 
@@ -30,15 +24,6 @@
             <field name="input_type_id" ref="input_type_deduccion_otros"/>
             <field name="amount_other_input_id" ref="input_type_deduccion_otros"/>
             <field name="appears_on_payslip" eval="True"/>
-        </record>
-
-        <record id="salary_type_deduccion_otros" model="hr.payslip.input.type">
-            <field name="name">Otros</field>
-            <field name="code">OTROS</field>
-            <field name="active">true</field>
-            <field name="available_in_attachments">true</field>
-            <field name="is_quantity">true</field>
-            <field name="country_id" eval="False"/>
         </record>
 
     </data>

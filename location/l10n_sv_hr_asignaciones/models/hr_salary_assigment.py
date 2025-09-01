@@ -1,5 +1,5 @@
 from odoo import models, fields, api, _
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from odoo.exceptions import UserError, ValidationError
 import logging
 import unicodedata
@@ -22,6 +22,13 @@ except ImportError as e:
 class HrSalaryAssignment(models.Model):
     _name = 'hr.salary.assignment'
     _description = 'Salary Assignment'
+
+    PERIOD_MONTHS = [
+        ('01', 'enero'), ('02', 'febrero'), ('03', 'marzo'),
+        ('04', 'abril'), ('05', 'mayo'), ('06', 'junio'),
+        ('07', 'julio'), ('08', 'agosto'), ('09', 'septiembre'),
+        ('10', 'octubre'), ('11', 'noviembre'), ('12', 'diciembre'),
+    ]
 
     # Campos principales de la asignación
     employee_id = fields.Many2one('hr.employee', string='Empleado')
@@ -56,6 +63,60 @@ class HrSalaryAssignment(models.Model):
 
     company_id = fields.Many2one("res.company", string="Compañía", required=True, default=lambda self: self.env.company, index=True,)
 
+    # ----- Filtro por año, mes y dia -----
+    employee_name = fields.Char(
+        string="Nombre del Empleado",
+        compute='_compute_employee_name',
+        store=True,
+        help="Nombre completo del empleado para búsquedas y agrupaciones."
+    )
+
+    def year_selection(self):
+        current_year = date.today().year
+        years = list(range(current_year - 3, current_year + 2))
+        return [(str(y), str(y)) for y in years]
+
+    period_year = fields.Selection(
+        selection=year_selection,
+        string='Año',
+        compute='_compute_period_fields',
+        store=True,
+        index=True
+    )
+    period_month = fields.Selection(
+        selection=PERIOD_MONTHS,
+        string='Mes',
+        compute='_compute_period_fields',
+        store=True,
+        index=True
+    )
+    period_quincena = fields.Selection(
+        selection=[('1', '1ª quincena'), ('2', '2ª quincena')],
+        string='Quincena',
+        compute='_compute_period_fields',
+        store=True,
+        index=True
+    )
+
+    # Métodos compute para los nuevos campos
+    @api.depends('employee_id.name')
+    def _compute_employee_name(self):
+        for rec in self:
+            rec.employee_name = rec.employee_id.name or False
+
+    @api.depends('periodo')
+    def _compute_period_fields(self):
+        for rec in self:
+            if rec.periodo:
+                d = rec.periodo
+                rec.period_year = str(d.year)
+                rec.period_month = f"{d.month:02d}"
+                rec.period_quincena = '1' if d.day <= 15 else '2'
+            else:
+                rec.period_year = False
+                rec.period_month = False
+                rec.period_quincena = False
+
     def unlink(self):
         for asignacion in self:
             payslip = asignacion.payslip_id
@@ -77,6 +138,9 @@ class HrSalaryAssignment(models.Model):
 
     def _calcular_monto_horas_extras(self, empleado, horas_dict):
         try:
+            dias_mes = 30
+            horas_laboradas = 8
+
             contrato = empleado.contract_id
             if not contrato:
                 raise UserError("No se encontró contrato para el empleado.")
