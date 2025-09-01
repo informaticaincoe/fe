@@ -1,5 +1,6 @@
 from odoo import api, fields, models, _
 import logging
+from decimal import Decimal, ROUND_HALF_UP
 _logger = logging.getLogger(__name__)
 
 class AccountMoveLine(models.Model):
@@ -21,55 +22,33 @@ class AccountMoveLine(models.Model):
             _logger.info("SIT Tipo de documento(dte): %s", line.codigo_tipo_documento)
 
     @api.depends('product_id', 'quantity', 'price_unit', 'discount', 'tax_ids', 'move_id.journal_id')
-    #@api.onchange('product_id', 'quantity', 'price_unit', 'discount')
-    def _compute_precios_tipo_venta(self): #def _onchange_precio_tipo_venta(self):
+    def _compute_precios_tipo_venta(self):
         for line in self:
-            _logger.info("SIT Onchange activado para la línea ID: %s", line.id)
+            _logger.info("==== SIT Onchange activado para la línea ID: %s ====", line.id)
             if not line.product_id:
+                _logger.info("SIT Sin producto asignado, se omite la línea")
                 continue
 
             tipo_venta = line.product_id.tipo_venta
             if not tipo_venta:
+                _logger.info("SIT Sin tipo_venta definido para el producto [%s]", line.product_id.display_name)
                 continue
-            _logger.info("SIT tipo_venta del producto [%s]: %s", line.product_id.display_name, tipo_venta)
+            _logger.info("SIT Tipo de venta del producto [%s]: %s", line.product_id.display_name, tipo_venta)
 
-            # Reinicia los campos
+            currency = line.move_id.currency_id
+            cantidad = line.quantity
+            descuento = line.discount or 0.0
+            base_price_unit = line.price_unit  # Ahora ya tiene el ajuste correcto
+
+            # Reset precios
             line.precio_gravado = 0.0
             line.precio_exento = 0.0
             line.precio_no_sujeto = 0.0
-            precio_total = 0.0
-            # if config_utils:
-            #     iva = config_utils.get_config_value(self.env, 'valor_iva', self.company_id.id)
-            # else:
-            #     _logger.error("config_utils no disponible. Valor IVA por defecto 0.0.")
-            # _logger.info("SIT Configuracion IVA: %s", iva)
 
-            # Calcular precio total con descuento
-            # Se verifica el tipo de documento a generar, si es factura el precio debe contener impuesto(IVA), si es CCF no debe tener impuestos(IVA)
-            if line.move_id.journal_id.sit_tipo_documento.codigo == "01":
-                # Calcular precio unitario con descuento aplicado
-                price_after_discount = line.price_unit * (1 - (line.discount or 0.0) / 100.0)
-
-                # Usamos compute_all para sumar impuestos
-                taxes = line.tax_ids.compute_all(
-                    price_after_discount,
-                    quantity=line.quantity,
-                    product=line.product_id,
-                    partner=line.move_id.partner_id
-                )
-
-                #precio_total = round( (line.price_subtotal * line.quantity * (1 - (line.discount or 0.0) / 100.0)), 6)
-                precio_total = round(taxes['total_included'], 6)  # Incluye impuestos
-                #line.precio_unitario = round(line.price_unit, 6)
-                line.precio_unitario = round(price_after_discount, 6)
-
-            elif line.move_id.journal_id.sit_tipo_documento.codigo != "01" and line.move_id.journal_id.sit_tipo_documento.codigo != "11":
-                precio_total = round( (line.price_subtotal * line.quantity * (1 - (line.discount or 0.0) / 100.0)), 6)
-                line.precio_unitario = round(line.price_unit, 6)
-            elif line.move_id.journal_id.sit_tipo_documento.codigo == "11":
-                precio_total = round((line.price_subtotal * line.quantity * (1 - (line.discount or 0.0) / 100.0)), 6)
-                line.precio_unitario = round(line.price_unit, 6)
-            _logger.info("SIT Precio total con descuento: %s", precio_total)
+            # Subtotal línea aplicando descuento
+            subtotal_linea_con_descuento = base_price_unit * cantidad * (1 - descuento / 100.0)
+            precio_total = currency.round(subtotal_linea_con_descuento)
+            line.precio_unitario = line.price_unit
 
             # Asignar según tipo_venta
             if tipo_venta == 'gravado':
@@ -79,3 +58,41 @@ class AccountMoveLine(models.Model):
             elif tipo_venta == 'no_sujeto':
                 line.precio_no_sujeto = precio_total
             _logger.info("SIT Precio total gravado= %s, total exento= %s, total no sujeto= %s", line.precio_gravado, line.precio_exento, line.precio_no_sujeto)
+            _logger.info("==== FIN LINEA ID: %s ====", line.id)
+
+    @api.onchange('product_id', 'tax_ids', 'move_id.journal_id')
+    def _onchange_price_unit_tipo_venta(self):
+        for line in self:
+            if not line.product_id:
+                continue
+
+            doc_code = line.move_id.journal_id.sit_tipo_documento.codigo
+            impuestos_incluidos = line.tax_ids.filtered(lambda t: t.price_include_override == 'tax_included')
+            impuestos_no_incluidos = line.tax_ids.filtered(lambda t: t.price_include_override == 'tax_excluded')
+
+            base_price_unit = line.product_id.lst_price  # Precio de lista
+            currency = line.move_id.currency_id
+
+            # ------------------ FE (01) ------------------
+            if doc_code == "01":
+                if impuestos_no_incluidos:
+                    # Agregar impuesto al price_unit
+                    tasa_total = sum(t.amount / 100.0 for t in impuestos_no_incluidos)
+                    line.price_unit = currency.round(base_price_unit * (1 + tasa_total))
+                else:
+                    # Precio normal si el impuesto ya está incluido
+                    line.price_unit = currency.round(base_price_unit)
+
+            # ------------------ FEX (11) ------------------
+            elif doc_code == "11":
+                line.price_unit = currency.round(base_price_unit)
+
+            # ------------------ Otros documentos ------------------
+            else:
+                if impuestos_incluidos:
+                    # Quitar impuestos del price_unit
+                    tasa_total = sum(t.amount / 100.0 for t in impuestos_incluidos)
+                    line.price_unit = currency.round(base_price_unit / (1 + tasa_total))
+                else:
+                    # Usar price_unit normal
+                    line.price_unit = currency.round(base_price_unit)

@@ -737,10 +737,10 @@ class AccountMove(models.Model):
 
             line_temp["descripcion"] = line.name
             line_temp["precioUni"] = round(line.precio_unitario, 2)
-            line_temp["montoDescu"] = (
+            line_temp["montoDescu"] = round( (
                     line_temp["cantidad"] * (line.price_unit * (line.discount / 100))
                     or 0.0
-            )
+            ), 2)
             line_temp["ventaNoSuj"] = round(line.precio_no_sujeto, 2)  # 0.0
 
             iva_tax_found = False
