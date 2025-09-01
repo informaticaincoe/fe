@@ -5,7 +5,6 @@
         <record id="input_type_deduccion_venta_empleados" model="hr.payslip.input.type">
             <field name="name">Venta a empleados</field>
             <field name="code">VENTA_EMPLEADOS</field>
-            <field name="active">true</field>
             <field name="available_in_attachments">true</field>
             <field name="is_quantity">true</field>
             <field name="country_id" eval="False"/>

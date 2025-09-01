@@ -121,6 +121,9 @@ class AccountMove(models.Model):
             if move.apply_retencion_renta:
                 move.retencion_renta_amount = base_total * 0.10
 
+            _logger.info("base total %s", base_total)
+            _logger.info(" move.retencion_renta_amount %s",  move.retencion_renta_amount)
+
             if move.apply_retencion_iva:
                 tipo_doc = move.journal_id.sit_tipo_documento.codigo
                 # if tipo_doc in ["01", "03"]:  # FCF y CCF

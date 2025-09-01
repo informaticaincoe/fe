@@ -74,28 +74,18 @@
 
                     <!-- Botón para agrupar por fecha. Asumiendo que tienes un campo de fecha. -->
                     <group expand="0" string="Agrupar Por">
-                        <!-- Agrupa por el campo computado 'employee_name' -->
                         <filter name="group_by_employee_name" string="Empleado"
                                 context="{'group_by': 'employee_name'}"/>
-                        <!-- CAMBIO AQUÍ: Agrupa por la fecha completa -->
                         <filter name="group_by_periodo_day" string="Fecha Completa"
                                 context="{'group_by': 'periodo:day'}"/>
                     </group>
 
-                    <!--
-                    Panel de búsqueda por Año, Mes y Quincena,
-                    utilizando campos que debes haber definido en el modelo hr.salary.assignment.
-                    -->
                     <searchpanel>
                         <field name="period_year" string="AÑO" select="one" enable_counters="1"/>
                         <field name="period_month" string="MES" select="one" enable_counters="1"/>
                         <field name="period_quincena" string="QUINCENA" select="one" enable_counters="1"/>
                     </searchpanel>
 
-                    <!--
-                    Filtros rápidos para el mes y las quincenas actuales.
-                    Estos también asumen que los campos de período existen.
-                    -->
                     <filter name="mes_actual"
                             string="Mes actual"
                             domain="[('period_year','=', time.strftime('%%Y')), ('period_month','=', time.strftime('%%m'))]"/>

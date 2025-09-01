@@ -38,6 +38,7 @@
         "views/hr_contract_form_view.xml",
         "views/hr_payroll_structure_form_inherit_view.xml",
         "views/hr_salary_attachment_mass_state_views.xml",
+        "views/hr_deductions_download.xml",
         "views/hr_salary_attachment_views_search.xml",
         # "data/cleanup_deducciones.xml",
     ],

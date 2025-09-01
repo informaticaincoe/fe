@@ -9,12 +9,6 @@
                 <group>
                     <field name="state"/>
                 </group>
-                <group>
-                    <field name="set_end_date"/>
-                    <field name="end_date"
-                           invisible="set_end_date == False"
-                           required="set_end_date == True"/>
-                </group>
                 <footer>
                     <button name="action_apply" type="object"
                             string="Aplicar a seleccionados" class="btn-primary"/>

@@ -1,0 +1,50 @@
+<odoo>
+  <data>
+    <record id="view_hr_salary_attachment_search_inherit" model="ir.ui.view">
+      <field name="name">hr.salary.attachment.search.inherit</field>
+      <field name="model">hr.salary.attachment</field>
+      <field name="inherit_id" ref="hr_payroll.hr_salary_attachment_view_search"/>
+      <field name="arch" type="xml">
+        <xpath expr="//search/field[@name='employee_ids']" position="replace">
+          <field name="employee_id"
+                 filter_domain="[('employee_id.name','ilike', self)]"
+                 string="Empleado"/>
+        </xpath>
+
+        <xpath expr="//search" position="inside">
+          <group expand="0" string="Agrupar Por">
+            <filter name="group_by_employee_id" string="Empleado"
+                    context="{'group_by': 'employee_id'}"/>
+            <filter name="group_by_date_start" string="Fecha de Inicio"
+                    context="{'group_by': 'date_start'}"/>
+            <filter name="group_by_payslip_run" string="Quincena (Lote)"
+                    context="{'group_by': 'payslip_run_id'}"/>
+          </group>
+        </xpath>
+
+<!--        <xpath expr="//search/searchpanel" position="inside">-->
+<!--          <field name="period_year" string="AÑO" select="one" enable_counters="1"/>-->
+<!--          <field name="period_month" string="MES" select="one" enable_counters="1"/>-->
+<!--          <field name="period_quincena" string="QUINCENA" select="one" enable_counters="1"/>-->
+<!--        </xpath>-->
+
+        <xpath expr="//search" position="inside">
+          <filter name="mes_actual"
+                  string="Mes actual"
+                  domain="[('period_year','=', time.strftime('%%Y')),
+                           ('period_month','=', time.strftime('%%m'))]"/>
+          <filter name="q1_mes_actual"
+                  string="1ª quincena (mes actual)"
+                  domain="[('period_year','=', time.strftime('%%Y')),
+                           ('period_month','=', time.strftime('%%m')),
+                           ('period_quincena','=','1')]"/>
+          <filter name="q2_mes_actual"
+                  string="2ª quincena (mes actual)"
+                  domain="[('period_year','=', time.strftime('%%Y')),
+                           ('period_month','=', time.strftime('%%m')),
+                           ('period_quincena','=','2')]"/>
+        </xpath>
+      </field>
+    </record>
+  </data>
+</odoo>
