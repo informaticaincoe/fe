@@ -253,7 +253,6 @@ class AccountMove(models.Model):
         # if self.journal_id and self.journal_id.type_report == 'ndc':  # Ajusta según tu configuración de tipo de diario
         # self.l10n_latam_document_type_id = self.journal_id.sit_tipo_documento
 
-
     @api.model_create_multi
     def create(self, vals_list):
         _logger.info("SIT vals list: %s", vals_list)
@@ -327,6 +326,12 @@ class AccountMove(models.Model):
                         vals['name'] = self.env['ir.sequence'].next_by_code('account.move') or '/'
                     _logger.info("SIT Asignado nombre de entry desde secuencia: %s", vals['name'])
 
+            # Validación de duplicados antes de la creación
+            existing_move = self.env['account.move'].search([('name', '=', vals.get('name'))], limit=1)
+            if existing_move:
+                _logger.warning("Documento duplicado detectado con el nombre: %s", vals.get('name'))
+                continue  # No crear el duplicado, pasa al siguiente
+
         _logger.info("Valores finales antes de super().create: %s", vals_list)
         # no forzar name
         self._fields['name'].required = False
@@ -342,6 +347,7 @@ class AccountMove(models.Model):
 
             rec._copiar_retenciones_desde_documento_relacionado()
         _logger.info("SIT FIN create")
+
         return records
 
     @api.depends("move_type")
@@ -1180,10 +1186,13 @@ class AccountMove(models.Model):
                             _logger.info("=== SIT Error en DTE")
                             # Lanzar error al final si fue rechazado
                             if estado:
+                                _logger.info("SIT Estado DTE guardado: %s", estado)
                                 if estado == 'rechazado':
+                                    invoice.hacienda_estado = estado
                                     mensaje = Resultado['descripcionMsg'] or _('Documento rechazado por Hacienda.')
                                     raise UserError(_("DTE rechazado por MH:\n%s") % mensaje)
                                 elif estado not in ('procesado', ''):
+                                    invoice.hacienda_estado = estado
                                     mensaje = Resultado.get('descripcionMsg') or _('DTE no procesado correctamente')
                                     raise UserError(
                                         _("Respuesta inesperada de Hacienda. Estado: %s\nMensaje: %s") % (estado,
@@ -1211,13 +1220,11 @@ class AccountMove(models.Model):
                 # errores_dte.append("Factura %s: %s" % (invoice.name or invoice.id, str(e)))
                 # UserError(_("Error al procesar la factura %s:\n%s") % (invoice.name or invoice.id, str(e)))
         _logger.info("SIT Fin _post")
-
         # Solo llamar al super si quedan invoices sin postear
         draft_invoices = invoices_to_post.filtered(lambda m: m.state == 'draft')
         if draft_invoices:
             return super(AccountMove, draft_invoices)._post(soft=soft)
         return True
-
         # return super(AccountMove, self)._post(soft=soft)
 
     def _compute_validation_type_2(self):
