@@ -9,7 +9,6 @@ class HrSalaryAttachmentMassStateWizard(models.TransientModel):
         [('open', 'En proceso'), ('close', 'Terminado'), ('cancel', 'Cancelado')],
         required=True, default='close', string='Nuevo estado'
     )
-    set_end_date = fields.Boolean(string='Fijar fecha de finalización')
     end_date = fields.Date(string='Fecha de finalización', default=fields.Date.context_today)
 
     def _resolve_state_value(self, model):
@@ -30,10 +29,6 @@ class HrSalaryAttachmentMassStateWizard(models.TransientModel):
             return {'type': 'ir.actions.act_window_close'}
 
         new_state = self._resolve_state_value(self.env['hr.salary.attachment'])
-
-        # Fecha de finalización opcional (se aplica solo a estados finales)
-        if self.set_end_date and self.end_date and new_state in ('close', 'cancel', 'cancelled'):
-            attachments.filtered(lambda a: not a.date_end).write({'date_end': self.end_date})
 
         # Ahora el código maneja los tres estados posibles
         if new_state == 'close':

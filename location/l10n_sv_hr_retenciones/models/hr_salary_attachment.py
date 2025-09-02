@@ -1,7 +1,18 @@
 from odoo import models, fields, api, _
 from datetime import date
 
+import logging
 
+from odoo.exceptions import UserError
+
+_logger = logging.getLogger(__name__)
+
+try:
+    from odoo.addons.common_utils.utils import constants
+    _logger.info("SIT Modulo config_utils")
+except ImportError as e:
+    _logger.error(f"Error al importar 'config_utils': {e}")
+    constants = None
 
 class HrSalaryAttachment(models.Model):
     _inherit = 'hr.salary.attachment' # Heredamos del modelo original de Odoo
@@ -71,3 +82,17 @@ class HrSalaryAttachment(models.Model):
                 rec.period_month = False
                 rec.period_quincena = False
 
+    def action_descargar_plantilla_deducciones(self):
+        attachment = self.env['ir.attachment'].search([
+            ('name', '=', 'plantilla_deducciones_salariales.xlsx'),
+            ('mimetype', '=', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        ], limit=1)
+
+        if not attachment:
+            raise UserError("No se encontró la plantilla de deducciones.")
+
+        return {
+            'type': 'ir.actions.act_url',
+            'url': f'/web/content/{attachment.id}?download=true',
+            'target': 'self',
+        }

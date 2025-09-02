@@ -555,7 +555,8 @@ class AccountMove(models.Model):
                                                                          cuerpoDocumento[3],
                                                                          invoice_info["identificacion"],
                                                                          invoice_info["cuerpoDocumento"])
-        invoice_info["extension"] = self.sit_base_map_invoice_info_extension()
+        # invoice_info["extension"] = self.sit_base_map_invoice_info_extension()
+        invoice_info["extension"] = None
         invoice_info["apendice"] = None
         return invoice_info
 
@@ -710,6 +711,7 @@ class AccountMove(models.Model):
         totalIva = 0.0
         ventaGravada = 0.0
         ventaExenta = 0.0
+        codigo_tributo = None
 
         for line in self.invoice_line_ids.filtered(lambda x: x.precio_unitario > 0):
             item_numItem += 1
@@ -741,6 +743,7 @@ class AccountMove(models.Model):
                     line_temp["cantidad"] * (line.price_unit * (line.discount / 100))
                     or 0.0
             ), 2)
+
             line_temp["ventaNoSuj"] = round(line.precio_no_sujeto, 2)  # 0.0
 
             iva_tax_found = False
@@ -766,7 +769,6 @@ class AccountMove(models.Model):
                 ) % iva_tax_name)
 
 
-            codigo_tributo = None
             codigo_tributo_codigo = 0
             for line_tributo in line.tax_ids:
                 codigo_tributo_codigo = line_tributo.tributos_hacienda.codigo

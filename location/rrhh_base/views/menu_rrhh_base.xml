@@ -117,32 +117,5 @@
                 action="action_reporte_hr_plantilla_vacaciones"
                 groups="base.group_system"
         />
-
-        <!-- Menú para la vista mensual (sumas) -->
-        <!-- ACTION -->
-        <record id="action_hr_payslip_month_summary" model="ir.actions.act_window">
-            <field name="name">Nómina mensual (sumas)</field>
-            <field name="res_model">hr.payslip.month.summary</field>
-            <field name="view_mode">list</field>
-            <field name="view_ids" eval="[(5,0,0),
-    (0,0,{'view_mode':'list','view_id': ref('view_hr_payslip_month_summary_list')}),
-  ]"/>
-            <field name="search_view_id" ref="hr_payslip_month_summary_search"/>
-            <field name="context">
-                {
-                'search_default_group_by_employee': 1,
-                'search_default_group_by_period_year': 1,
-                'search_default_group_by_period_month': 1
-                }
-            </field>
-        </record>
-
-        <!-- MENU -->
-        <menuitem id="menu_hr_payslip_monthly_sum"
-                  name="Nómina mensual (sumas)"
-                  parent="submenu_hr_reportes"
-                  action="action_hr_payslip_month_summary"
-                  sequence="10"
-                  groups="base.group_system"/>
     </data>
 </odoo>

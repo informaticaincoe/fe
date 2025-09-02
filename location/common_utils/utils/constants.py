@@ -88,6 +88,7 @@ HORAS_NOCTURNAS_ASUETO = "horas_nocturnas_asueto"
 PERIODO = "periodo"
 NOMBRE_PLANTILLA_ASIGNACIONES = "Plantilla de Asignaciones"
 NOMBRE_PLANTILLA_ASISTENCIA = "Plantilla de Asistencia"
+NOMBRE_PLANTILLA_DEDUCCIONES = "Plantilla de deducciones"
 CODES_VACACIONES = ['VAC', 'VACACIONES']
 
 CUENTAS_ASIGNACIONES = {

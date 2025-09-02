@@ -12,10 +12,9 @@
                     <field name="description" string="Descripción"/>
 
                     <group expand="0" string="Agrupar Por">
-                        <filter name="group_by_employee_name" string="Empleado"
-                                context="{'group_by': 'employee_name'}"/>
-                        <filter name="group_by_date_start" string="Fecha Completa"
-                                context="{'group_by': 'date_start:day'}"/>
+                        <filter name="group_by_employee" string="Empleado" context="{'group_by': 'employee_ids'}"/>
+                        <filter name="group_by_state" string="Estado" context="{'group_by': 'state'}"/>
+                        <filter name="group_by_date_start" string="Fecha" context="{'group_by': 'date_start:day'}"/>
                     </group>
 
                     <searchpanel>
@@ -46,8 +45,15 @@
             <field name="res_model">hr.salary.attachment</field>
             <field name="view_mode">tree,form</field>
             <field name="search_view_id" ref="view_hr_salary_attachment_search_inherit"/>
-            <field name="context">{'group_by': 'date_start:day'}</field>
+            <!-- Activa por defecto el filtro de agrupación “group_by_date_start” -->
+            <field name="context">
+                {
+                'search_default_group_by_date_start': 1,
+                'group_by': 'date_start:day'
+                }
+            </field>
         </record>
+
 
     </data>
 </odoo>

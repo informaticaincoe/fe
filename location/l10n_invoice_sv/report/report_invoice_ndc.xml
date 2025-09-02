@@ -591,8 +591,8 @@
                                                         </td>
                                                     </tr>
                                                     <t t-set="excluded_codes"
-                                                       t-value="['A8','57','90','D4','D5','A6']"/>
-                                                    <t t-foreach="o.line_ids.filtered(     lambda l: l.tax_line_id                and l.tax_line_id.tributos_hacienda_resumen_dte                and l.tax_line_id.tributos_hacienda_resumen_dte.upper() not in excluded_codes )"
+                                                       t-value="['A8','57','90','D4','D5','A6', '20']"/>
+                                                    <t t-foreach="o.line_ids.filtered(                                                                  lambda l: l.tax_line_id                                                                  and l.tax_line_id.tributos_hacienda_resumen_dte                                                                  and l.tax_line_id.tributos_hacienda_resumen_dte.codigo.upper() not in excluded_codes                                                             )"
                                                        t-as="tax_line">
                                                         <tr>
                                                             <td class="px-1 border border-light-subtle text-end"
@@ -606,7 +606,6 @@
                                                             </td>
                                                             <td class="px-1 border border-light-subtle text-end"
                                                                 style="padding: 2% 0%;">
-                                                                <!-- Usa el importe del apunte de impuesto, respetando la moneda del documento -->
                                                                 <span t-esc="abs(tax_line.amount_currency or tax_line.balance)"
                                                                       t-options="{'widget':'monetary','display_currency': o.currency_id}"/>
                                                             </td>
