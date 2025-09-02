@@ -89,6 +89,7 @@ PERIODO = "periodo"
 NOMBRE_PLANTILLA_ASIGNACIONES = "Plantilla de Asignaciones"
 NOMBRE_PLANTILLA_ASISTENCIA = "Plantilla de Asistencia"
 NOMBRE_PLANTILLA_DEDUCCIONES = "Plantilla de deducciones"
+NOMBRE_PLANTILLA_TIEMPO_PERSONAL = "Plantilla tiempo personal"
 CODES_VACACIONES = ['VAC', 'VACACIONES']
 
 CUENTAS_ASIGNACIONES = {

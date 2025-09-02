@@ -1,0 +1,14 @@
+<odoo>
+    <record id="view_hr_leave_tree" model="ir.ui.view">
+            <field name="name">hr.leave.tree</field>
+            <field name="model">hr.leave</field>
+            <field name="inherit_id" ref="hr_holidays.hr_leave_view_tree"/>
+            <field name="arch" type="xml">
+                <list>
+                    <header>
+                        <button name="action_descargar_plantilla_tiempo_personal" type="object" icon="fa-download" string="Plantilla" display="always"/>
+                    </header>
+                </list>
+            </field>
+        </record>
+</odoo>

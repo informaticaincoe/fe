@@ -40,6 +40,7 @@
         "views/hr_salary_attachment_mass_state_views.xml",
         "views/hr_deductions_download.xml",
         "views/hr_salary_attachment_views_search.xml",
+        "views/hr_leave_excel_template.xml",
         # "data/cleanup_deducciones.xml",
     ],
     "installable": True,

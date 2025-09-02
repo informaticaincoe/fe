@@ -36,19 +36,16 @@
                 <list string="Resumen mensual de nómina" create="false" edit="false" delete="false">
                     <field name="employee_id"/>
                     <field name="department_id"/>
-                    <field name="period_year"/>
-                    <field name="period_month"/>
 
                     <field name="total_worked_days"/>
                     <field name="total_worked_hours"/>
 
                     <field name="salario_pagar"/>
-                    <field name="comisiones"/>
+                    <field name="total_comisiones"/>
                     <field name="total_overtime"/>
 
                     <field name="viaticos"/>
                     <field name="total_viaticos_a_pagar"/>
-                    <field name="vacaciones"/>
 
                     <field name="total_devengado"/>
 

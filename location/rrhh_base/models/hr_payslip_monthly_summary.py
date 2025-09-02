@@ -1,6 +1,7 @@
 from datetime import date
 from odoo import api, fields, models, tools
 
+
 class HrPayslipMonthlySummary(models.Model):
     _name = 'hr.payslip.monthly.summary'
     _description = 'Resumen mensual de nómina (suma quincenas)'
@@ -33,6 +34,7 @@ class HrPayslipMonthlySummary(models.Model):
 
     salario_pagar = fields.Float('Salario a pagar', readonly=True)
     comisiones = fields.Float('Comisiones', readonly=True)
+    total_comisiones = fields.Float('Total comisiones', readonly=True) #comisiones normales + vacaciones
     total_overtime = fields.Float('Horas extras', readonly=True)
 
     viaticos = fields.Float('Viáticos ordinarios', readonly=True)
@@ -70,20 +72,21 @@ class HrPayslipMonthlySummary(models.Model):
                 SELECT
                     l.slip_id,
                     /* Ingresos/Percepciones */
-                    COALESCE(SUM(CASE WHEN l.code = 'COMISION'        THEN l.amount ELSE 0 END), 0) AS comisiones,
-                    COALESCE(SUM(CASE WHEN l.code = 'OVERTIME'        THEN l.amount ELSE 0 END), 0) AS overtime,
-                    COALESCE(SUM(CASE WHEN l.code = 'BONO'            THEN l.amount ELSE 0 END), 0) AS bonos,
-                    COALESCE(SUM(CASE WHEN l.code = 'VIATICO'         THEN l.amount ELSE 0 END), 0) AS viaticos,
-                    COALESCE(SUM(CASE WHEN l.code = 'VACACIONES'      THEN l.amount ELSE 0 END), 0) AS vacaciones,
+                    COALESCE(SUM(CASE WHEN l.code = 'COMISION'   THEN l.amount ELSE 0 END), 0) AS comisiones,
+                    COALESCE(SUM(CASE WHEN l.code = 'OVERTIME'   THEN l.amount ELSE 0 END), 0) AS overtime,
+                    COALESCE(SUM(CASE WHEN l.code = 'BONO'       THEN l.amount ELSE 0 END), 0) AS bonos,
+                    COALESCE(SUM(CASE WHEN l.code = 'VIATICO'    THEN l.amount ELSE 0 END), 0) AS viaticos,
+                    COALESCE(SUM(CASE WHEN l.code = 'VACACIONES' THEN l.amount ELSE 0 END), 0) AS vacaciones,
 
                     /* Descuentos */
                     COALESCE(SUM(CASE WHEN l.code = 'DESC_FALTA_SEPTIMO' THEN l.amount ELSE 0 END), 0) AS desc_falta,
-                    COALESCE(SUM(CASE WHEN l.code = 'ISSS'            THEN l.amount ELSE 0 END), 0) AS isss,
-                    COALESCE(SUM(CASE WHEN l.code = 'RENTA'           THEN l.amount ELSE 0 END), 0) AS renta,
-                    COALESCE(SUM(CASE WHEN l.code = 'DEV_RENTA'       THEN l.amount ELSE 0 END), 0) AS dev_renta,
-                    COALESCE(SUM(CASE WHEN l.code = 'AFP'             THEN l.amount ELSE 0 END), 0) AS afp,
-                    COALESCE(SUM(CASE WHEN l.code = 'AFP_CONF'        THEN l.amount ELSE 0 END), 0) AS afp_confia,
-                    
+                    COALESCE(SUM(CASE WHEN l.code = 'ISSS'       THEN l.amount ELSE 0 END), 0) AS isss,
+                    COALESCE(SUM(CASE WHEN l.code = 'RENTA'      THEN l.amount ELSE 0 END), 0) AS renta,
+                    COALESCE(SUM(CASE WHEN l.code = 'DEV_RENTA'  THEN l.amount ELSE 0 END), 0) AS dev_renta,
+                    COALESCE(SUM(CASE WHEN l.code = 'AFP'        THEN l.amount ELSE 0 END), 0) AS afp,
+                    COALESCE(SUM(CASE WHEN l.code = 'AFP_CONF'   THEN l.amount ELSE 0 END), 0) AS afp_confia,
+                    COALESCE(SUM(CASE WHEN l.code = 'AFP_IPSFA'  THEN l.amount ELSE 0 END), 0) AS afp_ipsfa,
+
                     COALESCE(SUM(CASE WHEN l.code = 'OTROS'           THEN l.amount ELSE 0 END), 0) AS otros,
                     COALESCE(SUM(CASE WHEN l.code = 'BANCO'           THEN l.amount ELSE 0 END), 0) AS bancos,
                     COALESCE(SUM(CASE WHEN l.code = 'VENTA_EMPLEADOS' THEN l.amount ELSE 0 END), 0) AS venta_empleados,
@@ -99,49 +102,49 @@ class HrPayslipMonthlySummary(models.Model):
                 ps.period_year                         AS period_year,
                 ps.period_month                        AS period_month,
 
-                /* Días / horas desde hr_payslip_worked_days */
+                /* Días / horas */
                 COALESCE(SUM(wd.worked_days), 0)       AS total_worked_days,
                 COALESCE(SUM(wd.worked_hours), 0)      AS total_worked_hours,
 
-                /* Salario a pagar = basic_wage - abs(desc_falta) por slip */
+                /* Salario a pagar por slip */
                 SUM( COALESCE(ps.basic_wage, 0) - ABS(COALESCE(pl.desc_falta, 0)) ) AS salario_pagar,
 
-                /* Componentes de ingresos */
-                SUM(COALESCE(pl.comisiones, 0))        AS comisiones,
+                /* Viáticos ordinarios (solo VIATICO) */
+                SUM(COALESCE(pl.viaticos, 0))          AS viaticos,
+
+                /* Total comisiones = comisiones + vacaciones + bonos */
+                SUM(COALESCE(pl.comisiones, 0) + ABS(COALESCE(pl.vacaciones, 0)) + ABS(COALESCE(pl.bonos, 0)) ) AS total_comisiones,
+
+                /* Horas extra */
                 SUM(COALESCE(pl.overtime, 0))          AS total_overtime,
 
-                /* Viáticos incluyen bonos (como en tu compute) */
-                SUM(COALESCE(pl.viaticos, 0) + COALESCE(pl.bonos, 0)) AS viaticos,
-
                 /* Total viáticos a pagar = viáticos + overtime */
-                SUM(COALESCE(pl.viaticos, 0) + COALESCE(pl.bonos, 0) + COALESCE(pl.overtime, 0)) AS total_viaticos_a_pagar,
+                SUM(COALESCE(pl.viaticos, 0) + COALESCE(pl.overtime, 0)) AS total_viaticos_a_pagar,
 
                 SUM(COALESCE(pl.vacaciones, 0))        AS vacaciones,
 
-                /* Total devengado = salario_pagar + comisiones + total_viaticos_a_pagar */
-                SUM( COALESCE(ps.basic_wage, 0) - ABS(COALESCE(pl.desc_falta, 0))        /* salario_pagar slip */
+                /* Total devengado */
+                SUM( COALESCE(ps.basic_wage, 0) - ABS(COALESCE(pl.desc_falta, 0))
                     + COALESCE(pl.comisiones, 0)
                     + COALESCE(pl.viaticos, 0) + COALESCE(pl.bonos, 0) + COALESCE(pl.overtime, 0) + COALESCE(pl.vacaciones, 0)
                 ) AS total_devengado,
 
-                /* Descuentos (ABS, como en tus computes) */
+                /* Descuentos */
                 SUM(ABS(COALESCE(pl.isss, 0)))         AS isss,
-
-                /* ISR: por slip: max(abs(RENTA), abs(DEV_RENTA)), luego sumar */
-                SUM(GREATEST(ABS(COALESCE(pl.renta, 0)), ABS(COALESCE(pl.dev_renta, 0)))) AS isr,
-
+                SUM(ABS(COALESCE(pl.renta, 0)) - ABS(COALESCE(pl.dev_renta, 0))) AS isr,
                 SUM(ABS(COALESCE(pl.afp, 0)))          AS afp,
                 SUM(ABS(COALESCE(pl.afp_confia, 0)))   AS afp_confia,
+                SUM(ABS(COALESCE(pl.afp_ipsfa, 0)))    AS afp_ipsfa,
                 SUM(ABS(COALESCE(pl.otros, 0)))        AS otros,
                 SUM(ABS(COALESCE(pl.bancos, 0)))       AS bancos,
                 SUM(ABS(COALESCE(pl.venta_empleados, 0))) AS venta_empleados,
                 SUM(ABS(COALESCE(pl.prestamos_incoe, 0))) AS prestamos_incoe,
                 SUM(ABS(COALESCE(pl.fsv, 0)))          AS fsv,
 
-                /* Total descuentos (según tu _compute_total_descuentos: no incluye afp_confia ni ipsfa) */
+                /* Total descuentos (tu convención) */
                 SUM(
                     ABS(COALESCE(pl.isss, 0)) +
-                    GREATEST(ABS(COALESCE(pl.renta, 0)), ABS(COALESCE(pl.dev_renta, 0))) +
+                    (ABS(COALESCE(pl.renta, 0)) - ABS(COALESCE(pl.dev_renta, 0))) +
                     ABS(COALESCE(pl.afp, 0)) +
                     ABS(COALESCE(pl.otros, 0)) +
                     ABS(COALESCE(pl.bancos, 0)) +
@@ -150,22 +153,23 @@ class HrPayslipMonthlySummary(models.Model):
                     ABS(COALESCE(pl.venta_empleados, 0))
                 ) AS total_descuentos,
 
-                /* Líquido = devengado - descuentos */
-                SUM( COALESCE(ps.basic_wage, 0) - ABS(COALESCE(pl.desc_falta, 0))
+                /* Líquido = devengado - descuentos (recalculado) */
+                (
+                 SUM( COALESCE(ps.basic_wage, 0) - ABS(COALESCE(pl.desc_falta, 0))
                     + COALESCE(pl.comisiones, 0)
-                    + COALESCE(pl.viaticos, 0) + COALESCE(pl.bonos, 0) + COALESCE(pl.overtime, 0) + ABS(COALESCE(pl.vacaciones, 0))
-                )
+                    + COALESCE(pl.viaticos, 0) + COALESCE(pl.bonos, 0) + COALESCE(pl.overtime, 0) + COALESCE(pl.vacaciones, 0)
+                ) 
                 -
                 SUM(
                     ABS(COALESCE(pl.isss, 0)) +
-                    GREATEST(ABS(COALESCE(pl.renta, 0)), ABS(COALESCE(pl.dev_renta, 0))) +
+                    (ABS(COALESCE(pl.renta, 0)) - ABS(COALESCE(pl.dev_renta, 0))) +
                     ABS(COALESCE(pl.afp, 0)) +
                     ABS(COALESCE(pl.otros, 0)) +
                     ABS(COALESCE(pl.bancos, 0)) +
                     ABS(COALESCE(pl.fsv, 0)) +
                     ABS(COALESCE(pl.prestamos_incoe, 0)) +
                     ABS(COALESCE(pl.venta_empleados, 0))
-                ) AS sueldo_liquido
+                )) AS sueldo_liquido
         """
 
     @api.model
@@ -206,3 +210,5 @@ class HrPayslipMonthlySummary(models.Model):
             {self._where()}
             {self._group_by()}
         """)
+
+
