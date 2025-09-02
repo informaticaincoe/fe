@@ -649,10 +649,10 @@ class AccountMove(models.Model):
 
             # 5. Calcular total_operacion y total_pagar
             if move.journal_id.sit_tipo_documento.codigo not in["01", "11"]:
-                move.total_operacion = round(move.sub_total + move.amount_tax, 2)
+                move.total_operacion = round(move.sub_total, 2) # move.total_operacion = round(move.sub_total + move.amount_tax, 2)
                 _logger.info(f"[{move.name}] Documento no es tipo 01, total_operacion: {move.total_operacion}")
             elif move.journal_id.sit_tipo_documento.codigo == "11":
-                move.total_operacion = round((move.total_gravado - move.descuento_gravado - descuento_global) + move.amount_tax + move.seguro + move.flete, 2)
+                move.total_operacion = round((move.total_gravado - move.descuento_gravado - descuento_global) + move.seguro + move.flete, 2) #move.total_operacion = round((move.total_gravado - move.descuento_gravado - descuento_global) + move.amount_tax + move.seguro + move.flete, 2)
             else:
                 move.total_operacion = move.sub_total
                 _logger.info(f"[{move.name}] Documento tipo 01, total_operacion: {move.total_operacion}")
