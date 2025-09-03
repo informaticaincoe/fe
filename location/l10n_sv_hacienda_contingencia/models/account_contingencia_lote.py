@@ -268,7 +268,7 @@ class sit_AccountContingencia(models.Model):
         try:
             json_response = response.json()
             _logger.info("SIT json_responset =%s", json_response)
-            self.write({'sit_json_respuesta': json_response})
+            #self.write({'sit_json_respuesta': json_response})
         except Exception as e:
             _logger.error('SIT error parseando JSON: %s', e)
             return {

@@ -43,7 +43,7 @@ class sit_account_move(models.Model):
 # ---------------------------------------------------------------------------------------------
 # FACTURA CONTINGENCIA
 #---------------------------------------------------------------------------------------------
-    def action_post_contingencia(self):
+    def action_post_contingencia_validation(self):
         '''validamos que partner cumple los requisitos basados en el tipo
     de documento de la sequencia del diario selecionado
     FACTURA ELECTRONICAMENTE
@@ -484,7 +484,7 @@ class sit_account_move(models.Model):
 
         # Excluir facturas ya procesadas o con sello de recepción
         facturas = facturas.filtered(
-            lambda f: not f.hacienda_selloRecibido and (str(f.hacienda_estado or '').lower() != 'procesado'))
+            lambda f: not f.hacienda_selloRecibido)
 
         if not facturas:
             mensaje = "No hay facturas pendientes para reenviar en este lote."
