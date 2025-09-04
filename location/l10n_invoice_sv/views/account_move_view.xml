@@ -63,6 +63,7 @@
 
                     <group string="Totales" col="2">
                         <field name="total_descuento" widget="percent" readonly="1"/>
+                        <field name="descuento_global" widget="percent" readonly="1"/>
                         <field name="seguro" widget="monetary"/>
                         <field name="flete" widget="monetary"/>
                         <field name="sub_total" widget="monetary" readonly="1" invisible="codigo_tipo_documento == '11'"/>

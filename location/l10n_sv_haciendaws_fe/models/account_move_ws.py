@@ -411,11 +411,19 @@ class AccountMove(models.Model):
         por_des = 0
         for line in self.invoice_line_ids.filtered(lambda x: x.price_unit < 0):
             total_des += (line.precio_unitario * -1 / self.get_valor_iva_divisor_config())
+            _logger.info(
+                "Linea %s: precio_unitario=%s, parcial calculado=%s, total_des acumulado=%s",
+                line.id, line.precio_unitario, parcial, total_des
+            )
         if total_des:
-            total_gral = self.amount_total + (total_des)
-            por_des = 100 - round(((total_gral - (total_des * self.get_valor_iva_divisor_config())) / total_gral) * 100)
+            total_gral = self.amount_total + total_des
+            por_des = 100 - round(
+                ((total_gral - (total_des * self.get_valor_iva_divisor_config())) / total_gral) * 100
+            )
+            _logger.info("total_des=%s, amount_total=%s, total_gral=%s, por_des=%s", total_des, self.amount_total, total_gral, por_des)
         else:
             total_des = self.descuento_gravado
+            _logger.info("No hay lineas con precio_unit < 0, total_des = descuento_gravado=%s", total_des)
         invoice_info = {}
         tributos = {}
         pagos = {}
@@ -426,7 +434,7 @@ class AccountMove(models.Model):
         invoice_info["descuNoSuj"] = round(self.descuento_no_sujeto, 2)  # 0
         invoice_info["descuExenta"] = round(self.descuento_exento, 2)  # 0
         invoice_info["descuGravada"] = round(total_des, 2)
-        invoice_info["porcentajeDescuento"] = por_des
+        invoice_info["porcentajeDescuento"] = self.descuento_global_monto
         invoice_info["totalDescu"] = round(self.total_descuento, 2)  # 0
         _logger.info("SIT  identificacion[tipoDte] = %s", identificacion['tipoDte'])
         _logger.info("SIT  identificacion[tipoDte] = %s", identificacion)
@@ -850,14 +858,25 @@ class AccountMove(models.Model):
         por_des = 0
         for line in self.invoice_line_ids.filtered(lambda x: x.price_unit < 0):
             total_des += (line.precio_unitario * -1)
+            total_des += parcial
+            _logger.info(
+                "Linea %s: precio_unitario=%s, parcial=%s, total_des acumulado=%s",
+                line.id, line.precio_unitario, parcial, total_des
+            )
 
         total_gral = self.amount_total + total_des
+        _logger.info("amount_total=%s, total_des=%s, total_gral=%s", self.amount_total, total_des, total_gral)
+
         if total_des:
-            total_gral = self.amount_total + total_des
             por_des = 100 - round(((total_gral - total_des) / total_gral) * 100)
+            _logger.info("Se aplica descuento de líneas negativas: por_des=%s", por_des)
         else:
             total_des = self.descuento_gravado
             por_des = self.descuento_global
+            _logger.info(
+                "No hay líneas negativas. total_des=%s, por_des=%s",
+                total_des, por_des
+            )
         _logger.info("SIT total des = %s, total gravado %s", total_des, self.total_gravado)
 
         subtotal = sum(line.price_subtotal for line in self.invoice_line_ids)
@@ -879,7 +898,7 @@ class AccountMove(models.Model):
 
             monto_descu += round(line.quantity * (line.price_unit * (line.discount / 100)), 2)
 
-            por_des = 100 - round(((total_gral - total_des) / total_gral) * 100)
+            # por_des = 100 - round(((total_gral - total_des) / total_gral) * 100)
 
         subtotal = sum(line.price_subtotal for line in self.invoice_line_ids)
         total = self.amount_total
@@ -893,7 +912,7 @@ class AccountMove(models.Model):
         invoice_info["descuNoSuj"] = round(self.descuento_no_sujeto, 2)  # 0
         invoice_info["descuExenta"] = round(self.descuento_exento, 2)  # 0
         invoice_info["descuGravada"] = round(total_des, 2)
-        invoice_info["porcentajeDescuento"] = round(por_des, 2)
+        invoice_info["porcentajeDescuento"] = round(self.descuento_global_monto, 2)
         invoice_info["totalDescu"] = round(self.total_descuento, 2)  # 0
         if identificacion['tipoDte'] != constants.COD_DTE_FE:
             if tributo_hacienda:
