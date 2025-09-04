@@ -58,12 +58,12 @@
                         <field name="descuento_no_sujeto_pct" invisible="codigo_tipo_documento == '11'"/><!-- invisible="1" modifiers="{'invisible': [['hide_no_sujeto_exento','=',True]]}" -->
                         <field name="descuento_exento_pct" invisible="codigo_tipo_documento == '11'"/><!-- invisible="1" modifiers="{'invisible': [['hide_no_sujeto_exento','=',True]]}" -->
                         <field name="descuento_gravado_pct"/>
-                        <field name="descuento_global_monto"/>
+                        <field name="descuento_global_monto" invisible="not show_global_discount"/>
                     </group>
 
                     <group string="Totales" col="2">
                         <field name="total_descuento" widget="percent" readonly="1"/>
-                        <field name="descuento_global" widget="percent" readonly="1"/>
+                        <field name="descuento_global" widget="percent" readonly="1" invisible="not show_global_discount"/>
                         <field name="seguro" widget="monetary"/>
                         <field name="flete" widget="monetary"/>
                         <field name="sub_total" widget="monetary" readonly="1" invisible="codigo_tipo_documento == '11'"/>

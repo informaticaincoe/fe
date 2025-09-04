@@ -100,6 +100,32 @@ class AccountMove(models.Model):
     seguro = fields.Float(string='Seguro', default=0.0)
     flete = fields.Float(string='Flete', default=0.0)
 
+    show_global_discount = fields.Boolean(
+        string="Mostrar descuento global",
+        compute="_compute_show_global_discount",
+        store=True
+    )
+
+    @api.depends('invoice_line_ids')
+    def _compute_show_global_discount(self):
+        for move in self:
+            # Contar solo líneas con producto
+            num_productos = sum(1 for line in move.invoice_line_ids if line.product_id)
+            _logger.info("SIT | move %s tiene %d líneas con producto", move.name, num_productos)
+
+            if num_productos > 1:
+                if move.descuento_global or move.descuento_global_monto:
+                    move.update({
+                        'descuento_global': 0,
+                        'descuento_global_monto': 0,
+                    })
+                    _logger.info("SIT | move %s: se resetea descuento_global y descuento_global_monto", move.name)
+                move.show_global_discount = False
+                _logger.info("SIT | move %s: show_global_discount = False", move.name)
+            else:
+                move.show_global_discount = True
+                _logger.info("SIT | move %s: show_global_discount = True", move.name)
+
     def _compute_sale_order_id(self):
         for move in self:
             sale_orders = move.invoice_line_ids.mapped('sale_line_ids.order_id')
