@@ -67,7 +67,7 @@ class AccountMoveLine(models.Model):
     @api.depends('product_id', 'quantity', 'price_unit', 'discount', 'tax_ids', 'move_id.journal_id')
     def _compute_precios_tipo_venta(self):
         for line in self:
-            _logger.info("==== SIT Onchange activado para la línea ID: %s ====", line.id)
+
             if not line.product_id:
                 _logger.info("SIT Sin producto asignado, se omite la línea")
                 continue
@@ -92,9 +92,8 @@ class AccountMoveLine(models.Model):
             subtotal_linea_con_descuento = base_price_unit * cantidad * (1 - descuento / 100.0)
             precio_total = currency.round(subtotal_linea_con_descuento)
 
-            _logger.info("Tipo de impuesto %s", line.tax_line_id.price_include_override)
             if line.journal_id.code == 'FCF':
-                if line.tax_line_id.price_include_override == 'tax_excluded':
+                if line.tax_ids.price_include_override == 'tax_excluded':
                     line.precio_unitario = line.price_unit + (line.iva_unitario)
                     _logger.info("line.precio_unitario  FCF con iva incluido %s", line.precio_unitario)
                 else:
@@ -106,7 +105,7 @@ class AccountMoveLine(models.Model):
             # Asignar según tipo_venta
             if tipo_venta == 'gravado':
                 if line.journal_id.code == 'FCF':
-                    if line.tax_line_id.price_include_override == 'tax_excluded':
+                    if line.tax_ids.price_include_override == 'tax_excluded':
                         line.precio_gravado = precio_total + line.total_iva
                     else:
                         line.precio_gravado = precio_total
