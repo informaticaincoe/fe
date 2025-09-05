@@ -37,7 +37,7 @@
                         <button name="action_lote_generate" string="Generar DTE de Lote" class="oe_highlight"
                                 type="object" groups="account.group_account_invoice" data-hotkey="v"
                                 context="{'validate_analytic': True}"
-                                invisible="not boton_lote"/>
+                                invisible="not boton_lote or not sit_usar_lotes"/>
                         <field name="state" widget="statusbar" statusbar_visible="draft,posted,posted_lote"/>
                     </header>
                     <sheet>
@@ -61,7 +61,7 @@
                             </group>
                         </group>     
                         <notebook>
-                            <page id="lotes_contingencia" string="Lotes Relacionados">
+                            <page id="lotes_contingencia" string="Lotes Relacionados" invisible="not sit_usar_lotes">
                                 <field name="lote_ids">
                                     <list>
                                         <field name="name" string="Identificación"/>
@@ -76,10 +76,17 @@
                                     </list>
                                 </field>
                             </page>
-                            <page id="facturas_relacionadas" string="Facturas Relacionadas" name="facturas_relacionadas">    
-                                <group id="other_tab_group">
-                                    <field name="sit_facturas_relacionadas" invisible="0"/>
-                                </group>
+                            <page id="facturas_relacionadas" string="Facturas Relacionadas" name="facturas_relacionadas" invisible="sit_usar_lotes">
+                                <field name="bloque_ids">
+                                    <list>
+                                        <field name="name"/>
+                                        <field name="cantidad"/>
+                                        <button name="action_ver_facturas_bloque"
+                                                type="object"
+                                                string="Ver Facturas"
+                                                icon="fa-list"/>
+                                    </list>
+                                </field>
                             </page>
                             <page id="respuesta_hacienda" string="Respuesta Hacienda" name="respuesta_hacienda">                                  
                                 <group id="other_tab_group">
@@ -119,6 +126,31 @@
             <field name="model">account.move</field>
             <field name="arch" type="xml">
                 <list string="Facturas del Lote">
+                    <header>
+                        <button name="action_reenviar_facturas_lote"
+                                type="object"
+                                string="Reenviar Facturas del Lote"
+                                display="always"
+                                class="oe_highlight"
+                                icon="fa-refresh"/>
+                    </header>
+                    <field name="name" string="Número de Control"/>
+                    <field name="hacienda_codigoGeneracion_identificacion" string="Código Generación"/>
+                    <field name="hacienda_selloRecibido" string="Sello Recibido"/>
+                    <field name="invoice_partner_display_name" string="Cliente"/>
+                    <field name="invoice_date" string="Fecha"/>
+                    <field name="amount_untaxed_in_currency_signed" widget="monetary"/>
+                    <field name="status_in_payment" string="Estado de Pago"/>
+                </list>
+            </field>
+        </record>
+
+        <!-- Vista para reenviar el bloque -->
+        <record id="view_account_move_bloque_list" model="ir.ui.view">
+            <field name="name">account.move.continencia.bloque.list</field>
+            <field name="model">account.move</field>
+            <field name="arch" type="xml">
+                <list string="Facturas">
                     <header>
                         <button name="action_reenviar_facturas_lote"
                                 type="object"

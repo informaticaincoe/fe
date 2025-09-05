@@ -7,3 +7,5 @@ from . import account_contingencia_lote
 from . import account_contingencia_ws
 from . import account_lote
 from . import account_incoterms
+from . import res_company
+from . import account_contingencia_bloque

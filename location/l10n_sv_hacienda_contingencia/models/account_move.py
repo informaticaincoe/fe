@@ -28,6 +28,7 @@ class sit_account_move(models.Model):
     sit_factura_por_lote = fields.Boolean('Facturado por lote ?',  copy=False, default=False)
     sit_documento_firmado = fields.Text(string="Documento Firmado", copy=False, readonly=True)
     sit_lote_contingencia = fields.Many2one('account.lote', string="Factura asignada en el lote", ondelete="set null")
+    sit_bloque_contingencia = fields.Many2one('account.contingencia.bloque', string='Bloque de Factura')
 
     @api.onchange('sit_es_configencia')
     def check_sit_es_configencia(self):
@@ -259,8 +260,10 @@ class sit_account_move(models.Model):
             "mensaje": "",
             "resultado_mh": None
         }
+        actualizar_informacion_dte = False
 
-        _logger.info("SIT Partner: %s | Parent: %s", self.invoice_user_id.partner_id.vat, self.invoice_user_id.partner_id.parent_id.vat)
+        _logger.info("SIT Partner: %s | Parent: %s", self.invoice_user_id.partner_id.vat,
+                     self.invoice_user_id.partner_id.parent_id.vat)
 
         try:
             if not self.hacienda_codigoGeneracion_identificacion:
@@ -307,10 +310,48 @@ class sit_account_move(models.Model):
             estado = Resultado.get('estado', '').strip().lower()
             _logger.info(f"Estado del DTE: {estado}")
 
+            # Revisa si el rechazo es por número de control duplicado
+            descripcion = Resultado.get('descripcionMsg', '').lower()
+            if 'identificacion.numerocontrol' in descripcion:
+                _logger.warning("SIT DTE rechazado por número de control duplicado. Generando nuevo número.")
+
+                actualizar_informacion_dte = True
+                # Generar nuevo número de control
+                nuevo_nombre = self._generate_dte_name(actualizar_secuencia=True)
+                # Verifica si el nuevo nombre es diferente antes de actualizar
+                if nuevo_nombre != self.name:
+                    _logger.info("SIT Actualizando nombre DTE: %s a %s", self.name, nuevo_nombre)
+                    self.write({'name': nuevo_nombre})  # Actualiza el nombre
+                    self.write({'sit_json_respuesta': None})
+                    self.sequence_number = int(nuevo_nombre.split("-")[-1])
+                    _logger.info("SIT name actualizado: %s | sequence number: %s", self.name, self.sequence_number)
+
+                    # Forzar un commit explícito a la base de datos
+                    self._cr.commit()
+                else:
+                    _logger.info("SIT El nombre ya está actualizado, no se requiere escribir.")
+
+                # Reemplazar numeroControl en el payload original
+                payload['dteJson']['identificacion']['numeroControl'] = nuevo_nombre
+
+                # Volver a firmar con el nuevo número
+                documento_firmado = self.firmar_documento(ambiente, payload)
+
+                if not documento_firmado:
+                    raise UserError(_('SIT Documento NO Firmado después de reintento con nuevo número de control'))
+
+                # Intentar nuevamente generar el DTE
+                payload_dte = self.sit_obtener_payload_dte_info(ambiente, documento_firmado)
+                self.check_parametros_dte(payload_dte)
+                Resultado = self.generar_dte(ambiente, payload_dte, payload)
+                estado = Resultado.get('estado', '').strip().lower() if Resultado else None
+            else:
+                actualizar_informacion_dte = False
+
             # Guardar json generado
             json_dte = payload.get('dteJson') if payload else None
             try:
-                if not self.sit_json_respuesta:
+                if not self.sit_json_respuesta or actualizar_informacion_dte:
                     if isinstance(json_dte, str):
                         try:
                             json_dte_obj = json.loads(json_dte)
@@ -407,11 +448,13 @@ class sit_account_move(models.Model):
         return resultado_final
 
     def action_reenviar_facturas_lote(self):
-        _logger.info("Inicio reenvio del dte a MH, ID lote: %s", self.mapped('sit_lote_contingencia.id'))
+        _logger.info("Inicio reenvio del dte a MH, ID lote: %s, ID bloque: %s:", self.mapped('sit_lote_contingencia.id'), self.mapped('sit_bloque_contingencia.id'))
+
+        usa_lote = self.company_id.sit_usar_lotes_contingencia
 
         active_ids = self.env.context.get('active_ids')
         if not active_ids:
-            mensaje = "Debe seleccionar al menos una factura del lote."
+            mensaje = "Debe seleccionar al menos un documento."
             _logger.warning(mensaje)
             return {
                 'type': 'ir.actions.client',
@@ -426,9 +469,9 @@ class sit_account_move(models.Model):
 
         facturas = self.env['account.move'].browse(active_ids)
 
-        # Validar que todas sean del mismo lote
+        # Validar que todas las facturas están en el mismo lote o bloque
         if not facturas or len(facturas) != len(active_ids):
-            mensaje = "Las facturas seleccionadas no pertenecen al mismo lote."
+            mensaje = f"Los documentos electrónicos seleccionados no pertenecen al mismo {'lote' if usa_lote else 'bloque'}."
             _logger.warning(mensaje)
             return {
                 'type': 'ir.actions.client',
@@ -441,53 +484,76 @@ class sit_account_move(models.Model):
                 }
             }
 
-        # Obtener el lote del primer registro seleccionado
-        lote_ids = facturas.mapped('sit_lote_contingencia.id')
-        # Obtener registros lote para acceder a sus campos
-        lotes = self.env['account.lote'].browse(lote_ids)
-        if len(set(lote_ids)) != 1:
-            mensaje = "Las facturas seleccionadas no pertenecen al mismo lote."
-            _logger.warning(mensaje)
-            return {
-                'type': 'ir.actions.client',
-                'tag': 'display_notification',
-                'params': {
-                    'title': 'Validación lote',
-                    'message': mensaje,
-                    'type': 'warning',
-                    'sticky': False,
+        # Validar por lote o bloque
+        if self.company_id.sit_usar_lotes_contingencia:
+            # Validación por lote
+            lote_ids = facturas.mapped('sit_lote_contingencia.id')
+            lotes = self.env['account.lote'].browse(lote_ids)
+            if len(set(lote_ids)) != 1:
+                mensaje =  "Los documentos electrónicos seleccionados no pertenecen al mismo lote."
+                _logger.warning(mensaje)
+                return {
+                    'type': 'ir.actions.client',
+                    'tag': 'display_notification',
+                    'params': {
+                        'title': 'Validación lote',
+                        'message': mensaje,
+                        'type': 'warning',
+                        'sticky': False,
+                    }
                 }
-            }
 
-        # Validar que esos lotes tengan el sello y código
-        lotes_no_procesados = [lote for lote in lotes if not lote.lote_recibido_mh or not lote.hacienda_codigoLote_lote]
+            # Validar que esos lotes tengan el sello y código
+            lotes_no_procesados = [lote for lote in lotes if not lote.lote_recibido_mh or not lote.hacienda_codigoLote_lote]
 
-        if lotes_no_procesados:
-            mensaje = "Hay lotes pendientes de envío o no procesados. No se permite reenviar hasta que se procesen."
-            _logger.warning(mensaje)
-            return {
-                'type': 'ir.actions.client',
-                'tag': 'display_notification',
-                'params': {
-                    'title': 'Lotes Pendientes',
-                    'message': mensaje,
-                    'type': 'warning',
-                    'sticky': False,
+            if lotes_no_procesados:
+                mensaje = "Existen lotes pendientes de envío o no procesados. No se permite reenviar hasta que se procesen."
+                _logger.warning(mensaje)
+                return {
+                    'type': 'ir.actions.client',
+                    'tag': 'display_notification',
+                    'params': {
+                        'title': 'Lotes Pendientes',
+                        'message': mensaje,
+                        'type': 'warning',
+                        'sticky': False,
+                    }
                 }
-            }
+            # Definir lote_id único para filtro
+            # lote_id = list(set(lote_ids))[0]
+        else:
+            # Si no se usan lotes, verificar por bloque
+            bloque_ids = facturas.mapped('sit_bloque_contingencia.id')
+            bloques = self.env['account.contingencia.bloque'].browse(bloque_ids)
 
-        # Definir lote_id único para filtro
-        lote_id = list(set(lote_ids))[0]
+            if len(set(bloque_ids)) != 1:
+                mensaje = "Los documentos seleccionados no pertenecen al mismo bloque."
+                _logger.warning(mensaje)
+                return {
+                    'type': 'ir.actions.client',
+                    'tag': 'display_notification',
+                    'params': {
+                        'title': 'Validación bloque',
+                        'message': mensaje,
+                        'type': 'warning',
+                        'sticky': False,
+                    }
+                }
 
-        # Filtrar facturas que pertenezcan a ese lote
-        facturas = facturas.filtered(lambda f: f.sit_lote_contingencia.id == lote_id)
+        # Filtrar facturas que pertenecen al lote o bloque
+        if self.company_id.sit_usar_lotes_contingencia:
+            # Filtrar facturas que pertenezcan al lote
+            facturas = facturas.filtered(lambda f: f.sit_lote_contingencia.id == lote_ids[0])
+        else:
+            # Filtrar facturas que pertenezcan al bloque
+            facturas = facturas.filtered(lambda f: f.sit_bloque_contingencia.id == bloque_ids[0])
 
         # Excluir facturas ya procesadas o con sello de recepción
         facturas = facturas.filtered(
             lambda f: not f.hacienda_selloRecibido)
 
         if not facturas:
-            mensaje = "No hay facturas pendientes para reenviar en este lote."
+            mensaje = "No hay documentos electrónicos pendientes para reenviar."
             _logger.warning(mensaje)
             return {
                 'type': 'ir.actions.client',
@@ -503,32 +569,33 @@ class sit_account_move(models.Model):
         resultados_ok = []
         resultados_error = []
 
+        # Reenvío de las facturas
         for factura in facturas:
             try:
                 resultado = factura.reenviar_dte()
                 if resultado["exito"]:
                     resultados_ok.append(factura.name)
                 else:
-                    resultados_error.append(f"Factura {factura.name}: {resultado['mensaje']}")
+                    resultados_error.append(f"Documento electrónico {factura.name}: {resultado['mensaje']}")
             except Exception as e:
-                resultados_error.append(f"Factura {factura.name}: Excepción {str(e)}")
+                resultados_error.append(f"Documento electrónico {factura.name}: Excepción {str(e)}")
 
         mensaje = []
         if resultados_ok:
-            mensaje.append(f"Facturas reenviadas correctamente ({len(resultados_ok)}):\n" + "\n".join(resultados_ok))
+            mensaje.append(f"Documentos electrónicos reenviados correctamente ({len(resultados_ok)}):\n" + "\n".join(resultados_ok))
         if resultados_error:
             mensaje.append(f"Errores en ({len(resultados_error)}):\n" + "\n".join(resultados_error))
 
         _logger.info("\n".join(mensaje))
 
-        # También podrías mostrar una notificación en pantalla o simplemente devolver mensaje
+        # Notificación de resultado
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
             'params': {
-                'title': 'Resultado Reenvío Lote',
+                'title': 'Resultado Reenvío',
                 'message': "\n".join(mensaje),
                 'type': 'info',
                 'sticky': False,
-            }
+            },
         }
