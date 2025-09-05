@@ -130,18 +130,8 @@ class AccountMove(models.Model):
     # sit_numDocSolicita = fields.Char(string="Número de documento de identificación solicitante." , copy=False, )
     # sit_numDocSolicita = fields.Char(related="sit_nombreSolicita.dui", string="Número de documento de identificación solicitante" , copy=False, )
     sit_numDocSolicita = fields.Char(related="sit_nombreSolicita.vat", string="Número de documento de identificación solicitante" , copy=False, )
-    #sit_factura_a_reemplazar = fields.Many2one('account.move', string="Documento que reeemplaza", copy=False)
-    sit_factura_a_reemplazar = fields.Many2one('account.move', string="Documento que reemplaza", copy=False,
-       domain="[('id', '=', id)]", # Muestra solo el documento actual (id de la factura que se está procesando)
-       default=lambda self: self._get_default_sit_factura_a_reemplazar() # Pre-rellenar el campo si es necesario
-       )
+    sit_factura_a_reemplazar = fields.Many2one('account.move', string="Documento que reeemplaza", copy=False)
     sit_evento_invalidacion = fields.Many2one('account.move.invalidation', string="Documento que invalida el dte", copy=False)
-
-    def _get_default_sit_factura_a_reemplazar(self):
-        # Devuelve el documento a reemplazar, si es necesario
-        if self.env.context.get('default_move_id'):
-            return self.env['account.move'].browse(self.env.context['default_move_id'])
-        return False
 
     @api.model
     def _get_tipo_Anulacion_selection(self):
