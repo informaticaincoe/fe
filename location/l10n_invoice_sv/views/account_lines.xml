@@ -21,7 +21,8 @@
         <field name="arch" type="xml">
             <!-- Agrega la columna al final del tree de invoice_line_ids -->
             <xpath expr="//field[@name='invoice_line_ids']/list" position="inside">
-                <field name="x_line_vat_amount" string="IVA" readonly="1" optional="show"/>
+                <field name="iva_unitario" string="IVA unitario" readonly="1" optional="show"/>
+                <field name="total_iva" string="Total IVA" readonly="1" optional="show"/>
             </xpath>
         </field>
     </record>

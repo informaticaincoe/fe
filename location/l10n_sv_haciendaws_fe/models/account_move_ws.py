@@ -301,12 +301,13 @@ class AccountMove(models.Model):
             iva_tax_found = False
             tributo_found = False
             iva_tax_name = "IVA 13% Ventas Bienes"
+            iva_exc_name = "(Copia)IVA 13% Ventas Bienes"
 
             for line_tax in line.tax_ids:
                 _logger.info("SIT: Evaluando impuesto '%s' en la línea del producto %s", line_tax.name, line.product_id.name)
 
                 # Verificamos si es el impuesto de IVA obligatorio
-                if line_tax.name == iva_tax_name:
+                if line_tax.name == iva_tax_name or line_tax.name == iva_exc_name:
                     iva_tax_found = True
                     if line_tax.tributos_hacienda:
                         tributo_found = True
@@ -1360,6 +1361,7 @@ class AccountMove(models.Model):
         lines_temp['tipoGeneracion'] = int(
             constants.COD_TIPO_DOC_GENERACION_DTE)  # Cat-007 Tipo de generacion del documento
         lines_temp['numeroDocumento'] = self.inv_refund_id.hacienda_codigoGeneracion_identificacion
+
         # invoice_date = self.inv_refund_id.invoice_date
         # if invoice_date:
         # new_date = invoice_date + timedelta(hours=20)

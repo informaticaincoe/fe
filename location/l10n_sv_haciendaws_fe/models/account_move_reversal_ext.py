@@ -159,25 +159,54 @@ class AccountMoveReversal(models.TransientModel):
 
         # El código para crear 'new_move' podría ser redundante si ya se están creando varios registros en 'new_moves'.
         # Solo asegúrate de que no estés creando un movimiento innecesario aquí.
-        if new_moves and isinstance(new_moves, list) and all(
-                isinstance(move, self.env['account.move'].__class__) for move in new_moves):
+        # if new_moves and isinstance(new_moves, list) and all(
+        #         isinstance(move, self.env['account.move'].__class__) for move in new_moves):
+        #     for move in new_moves:
+        #         if move.codigo_tipo_documento == constants.COD_DTE_NC and move.reversed_entry_id:
+        #             _logger.info("SIT NC creada: ID=%s | reversed_entry_id=%s | inv_refund_id=%s | name=%s",
+        #                          move.id, move.reversed_entry_id.id, move.inv_refund_id.id, move.name)
+        #             move._copiar_retenciones_desde_documento_relacionado()
+        #
+        #     # Devolvemos la respuesta correcta en función de si hay un solo movimiento o varios
+        #     return {
+        #         'name': _('Reverse Moves'),
+        #         'type': 'ir.actions.act_window',
+        #         'res_model': 'account.move',
+        #         'view_mode': 'form' if len(new_moves) == 1 else 'list,form',
+        #         'res_id': new_moves[0].id if len(new_moves) == 1 else False,
+        #         # Accede a 'id' solo si hay un solo movimiento
+        #         'domain': [('id', 'in', [move.id for move in new_moves])],  # Genera una lista de IDs
+        #         'context': {
+        #             'default_move_type': new_moves[0].move_type if new_moves else 'out_refund',
+        #         },
+        #     }
+        # else:
+        #     raise UserError(_("No se han creado movimientos de reversión válidos o hay un error en los datos."))
+
+        # new_moves es un recordset (no lista)
+        if new_moves:
             for move in new_moves:
-                if move.codigo_tipo_documento == constants.COD_DTE_NC and move.reversed_entry_id:
-                    _logger.info("SIT NC creada: ID=%s | reversed_entry_id=%s | inv_refund_id=%s | name=%s",
-                                 move.id, move.reversed_entry_id.id, move.inv_refund_id.id, move.name)
+                # Por si inv_refund_id es False, evita AttributeError en el log
+                inv_refund = move.inv_refund_id.id if move.inv_refund_id else False
+                rev_id = move.reversed_entry_id.id if move.reversed_entry_id else False
+
+                if move.codigo_tipo_documento == constants.COD_DTE_NC and (move.reversed_entry_id or move.inv_refund_id):
+                    _logger.info(
+                        "SIT NC creada: ID=%s | reversed_entry_id=%s | inv_refund_id=%s | name=%s",
+                        move.id, rev_id, inv_refund, move.name
+                    )
                     move._copiar_retenciones_desde_documento_relacionado()
 
-            # Devolvemos la respuesta correcta en función de si hay un solo movimiento o varios
+            # Arma la acción con ids del recordset
             return {
                 'name': _('Reverse Moves'),
                 'type': 'ir.actions.act_window',
                 'res_model': 'account.move',
-                'view_mode': 'form' if len(new_moves) == 1 else 'list,form',
-                'res_id': new_moves[0].id if len(new_moves) == 1 else False,
-                # Accede a 'id' solo si hay un solo movimiento
-                'domain': [('id', 'in', [move.id for move in new_moves])],  # Genera una lista de IDs
+                'view_mode': 'form' if len(new_moves) == 1 else 'tree,form',
+                'res_id': new_moves.id if len(new_moves) == 1 else False,
+                'domain': [('id', 'in', new_moves.ids)],
                 'context': {
-                    'default_move_type': new_moves[0].move_type if new_moves else 'out_refund',
+                    'default_move_type': new_moves.move_type if len(new_moves) == 1 else 'out_refund',
                 },
             }
         else:
