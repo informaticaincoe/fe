@@ -92,18 +92,24 @@ class AccountMoveLine(models.Model):
             subtotal_linea_con_descuento = base_price_unit * cantidad * (1 - descuento / 100.0)
             precio_total = currency.round(subtotal_linea_con_descuento)
 
-            #TODO: verificar si el tipo de impuesto es sin iva incluido para sumarle el iva si es consumidor final
+            _logger.info("Tipo de impuesto %s", line.tax_line_id.price_include_override)
             if line.journal_id.code == 'FCF':
-                line.precio_unitario = line.price_unit + (line.iva_unitario)
-                _logger.info("line.precio_unitario  FCF %s", line.precio_unitario)
+                if line.tax_line_id.price_include_override == 'tax_excluded':
+                    line.precio_unitario = line.price_unit + (line.iva_unitario)
+                    _logger.info("line.precio_unitario  FCF con iva incluido %s", line.precio_unitario)
+                else:
+                    line.precio_unitario = line.price_unit
             else:
                 line.precio_unitario = line.price_unit
-                _logger.info("line.precio_unitario else %s", line.precio_unitario)
+                _logger.info("line.precio_unitario sin incluir iva %s", line.precio_unitario)
 
             # Asignar según tipo_venta
             if tipo_venta == 'gravado':
                 if line.journal_id.code == 'FCF':
-                    line.precio_gravado = precio_total + line.total_iva
+                    if line.tax_line_id.price_include_override == 'tax_excluded':
+                        line.precio_gravado = precio_total + line.total_iva
+                    else:
+                        line.precio_gravado = precio_total
                 else:
                     line.precio_gravado = precio_total
             elif tipo_venta == 'exento':
