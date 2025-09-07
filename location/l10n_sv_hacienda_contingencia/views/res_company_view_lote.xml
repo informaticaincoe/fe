@@ -1,0 +1,14 @@
+<odoo>
+    <record id="view_res_company_form_inherit_contingencia" model="ir.ui.view">
+        <field name="name">res.company.form.inherit.contingencia</field>
+        <field name="model">res.company</field>
+        <field name="inherit_id" ref="base.view_company_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//page/group[1]" position="after">
+                <group>
+                    <field name="sit_usar_lotes_contingencia"/>
+                </group>
+            </xpath>
+        </field>
+    </record>
+</odoo>

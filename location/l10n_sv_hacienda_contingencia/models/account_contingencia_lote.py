@@ -61,7 +61,7 @@ class sit_AccountContingencia(models.Model):
     )       
     hacienda_fhProcesamiento_lote = fields.Datetime(
         copy=False,
-        string="Fecga de Procesamiento de Lote",
+        string="Fecha de Procesamiento de Lote",
         readonly=True,
         states={"draft": [("readonly", False)]},
     )       
@@ -882,3 +882,4 @@ class sit_AccountContingencia(models.Model):
                     _logger.info("Secuencia '%s' actualizada a %s", sequence.code, next_num)
 
         return nuevo_name
+

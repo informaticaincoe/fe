@@ -101,7 +101,7 @@ class sit_account_lote(models.Model):
     )
 
     lote_recibido_mh = fields.Boolean(string="Lote recibido por MH", copy=False)
-    lote_activo = fields.Boolean(string="Contingencia Activa", copy=False, default=True)
+    lote_activo = fields.Boolean(string="Lote Activo", copy=False, default=True)
 
     sit_json_respuesta = fields.Text("Json de Respuesta", default="")
 

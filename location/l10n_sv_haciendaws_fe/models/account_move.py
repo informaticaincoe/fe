@@ -1949,6 +1949,7 @@ class AccountMove(models.Model):
 
         Contingencia = self.env['account.contingencia1']
         Lote = self.env['account.lote']
+        Bloque = self.env['account.contingencia.bloque']  # Modelo de Bloques
 
         # Buscar contingencia activa
         contingencia_activa = Contingencia.search([
@@ -1959,107 +1960,169 @@ class AccountMove(models.Model):
         ], limit=1)
 
         lote_asignado = None
+        bloque_asignado = None  # Variable para el bloque
+        usar_lotes = self.company_id.sit_usar_lotes_contingencia
 
         if contingencia_activa:
             _logger.info("Contingencia activa encontrada: %s", contingencia_activa.name)
 
-            # Asociar esta factura a la contingencia
-            self.write({'sit_factura_de_contingencia': contingencia_activa.id})
-
-            # Buscar lote incompleto
-            lotes_validos = Lote.search([
-                ('sit_contingencia', '=', contingencia_activa.id),
-                ('hacienda_codigoLote_lote', 'in', [False, '', None]),
-                ('lote_activo', '=', True),
-                ('company_id', '=', self.company_id.id),
-                # ('lote_recibido_mh', '=', False),
-            ])
-
-            for lote in lotes_validos:
-                if len(lote.move_ids) < 100:  # 100
-                    self.write({'sit_lote_contingencia': lote.id})
-                    lote_asignado = lote
-                    _logger.info("Factura asignada a lote existente: %s", lote.id)
-                    break
-
-            if not lote_asignado and not self.sit_lote_contingencia:
-                # Eliminar lotes vacíos si los hay (opcional, solo si quieres limpiar)
-                lotes_vacios = Lote.search([
-                    ('sit_contingencia', '=', contingencia_activa.id),
-                    '|', '|',
-                    ('name', '=', False),
-                    ('name', '=', ''),
-                    ('name', '=ilike', ' '),
+            # Validar solo si NO se usan lotes
+            if not usar_lotes:
+                # Validación de la cantidad de facturas en la contingencia
+                num_facturas_contingencia = self.env['account.move'].search_count([
+                    ('sit_factura_de_contingencia', '=', contingencia_activa.id),
                     ('company_id', '=', self.company_id.id),
                 ])
-                if lotes_vacios:
-                    _logger.warning("Se eliminarán lotes vacíos sin nombre antes de crear uno nuevo: %s",
-                                    lotes_vacios.ids)
-                    lotes_vacios.unlink()
+                _logger.info("Facturas en contingencia %s: %d", contingencia_activa.name, num_facturas_contingencia)
 
-                num_lotes = Lote.search_count([('sit_contingencia', '=', contingencia_activa.id)])
-                _logger.info("Cantidad lotes existentes en contingencia %s: %d", contingencia_activa.name, num_lotes)
+                if num_facturas_contingencia >= 5000:
+                    _logger.warning("Contingencia %s alcanzó el máximo de 5000 facturas. Se creará nueva contingencia.",
+                                    contingencia_activa.name)
+                    contingencia_activa.write({'contingencia_activa': False})
+                    contingencia_activa = None
 
-                if num_lotes < 400:
-                    nuevo_nombre_lote = self.env['account.lote'].generar_nombre_lote(journal=journal_lote,
-                                                                                     actualizar_secuencia=True)
-                    if not nuevo_nombre_lote or not nuevo_nombre_lote.strip():
-                        raise UserError(_("El nombre generado para el lote es inválido, no puede ser vacío."))
-                    lote_asignado = Lote.create({
-                        'name': nuevo_nombre_lote,
-                        'sit_contingencia': contingencia_activa.id,
-                        'lote_activo': True,
-                        'journal_id': journal_lote.id,
-                        'company_id': contingencia_activa.company_id.id,
-                    })
-                    self.write({'sit_lote_contingencia': lote_asignado.id})
-                    _logger.info("Factura asignada a nuevo lote: %s", lote_asignado.name)
-                else:
-                    _logger.info("Contingencia ya tiene 400 lotes. Creando nueva contingencia.")
-                    contingencia_activa = None  # Forzar nueva contingencia
+            # Si la contingencia sigue activa, asociamos la factura
+            if contingencia_activa:
+                # Asociar esta factura a la contingencia
+                self.write({'sit_factura_de_contingencia': contingencia_activa.id})
 
-            elif not lote_asignado and self.sit_lote_contingencia:
-                _logger.info("Factura ya tenía un lote asignado, no se crea nuevo lote: %s",
-                             self.sit_lote_contingencia.name)
+                # Si no se usan lotes, se manejan bloques
+                if not usar_lotes:
+                    bloque_asignado = self._asignar_a_bloque(contingencia_activa)
+                    self.write({'sit_bloque_contingencia': bloque_asignado.id})
+                    _logger.info("Factura asignada a bloque: %s", bloque_asignado.name)
+
+                if usar_lotes:
+                    # Buscar lote incompleto
+                    lotes_validos = Lote.search([
+                        ('sit_contingencia', '=', contingencia_activa.id),
+                        ('hacienda_codigoLote_lote', 'in', [False, '', None]),
+                        ('lote_activo', '=', True),
+                        ('company_id', '=', self.company_id.id),
+                        # ('lote_recibido_mh', '=', False),
+                    ])
+
+                    for lote in lotes_validos:
+                        if len(lote.move_ids) < 100:  # 100
+                            self.write({'sit_lote_contingencia': lote.id})
+                            lote_asignado = lote
+                            _logger.info("Factura asignada a lote existente: %s", lote.id)
+                            break
+
+                    if not lote_asignado and not self.sit_lote_contingencia:
+                        # Eliminar lotes vacíos si los hay (opcional, solo si quieres limpiar)
+                        lotes_vacios = Lote.search([
+                            ('sit_contingencia', '=', contingencia_activa.id),
+                            '|', '|',
+                            ('name', '=', False),
+                            ('name', '=', ''),
+                            ('name', '=ilike', ' '),
+                            ('company_id', '=', self.company_id.id),
+                        ])
+                        if lotes_vacios:
+                            _logger.warning("Se eliminarán lotes vacíos sin nombre antes de crear uno nuevo: %s",
+                                            lotes_vacios.ids)
+                            lotes_vacios.unlink()
+
+                        num_lotes = Lote.search_count([('sit_contingencia', '=', contingencia_activa.id)])
+                        _logger.info("Cantidad lotes existentes en contingencia %s: %d", contingencia_activa.name,
+                                     num_lotes)
+
+                        if num_lotes < 400:
+                            nuevo_nombre_lote = self.env['account.lote'].generar_nombre_lote(journal=journal_lote,
+                                                                                             actualizar_secuencia=True)
+                            if not nuevo_nombre_lote or not nuevo_nombre_lote.strip():
+                                raise UserError(_("El nombre generado para el lote es inválido, no puede ser vacío."))
+                            lote_asignado = Lote.create({
+                                'name': nuevo_nombre_lote,
+                                'sit_contingencia': contingencia_activa.id,
+                                'lote_activo': True,
+                                'journal_id': journal_lote.id,
+                                'company_id': contingencia_activa.company_id.id,
+                            })
+                            self.write({'sit_lote_contingencia': lote_asignado.id})
+                            _logger.info("Factura asignada a nuevo lote: %s", lote_asignado.name)
+                        else:
+                            _logger.info("Contingencia ya tiene 400 lotes. Creando nueva contingencia.")
+                            contingencia_activa = None  # Forzar nueva contingencia
+
+                    elif not lote_asignado and self.sit_lote_contingencia:
+                        _logger.info("Factura ya tenía un lote asignado, no se crea nuevo lote: %s",
+                                     self.sit_lote_contingencia.name)
         else:
             _logger.info("No se encontró contingencia activa. Creando nueva.")
 
         # Si no hay contingencia activa o válida, crear una nueva
         if not contingencia_activa:
-            nuevo_name = self.env['account.contingencia1']._generate_contingencia_name(journal=journal_contingencia,
-                                                                                       actualizar_secuencia=True)
+            nuevo_name = Contingencia._generate_contingencia_name(journal=journal_contingencia,
+                                                                  actualizar_secuencia=True)
             contingencia_activa = Contingencia.create({
                 'name': nuevo_name,
                 'company_id': self.company_id.id,
                 'journal_id': journal_contingencia.id,
                 'sit_tipo_contingencia': tipo_contingencia.id if tipo_contingencia else False,
                 'contingencia_activa': True,
+                'sit_usar_lotes': usar_lotes,
             })
 
-            nuevo_nombre_lote = self.env['account.lote'].generar_nombre_lote(journal=journal_lote,
-                                                                             actualizar_secuencia=True)
-            if not nuevo_nombre_lote or not nuevo_nombre_lote.strip():
-                raise UserError(_("El nombre generado para el lote es inválido, no puede ser vacío."))
-            lote_asignado = Lote.create({
-                'name': nuevo_nombre_lote,
-                'sit_contingencia': contingencia_activa.id,
-                'lote_activo': True,
-                'journal_id': journal_lote.id,
-                'company_id': contingencia_activa.company_id.id,
-            })
-            self.write({
-                'sit_lote_contingencia': lote_asignado.id,
-                'sit_factura_de_contingencia': contingencia_activa.id,
-            })
-            _logger.info("Creada nueva contingencia y lote: %s, %s", contingencia_activa.name, lote_asignado.name)
+            if usar_lotes:
+                nuevo_nombre_lote = Lote.generar_nombre_lote(journal=journal_lote, actualizar_secuencia=True)
+                if not nuevo_nombre_lote or not nuevo_nombre_lote.strip():
+                    raise UserError(_("El nombre generado para el lote es inválido, no puede ser vacío."))
+                lote_asignado = Lote.create({
+                    'name': nuevo_nombre_lote,
+                    'sit_contingencia': contingencia_activa.id,
+                    'lote_activo': True,
+                    'journal_id': journal_lote.id,
+                    'company_id': contingencia_activa.company_id.id,
+                })
+                self.write({
+                    'sit_lote_contingencia': lote_asignado.id,
+                    'sit_factura_de_contingencia': contingencia_activa.id,
+                })
+                _logger.info("Creada nueva contingencia y lote: %s, %s", contingencia_activa.name, lote_asignado.name)
+            else:
+                self.write({'sit_factura_de_contingencia': contingencia_activa.id})
+                _logger.info("Creada nueva contingencia %s sin lote", contingencia_activa.name)
 
-        _logger.info("Factura %s asignada a contingencia %s y lote %s", self.name, contingencia_activa.name, lote_asignado.name if lote_asignado else "N/A")
+            # Si no se usan lotes, se crea el bloque directamente
+            if not usar_lotes:
+                bloque_asignado = self._asignar_a_bloque(contingencia_activa)
+                self.write({'sit_bloque_contingencia': bloque_asignado.id})
+
+            _logger.info("Creada nueva contingencia %s", contingencia_activa.name)
+
+        _logger.info("Factura %s asignada a contingencia %s y lote %s", self.name, contingencia_activa.name,
+                     lote_asignado.name if lote_asignado else "N/A")
         return {
             'notificar': True,
-            'title': 'El DTE se guardo en contingencia',
+            'title': 'El DTE se guardó en contingencia',
             'message': f"Dte {self.name} asignado a contingencia {contingencia_activa.name} y lote {lote_asignado.name if lote_asignado else 'N/A'}.",
             'type': 'success',
         }
+
+    def _asignar_a_bloque(self, contingencia_activa):
+        # Buscar bloque con menos de 100 facturas
+        bloque = self.env['account.contingencia.bloque'].search([
+            ('contingencia_id', '=', contingencia_activa.id),
+            ('cantidad', '<', 100),
+        ], limit=1)
+
+        if not bloque:
+            # Crear un nuevo bloque si no se encontró uno con espacio
+            nuevo_nombre_bloque = self.env['account.contingencia.bloque'].generar_nombre_bloque()
+            bloque = self.env['account.contingencia.bloque'].create({
+                'name': nuevo_nombre_bloque,
+                'contingencia_id': contingencia_activa.id,
+                'factura_ids': [(4, self.id)],
+            })
+        else:
+            # Asignar la factura al bloque existente
+            bloque.write({
+                'factura_ids': [(4, self.id)],
+            })
+
+        return bloque
 
     def action_post(self):
         if not all(inv.company_id and inv.company_id.sit_facturacion for inv in self):

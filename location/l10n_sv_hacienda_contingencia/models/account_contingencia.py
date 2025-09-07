@@ -136,6 +136,8 @@ class sit_account_contingencia(models.Model):
     )
 
     ultima_actualizacion_task = fields.Datetime(string="Última actualización del cron")
+    sit_usar_lotes = fields.Boolean(string="Usar Lotes", default=False)
+    bloque_ids = fields.One2many("account.contingencia.bloque", "contingencia_id", string="Bloques de Facturas")
 
     @api.depends('lote_ids.lote_recibido_mh')
     def _compute_mostrar_boton_lote(self):
@@ -277,3 +279,18 @@ class sit_account_contingencia(models.Model):
                 if hora_actual - inicio >= timedelta(hours=24):
                     contingencia.contingencia_activa = False
                     _logger.info("Contingencia actualizada=%s", contingencia.id)
+
+    # def action_generar_bloques(self):
+    #     """Divide facturas relacionadas en bloques de 100"""
+    #     self.ensure_one()
+    #     self.bloque_ids.unlink()  # limpiar antes de regenerar
+    #
+    #     facturas = self.sit_facturas_relacionadas
+    #     grupos = [facturas[i:i + 100] for i in range(0, len(facturas), 100)]
+    #
+    #     for idx, grupo in enumerate(grupos, 1):
+    #         self.env["account.contingencia.bloque"].create({
+    #             "name": f"Bloque {idx}",
+    #             "contingencia_id": self.id,
+    #             "factura_ids": [(6, 0, grupo.ids)],
+    #         })
