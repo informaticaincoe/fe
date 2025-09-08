@@ -7,22 +7,20 @@
             <field name="arch" type="xml">
                 <search string="Resumen mensual de Nómina">
                     <group expand="0" string="Agrupar por">
+                        <filter name="group_by_company" string="Empresa" context="{'group_by':'company_id'}"/>
+                        <filter name="group_by_year" string="Año" context="{'group_by':'period_year'}"/>
+                        <filter name="group_by_month" string="Mes" context="{'group_by':'period_month'}"/>
                         <filter name="group_by_employee" string="Empleado" context="{'group_by':'employee_id'}"/>
                         <filter name="group_by_department" string="Departamento"
                                 context="{'group_by':'department_id'}"/>
-                        <filter name="group_by_year" string="Año" context="{'group_by':'period_year'}"/>
-                        <filter name="group_by_month" string="Mes" context="{'group_by':'period_month'}"/>
                     </group>
-
-
                     <searchpanel>
+                        <field name="company_id" string="EMPRESA" select="multi" enable_counters="1"/>
                         <field name="period_year" string="AÑO" select="one" enable_counters="1"/>
                         <field name="period_month" string="MES" select="one" enable_counters="1"/>
                         <field name="department_id" string="DEPARTAMENTO" select="multi" enable_counters="1"/>
                     </searchpanel>
-
-                    <filter name="mes_actual"
-                            string="Mes actual"
+                    <filter name="mes_actual" string="Mes actual"
                             domain="[('period_year','=', time.strftime('%%Y')), ('period_month','=', time.strftime('%%m'))]"/>
                 </search>
             </field>
@@ -74,6 +72,7 @@
             <!-- activar ambos group_by por defecto -->
             <field name="context">
                 {
+                'search_default_group_by_company': 1,
                 'search_default_group_by_year': 1,
                 'search_default_group_by_month': 1
                 }
@@ -85,6 +84,12 @@
             </field>
         </record>
 
+        <record id="hr_payslip_monthly_summary_company_rule" model="ir.rule">
+            <field name="name">Monthly Summary: multi-company</field>
+            <field name="model_id" ref="model_hr_payslip_monthly_summary"/>
+            <field name="domain_force">[('company_id','in', company_ids)]</field>
+            <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+        </record>
 
         <!-- Menú: Recursos Humanos > Nómina > Reportes > Resumen Mensual -->
         <menuitem id="menu_hr_payslip_monthly_summary_root"
