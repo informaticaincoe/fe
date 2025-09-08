@@ -271,6 +271,7 @@ class AccountMove(models.Model):
                         sit_amount_base = round(line.quantity * line.price_unit, 2)
                     compraS = line_temp["cantidad"] * (line.price_unit - (line.price_unit * (line.discount / 100)))
                     line_temp["compra"] = round(compraS,2)
+                    _logger.info("line_temp['compra']=%s", line_temp["compra"])
 
                     totalIva += 0
 

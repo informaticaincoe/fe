@@ -332,7 +332,7 @@
                                                     </td>
                                                     <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
                                                         class="border-light-subtle">
-                                                        <span t-esc="(o.invoice_line_ids[idx].price_subtotal)"
+                                                        <span t-esc="(o.invoice_line_ids[idx].price_subtotal) + iva_unitario"
                                                               t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
                                                     </td>
                                                     <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
@@ -341,7 +341,7 @@
                                                     </td>
                                                     <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
                                                         class="border-light-subtle">
-                                                        <span t-esc="o.invoice_line_ids[idx].price_unit * (o.invoice_line_ids[idx].discount / 100)"
+                                                        <span t-esc="o.invoice_line_ids[idx].price_unit * (o.invoice_line_ids[idx].discount / 100) * o.invoice_line_ids[idx].quantity"
                                                               t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
                                                     </td>
                                                     <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
@@ -356,12 +356,11 @@
                                                     </td>
                                                     <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
                                                         class="border-light-subtle">
-                                                        <span t-esc="(o.invoice_line_ids[idx].precio_gravado)"
+                                                        <span t-esc="(o.invoice_line_ids[idx].precio_gravado) + (o.invoice_line_ids[idx].iva_unitario)"
                                                               t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
                                                     </td>
                                                 </tr>
                                             </t>
-
                                         </t>
                                     </tbody>
                                 </table>
@@ -403,7 +402,6 @@
                                                     </td>
                                                 </tr>
                                             </table>
-                                            <!-- 2) Responsables -->
                                             <!-- 2) Responsables -->
                                             <div class="row border border-light-subtle rounded-2 align-items-center">
                                                 <table style="width:100%; border-color:#ffffff;">
@@ -457,6 +455,26 @@
                                                 </table>
                                             </div>
                                         </td>
+
+                                        <t t-set="total_no_sujeto" t-value="o.total_no_sujeto"/>
+                                        <t t-set="total_exento" t-value="o.total_exento"/>
+                                        <t t-set="total_gravado" t-value="o.total_gravado"/>
+
+                                        <!-- Códigos a excluir y líneas de tributos -->
+                                        <t t-set="excluded_codes_tributos" t-value="['C5', 'C6', 'C7']"/>
+                                        <t t-set="tributos_lines"
+                                           t-value="o.line_ids.filtered(lambda l: l.tax_line_id and l.tax_line_id.tributos_hacienda.codigo and l.tax_line_id.tributos_hacienda.codigo.upper() not in excluded_codes_tributos)"/>
+                                        <t t-set="total_tributos"
+                                           t-value="sum(abs(l.amount_currency or l.balance) for l in tributos_lines)"/>
+
+                                        <!-- Subtotal base (corrige la resta de descuentos: global + exento + gravado) -->
+                                        <t t-set="subtotal_base"
+                                           t-value="(o.total_no_sujeto + o.total_exento + o.total_gravado) - (o.descuento_no_sujeto + o.descuento_exento + o.descuento_gravado)"/>
+
+                                        <!-- Monto total de la operación = Subtotal + Tributos -->
+                                        <t t-set="monto_total_operacion"
+                                           t-value="subtotal_base + total_tributos"/>
+
                                         <!-- DERECHA: Resúmenes -->
                                         <td style="vertical-align:top; width:50%;">
                                             <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
@@ -468,7 +486,7 @@
                                                         </td>
                                                         <td style="border:1px solid #e5e7e9; text-align:end; padding: 1% 0%;"
                                                             class="border-light-subtle px-1">
-                                                            <span t-esc="o.total_no_sujeto"
+                                                            <span t-esc="total_no_sujeto"
                                                                   t-options="{'widget':'monetary','display_currency': o.currency_id}"/>
                                                         </td>
                                                     </tr>
@@ -479,7 +497,7 @@
                                                         </td>
                                                         <td class="px-1 border border-light-subtle text-end"
                                                             style="padding: 1% 0%;">
-                                                            <span t-esc="o.total_exento"
+                                                            <span t-esc="total_exento"
                                                                   t-options="{'widget':'monetary','display_currency': o.currency_id}"/>
                                                         </td>
                                                     </tr>
@@ -490,7 +508,7 @@
                                                         </td>
                                                         <td class="px-1 border border-light-subtle text-end"
                                                             style="padding: 1% 0%;">
-                                                            <span t-esc="o.total_gravado"
+                                                            <span t-esc="total_gravado"
                                                                   t-options="{'widget':'monetary','display_currency': o.currency_id}"/>
                                                         </td>
                                                     </tr>
@@ -501,7 +519,7 @@
                                                         </td>
                                                         <td class="px-1 border border-light-subtle text-end"
                                                             style="padding: 1% 0%;">
-                                                            <span t-esc="o.total_no_sujeto + o.total_exento + o.total_gravado"
+                                                            <span t-esc="total_no_sujeto + total_exento + total_gravado"
                                                                   t-options="{'widget':'monetary','display_currency': o.currency_id}"/>
                                                         </td>
                                                     </tr>
@@ -560,41 +578,15 @@
                                                                   t-options="{'widget':'monetary','display_currency': o.currency_id}"/>
                                                         </td>
                                                     </tr>
-                                                    <tr>
-                                                        <td class="px-1 border border-light-subtle text-end"
-                                                            style="padding: 1% 0%;">
-                                                            Subtotal:
-                                                        </td>
-                                                        <td class="px-1 border border-light-subtle text-end"
-                                                            style="padding: 1% 0%;">
-                                                            <span t-esc="(o.total_no_sujeto + o.total_exento + o.total_gravado) - (o.descuento_exento + o.descuento_gravado + o.descuento_global)"
-                                                                  t-options="{'widget':'monetary','display_currency': o.currency_id}"/>
-                                                        </td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td class="px-1 border border-light-subtle text-end"
-                                                            style="padding: 1% 0%;">
-                                                            Total IVA:
-                                                        </td>
-                                                        <td class="px-1 border border-light-subtle text-end"
-                                                            style="padding: 1% 0%;">
-                                                            <span t-esc="(o.amount_tax)"
-                                                                  t-options="{'widget':'monetary','display_currency': o.currency_id}"/>
-                                                        </td>
-                                                    </tr>
                                                     <t t-set="excluded_codes"
-                                                       t-value="['A8','57','90','D4','D5','A6', '20']"/>
-                                                    <t t-foreach="o.line_ids.filtered(                                                                  lambda l: l.tax_line_id                                                                  and l.tax_line_id.tributos_hacienda_resumen_dte                                                                  and l.tax_line_id.tributos_hacienda_resumen_dte.codigo.upper() not in excluded_codes                                                             )"
+                                                       t-value="['A8','57','90','D4','D5','A6']"/>
+                                                    <t t-foreach="o.line_ids.filtered(lambda l: l.tax_line_id and l.tax_line_id.tributos_hacienda.codigo.upper() not in excluded_codes)"
                                                        t-as="tax_line">
                                                         <tr>
                                                             <td class="px-1 border border-light-subtle text-end"
                                                                 style="padding: 2% 0%;">
-                                                                <t t-if="tax_line.tax_line_id.tax_group_id.name == 'Retencion'">
-                                                                    <span t-field="tax_line.tax_line_id.name"/>
-                                                                </t>
-                                                                <t t-else="">
-                                                                    <span t-field="tax_line.tax_line_id.tributos_hacienda_resumen_dte"/>
-                                                                </t>
+                                                                <span t-field="tax_line.tax_line_id"/>
+                                                                <span t-field="tax_line.tax_line_id.tributos_hacienda_resumen_dte"/>
                                                             </td>
                                                             <td class="px-1 border border-light-subtle text-end"
                                                                 style="padding: 2% 0%;">
@@ -603,6 +595,17 @@
                                                             </td>
                                                         </tr>
                                                     </t>
+                                                    <tr>
+                                                        <td class="px-1 border border-light-subtle text-end"
+                                                            style="padding: 1% 0%;">
+                                                            Subtotal:
+                                                        </td>
+                                                        <td class="px-1 border border-light-subtle text-end"
+                                                            style="padding: 1% 0%;">
+                                                            <span t-esc="subtotal_base"
+                                                                  t-options="{'widget':'monetary','display_currency': o.currency_id}"/>
+                                                        </td>
+                                                    </tr>
                                                     <tr>
                                                         <td class="px-1 border border-light-subtle text-end"
                                                             style="padding: 1% 0%;">IVA percibido:
@@ -639,7 +642,7 @@
                                                         </td>
                                                         <td class="px-1 border border-light-subtle text-end"
                                                             style="padding: 1% 0%;">
-                                                            <span t-esc="(o.total_no_sujeto + o.total_exento + o.total_gravado) * 1.13 - (o.descuento_exento + o.descuento_gravado + o.descuento_global) "
+                                                            <span t-esc="monto_total_operacion"
                                                                   t-options="{'widget':'monetary','display_currency': o.currency_id}"/>
                                                         </td>
                                                     </tr>

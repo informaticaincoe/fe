@@ -22,6 +22,7 @@ except ImportError as e:
 class HrSalaryAssignment(models.Model):
     _name = 'hr.salary.assignment'
     _description = 'Salary Assignment'
+    _check_company_auto = True
 
     PERIOD_MONTHS = [
         ('01', 'enero'), ('02', 'febrero'), ('03', 'marzo'),
@@ -31,7 +32,7 @@ class HrSalaryAssignment(models.Model):
     ]
 
     # Campos principales de la asignación
-    employee_id = fields.Many2one('hr.employee', string='Empleado')
+    employee_id = fields.Many2one('hr.employee', string='Empleado', check_company=True)
     horas_extras_ids = fields.One2many(
         'hr.horas.extras',
         'salary_assignment_id',
@@ -48,7 +49,7 @@ class HrSalaryAssignment(models.Model):
     monto = fields.Float("Monto", required=False)
     periodo = fields.Date("Periodo", required=True)
     description = fields.Text(string="Descripción", help="Descripción")
-    payslip_id = fields.Many2one('hr.payslip', string='Histórico (Boleta)', help="Si se desea vincular con un recibo de pago.")
+    payslip_id = fields.Many2one('hr.payslip', string='Histórico (Boleta)', help="Si se desea vincular con un recibo de pago.", check_company=True)
 
     # horas_diurnas = fields.Char("Horas extras diurnas", invisible=False)
     # horas_nocturnas = fields.Char("Horas extras nocturnas", invisible=False)
@@ -145,7 +146,9 @@ class HrSalaryAssignment(models.Model):
             if not contrato:
                 raise UserError("No se encontró contrato para el empleado.")
 
-            dias_mes = config_utils.get_dias_promedio_salario(self.env, self.env.company.id)  # 30
+            cid = empleado.company_id.id
+            self = self.with_company(cid)  # ✅ asegura contexto
+            dias_mes = config_utils.get_dias_promedio_salario(self.env, cid)
 
             calendar = contrato.resource_calendar_id
             if not calendar:
@@ -210,13 +213,19 @@ class HrSalaryAssignment(models.Model):
             # Determinar si es un viático con horas extras
             es_viatico_con_horas_extras = vals.get('tipo') == 'VIATICO' and any(vals.get(campo) for campo in horas_campos)
 
-            # Construir dominio de búsqueda
+            # calcular comp_id una sola vez
+            comp_id = vals.get('company_id') or (
+                    vals.get('employee_id') and self.env['hr.employee'].browse(vals['employee_id']).company_id.id
+            ) or self.env.company.id
+
             domain = [
                 ('employee_id', '=', vals.get('employee_id')),
                 ('tipo', '=', vals.get('tipo')),
                 ('periodo', '=', vals.get('periodo')),
-                ('company_id', '=', self.env.company.id),
+                ('company_id', '=', comp_id),
             ]
+
+            existing = self.with_company(comp_id).search(domain, limit=1)
 
             # Solo agregar la condición de 'mostrar_horas_extras' si el tipo es VIATICO
             # y ese campo está presente en vals
@@ -433,12 +442,13 @@ class HrSalaryAssignment(models.Model):
         try:
             records = []
             asignaciones_omitidas = []
-            #horas_validas = False
+                #horas_validas = False
 
             for vals in vals_list:
                 #self._validar_asignacion(vals)
                 empleado = None
                 _logger.info("Creando asignación con datos: %s", vals)
+
                 if vals.get("tipo") == "COMISION":
                     for k, v in vals.items():
                         _logger.info("Campo: %s - Tipo: %s - Valor: %s", k, type(v), v)
@@ -476,17 +486,26 @@ class HrSalaryAssignment(models.Model):
 
                     # Si viene de importación (usa código de empleado)
                     if codigo_empleado:
-                        if isinstance(codigo_empleado, str):
-                            codigo_empleado = codigo_empleado.strip()
+                        cod = codigo_empleado.strip() if isinstance(codigo_empleado, str) else codigo_empleado
 
-                        if not codigo_empleado:
-                            raise UserError("Debe proporcionar el código de empleado (codigo_empleado).")
+                        # No filtres por company_id aquí si no viene en el archivo;
+                        # busca por barcode y luego desambiguas tú.
+                        emp_domain = [('barcode', '=', cod)]
+                        if vals.get('company_id'):
+                            emp_domain.append(('company_id', '=', vals['company_id']))
+                        empleados = self.env['hr.employee'].search(emp_domain)
 
-                        empleado = self.env['hr.employee'].search([
-                            ('barcode', '=', codigo_empleado),
-                            ('company_id', '=', vals.get('company_id') or self.env.company.id)], limit=1)
-                        if not empleado:
-                            raise UserError(f"No se encontró un empleado con código: {codigo_empleado}")
+                        if not empleados:
+                            raise UserError(f"No se encontró un empleado con código: {cod}")
+
+                        if len(empleados) > 1 and not vals.get('company_id'):
+                            empresas = ", ".join(sorted({e.company_id.display_name for e in empleados}))
+                            raise UserError(
+                                f"El código {cod} existe en múltiples empresas ({empresas}). "
+                                f"Indique la empresa en el archivo (columna company_id) para desambiguar."
+                            )
+
+                        empleado = empleados[0]
                         vals['employee_id'] = empleado.id
 
                     # Si viene del formulario (usa employee_id directo)

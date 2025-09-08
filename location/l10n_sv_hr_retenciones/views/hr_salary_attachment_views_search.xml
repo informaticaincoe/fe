@@ -12,8 +12,6 @@
                     <field name="description" string="Descripción"/>
 
                     <group expand="0" string="Agrupar Por">
-                        <filter name="group_by_employee" string="Empleado" context="{'group_by': 'employee_ids'}"/>
-                        <filter name="group_by_state" string="Estado" context="{'group_by': 'state'}"/>
                         <filter name="group_by_date_start" string="Fecha" context="{'group_by': 'date_start:day'}"/>
                     </group>
 
@@ -43,14 +41,9 @@
         <record id="action_hr_salary_attachment_custom" model="ir.actions.act_window">
             <field name="name">Deducciones Salariales (Custom)</field>
             <field name="res_model">hr.salary.attachment</field>
-            <field name="view_mode">tree,form</field>
+            <field name="view_mode">list,form</field>
             <field name="search_view_id" ref="view_hr_salary_attachment_search_inherit"/>
-            <!-- Activa por defecto el filtro de agrupación “group_by_date_start” -->
-            <field name="context">
-                {
-                'search_default_group_by_date_start': 1,
-                'group_by': 'date_start:day'
-                }
+            <field name="context">{}
             </field>
         </record>
 

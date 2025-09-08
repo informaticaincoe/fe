@@ -6,165 +6,138 @@ class HrPayslipMonthlySummary(models.Model):
     _description = 'Resumen mensual de nómina (suma quincenas)'
     _auto = False
     _order = 'period_year desc, period_month desc, employee_id'
+    _check_company_auto = True
 
     PERIOD_MONTHS = [
-        ('01', 'enero'), ('02', 'febrero'), ('03', 'marzo'),
-        ('04', 'abril'), ('05', 'mayo'), ('06', 'junio'),
-        ('07', 'julio'), ('08', 'agosto'), ('09', 'septiembre'),
-        ('10', 'octubre'), ('11', 'noviembre'), ('12', 'diciembre'),
+        ('01','enero'),('02','febrero'),('03','marzo'),('04','abril'),
+        ('05','mayo'),('06','junio'),('07','julio'),('08','agosto'),
+        ('09','septiembre'),('10','octubre'),('11','noviembre'),('12','diciembre'),
     ]
 
     @api.model
     def year_selection(self):
         y = date.today().year
-        # Ajusta el rango a tu gusto
-        years = list(range(y - 5, y + 2))
-        return [(str(v), str(v)) for v in years]
+        return [(str(v), str(v)) for v in range(y-5, y+2)]
 
-    period_year = fields.Selection(selection=year_selection, string='Año', readonly=True, index=True)
+    # ✅ campos base (todos deben existir en la vista)
+    company_id   = fields.Many2one('res.company', string='Empresa', readonly=True, index=True)
+    period_year  = fields.Selection(selection=year_selection, string='Año', readonly=True, index=True)
     period_month = fields.Selection(selection=PERIOD_MONTHS, string='Mes', readonly=True, index=True)
+    employee_id  = fields.Many2one('hr.employee', string='Empleado', readonly=True, index=True)
+    department_id= fields.Many2one('hr.department', string='Departamento', readonly=True)
 
-    employee_id = fields.Many2one('hr.employee', string='Empleado', readonly=True)
-    department_id = fields.Many2one('hr.department', string='Departamento', readonly=True)
+    total_worked_days   = fields.Float('Días laborados', readonly=True)
+    total_worked_hours  = fields.Float('Horas laboradas', readonly=True)
 
-    # === Totales agregados (suma de ambas quincenas) ===
-    total_worked_days = fields.Float('Días laborados', readonly=True)
-    total_worked_hours = fields.Float('Horas laboradas', readonly=True)
+    salario_pagar    = fields.Float('Salario a pagar', readonly=True)
+    comisiones       = fields.Float('Comisiones', readonly=True)            # ← este campo EXISTE, por eso debe venir en el SELECT
+    total_comisiones = fields.Float('Total comisiones', readonly=True)
+    total_overtime   = fields.Float('Horas extras', readonly=True)
 
-    salario_pagar = fields.Float('Salario a pagar', readonly=True)
-    comisiones = fields.Float('Comisiones', readonly=True)
-    total_overtime = fields.Float('Horas extras', readonly=True)
-
-    viaticos = fields.Float('Viáticos ordinarios', readonly=True)
-    total_viaticos_a_pagar = fields.Float('Total viáticos', readonly=True)
-    vacaciones = fields.Float('Vacaciones', readonly=True)
+    viaticos             = fields.Float('Viáticos ordinarios', readonly=True)
+    total_viaticos_a_pagar= fields.Float('Total viáticos', readonly=True)
+    vacaciones           = fields.Float('Vacaciones', readonly=True)
 
     total_devengado = fields.Float('Total devengado', readonly=True)
 
-    isss = fields.Float('ISSS', readonly=True)
-    isr = fields.Float('ISR', readonly=True)
-    afp = fields.Float('AFP Crecer', readonly=True)
+    isss       = fields.Float('ISSS', readonly=True)
+    isr        = fields.Float('ISR', readonly=True)
+    afp        = fields.Float('AFP Crecer', readonly=True)
     afp_confia = fields.Float('AFP Confia', readonly=True)
-    afp_IPSFA = fields.Float('ipsfa', readonly=True)
-    otros = fields.Float('Otros', readonly=True)
-    bancos = fields.Float('Bancos', readonly=True)
+    afp_ipsfa  = fields.Float('IPSFA', readonly=True)                       # ← minúsculas en el nombre del campo
+    otros      = fields.Float('Otros', readonly=True)
+    bancos     = fields.Float('Bancos', readonly=True)
     venta_empleados = fields.Float('Venta empleados', readonly=True)
     prestamos_incoe = fields.Float('Préstamos INCOE', readonly=True)
-    fsv = fields.Float('FSV', readonly=True)
+    fsv        = fields.Float('FSV', readonly=True)
 
     total_descuentos = fields.Float('Total descuentos', readonly=True)
-    sueldo_liquido = fields.Float('Líquido a recibir', readonly=True)
+    sueldo_liquido   = fields.Float('Líquido a recibir', readonly=True)
 
     @api.model
     def _select(self):
         return """
             WITH wd AS (
-                SELECT
-                    wd.payslip_id,
-                    COALESCE(SUM(wd.number_of_days), 0)  AS worked_days,
-                    COALESCE(SUM(wd.number_of_hours), 0) AS worked_hours
+                SELECT wd.payslip_id,
+                       COALESCE(SUM(wd.number_of_days), 0)  AS worked_days,
+                       COALESCE(SUM(wd.number_of_hours), 0) AS worked_hours
                 FROM hr_payslip_worked_days wd
                 GROUP BY wd.payslip_id
             ),
             pl AS (
-                SELECT
-                    l.slip_id,
-                    /* Ingresos/Percepciones */
-                    COALESCE(SUM(CASE WHEN l.code = 'COMISION'        THEN l.amount ELSE 0 END), 0) AS comisiones,
-                    COALESCE(SUM(CASE WHEN l.code = 'OVERTIME'        THEN l.amount ELSE 0 END), 0) AS overtime,
-                    COALESCE(SUM(CASE WHEN l.code = 'BONO'            THEN l.amount ELSE 0 END), 0) AS bonos,
-                    COALESCE(SUM(CASE WHEN l.code = 'VIATICO'         THEN l.amount ELSE 0 END), 0) AS viaticos,
-                    COALESCE(SUM(CASE WHEN l.code = 'VACACIONES'      THEN l.amount ELSE 0 END), 0) AS vacaciones,
-
-                    /* Descuentos */
-                    COALESCE(SUM(CASE WHEN l.code = 'DESC_FALTA_SEPTIMO' THEN l.amount ELSE 0 END), 0) AS desc_falta,
-                    COALESCE(SUM(CASE WHEN l.code = 'ISSS'            THEN l.amount ELSE 0 END), 0) AS isss,
-                    COALESCE(SUM(CASE WHEN l.code = 'RENTA'           THEN l.amount ELSE 0 END), 0) AS renta,
-                    COALESCE(SUM(CASE WHEN l.code = 'DEV_RENTA'       THEN l.amount ELSE 0 END), 0) AS dev_renta,
-                    COALESCE(SUM(CASE WHEN l.code = 'AFP'             THEN l.amount ELSE 0 END), 0) AS afp,
-                    COALESCE(SUM(CASE WHEN l.code = 'AFP_CONF'        THEN l.amount ELSE 0 END), 0) AS afp_confia,
-                    
-                    COALESCE(SUM(CASE WHEN l.code = 'OTROS'           THEN l.amount ELSE 0 END), 0) AS otros,
-                    COALESCE(SUM(CASE WHEN l.code = 'BANCO'           THEN l.amount ELSE 0 END), 0) AS bancos,
-                    COALESCE(SUM(CASE WHEN l.code = 'VENTA_EMPLEADOS' THEN l.amount ELSE 0 END), 0) AS venta_empleados,
-                    COALESCE(SUM(CASE WHEN l.code = 'PRESTAMOS'       THEN l.amount ELSE 0 END), 0) AS prestamos_incoe,
-                    COALESCE(SUM(CASE WHEN l.code = 'FSV'             THEN l.amount ELSE 0 END), 0) AS fsv
+                SELECT l.slip_id,
+                       COALESCE(SUM(CASE WHEN l.code='COMISION'   THEN l.amount ELSE 0 END),0) AS comisiones,
+                       COALESCE(SUM(CASE WHEN l.code='OVERTIME'   THEN l.amount ELSE 0 END),0) AS overtime,
+                       COALESCE(SUM(CASE WHEN l.code='BONO'       THEN l.amount ELSE 0 END),0) AS bonos,
+                       COALESCE(SUM(CASE WHEN l.code='VIATICO'    THEN l.amount ELSE 0 END),0) AS viaticos,
+                       COALESCE(SUM(CASE WHEN l.code='VACACIONES' THEN l.amount ELSE 0 END),0) AS vacaciones,
+                       COALESCE(SUM(CASE WHEN l.code='DESC_FALTA_SEPTIMO' THEN l.amount ELSE 0 END),0) AS desc_falta,
+                       COALESCE(SUM(CASE WHEN l.code='ISSS'       THEN l.amount ELSE 0 END),0) AS isss,
+                       COALESCE(SUM(CASE WHEN l.code='RENTA'      THEN l.amount ELSE 0 END),0) AS renta,
+                       COALESCE(SUM(CASE WHEN l.code='DEV_RENTA'  THEN l.amount ELSE 0 END),0) AS dev_renta,
+                       COALESCE(SUM(CASE WHEN l.code='AFP'        THEN l.amount ELSE 0 END),0) AS afp,
+                       COALESCE(SUM(CASE WHEN l.code='AFP_CONF'   THEN l.amount ELSE 0 END),0) AS afp_confia,
+                       COALESCE(SUM(CASE WHEN l.code='AFP_IPSFA'  THEN l.amount ELSE 0 END),0) AS afp_ipsfa,
+                       COALESCE(SUM(CASE WHEN l.code='OTROS'           THEN l.amount ELSE 0 END),0) AS otros,
+                       COALESCE(SUM(CASE WHEN l.code='BANCO'           THEN l.amount ELSE 0 END),0) AS bancos,
+                       COALESCE(SUM(CASE WHEN l.code='VENTA_EMPLEADOS' THEN l.amount ELSE 0 END),0) AS venta_empleados,
+                       COALESCE(SUM(CASE WHEN l.code='PRESTAMOS'       THEN l.amount ELSE 0 END),0) AS prestamos_incoe,
+                       COALESCE(SUM(CASE WHEN l.code='FSV'             THEN l.amount ELSE 0 END),0) AS fsv
                 FROM hr_payslip_line l
                 GROUP BY l.slip_id
             )
             SELECT
-                MIN(ps.id)                             AS id,
-                ps.employee_id                         AS employee_id,
-                emp.department_id                      AS department_id,
-                ps.period_year                         AS period_year,
-                ps.period_month                        AS period_month,
+                MIN(ps.id) AS id,
+                ps.company_id                 AS company_id,
+                ps.employee_id                AS employee_id,
+                emp.department_id             AS department_id,
+                ps.period_year                AS period_year,
+                ps.period_month               AS period_month,
 
-                /* Días / horas desde hr_payslip_worked_days */
-                COALESCE(SUM(wd.worked_days), 0)       AS total_worked_days,
-                COALESCE(SUM(wd.worked_hours), 0)      AS total_worked_hours,
+                COALESCE(SUM(wd.worked_days), 0)  AS total_worked_days,
+                COALESCE(SUM(wd.worked_hours), 0) AS total_worked_hours,
 
-                /* Salario a pagar = basic_wage - abs(desc_falta) por slip */
-                SUM( COALESCE(ps.basic_wage, 0) - ABS(COALESCE(pl.desc_falta, 0)) ) AS salario_pagar,
+                -- 🔹 columnas que faltaban
+                SUM(COALESCE(pl.comisiones,0)) AS comisiones,
 
-                /* Componentes de ingresos */
-                SUM(COALESCE(pl.comisiones, 0))        AS comisiones,
-                SUM(COALESCE(pl.overtime, 0))          AS total_overtime,
+                SUM(COALESCE(ps.basic_wage,0) - ABS(COALESCE(pl.desc_falta,0))) AS salario_pagar,
+                SUM(COALESCE(pl.viaticos,0))                                    AS viaticos,
+                SUM(COALESCE(pl.comisiones,0) + ABS(COALESCE(pl.vacaciones,0)) + ABS(COALESCE(pl.bonos,0))) AS total_comisiones,
+                SUM(COALESCE(pl.overtime,0))                                    AS total_overtime,
+                SUM(COALESCE(pl.viaticos,0) + COALESCE(pl.overtime,0))          AS total_viaticos_a_pagar,
+                SUM(COALESCE(pl.vacaciones,0))                                   AS vacaciones,
 
-                /* Viáticos incluyen bonos (como en tu compute) */
-                SUM(COALESCE(pl.viaticos, 0) + COALESCE(pl.bonos, 0)) AS viaticos,
-
-                /* Total viáticos a pagar = viáticos + overtime */
-                SUM(COALESCE(pl.viaticos, 0) + COALESCE(pl.bonos, 0) + COALESCE(pl.overtime, 0)) AS total_viaticos_a_pagar,
-
-                SUM(COALESCE(pl.vacaciones, 0))        AS vacaciones,
-
-                /* Total devengado = salario_pagar + comisiones + total_viaticos_a_pagar */
-                SUM( COALESCE(ps.basic_wage, 0) - ABS(COALESCE(pl.desc_falta, 0))        /* salario_pagar slip */
-                    + COALESCE(pl.comisiones, 0)
-                    + COALESCE(pl.viaticos, 0) + COALESCE(pl.bonos, 0) + COALESCE(pl.overtime, 0) + COALESCE(pl.vacaciones, 0)
+                SUM( COALESCE(ps.basic_wage,0) - ABS(COALESCE(pl.desc_falta,0))
+                    + COALESCE(pl.comisiones,0) + COALESCE(pl.viaticos,0) + COALESCE(pl.bonos,0)
+                    + COALESCE(pl.overtime,0) + COALESCE(pl.vacaciones,0)
                 ) AS total_devengado,
 
-                /* Descuentos (ABS, como en tus computes) */
-                SUM(ABS(COALESCE(pl.isss, 0)))         AS isss,
+                SUM(ABS(COALESCE(pl.isss,0)))                                   AS isss,
+                SUM(ABS(COALESCE(pl.renta,0)) - ABS(COALESCE(pl.dev_renta,0)))  AS isr,
+                SUM(ABS(COALESCE(pl.afp,0)))                                     AS afp,
+                SUM(ABS(COALESCE(pl.afp_confia,0)))                              AS afp_confia,
+                SUM(ABS(COALESCE(pl.afp_ipsfa,0)))                               AS afp_ipsfa,
+                SUM(ABS(COALESCE(pl.otros,0)))                                   AS otros,
+                SUM(ABS(COALESCE(pl.bancos,0)))                                  AS bancos,
+                SUM(ABS(COALESCE(pl.venta_empleados,0)))                         AS venta_empleados,
+                SUM(ABS(COALESCE(pl.prestamos_incoe,0)))                         AS prestamos_incoe,
+                SUM(ABS(COALESCE(pl.fsv,0)))                                     AS fsv,
 
-                /* ISR: por slip: max(abs(RENTA), abs(DEV_RENTA)), luego sumar */
-                SUM(GREATEST(ABS(COALESCE(pl.renta, 0)), ABS(COALESCE(pl.dev_renta, 0)))) AS isr,
-
-                SUM(ABS(COALESCE(pl.afp, 0)))          AS afp,
-                SUM(ABS(COALESCE(pl.afp_confia, 0)))   AS afp_confia,
-                SUM(ABS(COALESCE(pl.otros, 0)))        AS otros,
-                SUM(ABS(COALESCE(pl.bancos, 0)))       AS bancos,
-                SUM(ABS(COALESCE(pl.venta_empleados, 0))) AS venta_empleados,
-                SUM(ABS(COALESCE(pl.prestamos_incoe, 0))) AS prestamos_incoe,
-                SUM(ABS(COALESCE(pl.fsv, 0)))          AS fsv,
-
-                /* Total descuentos (según tu _compute_total_descuentos: no incluye afp_confia ni ipsfa) */
-                SUM(
-                    ABS(COALESCE(pl.isss, 0)) +
-                    GREATEST(ABS(COALESCE(pl.renta, 0)), ABS(COALESCE(pl.dev_renta, 0))) +
-                    ABS(COALESCE(pl.afp, 0)) +
-                    ABS(COALESCE(pl.otros, 0)) +
-                    ABS(COALESCE(pl.bancos, 0)) +
-                    ABS(COALESCE(pl.fsv, 0)) +
-                    ABS(COALESCE(pl.prestamos_incoe, 0)) +
-                    ABS(COALESCE(pl.venta_empleados, 0))
+                SUM( ABS(COALESCE(pl.isss,0))
+                    + (ABS(COALESCE(pl.renta,0)) - ABS(COALESCE(pl.dev_renta,0)))
+                    + ABS(COALESCE(pl.afp,0)) + ABS(COALESCE(pl.otros,0)) + ABS(COALESCE(pl.bancos,0))
+                    + ABS(COALESCE(pl.fsv,0)) + ABS(COALESCE(pl.prestamos_incoe,0)) + ABS(COALESCE(pl.venta_empleados,0))
                 ) AS total_descuentos,
 
-                /* Líquido = devengado - descuentos */
-                SUM( COALESCE(ps.basic_wage, 0) - ABS(COALESCE(pl.desc_falta, 0))
-                    + COALESCE(pl.comisiones, 0)
-                    + COALESCE(pl.viaticos, 0) + COALESCE(pl.bonos, 0) + COALESCE(pl.overtime, 0) + ABS(COALESCE(pl.vacaciones, 0))
-                )
-                -
-                SUM(
-                    ABS(COALESCE(pl.isss, 0)) +
-                    GREATEST(ABS(COALESCE(pl.renta, 0)), ABS(COALESCE(pl.dev_renta, 0))) +
-                    ABS(COALESCE(pl.afp, 0)) +
-                    ABS(COALESCE(pl.otros, 0)) +
-                    ABS(COALESCE(pl.bancos, 0)) +
-                    ABS(COALESCE(pl.fsv, 0)) +
-                    ABS(COALESCE(pl.prestamos_incoe, 0)) +
-                    ABS(COALESCE(pl.venta_empleados, 0))
+                ( SUM( COALESCE(ps.basic_wage,0) - ABS(COALESCE(pl.desc_falta,0))
+                        + COALESCE(pl.comisiones,0) + COALESCE(pl.viaticos,0) + COALESCE(pl.bonos,0)
+                        + COALESCE(pl.overtime,0) + COALESCE(pl.vacaciones,0))
+                  -
+                  SUM( ABS(COALESCE(pl.isss,0))
+                      + (ABS(COALESCE(pl.renta,0)) - ABS(COALESCE(pl.dev_renta,0)))
+                      + ABS(COALESCE(pl.afp,0)) + ABS(COALESCE(pl.otros,0)) + ABS(COALESCE(pl.bancos,0))
+                      + ABS(COALESCE(pl.fsv,0)) + ABS(COALESCE(pl.prestamos_incoe,0)) + ABS(COALESCE(pl.venta_empleados,0))
+                  )
                 ) AS sueldo_liquido
         """
 
@@ -183,14 +156,13 @@ class HrPayslipMonthlySummary(models.Model):
         return """
             WHERE s.code IN ('INCOE', 'PLAN_VAC')
               AND ps.struct_id IS NOT NULL
-              /* Opcional: solo confirmadas/pagadas */
-              /* AND ps.state IN ('done','paid') */
         """
 
     @api.model
     def _group_by(self):
         return """
             GROUP BY
+                ps.company_id,
                 ps.employee_id,
                 emp.department_id,
                 ps.period_year,
