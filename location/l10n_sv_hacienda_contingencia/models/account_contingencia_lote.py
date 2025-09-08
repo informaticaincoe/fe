@@ -619,6 +619,30 @@ class sit_AccountContingencia(models.Model):
 
         json_response = response.json()
         _logger.info("SIT json_responset =%s", json_response)
+
+        if json_response:
+            estado = json_response.get('estado') or json_response.get('status')
+            mensaje = json_response.get('mensaje') or json_response.get('message')
+            fechaHora_str = json_response.get('fechaHora')
+            observaciones = json_response.get('observaciones', '')
+
+            # Convertir fechaHora a datetime si existe
+            fechaHora = None
+            if fechaHora_str:
+                try:
+                    fechaHora = datetime.strptime(fechaHora_str, '%d/%m/%Y %H:%M:%S')
+                except Exception as e:
+                    _logger.warning("No se pudo convertir fechaHora: %s", fechaHora_str)
+
+            # Guardar siempre los datos en la factura/contingencia
+            self.write({
+                'hacienda_estado': estado,
+                'sit_mensaje': mensaje,
+                'sit_fechaHora': fechaHora,
+                'sit_observaciones': observaciones,
+            })
+            self.env.cr.commit()
+
         if json_response['estado'] in [  "RECHAZADO", 402 ] :
             status=json_response['estado']
             fechaHora=json_response['fechaHora']

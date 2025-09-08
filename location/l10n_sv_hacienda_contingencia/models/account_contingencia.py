@@ -143,13 +143,13 @@ class sit_account_contingencia(models.Model):
     def _compute_mostrar_boton_lote(self):
         for rec in self:
             # Lógica de ejemplo: mostrar solo si está en 'posted' y aún no tiene lote
-            rec.boton_lote = any(not lote.lote_recibido_mh for lote in rec.lote_ids)
+            rec.boton_lote = any(not lote.lote_recibido_mh and lote.lote_activo for lote in rec.lote_ids)
 
     @api.depends('contingencia_recibida_mh')
     def _compute_mostrar_boton_contingencia(self):
         for rec in self:
             # Lógica de ejemplo: mostrar solo si está en 'posted' y aún no tiene lote
-            rec.boton_contingencia = not rec.contingencia_recibida_mh
+            rec.boton_contingencia = not rec.contingencia_recibida_mh and rec.contingencia_activa
 
     def _compute_company_id(self):
         _logger.info("SIT calculando company_id")
@@ -256,29 +256,64 @@ class sit_account_contingencia(models.Model):
                 })
         return records
 
-    #@api.model
+    @api.model
     def actualizar_contingencias_expiradas(self):
-        """Desactiva contingencias que han pasado 24 horas desde su inicio."""
-        _logger.info("Desactivar contingencias que han pasado 24 horas desde su inicio=%s", self.id)
+        """Desactiva contingencias (24h) y sus lotes o bloques (72h) según corresponda."""
+        _logger.info("Iniciando actualización de contingencias expiradas")
         tz = pytz.timezone('America/El_Salvador')
         hora_actual = pytz.utc.localize(datetime.utcnow()).astimezone(tz)
+        company_id = self.env.company.id
 
-        # Buscar contingencias activas con fecha de inicio válida
-        contingencias = self.search([
+        # --- 1. Desactivar contingencias activas (24h) ---
+        contingencias_activas = self.search([
             ('contingencia_activa', '=', True),
-            ('sit_fInicio_hInicio', '!=', False)
+            ('sit_fInicio_hInicio', '!=', False),
+            ('company_id', '=', company_id),
         ])
 
-        for contingencia in contingencias:
-            inicio = contingencia.sit_fInicio_hInicio
-            if inicio:
+        for contingencia in contingencias_activas:
+            # Fecha de inicio para validar contingencia activa (24h)
+            inicio = contingencia.sit_fechaHora or contingencia.sit_fInicio_hInicio
+            if inicio and inicio.tzinfo is None:
                 # Convertir a zona horaria de El Salvador si está en UTC
-                if inicio.tzinfo is None:
-                    inicio = pytz.utc.localize(inicio).astimezone(tz)
+                inicio = pytz.utc.localize(inicio).astimezone(tz)
 
-                if hora_actual - inicio >= timedelta(hours=24):
-                    contingencia.contingencia_activa = False
-                    _logger.info("Contingencia actualizada=%s", contingencia.id)
+            # --- Validación de contingencia (24h) ---
+            if inicio and hora_actual - inicio >= timedelta(hours=24):  # if hora_actual - inicio >= timedelta(hours=1):
+                contingencia.contingencia_activa = False
+                _logger.info("Contingencia %s desactivada por vencimiento de 24h desde creación o rechazo",
+                             contingencia.id)
+
+        # --- 2. Validar lotes o bloques (72h desde sello MH), aunque la contingencia esté desactivada ---
+        contingencias_con_sello = self.search([
+            ('sit_fechaHora', '!=', False),
+            ('sit_selloRecibido', '!=', False),
+            ('company_id', '=', company_id),
+        ])
+
+        for contingencia in contingencias_con_sello:
+            sello_evento = contingencia.sit_fechaHora
+            if sello_evento.tzinfo is None:
+                sello_evento = pytz.utc.localize(sello_evento).astimezone(tz)
+
+            if contingencia.sit_usar_lotes:
+                # Validar lotes activos aunque la contingencia esté desactivada
+                for lote in contingencia.lote_ids.filtered(lambda l: l.lote_activo):
+                    if hora_actual - sello_evento >= timedelta(hours=72):
+                        lote.lote_activo = False
+                        _logger.info(
+                            "Lote %s de contingencia %s desactivado por vencimiento de 72h desde sello MH",
+                            lote.id, contingencia.id
+                        )
+            else:
+                # Validar bloques activos
+                for bloque in contingencia.bloque_ids.filtered(lambda b: b.bloque_activo):
+                    if hora_actual - sello_evento >= timedelta(hours=72):
+                        bloque.bloque_activo = False
+                        _logger.info(
+                            "Bloque %s de contingencia %s desactivado por vencimiento de 72h desde sello MH",
+                            bloque.id, contingencia.id
+                        )
 
     # def action_generar_bloques(self):
     #     """Divide facturas relacionadas en bloques de 100"""
