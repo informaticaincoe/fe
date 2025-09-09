@@ -17,7 +17,6 @@ _logger = logging.getLogger(__name__)
 
 tz_el_salvador = pytz.timezone('America/El_Salvador')
 
-
 class sit_AccountContingencia(models.Model):
     _inherit = "account.contingencia1"
 
@@ -59,7 +58,7 @@ class sit_AccountContingencia(models.Model):
         _logger.info("SIT sit_base_map_invoice_info_identificacion self = %s", self)
         invoice_info = {}
         # self = data_inicial
-        invoice_info["version"] = 3
+        invoice_info["version"] = int(self.journal_id.sit_tipo_documento.version) # 3
         validation_type = self._compute_validation_type_2()
         if validation_type == 'homologation': 
             ambiente = "00"

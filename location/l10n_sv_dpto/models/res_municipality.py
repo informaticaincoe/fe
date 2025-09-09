@@ -3,11 +3,11 @@ from odoo import fields, models, _
 
 class Departamento(models.Model):
   _name = "res.municipality"
-  _description = _("Municipality")
+  _description = "Municipality" #_() se usa para traducción de strings dinámicos, no en la definición de campos.
 
-  name = fields.Char(_("Name"), required=True, help=_("Name of municipality"), translate=True)
-  code = fields.Char(_("Code"), required=True, help='Code of municipality')
-  dpto_id = fields.Many2one('res.country.state', _("State"), required=True, help=_("State"))
+  name = fields.Char(string="Name", required=True, help="Name of municipality", translate=True)
+  code = fields.Char(string="Code", required=True, help='Code of municipality')
+  dpto_id = fields.Many2one('res.country.state', string="State", required=True, help="State")
 
   def copy(self, default=None):
     default = dict(default or {})

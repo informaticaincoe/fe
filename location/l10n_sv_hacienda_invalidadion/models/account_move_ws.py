@@ -272,9 +272,17 @@ class AccountMove(models.Model):
                 _("No se encontró el DUI del responsable en la empresa. Por favor verifique el campo DUI en el partner de la compañía."))
 
         numDocumento = None
+        tipoDocumento = None
         if self.company_id:
-            if self.company_id.sit_uuid:
+            if self.company_id.vat:
+                numDocumento = self.company_id.vat
+                tipoDocumento = "36"
+            elif(self.company_id.sit_uuid):
                 numDocumento = self.company_id.sit_uuid
+                tipoDocumento = "36"
+            elif(self.company_id.dui):
+                numDocumento = self.company_id.dui
+                tipoDocumento = "13"
 
         #nit = self.company_id.partner_id.dui.replace("-", "")
         nit = dui.replace("-", "")
@@ -288,7 +296,7 @@ class AccountMove(models.Model):
             "tipoAnulacion": int(self.sit_tipoAnulacion),
             "motivoAnulacion": self.sit_motivoAnulacion,#self.sit_motivoAnulacion if self.sit_tipoAnulacion == 3 else None,
             "nombreResponsable": self.partner_id.name,
-            "tipDocResponsable": "36",
+            "tipDocResponsable": tipoDocumento, # "36",
             "numDocResponsable": numDocumento,
             "nombreSolicita": self.partner_id.name,
             "tipDocSolicita": tipo_doc, #"36" if self.partner_id and self.partner_id.vat else "13",

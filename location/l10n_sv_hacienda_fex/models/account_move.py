@@ -55,7 +55,7 @@ class AccountMove(models.Model):
         # FE activa → aplica tus validaciones extra y luego deja que Odoo postee
         for rec in self:
             tipo_dte = rec.journal_id.sit_tipo_documento
-            if tipo_dte and getattr(tipo_dte, 'codigo', tipo_dte) == '11':
+            if tipo_dte and getattr(tipo_dte, 'codigo', tipo_dte) == constants.COD_DTE_FEX:
                 if not rec.tipoItemEmisor:
                     raise ValidationError(
                         "El campo 'Tipo de Ítem Emisor' es obligatorio para facturas de exportación (11).")
@@ -91,6 +91,12 @@ class AccountMove(models.Model):
 
                 if not rec.invoice_date:
                     raise ValidationError("Debe seleccionar la fecha de la Factura.")
+
+                if not rec.invoice_incoterm_id:
+                    raise ValidationError("Es obligatorio seleccionar un Incoterm.")
+
+                if rec.invoice_incoterm_id and not rec.invoice_incoterm_id.codigo_mh:
+                    raise ValidationError("El Incoterm seleccionado no tiene Código de Hacienda. Verifique que los códigos estén actualizados.")
 
         return super().action_post()
 
@@ -260,8 +266,14 @@ class AccountMove(models.Model):
 
         self.ensure_one()
         _logger.info("SIT  Generando DTE")
-        host = 'https://apitest.dtes.mh.gob.sv' if enviroment_type == 'homologation' else 'https://api.dtes.mh.gob.sv'
-        url = host + '/fesv/recepciondte'
+        #host = 'https://apitest.dtes.mh.gob.sv' if enviroment_type == 'homologation' else 'https://api.dtes.mh.gob.sv'
+        #url = host + '/fesv/recepciondte'
+        url = None
+        if enviroment_type == 'homologation':
+            host = 'https://apitest.dtes.mh.gob.sv'
+            url = host + '/fesv/recepciondte'
+        else:
+            url = config_utils.get_config_value(self.env, 'url_prod_hacienda', self.company_id.id)
 
         if not self.company_id.sit_token_fecha:
             self.company_id.get_generar_token()
@@ -376,7 +388,7 @@ class AccountMove(models.Model):
             raise UserError(_('El Número de control no definido'))
 
         tipo_dte = self.journal_id.sit_tipo_documento.codigo
-        if tipo_dte == '11':
+        if tipo_dte == constants.COD_DTE_FEX:
             if not self.partner_id.name:
                 raise UserError(_('El receptor no tiene NOMBRE configurado para facturas tipo 01.'))
             if self.partner_id.is_company and not self.partner_id.vat:

@@ -786,7 +786,8 @@ class AccountMoveInvalidation(models.Model):
             raise UserError(_('El Número de control no definido'))
         if not self.sit_factura_a_reemplazar.company_id.sit_passwordPri:
             raise UserError(_('El valor passwordPri no definido'))
-        if not self.sit_factura_a_reemplazar.company_id.sit_uuid:
+        _logger.info("SIT nit empresa: %s | uuid empresa: %s.", self.sit_factura_a_reemplazar.company_id.vat, self.sit_factura_a_reemplazar.company_id.sit_uuid)
+        if not self.sit_factura_a_reemplazar.company_id.sit_uuid and not self.sit_factura_a_reemplazar.company_id.vat:
             raise UserError(_('El valor uuid no definido'))
         if not self.sit_factura_a_reemplazar.company_id.vat:
             raise UserError(_('El emisor no tiene NIT configurado.'))
