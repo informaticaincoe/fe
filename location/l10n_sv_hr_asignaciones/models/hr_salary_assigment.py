@@ -22,7 +22,6 @@ except ImportError as e:
 class HrSalaryAssignment(models.Model):
     _name = 'hr.salary.assignment'
     _description = 'Salary Assignment'
-    _check_company_auto = True
 
     PERIOD_MONTHS = [
         ('01', 'enero'), ('02', 'febrero'), ('03', 'marzo'),
