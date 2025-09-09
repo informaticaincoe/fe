@@ -81,6 +81,7 @@
                     </group>
 
                     <searchpanel>
+                        <field name="company_id" string="EMPRESA" select="multi" enable_counters="1"/>
                         <field name="period_year" string="AÑO" select="one" enable_counters="1"/>
                         <field name="period_month" string="MES" select="one" enable_counters="1"/>
                         <field name="period_quincena" string="QUINCENA" select="one" enable_counters="1"/>

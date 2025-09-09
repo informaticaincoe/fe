@@ -12,10 +12,12 @@
                     <field name="description" string="Descripción"/>
 
                     <group expand="0" string="Agrupar Por">
+                        <field name="company_id" string="EMPRESA" context="{'group_by': 'date_start:day'}"/>
                         <filter name="group_by_date_start" string="Fecha" context="{'group_by': 'date_start:day'}"/>
                     </group>
 
                     <searchpanel>
+                        <field name="company_id" string="EMPRESA" select="multi" enable_counters="1"/>
                         <field name="period_year" string="AÑO" select="one" enable_counters="1"/>
                         <field name="period_month" string="MES" select="one" enable_counters="1"/>
                         <field name="period_quincena" string="QUINCENA" select="one" enable_counters="1"/>

@@ -29,6 +29,7 @@ class HrSalaryAttachment(models.Model):
         string="Nombre del Empleado",
         compute='_compute_employee_name',
         store=True, # Necesario para agrupar y filtrar en la base de datos
+        check_company=True,
         help="Nombre completo del empleado para búsquedas y agrupaciones."
     )
 
