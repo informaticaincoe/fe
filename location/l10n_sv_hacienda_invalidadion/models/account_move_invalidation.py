@@ -428,7 +428,7 @@ class AccountMoveInvalidation(models.Model):
                                 _logger.info("SIT Factura anulada correctamente.")
                             except Exception as e:
                                 _logger.exception("SIT Error en el procesamiento de la respuesta de Hacienda:")
-                            resultado_final["mensaje"] = f"Ocurrió un error al procesar la respuesta de Hacienda: {e}"
+                                resultado_final["mensaje"] = f"Ocurrió un error al procesar la respuesta de Hacienda: {e}"
                 else:
                     # Mostrar mensaje de error pero no interrumpir con excepción
                     mensaje = Resultado.get(

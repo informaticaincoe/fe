@@ -1184,6 +1184,17 @@ class AccountMove(models.Model):
                             except Exception as e:
                                 _logger.warning("SIT | Error al enviar DTE por correo o generar PDF: %s", str(e))
 
+                            return {
+                                'type': 'ir.actions.client',
+                                'tag': 'display_notification',
+                                'params': {
+                                    'title': 'DTE procesado correctamente',
+                                    'message': 'El documento ha sido recibido y sellado por Hacienda.',
+                                    'type': 'success',
+                                    'sticky': False,
+                                }
+                            }
+
                         if isinstance(Resultado, dict) and Resultado.get('type') == 'ir.actions.client':
                             mensajes_contingencia.append(Resultado)
                         else:
@@ -2141,6 +2152,9 @@ class AccountMove(models.Model):
 
         if not self.forma_pago:
             raise ValidationError("Seleccione una Forma de Pago.")
+
+        if self.journal_id and not self.journal_id.report_xml:
+            raise ValidationError("El diario debe tener un reporte PDF configurado.")
 
         res = super().action_post()
         facturas_con_contingencia = self.filtered(lambda inv: inv.sit_es_configencia)
