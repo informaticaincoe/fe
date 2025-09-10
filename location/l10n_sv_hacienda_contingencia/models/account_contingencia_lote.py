@@ -466,8 +466,7 @@ class sit_AccountContingencia(models.Model):
                     rec.company_id.get_key_and_certificate(validation_type)
                 except Exception:
                     validation_type = False
-            #return validation_type
-            rec.validation_type = validation_type
+            return validation_type
 
 # FIMAR FIMAR FIRMAR =====================================================================================================    
     def firmar_documento(self, enviroment_type, payload):
@@ -576,7 +575,7 @@ class sit_AccountContingencia(models.Model):
         return invoice_info
 
     def generar_dte_contingencia(self, enviroment_type, payload, payload_original):
-        _logger.info("SIT  Generando DTE___contingencia")
+        _logger.info("SIT  Generando DTE___contingencia, ambiente: %s", enviroment_type)
         url = None
         if enviroment_type == 'homologation': 
             host = 'https://apitest.dtes.mh.gob.sv'
