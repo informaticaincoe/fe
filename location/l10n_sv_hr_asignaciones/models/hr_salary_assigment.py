@@ -688,7 +688,7 @@ class HrSalaryAssignment(models.Model):
         # Si ya es float o int
         if isinstance(valor, (float, int)):
             _logger.info("Valor numérico directo detectado: %.4f", float(valor))
-            return round(float(valor), 4)
+            return round(float(valor), 2)
 
         # Si es texto
         if isinstance(valor, str):
@@ -705,8 +705,8 @@ class HrSalaryAssignment(models.Model):
                         _logger.warning("Minutos inválidos detectados en valor '%s' (>= 60)", valor)
                         raise UserError(_("Minutos no pueden ser iguales o mayores a 60: '%s'" % valor))
 
-                    total = round(horas + (minutos / 60.0), 4)
-                    _logger.info("Valor '%s' convertido a %.4f horas decimales", valor, total)
+                    total = round(horas + (minutos / 60.0), 2)
+                    _logger.info("Valor '%s' convertido a %.2f horas decimales", valor, total)
                     return total
 
                 except Exception as e:
@@ -715,8 +715,9 @@ class HrSalaryAssignment(models.Model):
 
             # Si es un decimal en texto (ej. "1.25")
             try:
-                decimal = round(float(valor), 4)
-                _logger.info("Valor decimal string '%s' convertido a %.4f horas", valor, decimal)
+                valor_normalizado = str(valor).replace(',', '.')
+                decimal = round(float(valor_normalizado), 2)
+                _logger.info("Valor decimal string '%s' convertido a %.2f horas", valor, decimal)
                 return decimal
             except ValueError:
                 _logger.warning("Valor inválido para horas: '%s'", valor)

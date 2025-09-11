@@ -228,11 +228,13 @@ class sit_AccountContingencia(models.Model):
 
     def generar_dte_lote(self, enviroment_type, payload_envio_mh, lotes_firmados):
         _logger.info("SIT  Generando DTE")
+        url = None
         if enviroment_type == 'homologation':
             host = 'https://apitest.dtes.mh.gob.sv'
-        else:
-            host = 'https://api.dtes.mh.gob.sv'
-        url = host + '/fesv/recepcionlote/'
+            url = host + '/fesv/recepcionlote/'
+        else: # https://apitest.dtes.mh.gob.sv/fesv/recepcionlote/
+            # host = 'https://api.dtes.mh.gob.sv'
+            url = config_utils.get_config_value(self.env, 'url_prod_lotes', self.company_id.id)
         _logger.info("SIT Url: %s", url)
 
         headers = {
@@ -458,13 +460,13 @@ class sit_AccountContingencia(models.Model):
 
     def _compute_validation_type_2(self):
         for rec in self:
-                validation_type = self.env["res.company"]._get_environment_type()
-                if validation_type == "homologation":
-                    try:
-                        rec.company_id.get_key_and_certificate(validation_type)
-                    except Exception:
-                        validation_type = False
-                return validation_type
+            validation_type = self.env["res.company"]._get_environment_type()
+            if validation_type == "homologation":
+                try:
+                    rec.company_id.get_key_and_certificate(validation_type)
+                except Exception:
+                    validation_type = False
+            return validation_type
 
 # FIMAR FIMAR FIRMAR =====================================================================================================    
     def firmar_documento(self, enviroment_type, payload):
@@ -573,12 +575,14 @@ class sit_AccountContingencia(models.Model):
         return invoice_info
 
     def generar_dte_contingencia(self, enviroment_type, payload, payload_original):
-        _logger.info("SIT  Generando DTE___contingencia")
+        _logger.info("SIT  Generando DTE___contingencia, ambiente: %s", enviroment_type)
+        url = None
         if enviroment_type == 'homologation': 
-            host = 'https://apitest.dtes.mh.gob.sv' 
+            host = 'https://apitest.dtes.mh.gob.sv'
+            url = host + '/fesv/contingencia'
         else:
-            host = 'https://api.dtes.mh.gob.sv'
-        url = host + '/fesv/contingencia'
+            url = config_utils.get_config_value(self.env, 'url_prod_contingencia', self.company_id.id)
+        #url = host + '/fesv/contingencia'
 
         # Refrescar token si hace falta ———
         today = fields.Date.context_today(self)
@@ -619,6 +623,30 @@ class sit_AccountContingencia(models.Model):
 
         json_response = response.json()
         _logger.info("SIT json_responset =%s", json_response)
+
+        if json_response:
+            estado = json_response.get('estado') or json_response.get('status')
+            mensaje = json_response.get('mensaje') or json_response.get('message')
+            fechaHora_str = json_response.get('fechaHora')
+            observaciones = json_response.get('observaciones', '')
+
+            # Convertir fechaHora a datetime si existe
+            fechaHora = None
+            if fechaHora_str:
+                try:
+                    fechaHora = datetime.strptime(fechaHora_str, '%d/%m/%Y %H:%M:%S')
+                except Exception as e:
+                    _logger.warning("No se pudo convertir fechaHora: %s", fechaHora_str)
+
+            # Guardar siempre los datos en la factura/contingencia
+            self.write({
+                'hacienda_estado': estado,
+                'sit_mensaje': mensaje,
+                'sit_fechaHora': fechaHora,
+                'sit_observaciones': observaciones,
+            })
+            self.env.cr.commit()
+
         if json_response['estado'] in [  "RECHAZADO", 402 ] :
             status=json_response['estado']
             fechaHora=json_response['fechaHora']
@@ -666,14 +694,13 @@ class sit_AccountContingencia(models.Model):
         _logger.info("SIT self = %s, %s", user, pwd)
         enviroment_type = self._get_environment_type()
         _logger.info("SIT Modo = %s", enviroment_type)
-
+        url = None
         if enviroment_type == 'homologation': 
-            host = 'https://apitest.dtes.mh.gob.sv' 
-
+            host = 'https://apitest.dtes.mh.gob.sv'
+            url = host + '/seguridad/auth'
         else:
-            host = 'https://api.dtes.mh.gob.sv'
-
-        url = host + '/seguridad/auth'
+            url = config_utils.get_config_value(self.env, 'url_auth_prod_hacienda', self.company_id.id) #host = 'https://api.dtes.mh.gob.sv'
+        #url = host + '/seguridad/auth'
         
         self.check_hacienda_values()
 

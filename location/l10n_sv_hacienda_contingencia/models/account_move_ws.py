@@ -16,29 +16,17 @@ import pytz
 # Definir la zona horaria de El Salvador
 tz_el_salvador = pytz.timezone('America/El_Salvador')
 
-
-
-
 _logger = logging.getLogger(__name__)
 
+try:
+    from odoo.addons.common_utils.utils import constants
+    _logger.info("SIT Modulo constants hacienda contingencia")
+except ImportError as e:
+    _logger.error(f"Error al importar 'constants': {e}")
+    constants = None
 
 class AccountMove(models.Model):
     _inherit = "account.move"
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 ######################################################################################################### FCE-CONTINGENCIA
     def sit__contingencia_base_map_invoice_info(self):
@@ -54,7 +42,6 @@ class AccountMove(models.Model):
 
         invoice_info["dteJson"] = self.sit__contingencia_base_map_invoice_info_dtejson()
         return invoice_info
-
 
     def sit__contingencia_base_map_invoice_info_dtejson(self):
         _logger.info("SIT sit__contingencia_base_map_invoice_info_dtejson self = %s", self)
@@ -79,7 +66,7 @@ class AccountMove(models.Model):
         _logger.info("SIT sit_base_map_invoice_info_identificacion self = %s", self)
         invoice_info = {}
         # self = data_inicial
-        invoice_info["version"] = 3
+        invoice_info["version"] = int(self.journal_id.sit_tipo_documento.version) # 3
         validation_type = self._compute_validation_type_2()
         if validation_type == 'homologation': 
             ambiente = "00"
@@ -175,14 +162,6 @@ class AccountMove(models.Model):
         invoice_info["motivoContingencia"] = self.sit_tipo_contingencia_otro
 
         return invoice_info      
-    
-
-
-
-
-
-
-
 
 ######################################### F-ANULACION
 
@@ -216,19 +195,14 @@ class AccountMove(models.Model):
         invoice_info["ambiente"] = ambiente
         invoice_info["idEnvio"] = "00001"
         invoice_info["tipoDte"] = self.journal_id.sit_tipo_documento.codigo 
-        if invoice_info["tipoDte"] == '01':
+        if invoice_info["tipoDte"] == constants.COD_DTE_FE:
             invoice_info["version"] = 1
-        elif invoice_info["tipoDte"] == '03':
+        elif invoice_info["tipoDte"] == constants.COD_DTE_CCF:
             invoice_info["version"] = 3
         invoice_info["documento"] = doc_firmado
         invoice_info["codigoGeneracion"] = self.sit_generar_uuid()
 
         return invoice_info        
-
-
-
-
-
 
         # _logger.info("SIT  Generando DTE")
         # if enviroment_type == 'homologation': 
@@ -254,11 +228,9 @@ class AccountMove(models.Model):
 
         # print(response.text)
 
-
     def sit_generar_uuid(self):
         import uuid
         # Genera un UUID versión 4 (basado en números aleatorios)
         uuid_aleatorio = uuid.uuid4()
         uuid_cadena = str(uuid_aleatorio)
         return uuid_cadena.upper()
-

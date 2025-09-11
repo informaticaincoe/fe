@@ -42,6 +42,9 @@ except ImportError as e:
     _logger.error(f"Error al importar 'config_utils': {e}")
     config_utils = None
 
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+EXTRA_ADDONS = os.path.join(PROJECT_ROOT, "mnt", "extra-addons", "src")
+
 def _json_default(o):
         if isinstance(o, datetime):
             return o.strftime('%Y-%m-%dT%H:%M:%S')
@@ -299,6 +302,7 @@ class AccountMove(models.Model):
                         _logger.info("SIT Nombre generado dinámicamente (venta/compra): %s", vals['name'])
                 else:
                     _logger.info("SIT Nombre provisto por el usuario/config: %s", name)
+
 
                 # partner obligatorio para DTE
                 if not vals.get('partner_id'):
@@ -1180,6 +1184,17 @@ class AccountMove(models.Model):
                             except Exception as e:
                                 _logger.warning("SIT | Error al enviar DTE por correo o generar PDF: %s", str(e))
 
+                            return {
+                                'type': 'ir.actions.client',
+                                'tag': 'display_notification',
+                                'params': {
+                                    'title': 'DTE procesado correctamente',
+                                    'message': 'El documento ha sido recibido y sellado por Hacienda.',
+                                    'type': 'success',
+                                    'sticky': False,
+                                }
+                            }
+
                         if isinstance(Resultado, dict) and Resultado.get('type') == 'ir.actions.client':
                             mensajes_contingencia.append(Resultado)
                         else:
@@ -1743,7 +1758,7 @@ class AccountMove(models.Model):
         codigo_qr.add_data(texto_codigo_qr)
         # os.chdir('C:/Users/INCOE/PycharmProjects/fe/location/mnt/src')
         # os.chdir('C:/Users/admin/Documents/GitHub/fe/location/mnt/certificado')
-        os.chdir(config_utils.get_config_value(self.env, 'mnt', self.company_id.id))
+        os.chdir(EXTRA_ADDONS)
         directory = os.getcwd()
         _logger.info("SIT directory =%s", directory)
         basewidth = 100
@@ -1781,7 +1796,7 @@ class AccountMove(models.Model):
             border=1,  # Ancho del borde del código QR
         )
         codigo_qr.add_data(texto_codigo_qr)
-        os.chdir('C:/Users/INCOE/Documents/GitHub/fe/location/mnt')
+        os.chdir(EXTRA_ADDONS)
         directory = os.getcwd()
 
         _logger.info("SIT directory =%s", directory)
@@ -2137,6 +2152,9 @@ class AccountMove(models.Model):
 
         if not self.forma_pago:
             raise ValidationError("Seleccione una Forma de Pago.")
+
+        if self.journal_id and not self.journal_id.report_xml:
+            raise ValidationError("El diario debe tener un reporte PDF configurado.")
 
         res = super().action_post()
         facturas_con_contingencia = self.filtered(lambda inv: inv.sit_es_configencia)

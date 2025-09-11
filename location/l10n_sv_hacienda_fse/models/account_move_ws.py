@@ -39,7 +39,13 @@ class AccountMove(models.Model):
         invoice_info["passwordPri"] = self.company_id.sit_passwordPri
         _logger.info("SIT sit_base_map_invoice_info = %s", invoice_info)
 
-        invoice_info["dteJson"] = self.sit__fse_base_map_invoice_info_dtejson()
+        #invoice_info["dteJson"] = self.sit__fse_base_map_invoice_info_dtejson()
+        if not self.hacienda_selloRecibido and self.sit_factura_de_contingencia and self.sit_json_respuesta:
+            _logger.info("SIT sit_base_map_invoice_info contingencia")
+            invoice_info["dteJson"] = self.sit_json_respuesta
+        else:
+            _logger.info("SIT sit_base_map_invoice_info dte")
+            invoice_info["dteJson"] = self.sit__fse_base_map_invoice_info_dtejson()
         return invoice_info
 
     @only_fe
@@ -66,7 +72,7 @@ class AccountMove(models.Model):
     def sit__fse_base_map_invoice_info_identificacion(self):
         _logger.info("SIT sit_base_map_invoice_info_identificacion self = %s", self)
         invoice_info = {}
-        invoice_info["version"] = 1
+        invoice_info["version"] = int(self.journal_id.sit_tipo_documento.version) #1
         validation_type = self._compute_validation_type_2()
         param_type = self.env["ir.config_parameter"].sudo().get_param("afip.ws.env.type")
         if param_type:
@@ -95,10 +101,18 @@ class AccountMove(models.Model):
         os.environ['TZ'] = 'America/El_Salvador'  # Establecer la zona horaria
         datetime.datetime.now()
         salvador_timezone = pytz.timezone('America/El_Salvador')
-        FechaEmi = datetime.datetime.now(salvador_timezone)
+        # FechaEmi = datetime.datetime.now(salvador_timezone)
+
+        FechaEmi = None
+        if self.invoice_date:
+            FechaEmi = self.invoice_date
+        else:
+            FechaEmi = config_utils.get_fecha_emi()
         _logger.info("SIT FechaEmi = %s (%s)", FechaEmi, type(FechaEmi))
-        invoice_info["fecEmi"] = FechaEmi.strftime('%Y-%m-%d')
-        invoice_info["horEmi"] = FechaEmi.strftime('%H:%M:%S')
+
+        invoice_info["fecEmi"] = FechaEmi # FechaEmi.strftime('%Y-%m-%d')
+        invoice_info["horEmi"] = self.invoice_time # FechaEmi.strftime('%H:%M:%S')
+
         invoice_info["tipoMoneda"] =  self.currency_id.name
         if invoice_info["tipoOperacion"] == 1:
             invoice_info["tipoModelo"] = 1

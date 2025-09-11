@@ -156,6 +156,7 @@ class ResCompany(models.Model):
             raise UserError(_("Error no especificado al autenticar con Hacienda."))
 
     def check_hacienda_values(self, user, pwd):
+        _logger.info("Usuario conectado=%s", user)
         if not user:
             raise UserError(_('Usuario no especificado'))
         if not pwd:

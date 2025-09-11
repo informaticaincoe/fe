@@ -22,11 +22,51 @@ class HrHorasExtras(models.Model):
     descripcion = fields.Char("Descripción", required=False)
 
     def _parse_horas(self, valor):
+        """
+        Convierte un valor de horas a decimal.
+        Escenarios cubiertos:
+            - None, False, "", "   " -> 0.0
+            - Float o int -> se devuelve tal cual
+            - String decimal con punto o coma -> se normaliza
+            - String HH:MM -> se convierte a decimal
+            - Valores con letras como '7h 10m' -> se intenta extraer HH y MM
+            - Valores inválidos -> 0.0
+        """
         if self.salary_assignment_id:
             return self.salary_assignment_id._parse_horas(valor)
+
+        if valor in (None, False, "") or str(valor).strip() == "":
+            return 0.0
+
+        # Normalizar string
+        valor_str = str(valor).strip().replace(',', '.')  # cambiar coma por punto
+
+        # Si ya es float o int
+        if isinstance(valor, (int, float)):
+            return round(float(valor), 2)
+
+        # Si contiene ":" -> formato HH:MM
+        if ":" in valor_str:
+            try:
+                h, m = map(int, valor_str.split(":"))
+                return round(h + m / 60, 2)
+            except Exception:
+                _logger.warning("Valor de horas inválido (HH:MM): %s", valor_str)
+                return 0.0
+
+        # Intentar detectar formato tipo '7h 10m'
+        import re
+        match = re.match(r"(?P<h>\d+)[hH]?\s*(?P<m>\d+)?[mM]?", valor_str)
+        if match:
+            h = int(match.group("h"))
+            m = int(match.group("m") or 0)
+            return round(h + m / 60, 2)
+
+        # Intentar convertir a float directamente
         try:
-            return float(valor or 0)
-        except:
+            return round(float(valor_str), 2)
+        except Exception:
+            _logger.warning("Valor de horas no reconocido: %s", valor_str)
             return 0.0
 
     def write(self, vals):

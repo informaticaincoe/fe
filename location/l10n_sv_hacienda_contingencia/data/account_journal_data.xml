@@ -1,0 +1,47 @@
+<odoo noupdate="0">
+
+    <!-- Secuencia Contingencia -->
+    <record id="sequence_contingencia" model="ir.sequence">
+        <field name="name">CONT Sequence</field>
+        <field name="code">CONT</field>
+        <field name="prefix">CON-%(con)s-0000%(estable)s-</field>
+        <field name="padding">15</field>
+        <field name="number_increment">1</field>
+        <field name="implementation">no_gap</field>
+        <field name="active" eval="True"/>
+    </record>
+
+    <!-- Secuencia Lotes -->
+    <record id="sequence_lotes" model="ir.sequence">
+        <field name="name">LOTE Sequence</field>
+        <field name="code">LOT</field>
+        <field name="prefix">LOT-%(lote)s-0000%(estable)s-</field>
+        <field name="padding">15</field>
+        <field name="number_increment">1</field>
+        <field name="implementation">no_gap</field>
+        <field name="active" eval="True"/>
+    </record>
+
+    <!-- Diario Contingencia -->
+    <record id="journal_contingencia" model="account.journal">
+        <field name="name">Contingencia</field>
+        <field name="code">CONT</field>
+        <field name="type">sale</field>
+        <field name="company_id" ref="base.main_company"/>
+        <field name="currency_id" ref="base.USD"/>
+        <field name="invoice_reference_type">invoice</field>
+        <field name="sequence_id" ref="sequence_contingencia"/>
+    </record>
+
+    <!-- Diario Lotes -->
+    <record id="journal_lotes" model="account.journal">
+        <field name="name">Lotes</field>
+        <field name="code">LOTE</field>
+        <field name="type">sale</field>
+        <field name="company_id" ref="base.main_company"/>
+        <field name="currency_id" ref="base.USD"/>
+        <field name="invoice_reference_type">invoice</field>
+        <field name="sequence_id" ref="sequence_lotes"/>
+    </record>
+
+</odoo>

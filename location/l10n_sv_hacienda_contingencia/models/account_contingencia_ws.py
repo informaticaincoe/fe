@@ -17,6 +17,12 @@ _logger = logging.getLogger(__name__)
 
 tz_el_salvador = pytz.timezone('America/El_Salvador')
 
+try:
+    from odoo.addons.common_utils.utils import config_utils
+    _logger.info("SIT Modulo config_utils [contingencia ws]")
+except ImportError as e:
+    _logger.error(f"Error al importar 'config_utils': {e}")
+    config_utils = None
 
 class sit_AccountContingencia(models.Model):
     _inherit = "account.contingencia1"
@@ -59,7 +65,7 @@ class sit_AccountContingencia(models.Model):
         _logger.info("SIT sit_base_map_invoice_info_identificacion self = %s", self)
         invoice_info = {}
         # self = data_inicial
-        invoice_info["version"] = 3
+        invoice_info["version"] = int(config_utils.get_config_value(self.env, 'version_contingencia', self.company_id.id) or 3) # 3
         validation_type = self._compute_validation_type_2()
         if validation_type == 'homologation': 
             ambiente = "00"

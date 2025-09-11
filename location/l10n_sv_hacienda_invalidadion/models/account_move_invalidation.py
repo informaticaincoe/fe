@@ -428,7 +428,7 @@ class AccountMoveInvalidation(models.Model):
                                 _logger.info("SIT Factura anulada correctamente.")
                             except Exception as e:
                                 _logger.exception("SIT Error en el procesamiento de la respuesta de Hacienda:")
-                            resultado_final["mensaje"] = f"Ocurrió un error al procesar la respuesta de Hacienda: {e}"
+                                resultado_final["mensaje"] = f"Ocurrió un error al procesar la respuesta de Hacienda: {e}"
                 else:
                     # Mostrar mensaje de error pero no interrumpir con excepción
                     mensaje = Resultado.get(
@@ -786,7 +786,8 @@ class AccountMoveInvalidation(models.Model):
             raise UserError(_('El Número de control no definido'))
         if not self.sit_factura_a_reemplazar.company_id.sit_passwordPri:
             raise UserError(_('El valor passwordPri no definido'))
-        if not self.sit_factura_a_reemplazar.company_id.sit_uuid:
+        _logger.info("SIT nit empresa: %s | uuid empresa: %s.", self.sit_factura_a_reemplazar.company_id.vat, self.sit_factura_a_reemplazar.company_id.sit_uuid)
+        if not self.sit_factura_a_reemplazar.company_id.sit_uuid and not self.sit_factura_a_reemplazar.company_id.vat:
             raise UserError(_('El valor uuid no definido'))
         if not self.sit_factura_a_reemplazar.company_id.vat:
             raise UserError(_('El emisor no tiene NIT configurado.'))

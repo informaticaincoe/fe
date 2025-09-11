@@ -72,7 +72,7 @@ COD_AFP_EMP = "AFP_EMP"
 COD_AFP_CONF_EMP = "AFP_CONF_EMP"
 COD_IPSFA_EMP = "IPSFA_EMP"
 REGLAS_EXCLUIR_SERVICIOS_PROFESIONALES = {'RENTA', 'ISSS', 'AFP', 'AFP_EMP', 'AFP_CONF', 'AFP_CONF_EMP', 'ISSS_EMP', 'INCAF', 'IPSFA', 'IPSFA_EMP'}
-CAMPOS_MANY2ONE_REGLAS = {'category_id', 'account_debit', 'account_credit', 'amount_other_input_id'}
+CAMPOS_MANY2ONE_REGLAS = {'category_id', 'account_debit', 'account_credit', 'amount_other_input_id', 'condition_other_input_id'}
 
 #Modulo de asignaciones salariales
 ASIGNACION_COMISIONES = "comision"

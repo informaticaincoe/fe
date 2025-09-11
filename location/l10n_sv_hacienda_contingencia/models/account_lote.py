@@ -138,6 +138,8 @@ class sit_account_lote(models.Model):
                       (self.env.ref('account.view_move_form').id, 'form')],
         }
 
+
+
     # Generar secuencia para lotes
     @api.model
     def generar_nombre_lote(self, journal=None, actualizar_secuencia=False):

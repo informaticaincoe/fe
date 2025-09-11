@@ -47,7 +47,7 @@ class AccountMove(models.Model):
         track_visibility='onchange',
         copy=False)
 
-    amount_text = fields.Char(string=_('Amount to text'),
+    amount_text = fields.Char(string='Amount to text',
                               store=True,
                               readonly=True,
                               compute='_amount_to_text',
