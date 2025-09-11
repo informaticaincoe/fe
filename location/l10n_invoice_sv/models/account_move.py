@@ -318,7 +318,6 @@ class AccountMove(models.Model):
             # template = self.env.ref(self._get_mail_template(), raise_if_not_found=False)
 
             template = self.env.ref(self._get_mail_template_sv(), raise_if_not_found=False)
-
             _logger.info("SIT | Plantilla de correo obtenida: %s", template and template.name or 'No encontrada')
             print(template)
 
@@ -353,9 +352,21 @@ class AccountMove(models.Model):
                         if att.id not in attachment_ids and not att.name.lower().endswith('.pdf'):
                             attachment_ids.append(att.id)
 
+                model_id = 0
+                raw_filename = None
+                raw_jsonname = None
+                if es_invalidacion or invoice.sit_evento_invalidacion:
+                    model_id = invoice.sit_evento_invalidacion.id
+                    raw_jsonname = f"Invalidacion {(invoice.name.replace('/', '_') if invoice.name else 'invoice')}.json"
+                else:
+                    model_id = invoice.id
+                    raw_jsonname = f"{(invoice.name.replace('/', '_') if invoice.name else 'invoice')}.json"
+
                 # Verificar si ya existe un PDF adjunto
                 raw_filename = f"{invoice.name or 'invoice'}.pdf"
                 pdf_filename = self._sanitize_attachment_name(raw_filename)
+                json_name = self._sanitize_attachment_name(raw_jsonname)
+                _logger.info("SIT | PDF name: %s | Json name: %s", pdf_filename, json_name)
 
                 pdf_attachment = self.env['ir.attachment'].search([
                     ('res_id', '=', invoice.id),
@@ -364,7 +375,8 @@ class AccountMove(models.Model):
                 ], limit=1)
 
                 # Generar PDF si no existe
-                if not pdf_attachment and report_xml:  # and report_xml
+                if not pdf_attachment and report_xml and not es_invalidacion and not invoice.sit_evento_invalidacion:  # and report_xml
+                    _logger.info("SIT | Creando nuevo PDF generado: %s Invaldiacion: %s", pdf_attachment.name, invoice.sit_evento_invalidacion)
                     try:
                         res = self.env['ir.actions.report'].sudo()._render_qweb_pdf(report_xml, [invoice.id])[0]
                         pdf_base64 = base64.b64encode(res).decode('utf-8')  # codificar a base64 y luego a string
@@ -373,7 +385,7 @@ class AccountMove(models.Model):
                             'type': 'binary',
                             'datas': pdf_base64,
                             'res_model': 'account.move',
-                            'res_id': invoice.id,
+                            'res_id': model_id,
                             'mimetype': 'application/pdf',
                         })
                         _logger.info("SIT | Nuevo PDF generado y adjuntado: %s", pdf_attachment.name)
@@ -393,12 +405,11 @@ class AccountMove(models.Model):
                 _logger.info("SIT | Tipo de movimiento: %s", invoice.move_type)
                 _logger.info("SIT | Email destino: %s", invoice.partner_id.email)
                 if invoice.company_id.sit_facturacion:
-                    if not es_invalidacion and (invoice.hacienda_selloRecibido or invoice.recibido_mh):
+                    if not es_invalidacion and not invoice.sit_evento_invalidacion and (invoice.hacienda_selloRecibido or invoice.recibido_mh):
                         _logger.info("SIT | Factura %s fue PROCESADA por Hacienda", invoice.name)
                         default_model = "account.move"
-                        json_name = self._sanitize_attachment_name(invoice.name.replace('/', '_') + '.json')
                         json_attachment = self.env['ir.attachment'].search([
-                            ('res_id', '=', invoice.id),
+                            ('res_id', '=', model_id),
                             ('res_model', '=', invoice._name),
                             ('name', '=', json_name)
                         ], limit=1)
@@ -426,7 +437,7 @@ class AccountMove(models.Model):
                                         'type': 'binary',
                                         'datas': base64.b64encode(invoice.sit_json_respuesta.encode('utf-8')),
                                         'res_model': invoice._name,
-                                        'res_id': invoice.id,
+                                        'res_id': model_id,
                                         'mimetype': 'application/json',
                                     })
                                     _logger.info("SIT | JSON generado y adjuntado: %s", json_attachment.name)
@@ -441,7 +452,7 @@ class AccountMove(models.Model):
                                     "SIT | No se pudo generar el JSON porque el campo 'sit_json_respuesta' está vacío.")
 
                     # === JSON INVALIDACIÓN ===
-                    elif es_invalidacion and (invoice.sit_evento_invalidacion.hacienda_selloRecibido_anulacion or invoice.sit_evento_invalidacion.invalidacion_recibida_mh):
+                    elif es_invalidacion or invoice.sit_evento_invalidacion and (invoice.sit_evento_invalidacion.hacienda_selloRecibido_anulacion or invoice.sit_evento_invalidacion.invalidacion_recibida_mh):
                         default_model = "account.move.invalidation"
                         invalidacion = self.env['account.move.invalidation'].search([
                             ('sit_factura_a_reemplazar', '=', invoice.id)
@@ -450,13 +461,13 @@ class AccountMove(models.Model):
                         if not invalidacion:
                             _logger.warning("SIT | No se encontró invalidación para %s", invoice.name)
                         else:
-                            json_name = self._sanitize_attachment_name('invalidacion ' + invoice.name.replace('/',
-                                                                                                              '_') + '.json')  # ejemplo de json de invalidacion Invalidacion DTE-01-0000M001-000000000000082.json
+                            #json_name = pdf_filename # self._sanitize_attachment_name(raw_filename)  # ejemplo de json de invalidacion Invalidacion DTE-01-0000M001-000000000000082.json
                             json_attachment = self.env['ir.attachment'].search([
                                 ('res_model', '=', 'account.move.invalidation'),
                                 ('res_id', '=', invoice.sit_evento_invalidacion.id),
                                 ('name', '=', json_name),
                             ], limit=1)
+                            _logger.info("SIT | JSON Invalidacion encontrado: %s", json_attachment)
 
                             if json_attachment.exists():
                                 _logger.info("SIT | JSON Invalidación ya existe: %s", json_attachment.name)
@@ -469,8 +480,7 @@ class AccountMove(models.Model):
                                     json_attachment = self.env['ir.attachment'].create({
                                         'name': json_name,
                                         'type': 'binary',
-                                        'datas': base64.b64encode(
-                                            invalidacion.sit_json_respuesta_invalidacion.encode('utf-8')),
+                                        'datas': base64.b64encode(invalidacion.sit_json_respuesta_invalidacion.encode('utf-8')),
                                         'res_model': 'account.move.invalidation',
                                         'res_id': invoice.sit_evento_invalidacion.id,
                                         'mimetype': 'application/json',
@@ -493,13 +503,14 @@ class AccountMove(models.Model):
                 _logger.info("SIT | Envío automático detectado, enviando correo directamente...")
                 for invoice in self:
                     if template:
-                        if es_invalidacion:
-                            if invoice.sit_evento_invalidacion:
-                                template.send_mail(invoice.sit_evento_invalidacion.id, force_send=True, email_values={'attachment_ids': [(6, 0, attachment_ids)]})
-                                invoice.sit_evento_invalidacion.correo_enviado_invalidacion = True
-                                _logger.info("SIT | Correo de invalidación enviado para %s", invoice.name)
-                            else:
-                                _logger.warning("SIT | No se encontró evento de invalidación para %s", invoice.name)
+                        if es_invalidacion or invoice.sit_evento_invalidacion:
+                            # if invoice.sit_evento_invalidacion:
+                            _logger.info("SIT | Enviando correo a: %s", template._render_template(template.email_to, 'account.move', [invoice.id]))
+                            template.send_mail(invoice.id, force_send=True, email_values={'attachment_ids': [(6, 0, attachment_ids)]})
+                            invoice.sit_evento_invalidacion.correo_enviado_invalidacion = True
+                            _logger.info("SIT | Correo de invalidación enviado para %s", invoice.name)
+                            # else:
+                            #     _logger.warning("SIT | No se encontró evento de invalidación para %s", invoice.name)
                         else:
                             template.send_mail(invoice.id, force_send=True, email_values={'attachment_ids': [(6, 0, attachment_ids)]})
                             invoice.correo_enviado = True

@@ -580,8 +580,9 @@
                                                     </tr>
                                                     <t t-set="excluded_codes"
                                                        t-value="['A8','57','90','D4','D5','A6']"/>
-                                                    <t t-foreach="o.line_ids.filtered(lambda l: l.tax_line_id and l.tax_line_id.tributos_hacienda.codigo.upper() not in excluded_codes)"
+                                                    <t t-foreach="o.line_ids.filtered(lambda l: l.tax_line_id and l.tax_line_id.tributos_hacienda and l.tax_line_id.tributos_hacienda.codigo and l.tax_line_id.tributos_hacienda.codigo.upper() not in excluded_codes)"
                                                        t-as="tax_line">
+
                                                         <tr>
                                                             <td class="px-1 border border-light-subtle text-end"
                                                                 style="padding: 2% 0%;">
