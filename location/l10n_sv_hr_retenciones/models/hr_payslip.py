@@ -154,12 +154,6 @@ class HrPayslip(models.Model):
                 _logger.info(">>>  %s ISS quincena anterior", ISSS_anterior.amount)
                 _logger.info(">>>  %s ISS quincena actual", ISSS_actual.amount)
 
-                #_logger.info(">>>  %s pago mensual", contract.monthly_yearly_costs)
-
-
-
-
-
         # 2. Llamar al cálculo estándar, que ahora usará los inputs ya creados
         res = super(HrPayslip, self).compute_sheet()
 

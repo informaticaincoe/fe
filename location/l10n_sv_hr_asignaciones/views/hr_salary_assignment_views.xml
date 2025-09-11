@@ -113,15 +113,15 @@
             <field name="context">{'group_by': 'periodo:day'}</field>
         </record>
 
-        <record id="action_asignaciones" model="ir.actions.act_window">
-            <field name="name">Asignaciones Salariales</field>
-            <field name="res_model">hr.salary.assignment</field>
-            <field name="view_mode">list,form</field>
-            <field name="search_view_id" ref="view_hr_salary_assignment_search"/>
-            <field name="context">{'group_by': 'periodo:day'}</field>
-            <!-- opcional: puedes dejar [] o no poner domain -->
-            <field name="domain">[]</field>
-        </record>
+<!--        <record id="action_asignaciones" model="ir.actions.act_window">-->
+<!--            <field name="name">Asignaciones Salariales</field>-->
+<!--            <field name="res_model">hr.salary.assignment</field>-->
+<!--            <field name="view_mode">list,form</field>-->
+<!--            <field name="search_view_id" ref="view_hr_salary_assignment_search"/>-->
+<!--            <field name="context">{'group_by': 'periodo:day'}</field>-->
+<!--            &lt;!&ndash; opcional: puedes dejar [] o no poner domain &ndash;&gt;-->
+<!--            <field name="domain">[]</field>-->
+<!--        </record>-->
 
         <!-- Regla multiempresa usando company_ids (empresas chequeadas) -->
         <record id="hr_salary_assignment_company_rule" model="ir.rule">
