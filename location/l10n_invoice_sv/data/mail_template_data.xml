@@ -10,22 +10,27 @@
             <field name="model_id" ref="account.model_account_move"/>
             <field name="email_from">{{ (object.invoice_user_id.email_formatted or user.email_formatted) }}</field>
             <field name="partner_to">{{ object.partner_id.id }}</field>
-            <field name="subject">{{ object.company_id.name }} Invoice (Ref {{ object.name or 'n/a' }})</field>
+           <field name="subject">{{"Documento invalidado (REF: %s)" % (object.name or 'n/a') if object.sit_evento_invalidacion else "%s Invoice (Ref %s)" % (object.company_id.name or '', object.name or 'n/a')}}</field>
             <field name="description">Sent to customers with their invoices in attachment</field>
             <field name="body_html" type="html">
                 <div style="margin: 0px; padding: 0px;">
                     <p style="margin: 0px; padding: 0px; font-size: 13px;">
                         Estimado
                         <t t-if="object.partner_id.parent_id">
-                            <t t-out="object.partner_id.name or ''">Brandon Lee</t> (<t t-out="object.partner_id.parent_id.name or ''">Service-IT AR</t>),
+                            <t t-out="object.partner_id.name or ''">Brandon Lee</t>
+                            (<t t-out="object.partner_id.parent_id.name or ''">Service-IT AR</t>),
                         </t>
                         <t t-else="">
                             <t t-out="object.partner_id.name or ''">Brandon Lee</t>,
                         </t>
-                        <br /><br />
+                        <br/>
+                        <br/>
                         Adjunto encontrará su
+                        <t t-if="object.sit_evento_invalidacion">
+                            <span style="font-weight:bold;">documento invalidado</span>
+                        </t>
                         <t t-if="object.name">
-                            <span style="font-weight:bold;" t-out="object.name or ''"> XXX-XXX-XXXXXXX2023</span>
+                            <span style="font-weight:bold;" t-out="object.name or ''">XXX-XXX-XXXXXXX2023</span>
                         </t>
                         <t t-else="">
                             Factura
@@ -33,7 +38,10 @@
                         <t t-if="object.invoice_origin">
                             (con referencia: <t t-out="object.invoice_origin or ''">SUB003</t>)
                         </t>
-                        por <span style="font-weight:bold;" t-out="format_amount(object.amount_total, object.currency_id) or ''">$ 143,750.00</span>
+                        por
+                        <span style="font-weight:bold;"
+                              t-out="format_amount(object.amount_total, object.currency_id) or ''">$ 143,750.00
+                        </span>
                         de <t t-out="object.company_id.name or ''">Service-IT AR</t>.
                         <t t-if="object.payment_state in ('paid', 'in_payment')">
                             Esta Factura se encuentra Pagada.
@@ -41,15 +49,21 @@
                         <t t-else="">
                             Por favor remita el pago a su pronta conveniencia.
                             <t t-if="object.payment_reference">
-                                <br /><br />
-                                Por favor utilice la siguiente comunicación para su pago.: <span style="font-weight:bold;" t-out="object.payment_reference or ''">INV/2021/05/0005</span>.
+                                <br/>
+                                <br/>
+                                Por favor utilice la siguiente comunicación para su pago.: <span
+                                    style="font-weight:bold;" t-out="object.payment_reference or ''">
+                                INV/2021/05/0005</span>.
                             </t>
                         </t>
-                        <br /><br />
+                        <br/>
+                        <br/>
                         Contáctenos si tiene alguna duda.
                         <t t-if="not is_html_empty(object.invoice_user_id.signature)">
-                            <br /><br />
-                            <t t-out="object.invoice_user_id.signature or ''">--<br/>SIT Admin</t>
+                            <br/>
+                            <br/>
+                            <t t-out="object.invoice_user_id.signature or ''">--<br/>SIT Admin
+                            </t>
                         </t>
                     </p>
                 </div>
