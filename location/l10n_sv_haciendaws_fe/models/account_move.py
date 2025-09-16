@@ -545,6 +545,8 @@ class AccountMove(models.Model):
             ultimo = self.search(domain, order='name desc', limit=1)
 
             # Ajuste de secuencia según último DTE emitido
+            ultima_parte = 0
+            siguiente_dte = 0
             if ultimo:
                 try:
                     ultima_parte = int(ultimo.name.split('-')[-1])
@@ -555,12 +557,12 @@ class AccountMove(models.Model):
                 ultima_parte = 0
                 siguiente_dte = 1
 
-            _logger.info("SIT Ultimo num. control: %s(correlativo: %s) | Siguiente numero:%s ", ultimo.name if ultimo else None, ultima_parte, siguiente_dte)
+            _logger.info("SIT Ultimo num. control: %s(correlativo: %s) ", ultimo.name if ultimo else None, ultima_parte)
 
             # Obtener secuencia configurada
             date_range = None
-            _logger.info("SIT Ultimo num. control: %s(correlativo: %s) | Siguiente numero:%s ", ultimo.name,
-                         ultima_parte, siguiente_dte)
+            seq_next = sequence.number_next_actual
+            _logger.info("SIT Ultimo num. control: %s(correlativo: %s) | Siguiente numero:%s ", ultimo.name, ultima_parte, siguiente_dte)
             if sequence:
                 _logger.info("SIT | Sequence: %s", sequence)
                 if sequence.use_date_range:
@@ -570,18 +572,27 @@ class AccountMove(models.Model):
                         ('date_from', '<=', today),
                         ('date_to', '>=', today)
                     ], limit=1)
-                    if date_range and date_range.number_next_actual < siguiente_dte:
-                        _logger.info("SIT | Corrigiendo desfase date_range: estaba %s, ajustando a %s",
-                                     date_range.number_next_actual, siguiente_dte)
+                    if date_range:
+                        seq_next = date_range.number_next_actual
+
+                # ------------------------------
+                if ultima_parte >= seq_next:
+                    siguiente_dte = ultima_parte + 1
+                else:
+                    siguiente_dte = seq_next
+                _logger.info("SIT Control correlativos → Ultimo BD: %s | Seq: %s | Siguiente: %s", ultima_parte, seq_next, siguiente_dte)
+
+                if sequence.use_date_range and date_range:
+                    if date_range.number_next_actual < siguiente_dte:
+                        _logger.info("SIT | Corrigiendo desfase date_range: estaba %s, ajustando a %s", date_range.number_next_actual, siguiente_dte)
                         date_range.number_next_actual = siguiente_dte
-                        candidate_num = date_range.number_next_actual if date_range else sequence.number_next_actual
+                        #candidate_num = date_range.number_next_actual if date_range else sequence.number_next_actual
                 else:
                     # if sequence.number_next_actual < nuevo_numero:
                     if sequence.number_next_actual < siguiente_dte:
-                        _logger.info("SIT | Corrigiendo desfase sequence: estaba %s, ajustando a %s",
-                                     sequence.number_next_actual, siguiente_dte)
-                    sequence.number_next_actual = siguiente_dte
-                candidate_num = sequence.number_next_actual
+                        _logger.info("SIT | Corrigiendo desfase sequence: estaba %s, ajustando a %s", sequence.number_next_actual, siguiente_dte)
+                        sequence.number_next_actual = siguiente_dte
+                #candidate_num = sequence.number_next_actual
 
             # 1) obtener prefijo de la secuencia
             prefix_raw = (sequence.prefix or '').strip()
@@ -623,8 +634,8 @@ class AccountMove(models.Model):
                 nuevo_name = sequence.with_context(**ctx).next_by_id(
                     sequence_date=self.invoice_date)  # **ctx convierte un diccionario en argumentos separados
                 # Ahora forzamos el incremento si ya está actualizado
-                if int(nuevo_name.split('-')[-1]) != siguiente_dte:
-                    siguiente_dte = int(nuevo_name.split('-')[-1]) + 1
+                if int(nuevo_name.split('-')[-1]) < siguiente_dte:
+                    #siguiente_dte = int(nuevo_name.split('-')[-1]) + 1
                     nuevo_name = f"{prefix_rendered}{str(siguiente_dte).zfill(15)}"
 
                 # Forzar la actualización del siguiente número en la secuencia
@@ -1205,13 +1216,19 @@ class AccountMove(models.Model):
                                 if estado == 'rechazado':
                                     invoice.hacienda_estado = estado
                                     mensaje = Resultado['descripcionMsg'] or _('Documento rechazado por Hacienda.')
-                                    raise UserError(_("DTE rechazado por MH:\n%s") % mensaje)
+                                    mensaje_completo = _(
+                                        "DTE rechazado por MH:\n"
+                                        "Número de control: %s\n"
+                                        "%s\n\n"
+                                        "Por favor, vuelva a confirmar el documento."
+                                    ) % (invoice.name, mensaje)
+                                    invoice.write({'state': 'draft'})
+                                    self.env.cr.commit()
+                                    raise UserError(mensaje_completo)
                                 elif estado not in ('procesado', ''):
                                     invoice.hacienda_estado = estado
                                     mensaje = Resultado.get('descripcionMsg') or _('DTE no procesado correctamente')
-                                    raise UserError(
-                                        _("Respuesta inesperada de Hacienda. Estado: %s\nMensaje: %s") % (estado,
-                                                                                                          mensaje))
+                                    raise UserError(_("Respuesta inesperada de Hacienda. Estado: %s\nMensaje: %s") % (estado, mensaje))
 
                         # 2) Validar formato
                         if not invoice.name.startswith("DTE-"):
@@ -1644,6 +1661,7 @@ class AccountMove(models.Model):
                         "hacienda_estado": f"Error HTTP {resp.status_code}",
                         "hacienda_descripcionMsg": str(data or resp.text),
                         "hacienda_observaciones": observaciones,
+                        "state": "draft",
                     })
                     resultado = self._crear_contingencia(resp, data, mensaje)
                     if resultado and resultado.get('notificar'):

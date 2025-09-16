@@ -352,8 +352,6 @@ class AccountMoveInvalidation(models.Model):
                                 _logger.info("SIT JSON de Invalidacion=%s", invoice.sit_json_respuesta_invalidacion)
                                 json_str = json.dumps(payload_original['dteJson'])
                                 _logger.info("SIT JSON de respuesta guardado")
-                                # Codifica la cadena JSON en formato base64
-                                json_base64 = base64.b64encode(json_str.encode('utf-8'))
 
                                 invoice.sit_nombreSolicita = invoice.sit_factura_a_reemplazar.partner_id
                                 invoice.sit_nombreResponsable = invoice.sit_factura_a_reemplazar.partner_id
@@ -381,11 +379,12 @@ class AccountMoveInvalidation(models.Model):
                                 invoice.sit_json_respuesta_invalidacion = sit_json_respuesta_fusionado
 
                                 # Guardar archivo .json
-                                file_name = 'Invalidacion ' + invoice.sit_factura_a_reemplazar.name.replace('/',
-                                                                                                            '_') + '.json'
+                                file_name = 'Invalidacion ' + invoice.sit_factura_a_reemplazar.name.replace('/', '_') + '.json'
                                 _logger.info("SIT file_name =%s", file_name)
                                 _logger.info("SIT self._name =%s", self._name)
                                 _logger.info("SIT invoice.id =%s", invoice.id)
+                                # Codifica la cadena JSON en formato base64
+                                json_base64 = base64.b64encode(invoice.sit_json_respuesta_invalidacion.encode('utf-8'))
                                 invoice.env['ir.attachment'].sudo().create(
                                     {
                                         'name': file_name,
@@ -395,7 +394,7 @@ class AccountMoveInvalidation(models.Model):
                                         # 'datas_fname': file_name,
                                         'res_model': self._name,
                                         'res_id': invoice.id,
-                                        # 'type': 'binary'
+                                        'type': 'binary',
                                         'mimetype': 'application/json'
                                     })
                                 _logger.info("SIT json creado........................")
