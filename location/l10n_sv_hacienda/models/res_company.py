@@ -34,8 +34,8 @@ class ResCompany(models.Model):
             ('homologacion', 'Pruebas'),
             ('produccion', 'Producción'),
         ],
-        string="Tipo de Certificado",
-        help="Selecciona el tipo de certificado asociado a la empresa",
+        string="Ambiente de trabajo",
+        help="Selecciona el tipo de ambiente de trabajo",
     )
 
     sit_token_fecha = fields.Datetime(string='Start Date Range', default=datetime.today())
