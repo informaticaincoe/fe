@@ -1536,15 +1536,15 @@ class AccountMove(models.Model):
         # ——— Intentos para enviar a Hacienda ———
         for intento in range(1, max_intentos + 1):
             _logger.info(f"Intento {intento} de {max_intentos} para enviar DTE a Hacienda")
-            # if ambiente_test:
-            #     _logger.info("SIT Ambiente de pruebas, se omite envío a Hacienda y se simula respuesta exitosa.")
-            #     return {
-            #         "estado": "PROCESADO",
-            #         "codigoMsg": "000",
-            #         "descripcionMsg": "Ambiente de pruebas, no se envió a MH",
-            #         "observaciones": ["Simulación de éxito en pruebas"],
-            #         "es_test": True,  # 👈 indica que fue ambiente de prueba
-            #     }
+            if ambiente_test:
+                _logger.info("SIT Ambiente de pruebas, se omite envío a Hacienda y se simula respuesta exitosa.")
+                return {
+                    "estado": "PROCESADO",
+                    "codigoMsg": "000",
+                    "descripcionMsg": "Ambiente de pruebas, no se envió a MH",
+                    "observaciones": ["Simulación de éxito en pruebas"],
+                    "es_test": True,  # 👈 indica que fue ambiente de prueba
+                }
 
             resp = None
             try:
