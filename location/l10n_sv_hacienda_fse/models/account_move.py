@@ -201,7 +201,13 @@ class AccountMove(models.Model):
 
         _logger.info("SIT  Generando DTE")
         host = 'https://apitest.dtes.mh.gob.sv' if enviroment_type == 'homologation' else 'https://api.dtes.mh.gob.sv'
-        if enviroment_type == 'homologation':
+
+        if config_utils:  # desde res-config
+            ambiente_test = config_utils.compute_validation_type_2(self.env)
+
+        _logger.info("SIT Tipo de entorno[Ambiente] desde res_config: %s", ambiente_test)
+
+        if ambiente_test == '00':
             host = 'https://apitest.dtes.mh.gob.sv'
             url = host + '/fesv/recepciondte'
         else:
@@ -223,12 +229,19 @@ class AccountMove(models.Model):
             payload['version'] = 3
 
         _logger.info("SIT = requests.request(POST, %s, headers=%s, data=%s)", url, headers, payload)
+
+        is_test_enviroment = config_utils._compute_validation_type_2(self.env, self.compny_id)
         try:
-            _logger.info("________________________________________________ =%s", payload)
-            response = requests.request("POST", url, headers=headers, data=json.dumps(payload))
-            _logger.info("SIT DTE response =%s", response)
-            _logger.info("SIT DTE response =%s", response.status_code)
-            _logger.info("SIT DTE response.text =%s", response.text)
+            if not is_test_enviroment:
+                _logger.info("________________________________________________ =%s", payload)
+                response = requests.request("POST", url, headers=headers, data=json.dumps(payload))
+                _logger.info("SIT DTE response =%s", response)
+                _logger.info("SIT DTE response =%s", response.status_code)
+                _logger.info("SIT DTE response.text =%s", response.text)
+            else:
+                response = payload
+                _logger.info("SIT DTE response  payload=%s", response)
+
         except Exception as e:
             error = str(e)
             _logger.info('SIT error= %s, ', error)
@@ -238,7 +251,7 @@ class AccountMove(models.Model):
             else:
                 raise UserError(_(error))
 
-        if response.status_code in [401]:
+        if not is_test_enviroment and response.status_code in [401]:
             MENSAJE_ERROR = "ERROR de conexión : " + str(response)
             raise UserError(_(MENSAJE_ERROR))
 
