@@ -30,8 +30,8 @@
                         <group>
                             <field name="sit_token_user" string="Usuario (NIT)"/>
                             <field name="sit_token_pass" string="Password (Contraseña de API)" password="True"/>
-                            <field name="sit_passwordPri" string="Password Firmado (contraseña Privada)"
-                                   password="True"/>
+                            <field name="sit_passwordPri" string="Password Firmado (contraseña Privada)" password="True"/>
+                            <field name="certificate_type"/>
                         </group>
                         <separator string="Certificados Cargados" class="mt32 o_group_col_12" colspan="4"/>
                         <group>

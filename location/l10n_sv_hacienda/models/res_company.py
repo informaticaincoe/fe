@@ -28,6 +28,16 @@ class ResCompany(models.Model):
     sit_token_user = fields.Char("Usuario Hacienda")
     sit_token_pass = fields.Char("Password Hacienda")
     sit_passwordPri = fields.Char("Password Firmado")
+
+    certificate_type = fields.Selection(
+        selection=[
+            ('homologacion', 'Pruebas'),
+            ('produccion', 'Producción'),
+        ],
+        string="Tipo de Certificado",
+        help="Selecciona el tipo de certificado asociado a la empresa",
+    )
+
     sit_token_fecha = fields.Datetime(string='Start Date Range', default=datetime.today())
     codActividad = fields.Many2one(related="partner_id.codActividad", store=True, string="Actividad Económica")
     nombreComercial = fields.Char(related="partner_id.nombreComercial", string="Nombre Comercial")
