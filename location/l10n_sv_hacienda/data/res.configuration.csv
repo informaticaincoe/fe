@@ -7,7 +7,7 @@ config_url_firma,base.main_company,,text,http://192.168.2.49:8113/firmardocument
 config_url_test_hacienda,base.main_company,,text,https://apitest.dtes.mh.gob.sv/fesv/recepciondte,Acceso a entorno de pruebas de Hacienda,True,url_test_hacienda
 config_url_prod_hacienda,base.main_company,,text,https://api.dtes.mh.gob.sv/fesv/recepciondte,Acceso a entorno de producción de Hacienda,True,url_prod_hacienda
 config_user_agent,base.main_company,,text,Odoo,User-Agent,True,user_agent
-config_ambiente,base.main_company,,text,01,Ambiente,True,ambiente
+config_ambiente,base.main_company,,text,01,Ambiente seleccionado para la validación y envío del documento electrónico,True,ambiente
 config_mnt,base.main_company,,text,C:/Users/Admin/Documents/GitHub/fe/location/mnt,Carpeta mnt,True,mnt
 config_cuenta_cont_salarial,base.main_company,,text,230100,Cuenta contable para el Impuestos de nómina del empleado,True,cuenta_salarial_deducciones
 config_cuenta_cont_salarial_debito,base.main_company,,text,630000,Cuenta contable de débito: Gastos de sueldo,True,cuenta_salarial_debito
