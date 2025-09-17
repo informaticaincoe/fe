@@ -1422,7 +1422,7 @@ class AccountMove(models.Model):
         # url prod = "https://api.dtes.mh.gob.sv"
 
         if config_utils:
-            ambiente_test = config_utils.compute_validation_type_2(self.env)
+            ambiente_test = config_utils._compute_validation_type_2(self.env, self.company_id)
         _logger.info("SIT Tipo de entorno[Ambiente]: %s", ambiente_test)
 
         # Validar y parsear dteJson si es string
