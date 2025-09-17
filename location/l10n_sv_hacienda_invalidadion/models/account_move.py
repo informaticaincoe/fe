@@ -108,7 +108,7 @@ class AccountMove(models.Model):
     sit_invalidar = fields.Boolean('Invalidar ?',  copy=False,   default=False)
     sit_codigoGeneracion_invalidacion = fields.Char(string="codigoGeneracion" , copy=False, store=True)
     sit_fec_hor_Anula = fields.Datetime(string="Fecha de Anulación" , copy=False)
-    temp_fecha_anulacion = fields.Date(string="Fecha de Anulación")
+    temp_fecha_anulacion = fields.Date(string="Fecha de Anulación Temp")
     
     # sit_codigoGeneracionR = fields.Char(string="codigoGeneracion que Reemplaza" , copy=False, )
     sit_codigoGeneracionR = fields.Char(related="sit_factura_a_reemplazar.hacienda_codigoGeneracion_identificacion", string="codigoGeneracion que Reemplaza" , copy=False, )

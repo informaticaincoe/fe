@@ -42,6 +42,27 @@ def compute_validation_type_2(env):
         _logger.warning("SIT Valor no reconocido en 'ambiente': %s. Usando '00'", ambiente)
         return "00"
 
+def _compute_validation_type_2(env, company):
+    """
+    Busca el tipo de entorno (production o pruebas) dependiendo del valor en res.configuration.
+    """
+    _logger.info("SIT Entrando a compute_validation_type_2")
+    entorno_pruebas = False
+
+    config_settings = env["res.config.settings"].sudo().search([('company_id', '=', company.id)], order='id desc', limit=1)
+    if config_settings:
+        parameter_env_type = config_settings.afip_ws_env_type
+        if not parameter_env_type:
+            _logger.info("SIT No se encontró la selección del tipo de ambiente. Usando valor por defecto pruebas('00')")
+            return "00"
+
+        _logger.info("SIT Valor ambiente desde res.config.settings: %s", parameter_env_type)
+        if parameter_env_type == "production":
+            entorno_pruebas = False
+        else:
+            entorno_pruebas = True
+    return entorno_pruebas
+
 def get_fecha_emi():
     # Establecer la zona horaria de El Salvador
     salvador_timezone = pytz.timezone('America/El_Salvador')
