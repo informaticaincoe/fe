@@ -46,7 +46,7 @@ def _compute_validation_type_2(env, company):
     """
     Busca el tipo de entorno (production o pruebas) dependiendo del valor en res.configuration.
     """
-    _logger.info("SIT Entrando a compute_validation_type_2")
+    _logger.info("SIT Entrando a compute_validation_type_2 desde res.config.settings")
     entorno_pruebas = False
 
     config_settings = env["res.config.settings"].sudo().search([('company_id', '=', company.id)], order='id desc', limit=1)
@@ -61,6 +61,9 @@ def _compute_validation_type_2(env, company):
             entorno_pruebas = False
         else:
             entorno_pruebas = True
+    if not config_settings:
+        _logger.info("SIT No se encontro el tipo de entorno configurado")
+        raise UserError(_("No se encontró configuración de ambiente para la compañía %s. Por favor configure el tipo de ambiente en Configuración.") % company.name)
     return entorno_pruebas
 
 def get_fecha_emi():

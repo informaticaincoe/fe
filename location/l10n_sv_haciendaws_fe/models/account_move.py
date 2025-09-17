@@ -201,22 +201,6 @@ class AccountMove(models.Model):
 
     # -----Busquedas de configuracion
 
-    @api.model
-    def _get_tipo_entorno(self):
-        """
-        Retorna el tipo de entorno configurado para la compañía actual.
-        True -> Test (Homologación)
-        False -> Producción
-        """
-        company = self.env.company
-        ambiente = None
-        if hasattr(self.env, "config_utils"):
-            # Reutilizas tu lógica centralizada
-            ambiente = self.env.config_utils._compute_validation_type_2(self.env, company)
-            _logger.info("SIT Tipo entorno[Ambiente]: %s", ambiente)
-
-        return ambiente == self.env.constants.AMBIENTE_TEST
-
     @property
     def url_firma(self):
         url = config_utils.get_config_value(self.env, 'url_firma', self.company_id.id)
@@ -974,9 +958,11 @@ class AccountMove(models.Model):
                                 invoice.msg_error("Giro o Actividad Económica")
 
                     ambiente = None
+                    ambiente_test = False
                     if config_utils:
                         ambiente = config_utils.compute_validation_type_2(self.env)
-                        _logger.info("SIT Factura de Producción[Ambiente]: %s", ambiente)
+                        ambiente_test = config_utils._compute_validation_type_2(self.env, self.company_id)
+                        _logger.info("SIT Tipo de entorno[Ambiente]: %s, tipo entorno contabilidad[Ambiente test]: %s", ambiente, ambiente_test)
 
                     # Generar json del DTE
                     payload = invoice.obtener_payload(ambiente, sit_tipo_documento)
@@ -999,8 +985,7 @@ class AccountMove(models.Model):
 
                         # Intentar generar el DTE
                         Resultado = invoice.generar_dte(ambiente, payload_dte, payload)
-                        ambiente_test = Resultado.get("es_test") if Resultado and Resultado.get("es_test") else False
-                        _logger.warning("SIT Resultado. =%s, estado=%s, ambiente= %s", Resultado, Resultado.get('estado', ''), ambiente_test)
+                        _logger.warning("SIT Resultado. =%s, estado=%s", Resultado, Resultado.get('estado', ''))
 
                         # Si el resp es un rechazo por número de control
                         if not ambiente_test and isinstance(Resultado, dict) and Resultado.get('estado', '').strip().lower() == 'rechazado' and Resultado.get('codigoMsg') == '004':
@@ -1067,7 +1052,14 @@ class AccountMove(models.Model):
 
                             _logger.info("SIT Resultado DTE | Estado DTE: %s", estado)
                             # Fecha de procesamiento
-                            fh_procesamiento = Resultado['fhProcesamiento'] if Resultado and not ambiente_test else self.invoice_time
+                            #fh_procesamiento = Resultado['fhProcesamiento'] if Resultado and Resultado['fhProcesamiento'] and not ambiente_test else self.invoice_time
+                            fh_procesamiento = None
+                            if Resultado and Resultado.get('fhProcesamiento') and not ambiente_test:
+                                fh_procesamiento = Resultado.get('fhProcesamiento')
+                            if not fh_procesamiento:
+                                fh_procesamiento = self.invoice_time
+
+                            _logger.info("SIT Fecha factura=%s", fh_procesamiento)
                             if fh_procesamiento:
                                 try:
                                     fh_dt = datetime.strptime(fh_procesamiento, '%d/%m/%Y %H:%M:%S') + timedelta(hours=6)
@@ -1139,6 +1131,11 @@ class AccountMove(models.Model):
                                     'state': 'posted',
                                     'recibido_mh': True,
                                 })
+                            _logger.info("SIT Estado registro= %s.", invoice.state)
+
+                            self.message_post(
+                                body=_("Documento procesado correctamente por Hacienda.")
+                            )
 
                             # Guardar archivo .pdf y enviar correo al cliente
                             try:
@@ -1209,20 +1206,20 @@ class AccountMove(models.Model):
         return True
         # return super(AccountMove, self)._post(soft=soft)
 
-    def _compute_validation_type_2(self):
-        environment_type = False
-        for rec in self:
-            # Validar si la empresa aplica facturación electrónica
-            if not (rec.company_id and rec.company_id.sit_facturacion):
-                _logger.info("SIT No aplica facturación electrónica.")
-                return False
-
-            parameter_env_type = self.env["ir.config_parameter"].sudo().get_param("afip.ws.env.type")
-            if parameter_env_type == "production":
-                environment_type = "01"
-            else:
-                environment_type = "00"
-        return environment_type
+    # def _compute_validation_type_2(self):
+    #     environment_type = False
+    #     for rec in self:
+    #         # Validar si la empresa aplica facturación electrónica
+    #         if not (rec.company_id and rec.company_id.sit_facturacion):
+    #             _logger.info("SIT No aplica facturación electrónica.")
+    #             return False
+    #
+    #         parameter_env_type = self.env["ir.config_parameter"].sudo().get_param("afip.ws.env.type")
+    #         if parameter_env_type == "production":
+    #             environment_type = "01"
+    #         else:
+    #             environment_type = "00"
+    #     return environment_type
     # FIMAR FIMAR FIRMAR =======
 
     # ======================== FIRMA ===========================
@@ -1374,9 +1371,6 @@ class AccountMove(models.Model):
             return False
 
         invoice_info = None
-        ambiente = None
-        if config_utils:
-            ambiente = config_utils.compute_validation_type_2(self.env)
 
         if sit_tipo_documento in (constants.COD_DTE_FE, "13"):
             invoice_info = self.sit_base_map_invoice_info()
@@ -1536,20 +1530,21 @@ class AccountMove(models.Model):
             "documento": jwt_token,
             "codigoGeneracion": ident["codigoGeneracion"],
         }
+        _logger.info(f"send_payload: {send_payload}")
 
         # ——— 5) Envío a Hacienda ———
         # ——— Intentos para enviar a Hacienda ———
         for intento in range(1, max_intentos + 1):
             _logger.info(f"Intento {intento} de {max_intentos} para enviar DTE a Hacienda")
-            if ambiente_test:
-                _logger.info("SIT Ambiente de pruebas, se omite envío a Hacienda y se simula respuesta exitosa.")
-                return {
-                    "estado": "PROCESADO",
-                    "codigoMsg": "000",
-                    "descripcionMsg": "Ambiente de pruebas, no se envió a MH",
-                    "observaciones": ["Simulación de éxito en pruebas"],
-                    "es_test": True,  # 👈 indica que fue ambiente de prueba
-                }
+            # if ambiente_test:
+            #     _logger.info("SIT Ambiente de pruebas, se omite envío a Hacienda y se simula respuesta exitosa.")
+            #     return {
+            #         "estado": "PROCESADO",
+            #         "codigoMsg": "000",
+            #         "descripcionMsg": "Ambiente de pruebas, no se envió a MH",
+            #         "observaciones": ["Simulación de éxito en pruebas"],
+            #         "es_test": True,  # 👈 indica que fue ambiente de prueba
+            #     }
 
             resp = None
             try:
@@ -1705,7 +1700,9 @@ class AccountMove(models.Model):
             _logger.info("SIT No aplica facturación electrónica. Se omite generación de QR(_generar_qr).")
             return False
 
-        enviroment_type = 'homologation'
+        #enviroment_type = 'homologation'
+        enviroment_type = self._get_environment_type()
+        _logger.info("SIT Modo generar_qr= %s", enviroment_type)
         if enviroment_type == 'homologation':
             host = 'https://admin.factura.gob.sv'
         else:
@@ -2136,10 +2133,8 @@ class AccountMove(models.Model):
             _logger.info("SIT | Método invocado desde _post")
 
         if config_utils:
-            ambiente = config_utils._compute_validation_type_2(self.env, self.company_id)
-            _logger.info("SIT Factura de Producción[Ambiente]: %s", ambiente)
-            if ambiente == constants.AMBIENTE_TEST:
-                ambiente_test = True
+            ambiente_test = config_utils._compute_validation_type_2(self.env, self.company_id)
+            _logger.info("SIT Enviando correo[Ambiente]: %s", ambiente_test)
 
         for invoice in self:
             # Validar si la empresa aplica a facturación electrónica
