@@ -1069,6 +1069,18 @@ class AccountMove(models.Model):
                                     _logger.warning("Error al parsear fhProcesamiento: %s", e)
                             _logger.info("SIT Fecha facturacion=%s", invoice.fecha_facturacion_hacienda)
 
+                            if ambiente_test:
+                                invoice.write({
+                                    'hacienda_estado': Resultado.get('estado'),
+                                    'hacienda_descripcionMsg': Resultado.get('descripcionMsg'),
+                                    'hacienda_observaciones': str(Resultado.get('observaciones', '')),
+                                    'state': 'posted',  # <-- ¡Actualizamos el estado!
+                                    'recibido_mh': True,
+                                })
+                                # Si no manejas el caso de éxito para el entorno de prueba, la ejecución continúa,
+                                # pero el estado ya está actualizado. Puedes agregar un `return` para salir aquí si es el final de la ejecución.
+                                return True  # Forzar el retorno para evitar que continúe la ejecución
+
                             # Procesar la respuesta de Hacienda
                             if not ambiente_test:
                                 invoice.hacienda_estado = Resultado['estado']
@@ -1539,11 +1551,11 @@ class AccountMove(models.Model):
             if ambiente_test:
                 _logger.info("SIT Ambiente de pruebas, se omite envío a Hacienda y se simula respuesta exitosa.")
                 return {
-                    "estado": "PROCESADO",
                     "codigoMsg": "000",
                     "descripcionMsg": "Ambiente de pruebas, no se envió a MH",
                     "observaciones": ["Simulación de éxito en pruebas"],
                     "es_test": True,  # 👈 indica que fue ambiente de prueba
+                    "estado": "PROCESADO",
                 }
 
             resp = None
