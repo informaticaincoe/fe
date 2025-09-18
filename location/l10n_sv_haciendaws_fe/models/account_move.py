@@ -1079,7 +1079,6 @@ class AccountMove(models.Model):
                                 })
                                 # Si no manejas el caso de éxito para el entorno de prueba, la ejecución continúa,
                                 # pero el estado ya está actualizado. Puedes agregar un `return` para salir aquí si es el final de la ejecución.
-                                return True  # Forzar el retorno para evitar que continúe la ejecución
 
                             # Procesar la respuesta de Hacienda
                             if not ambiente_test:
@@ -1142,6 +1141,10 @@ class AccountMove(models.Model):
                                     'hacienda_observaciones': str(Resultado.get('observaciones', '')),
                                     'state': 'posted',
                                     'recibido_mh': True,
+                                })
+                            else:
+                                invoice.write({
+                                    'state': 'posted',
                                 })
                             _logger.info("SIT Estado registro= %s.", invoice.state)
 
@@ -2106,6 +2109,11 @@ class AccountMove(models.Model):
             _logger.info( "SIT No aplica facturación electrónica para alguna factura. Se omite notificación de contingencia.")
             return super().action_post()
 
+        ambiente_test = False
+        if config_utils:
+            ambiente_test = config_utils._compute_validation_type_2(self.env, self.company_id)
+            _logger.info("SIT Validaciones[Ambiente]: %s", ambiente_test)
+
         if not self.invoice_date:
             raise ValidationError("Debe seleccionar la fecha de la Factura.")
 
@@ -2117,6 +2125,9 @@ class AccountMove(models.Model):
 
         if self.journal_id and not self.journal_id.report_xml:
             raise ValidationError("El diario debe tener un reporte PDF configurado.")
+
+        if not ambiente_test and self.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_NC and self.inv_refund_id and not self.inv_refund_id.hacienda_selloRecibido:
+            raise ValidationError("El documento relacionado aún no cuenta con el sello de Hacienda.")
 
         res = super().action_post()
         facturas_con_contingencia = self.filtered(lambda inv: inv.sit_es_configencia)
@@ -2162,14 +2173,27 @@ class AccountMove(models.Model):
 
                 # Enviar el correo automáticamente solo si el DTE fue aceptado y aún no se ha enviado
                 _logger.info("SIT | Es evento de invalidacion= %s", es_invalidacion)
-                if ((not es_invalidacion and invoice.recibido_mh and not invoice.correo_enviado)
-                        or (es_invalidacion and invoice.sit_evento_invalidacion.invalidacion_recibida_mh and not invoice.sit_evento_invalidacion.correo_enviado_invalidacion)
-                        or from_button):
+
+                _logger.info(
+                    "DEBUG | es_invalidacion=%s recibido_mh=%s correo_enviado=%s inval_recibida=%s inval_correo=%s from_button=%s",
+                    es_invalidacion,
+                    invoice.recibido_mh,
+                    invoice.correo_enviado,
+                    getattr(invoice.sit_evento_invalidacion, "invalidacion_recibida_mh", None),
+                    getattr(invoice.sit_evento_invalidacion, "correo_enviado_invalidacion", None),
+                    from_button,
+                    )
+
+                if ((not ambiente_test or from_button)
+                        or (not ambiente_test and not es_invalidacion and invoice.recibido_mh and not invoice.correo_enviado)
+                        or (not ambiente_test and es_invalidacion and invoice.sit_evento_invalidacion.invalidacion_recibida_mh and not invoice.sit_evento_invalidacion.correo_enviado_invalidacion) ):
                     try:
                         _logger.info("SIT | Enviando correo automático para la factura %s", invoice.name)
                         invoice.with_context(from_automatic=True, from_invalidacion=es_invalidacion).sudo().sit_action_send_mail()
                     except Exception as e:
                         _logger.error("SIT | Error al intentar enviar el correo para la factura %s: %s", invoice.name, str(e))
+                if ambiente_test:
+                    _logger.info("SIT | La correspondencia no se envia en ambiente de pruebas. %s", invoice.name)
                 else:
                     _logger.info("SIT | La correspondencia ya había sido transmitida. %s", invoice.name)
             else:

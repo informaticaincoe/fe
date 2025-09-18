@@ -99,7 +99,10 @@ class AccountMove(models.Model):
         invoice_info = {}
         FechaHoraAnulacion = None
         invoice_info["version"] = self._get_version_invalidacion()
-        ambiente = str(get_constantes_anulacion()['AMBIENTE']) #"00" if self._compute_validation_type_2() == 'homologation' else "01"
+
+        ambiente = None
+        if config_utils:
+            ambiente = config_utils.compute_validation_type_2(self.env) #str(get_constantes_anulacion()['AMBIENTE']) #"00" if self._compute_validation_type_2() == 'homologation' else "01"
         invoice_info["ambiente"] = ambiente
 
         if self.sit_codigoGeneracion_invalidacion:
@@ -336,7 +339,7 @@ class AccountMove(models.Model):
 
         nit = self.company_id.vat.replace("-", "")
         invoice_info = {
-            "ambiente": get_constantes_anulacion()['AMBIENTE'],
+            "ambiente": ambiente,
             "idEnvio": int(self.sit_evento_invalidacion.id),
             "version": self._get_version_invalidacion(),
             "documento": doc_firmado

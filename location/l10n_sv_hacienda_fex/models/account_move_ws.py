@@ -15,6 +15,7 @@ tz_el_salvador = pytz.timezone('America/El_Salvador')
 
 
 import logging
+import json
 
 _logger = logging.getLogger(__name__)
 
@@ -47,6 +48,20 @@ class AccountMove(models.Model):
         invoice_info["passwordPri"] = self.company_id.sit_passwordPri
         _logger.info("SIT sit_base_map_invoice_info = %s", invoice_info)
 
+        if self.sit_json_respuesta and not self.hacienda_selloRecibido:
+            try:
+                # Intentamos convertir el sit_json_respuesta a un diccionario Python
+                json_data = json.loads(self.sit_json_respuesta)
+
+                # Verificamos si el campo ambiente existe y es igual a "00"
+                ambiente = json_data.get("identificacion", {}).get("ambiente", None)
+
+                if ambiente == "00":
+                    _logger.info("SIT Ambiente 00 detectado. Sobreescribiendo JSON.")
+                    invoice_info["dteJson"] = self.sit__fex_base_map_invoice_info_dtejson()
+            except json.JSONDecodeError as e:
+                _logger.error(f"SIT Error al procesar el JSON: {e}")
+                invoice_info["dteJson"] = self.sit_json_respuesta  # En caso de error en la conversión, mantenemos el JSON original
         if not self.hacienda_selloRecibido and self.sit_factura_de_contingencia and self.sit_json_respuesta:
             _logger.info("SIT sit_base_map_invoice_info contingencia")
             invoice_info["dteJson"] = self.sit_json_respuesta

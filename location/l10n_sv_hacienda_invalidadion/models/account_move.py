@@ -36,10 +36,12 @@ EXTRA_ADDONS = os.path.join(PROJECT_ROOT, "mnt", "extra-addons", "src")
 
 try:
     from odoo.addons.common_utils.utils import constants
+    from odoo.addons.common_utils.utils import config_utils
     _logger.info("SIT Modulo config_utils [hacienda invalidacion]")
 except ImportError as e:
     _logger.error(f"Error al importar 'constants': {e}")
     constants = None
+    config_utils = None
 
 class AccountMove(models.Model):
     _inherit = "account.move"
@@ -150,6 +152,11 @@ class AccountMove(models.Model):
         if not (self.company_id and self.company_id.sit_facturacion):
             raise UserError("Solo se pueden invalidar documentos electrónicos.")
 
+        ambiente_test = False
+        if config_utils:
+            ambiente_test = config_utils._compute_validation_type_2(self.env, self.company_id)
+            _logger.info("SIT Tipo de entorno invalidacion[Ambiente]: %s", ambiente_test)
+
         # Verificamos si estamos en una factura que puede ser anulada
         if self.state != 'posted' and self.hacienda_estado != 'PROCESADO':
             raise UserError("Solo se pueden invalidar facturas que ya han sido publicadas.")
@@ -160,6 +167,9 @@ class AccountMove(models.Model):
 
         if self.sit_evento_invalidacion and self.sit_evento_invalidacion.hacienda_selloRecibido_anulacion and self.sit_evento_invalidacion.invalidacion_recibida_mh:
             raise UserError("Este DTE ya ha sido invalidado por Hacienda. No es posible repetir la anulación.")
+
+        if ambiente_test and self.sit_evento_invalidacion and self.sit_evento_invalidacion.state == "annulment" and str(self.sit_evento_invalidacion.hacienda_estado_anulacion).lower() == "procesado":
+            raise UserError("Este DTE ya ha sido invalidado. No es posible repetir la anulación.")
 
         EL_SALVADOR_TZ = timezone('America/El_Salvador')
 
@@ -194,6 +204,7 @@ class AccountMove(models.Model):
                     'sit_codigoGeneracionR': invoice.sit_codigoGeneracionR,
                     'sit_tipoAnulacion': invoice.sit_tipoAnulacion or '1',  # Tipo de anulación
                     'sit_motivoAnulacion': invoice.sit_motivoAnulacion or 'Error en la información',
+                    'company_id': invoice.company_id.id,
                 }
 
                 _logger.info("SIT Diccionario para crear invalidación: %s", invalidation)
@@ -216,6 +227,7 @@ class AccountMove(models.Model):
 
                 resultado = invalidation.button_anul()
                 _logger.info("SIT Método button_anul ejecutado correctamente para ID: %s", invalidation.id)
+
                 if resultado.get('exito'):
                     invoice.write({
                         'state': 'cancel',
@@ -238,7 +250,11 @@ class AccountMove(models.Model):
                         'tag': 'display_notification',
                         'params': {
                             'title': 'Invalidación Exitosa',
-                            'message': 'Se invalidó el DTE. El sello de Hacienda fue recibido correctamente.',
+                            'message': (
+                                'Se invalidó el DTE. El sello de Hacienda fue recibido correctamente.'
+                                if not ambiente_test else
+                                'Se invalidó el DTE correctamente.'
+                            ),
                             'type': 'success',
                             'sticky': False,
                         }
@@ -275,6 +291,13 @@ class AccountMove(models.Model):
         # Validación de empresa
         if not (self.company_id and self.company_id.sit_facturacion):
             raise UserError(_("Solo se pueden firmar documentos de empresas con facturación electrónica."))
+
+        ambiente_test = False
+        if config_utils:
+            ambiente_test = config_utils._compute_validation_type_2(self.env)
+            _logger.info("SIT Tipo de entorno invalidacion[Ambiente]: %s", ambiente_test)
+            if ambiente_test:
+                return
 
         if enviroment_type == 'homologation':
             ambiente = "00"
@@ -340,10 +363,6 @@ class AccountMove(models.Model):
             _logger.info("SIT La empresa %s no aplica a facturación electrónica, se detiene la obtención de obtener payload.", self.company_id.id if self.company_id else None)
             return
 
-        if enviroment_type == 'homologation':
-            ambiente = "00"
-        else:
-            ambiente = "01"
         invoice_info = self.sit_anulacion_base_map_invoice_info()
         _logger.info("SIT invoice_info FINVALIDACION = %s", invoice_info)
         self.check_parametros_firmado_anu()
@@ -352,77 +371,93 @@ class AccountMove(models.Model):
         return invoice_info
 
 
-    def generar_dte_invalidacion(self, enviroment_type, payload, payload_original):
-        _logger.info("SIT  Generando DTE Invalidacion =%s", payload)
-
-        # Validación de empresa
-        if not (self.company_id and self.company_id.sit_facturacion):
-            _logger.info("SIT La empresa %s no aplica a facturación electrónica, se detiene la generación de DTE.", self.company_id.id if self.company_id else None)
-            return  # No continuar si la empresa no aplica
-
-        if enviroment_type == 'homologation': 
-            #host = 'https://apitest.dtes.mh.gob.sv'
-            host = "https://api.dtes.mh.gob.sv"
-        else:
-            host = "https://api.dtes.mh.gob.sv"
-        url = host + '/fesv/anulardte'
-        agente = self.company_id.sit_token_user
-        authorization = self.company_id.sit_token
-
-        headers = {
-         'Content-Type': 'application/json', 
-         'User-Agent': 'Odoo', #agente,
-         'Authorization': f"Bearer {self.company_id.sit_token}" #authorization
-        }
-        try:
-            response = requests.request("POST", url, headers=headers, data=json.dumps(payload))
-            _logger.info("SIT generar_dte_invalidacion DTE response =%s", response)
-            _logger.info("SIT generar_dte_invalidacion DTE response =%s", response.status_code)
-            _logger.info("SIT generar_dte_invalidacion DTE response.text =%s", response.text)
-        except Exception as e:
-            error = str(e)
-            _logger.info('SIT error= %s, ', error)       
-            if "error" in error or "" in error:
-                MENSAJE_ERROR = str(error['status']) + ", " + str(error['error']) +", " +  str(error['message'])  
-                raise UserError(_(MENSAJE_ERROR))
-            else:
-                raise UserError(_(error))
-        resultado = []    
-        _logger.info("SIT generar_dte_invalidacion DTE decodificando respuestas invalidacion")
-        # status = json_response.get('status')
-
-        if response.status_code in [  400, 401 ] :
-            MENSAJE_ERROR = "ERROR de conexión : " + str(response.text )   + " ((( " +str(json.dumps(payload_original))  + " )))"
-            raise UserError(_(MENSAJE_ERROR))
-
-        json_response = response.json()
-        _logger.info("SIT json_response =%s", json_response)
-        if json_response['estado'] in [  "RECHAZADO", 402 ] :
-            status=json_response['estado']
-            ambiente=json_response['ambiente']
-            if json_response['ambiente'] == '00':
-                ambiente = 'TEST'
-            else:
-                ambiente = 'PROD'
-            clasificaMsg=json_response['clasificaMsg']
-            message=json_response['descripcionMsg']
-            observaciones=json_response['observaciones']
-            MENSAJE_ERROR = "Código de Error..:" + str(status) + ", Ambiente:" + ambiente + ", ClasificaciónMsje:" + str(clasificaMsg) +", Descripcion:" + str(message) +", Detalle:" +  str(observaciones) +", DATA:  " +  str(json.dumps(payload_original))  
-            self.hacienda_estado= status
-
-            # MENSAJE_ERROR = "Código de Error:" + str(status) + ", Ambiente:" + ambiente + ", ClasificaciónMsje:" + str(clasificaMsg) +", Descripcion:" + str(message) +", Detalle:" +  str(observaciones)  
-            raise UserError(_(MENSAJE_ERROR))
-        status = json_response.get('status')
-        if status and status in [400, 401, 402]:
-            _logger.info("SIT Error 40X  =%s", status)
-            error = json_response.get('error', 'Error desconocido')  # Si 'error' no existe, devuelve 'Error desconocido'
-            message = json_response.get('message', 'Mensaje no proporcionado')  # Si 'message' no existe, devuelve 'Mensaje no proporcionado'
-            MENSAJE_ERROR = "Código de Error:" + str(status) + ", Error:" + str(error) + ", Detalle:" + str(message)
-            raise UserError(_(MENSAJE_ERROR))
-        if json_response['estado'] in [  "PROCESADO" ] :
-
-            return json_response
-    
+    # def generar_dte_invalidacion(self, enviroment_type, payload, payload_original):
+    #     _logger.info("SIT  Generando DTE Invalidacion =%s", payload)
+    #
+    #     # Validación de empresa
+    #     if not (self.company_id and self.company_id.sit_facturacion):
+    #         _logger.info("SIT La empresa %s no aplica a facturación electrónica, se detiene la generación de DTE.", self.company_id.id if self.company_id else None)
+    #         return  # No continuar si la empresa no aplica
+    #
+    #     ambiente_test = False
+    #     url = None
+    #     host = None
+    #     if config_utils:
+    #         ambiente_test = config_utils._compute_validation_type_2(self.env, self.company_id)
+    #         _logger.info("SIT Tipo de entorno invalidacion[Ambiente]: %s", ambiente_test)
+    #
+    #     if ambiente_test:
+    #         _logger.info("SIT Ambiente de pruebas, se omite envío a Hacienda y se simula respuesta exitosa.")
+    #         return {
+    #             "estado": "PROCESADO",
+    #             "codigoMsg": "000",
+    #             "descripcionMsg": "Documento invalidado en ambiente de pruebas, no se envió a MH",
+    #             "observaciones": ["Simulación de invalidación con éxito en pruebas"],
+    #         }
+    #     else:
+    #         if enviroment_type == constants.AMBIENTE_TEST:
+    #             #host = 'https://apitest.dtes.mh.gob.sv'
+    #             host = "https://api.dtes.mh.gob.sv"
+    #         else:
+    #             host = "https://api.dtes.mh.gob.sv"
+    #         url = host + '/fesv/anulardte'
+    #     agente = self.company_id.sit_token_user
+    #     authorization = self.company_id.sit_token
+    #
+    #     headers = {
+    #      'Content-Type': 'application/json',
+    #      'User-Agent': 'Odoo', #agente,
+    #      'Authorization': f"Bearer {self.company_id.sit_token}" #authorization
+    #     }
+    #     try:
+    #         response = requests.request("POST", url, headers=headers, data=json.dumps(payload))
+    #         _logger.info("SIT generar_dte_invalidacion DTE response =%s", response)
+    #         _logger.info("SIT generar_dte_invalidacion DTE response =%s", response.status_code)
+    #         _logger.info("SIT generar_dte_invalidacion DTE response.text =%s", response.text)
+    #     except Exception as e:
+    #         error = str(e)
+    #         _logger.info('SIT error= %s, ', error)
+    #         if "error" in error or "" in error:
+    #             MENSAJE_ERROR = str(error['status']) + ", " + str(error['error']) +", " +  str(error['message'])
+    #             raise UserError(_(MENSAJE_ERROR))
+    #         else:
+    #             raise UserError(_(error))
+    #     resultado = []
+    #     _logger.info("SIT generar_dte_invalidacion DTE decodificando respuestas invalidacion")
+    #     # status = json_response.get('status')
+    #
+    #     if response.status_code in [  400, 401 ] :
+    #         MENSAJE_ERROR = "ERROR de conexión : " + str(response.text )   + " ((( " +str(json.dumps(payload_original))  + " )))"
+    #         raise UserError(_(MENSAJE_ERROR))
+    #
+    #     json_response = response.json()
+    #     _logger.info("SIT json_response =%s", json_response)
+    #     if json_response['estado'] in [  "RECHAZADO", 402 ] :
+    #         status=json_response['estado']
+    #         ambiente=json_response['ambiente']
+    #         if json_response['ambiente'] == '00':
+    #             ambiente = 'TEST'
+    #         else:
+    #             ambiente = 'PROD'
+    #         clasificaMsg=json_response['clasificaMsg']
+    #         message=json_response['descripcionMsg']
+    #         observaciones=json_response['observaciones']
+    #         MENSAJE_ERROR = "Código de Error..:" + str(status) + ", Ambiente:" + ambiente + ", ClasificaciónMsje:" + str(clasificaMsg) +", Descripcion:" + str(message) +", Detalle:" +  str(observaciones) +", DATA:  " +  str(json.dumps(payload_original))
+    #         self.hacienda_estado= status
+    #
+    #         # MENSAJE_ERROR = "Código de Error:" + str(status) + ", Ambiente:" + ambiente + ", ClasificaciónMsje:" + str(clasificaMsg) +", Descripcion:" + str(message) +", Detalle:" +  str(observaciones)
+    #         raise UserError(_(MENSAJE_ERROR))
+    #     status = json_response.get('status')
+    #     if status and status in [400, 401, 402]:
+    #         _logger.info("SIT Error 40X  =%s", status)
+    #         error = json_response.get('error', 'Error desconocido')  # Si 'error' no existe, devuelve 'Error desconocido'
+    #         message = json_response.get('message', 'Mensaje no proporcionado')  # Si 'message' no existe, devuelve 'Mensaje no proporcionado'
+    #         MENSAJE_ERROR = "Código de Error:" + str(status) + ", Error:" + str(error) + ", Detalle:" + str(message)
+    #         raise UserError(_(MENSAJE_ERROR))
+    #     if json_response['estado'] in [  "PROCESADO" ] :
+    #
+    #         return json_response
+    #
 
     def _autenticar(self,user,pwd,):
         _logger.info("SIT self = %s", self)
@@ -475,7 +510,10 @@ class AccountMove(models.Model):
 
         # enviroment_type = self._get_environment_type()
         # enviroment_type = self.env["res.company"]._get_environment_type()
-        enviroment_type =  'homologation'
+        company = self.company_id
+        if not company:
+            raise UserError(_("No se encontró la compañía asociada a la factura a reemplazar."))
+        enviroment_type = company._get_environment_type()
         if enviroment_type == 'homologation': 
             host = 'https://admin.factura.gob.sv'
 
@@ -522,7 +560,11 @@ class AccountMove(models.Model):
             _logger.info("SIT No aplica facturación electrónica. Se omite generación de QR(generar_qr) en evento de invalidacion.")
             return False
 
-        enviroment_type =  'homologation'        
+        company = self.company_id
+        if not company:
+            raise UserError(_("No se encontró la compañía asociada a la factura a reemplazar."))
+
+        enviroment_type = company._get_environment_type()
         if enviroment_type == 'homologation': 
             host = 'https://admin.factura.gob.sv'
             ambiente = "00"
@@ -566,6 +608,15 @@ class AccountMove(models.Model):
         if not (self.company_id and self.company_id.sit_facturacion):
             _logger.info("SIT No aplica facturación electrónica. Se omite generación de check_parametros_invalidacion en evento de invalidacion.")
             return False
+
+        ambiente_test = False
+        if config_utils:
+            ambiente_test = config_utils._compute_validation_type_2(self.env, self.company_id)
+            _logger.info("SIT Tipo de entorno invalidacion[Ambiente]: %s", ambiente_test)
+            if ambiente_test:
+                # Si es ambiente de pruebas, no seguir con el resto del código
+                _logger.info("SIT Entorno de pruebas detectado, deteniendo generación de payload de anulación.")
+                return False
 
         if not self.name:
              raise UserError(_('El Número de control no definido'))      

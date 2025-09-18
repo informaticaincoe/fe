@@ -62,7 +62,7 @@ def _compute_validation_type_2(env, company):
         else:
             entorno_pruebas = True
     if not config_settings:
-        _logger.info("SIT No se encontro el tipo de entorno configurado")
+        _logger.info("SIT No se encontro el tipo de entorno configurado: %s", config_settings)
         raise UserError(_("No se encontró configuración de ambiente para la compañía %s. Por favor configure el tipo de ambiente en Configuración.") % company.name)
     return entorno_pruebas
 
