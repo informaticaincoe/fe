@@ -135,12 +135,10 @@
                                         <span t-field="o.hacienda_selloRecibido" class="fw-normal p-0"/>
                                     </p>
                                     <p>Tipo modelo:
-                                        <span t-field="o.journal_id.sit_modelo_facturacion"
-                                              class="fw-normal p-0"/>
+                                        <span t-field="o.journal_id.sit_modelo_facturacion" class="fw-normal p-0"/>
                                     </p>
                                     <p>Tipo transmisión:
-                                        <span t-field="o.journal_id.sit_tipo_transmision"
-                                              class="fw-normal p-0"/>
+                                        <span t-field="o.journal_id.sit_tipo_transmision" class="fw-normal p-0"/>
                                     </p>
                                 </div>
                                 <div class="col text-center border rounded-2 border-light-subtle">
@@ -356,7 +354,7 @@
                                                     </td>
                                                     <td style="border:1px solid #e5e7e9; padding:4px; text-align:right;"
                                                         class="border-light-subtle">
-                                                        <span t-esc="(o.invoice_line_ids[idx].precio_gravado) + (o.invoice_line_ids[idx].iva_unitario)"
+                                                        <span t-esc="(o.invoice_line_ids[idx].precio_gravado)"
                                                               t-options="{'widget':'monetary','display_currency':o.currency_id}"/>
                                                     </td>
                                                 </tr>
@@ -458,7 +456,6 @@
 
                                         <t t-set="total_no_sujeto" t-value="o.total_no_sujeto"/>
                                         <t t-set="total_exento" t-value="o.total_exento"/>
-                                        <t t-set="total_gravado" t-value="o.total_gravado"/>
 
                                         <!-- Códigos a excluir y líneas de tributos -->
                                         <t t-set="excluded_codes_tributos" t-value="['C5', 'C6', 'C7']"/>
@@ -471,9 +468,6 @@
                                         <t t-set="subtotal_base"
                                            t-value="(o.total_no_sujeto + o.total_exento + o.total_gravado) - (o.descuento_no_sujeto + o.descuento_exento + o.descuento_gravado)"/>
 
-                                        <!-- Monto total de la operación = Subtotal + Tributos -->
-                                        <t t-set="monto_total_operacion"
-                                           t-value="subtotal_base + total_tributos"/>
 
                                         <!-- DERECHA: Resúmenes -->
                                         <td style="vertical-align:top; width:50%;">
@@ -508,7 +502,7 @@
                                                         </td>
                                                         <td class="px-1 border border-light-subtle text-end"
                                                             style="padding: 1% 0%;">
-                                                            <span t-esc="total_gravado"
+                                                            <span t-esc="o.total_gravado"
                                                                   t-options="{'widget':'monetary','display_currency': o.currency_id}"/>
                                                         </td>
                                                     </tr>
@@ -519,7 +513,7 @@
                                                         </td>
                                                         <td class="px-1 border border-light-subtle text-end"
                                                             style="padding: 1% 0%;">
-                                                            <span t-esc="total_no_sujeto + total_exento + total_gravado"
+                                                            <span t-esc="total_no_sujeto + total_exento + o.total_gravado"
                                                                   t-options="{'widget':'monetary','display_currency': o.currency_id}"/>
                                                         </td>
                                                     </tr>
@@ -643,7 +637,7 @@
                                                         </td>
                                                         <td class="px-1 border border-light-subtle text-end"
                                                             style="padding: 1% 0%;">
-                                                            <span t-esc="monto_total_operacion"
+                                                            <span t-esc="o.total_operacion"
                                                                   t-options="{'widget':'monetary','display_currency': o.currency_id}"/>
                                                         </td>
                                                     </tr>
