@@ -66,6 +66,8 @@ class ResCompany(models.Model):
         string='Cuenta contable de IVA percibido'
     )
 
+    sit_entorno_test = fields.Boolean('Entorno de pruebas', default=False, help="La generación de documentos electrónicos se realizará en el ambiente de pruebas")
+
     def get_generar_token(self):
         _logger.info("SIT get_generar_token = %s,%s,%s", self.sit_token_user, self.sit_token_pass, self.sit_passwordPri)
         autenticacion = self._autenticar(self.sit_token_user, self.sit_token_pass)

@@ -138,8 +138,6 @@ class sit_account_lote(models.Model):
                       (self.env.ref('account.view_move_form').id, 'form')],
         }
 
-
-
     # Generar secuencia para lotes
     @api.model
     def generar_nombre_lote(self, journal=None, actualizar_secuencia=False):
@@ -158,6 +156,9 @@ class sit_account_lote(models.Model):
         if not journal.sit_codestable:
             raise UserError(_("Configure Código de Establecimiento en diario '%s'.") % journal.name)
 
+        if not journal.sit_codpuntoventa:
+            raise UserError(_("Configure el Punto de Venta en el diario '%s'.") % journal.name)
+
         if not journal.sequence_id:
             raise UserError(_("Configure una secuencia de lote en el diario '%s'.") % journal.name)
 
@@ -173,6 +174,7 @@ class sit_account_lote(models.Model):
         if not version_str.strip():
             raise UserError("La versión de lote no puede estar vacía.")
         estable = journal.sit_codestable
+        punto_venta = journal.sit_codpuntoventa
         # seq_code = 'LOT'
 
         # Armar patrón dinámico basado en prefix de la secuencia
@@ -181,8 +183,9 @@ class sit_account_lote(models.Model):
         replacements = {
             'lote': version_str,
             'estable': estable,
+            'punto_venta': punto_venta,
         }
-        pattern_prefix = prefix.replace('%(lote)s', version_str).replace('%(estable)s', estable)
+        # pattern_prefix = prefix.replace('%(lote)s', version_str).replace('%(estable)s', estable)
         # Reemplazar todos los placeholders en el prefijo de la secuencia
         pattern_prefix = prefix
         for key, value in replacements.items():

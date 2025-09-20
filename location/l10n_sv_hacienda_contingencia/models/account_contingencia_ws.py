@@ -43,7 +43,7 @@ class sit_AccountContingencia(models.Model):
         return invoice_info
 
     def sit__contingencia_base_map_invoice_info_dtejson(self):
-        _logger.info("SIT sit__contingencia_base_map_invoice_info_dtejson self = %s", self)
+        _logger.info("SIT Contingencia sit__contingencia_base_map_invoice_info_dtejson self = %s", self)
         invoice_info = {}
         # self = data_inicial
         
@@ -62,18 +62,17 @@ class sit_AccountContingencia(models.Model):
         return invoice_info    
 
     def sit__contingencia__base_map_invoice_info_identificacion(self):
-        _logger.info("SIT sit_base_map_invoice_info_identificacion self = %s", self)
+        _logger.info("SIT Contingencia sit_base_map_invoice_info_identificacion self contingencia_ws= %s", self)
         invoice_info = {}
         # self = data_inicial
         invoice_info["version"] = int(config_utils.get_config_value(self.env, 'version_contingencia', self.company_id.id) or 3) # 3
-        validation_type = self._compute_validation_type_2()
-        if validation_type == 'homologation': 
-            ambiente = "00"
-        else:
-            ambiente = "01"        
+
+        ambiente = None
+        if config_utils:
+            ambiente = config_utils.compute_validation_type_2(self.env)
         invoice_info["ambiente"] = ambiente
 
-        invoice_info["codigoGeneracion"] = self.sit_generar_uuid()          #  company_id.sit_uuid.upper()
+        invoice_info["codigoGeneracion"] = self.hacienda_codigoGeneracion_identificacion #  company_id.sit_uuid.upper()
 
         import datetime
         import pytz
@@ -90,7 +89,7 @@ class sit_AccountContingencia(models.Model):
         return invoice_info        
 
     def sit__contingencia__base_map_invoice_info_emisor(self):
-        _logger.info("SIT sit__contingencia__base_map_invoice_info_emisor self = %s", self)
+        _logger.info("SIT Contingencia sit__contingencia__base_map_invoice_info_emisor self = %s", self)
 
         invoice_info = {}
         direccion = {}
@@ -112,7 +111,6 @@ class sit_AccountContingencia(models.Model):
         invoice_info["codEstableMH"] =  None
         invoice_info["codPuntoVenta"] =  None
 
-
         if  self.company_id.phone:
             invoice_info["telefono"] =  self.company_id.phone
         else:
@@ -123,10 +121,8 @@ class sit_AccountContingencia(models.Model):
         return invoice_info   
 
     def sit_contingencia_base_map_invoice_info_detalle_DTE(self):
-        _logger.info("SIT sit_contingencia_base_map_invoice_info_detalle_DTE self ------------------------- = (%s)  %s", self, self.sit_facturas_relacionadas)
+        _logger.info("SIT Contingencia sit_contingencia_base_map_invoice_info_detalle_DTE self ------------------------- = (%s)  %s", self, self.sit_facturas_relacionadas)
         lines = []
-
-
         item_numItem = 0
 
         for line in self.sit_facturas_relacionadas:     
@@ -146,12 +142,11 @@ class sit_AccountContingencia(models.Model):
         return lines
 
     def sit_contingencia__base_map_invoice_info_motivo(self):
-        _logger.info("SIT sit_contingencia__base_map_invoice_info_motivo self = %s", self)
+        _logger.info("SIT Contingencia sit_contingencia__base_map_invoice_info_motivo self = %s", self)
 
         invoice_info = {}
         tributos = {}
         pagos = {}
-
 
         import datetime
         import pytz
@@ -162,9 +157,7 @@ class sit_AccountContingencia(models.Model):
         _logger.info("SIT FechaEmi = %s (%s)", FechaEmi, type(FechaEmi))
         FechaFin = self.sit_fFin_hFin
         FechaFin = FechaFin.astimezone(tz_el_salvador)
-
         _logger.info("SIT FechaEmi = %s (%s)", FechaEmi, type(FechaEmi))
-
 
         invoice_info["fInicio"] = FechaEmi.strftime('%Y-%m-%d')
         invoice_info["fFin"] = FechaFin.strftime('%Y-%m-%d')
@@ -176,20 +169,18 @@ class sit_AccountContingencia(models.Model):
             motivoContingencia = self.sit_tipo_contingencia_otro
         else:
             motivoContingencia = None
-
         invoice_info["motivoContingencia"] = motivoContingencia
 
         return invoice_info      
-    
 
     def sit_obtener_payload_contingencia_dte_info(self, documento):
+        _logger.info("SIT Contingencia sit_obtener_payload_contingencia_dte_info Contingencia = %s", self.id)
         invoice_info = {}
         nit = self.company_id.vat
         nit = nit.replace("-", "")
         invoice_info["nit"] = nit
         invoice_info["documento"] = documento
-        return invoice_info        
-
+        return invoice_info
 
     def sit_generar_uuid(self):
         import uuid
@@ -197,4 +188,3 @@ class sit_AccountContingencia(models.Model):
         uuid_aleatorio = uuid.uuid4()
         uuid_cadena = str(uuid_aleatorio)
         return uuid_cadena.upper()
-

@@ -214,7 +214,7 @@ class AccountMove(models.Model):
         return invoice_info
 
     def sit__ccf_base_map_invoice_info_receptor(self):
-        _logger.info("SIT sit_base_map_invoice_info_receptor self = %s", self)
+        _logger.info("SIT sit__ccf_base_map_invoice_info_receptor self Hacienda_ws_fe= %s", self)
         direccion_rec = {}
         invoice_info = {}
         nit = self.partner_id.vat if self.partner_id and self.partner_id.vat else None
@@ -405,7 +405,7 @@ class AccountMove(models.Model):
         return lines, codigo_tributo, total_Gravada, line.tax_ids, totalIva
 
     def sit_ccf_base_map_invoice_info_resumen(self, total_Gravada, total_tributos, totalIva, identificacion):
-        _logger.info("SIT sit_base_map_invoice_info_resumen self = %s", self)
+        _logger.info("SIT sit_ccf_base_map_invoice_info_resumen self Hacienda_ws_fe= %s", self)
         _logger.info("total_tributos = %s", total_tributos)
         _logger.info("total_tributos tributos_hacienda = %s", total_tributos.tributos_hacienda.codigo)
         total_des = 0
@@ -525,7 +525,7 @@ class AccountMove(models.Model):
     ###--------FE-FACTURA ELECTRONICA-----------##
 
     def sit_base_map_invoice_info(self):
-        _logger.info("SIT sit_base_map_invoice_info self = %s", self)
+        _logger.info("SIT sit_base_map_invoice_info self hacienda_ws_fe= %s", self)
         invoice_info = {}
 
         if not (self.company_id and self.company_id.sit_facturacion):
@@ -661,7 +661,7 @@ class AccountMove(models.Model):
         return invoice_info
 
     def sit_base_map_invoice_info_receptor(self):
-        _logger.info("SIT sit_base_map_invoice_info_receptor self = %s", self)
+        _logger.info("SIT sit_base_map_invoice_info_receptor self Hacienda_ws_fe= %s", self)
         invoice_info = {}
 
         # 1) ¿qué DTE es?
@@ -729,7 +729,7 @@ class AccountMove(models.Model):
 
     def sit_base_map_invoice_info_cuerpo_documento(self):
         lines = []
-        _logger.info("SIT sit_base_map_invoice_info_cuerpo_documento self = %s", self.invoice_line_ids)
+        _logger.info("SIT sit_base_map_invoice_info_cuerpo_documento self Hacienda_ws_fe= %s", self.invoice_line_ids)
         item_numItem = 0
         total_Gravada = 0.0
         totalIva = 0.0
@@ -868,7 +868,7 @@ class AccountMove(models.Model):
         return lines, codigo_tributo, total_Gravada, float(totalIva)
 
     def sit_base_map_invoice_info_resumen(self, tributo_hacienda, total_Gravada, totalIva, identificacion, cuerpo_documento):
-        _logger.info("SIT sit_base_map_invoice_info_resumen self = %s", self)
+        _logger.info("SIT sit_base_map_invoice_info_resumen self Hacienda_ws_fe= %s", self)
         total_des = 0
         total_gral = self.amount_total + total_des
         por_des = 0
@@ -1017,7 +1017,10 @@ class AccountMove(models.Model):
         invoice_info["idEnvio"] = "00001"
         invoice_info["tipoDte"] = self.journal_id.sit_tipo_documento.codigo
         invoice_info["version"] = int(self.journal_id.sit_tipo_documento.version)
-        invoice_info["documento"] = doc_firmado
+        if doc_firmado:
+            invoice_info["documento"] = doc_firmado
+        else:
+            invoice_info["documento"] = None
         invoice_info["codigoGeneracion"] = self.hacienda_codigoGeneracion_identificacion  # self.sit_generar_uuid()
         return invoice_info
 
@@ -1053,7 +1056,7 @@ class AccountMove(models.Model):
         return invoice_info
 
     def sit_base_map_invoice_info_ndc_dtejson(self):
-        _logger.info("SIT sit_base_map_invoice_info_dtejson self = %s", self)
+        _logger.info("SIT sit_base_map_invoice_info_dtejson self Hacienda_ws_fe= %s", self)
         invoice_info = {}
         invoice_info["identificacion"] = self.sit_ndc_base_map_invoice_info_identificacion()
         invoice_info["documentoRelacionado"] = self.sit__ndc_relacionado()

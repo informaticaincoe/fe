@@ -47,6 +47,7 @@ class IrSequence(models.Model):
             ctx = self.env.context
             res['dte'] = ctx.get('dte', '')
             res['estable'] = ctx.get('estable', '')
+            res['punto_venta'] = ctx.get('punto_venta', '')
             res['tipo_dte'] = ctx.get('tipo_dte', '')
             return frozendict(res)
 

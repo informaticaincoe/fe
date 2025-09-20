@@ -48,3 +48,11 @@ class SaleOrder(models.Model):
             if tipo_doc_journal and tipo_doc_journal.codigo in (constants.COD_DTE_FEX):
                 if not order.recintoFiscal:
                     raise ValidationError("Debe seleccionar un recinto fiscal.")
+
+    @api.onchange("partner_id")
+    def _onchange_partner_id_set_journal(self):
+        """Al seleccionar el cliente, sugerir el diario definido en el cliente."""
+        if self.partner_id and self.partner_id.journal_id:
+            # Solo asigna si no hay diario aún
+            if not self.journal_id:
+                self.journal_id = self.partner_id.journal_id

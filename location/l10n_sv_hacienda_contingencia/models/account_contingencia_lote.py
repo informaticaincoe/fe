@@ -87,20 +87,40 @@ class sit_AccountContingencia(models.Model):
     
 # ---------------------------------------------------------------------------------------------    POST LOTE
 
-    def action_lote_generate(self):
+    def action_lote_generate(self): # Generacion de lotes en contingencia(envio de lotes a MH)
         # after validate, send invoice data to external system via http post
         facturas_firmadas = []
         nro_factura = 0
         payload = None
         facturas_no_asignadas = []
         version = None
-
+        mensajes = []
         for lote in self.lote_ids:
+            ambiente_test = False
+
             # Validar que la contingencia relacionada esté recibida
             contingencia = lote.sit_contingencia  # asumo que lote tiene campo Many2one a contingencia
             _logger.info('SIT action_lote_generate contingencia = %s', contingencia)
-            if not contingencia or contingencia.sit_selloRecibido in (False, None, '', 'False', '0'):
-                raise UserError(f"La contingencia relacionada al lote {lote.id} no ha sido recibida por MH.")
+
+            if config_utils:
+                ambiente_test = config_utils._compute_validation_type_2(self.env, self.company_id)
+                _logger.info("SIT-Lote Tipo de entorno[Ambiente]: %s", ambiente_test)
+
+            estado = (contingencia.sit_estado or '').strip().lower() if contingencia else ''
+            sello = str(contingencia.sit_selloRecibido or '').strip().lower() if contingencia else ''
+
+            # Validar existencia
+            if not contingencia:
+                raise UserError(f"El lote {lote.id} no tiene una contingencia relacionada.")
+
+            # Validación según ambiente
+            if not ambiente_test:
+                # En producción se exige sello y estado
+                if sello in ('false', '0', '', 'none') or estado != "recibido":
+                    raise UserError(f"La contingencia relacionada al lote {lote.id} no ha sido recibida por MH.")
+            else:
+                if estado != "recibido":
+                    raise UserError(f"La contingencia relacionada al lote {lote.id} no ha sido recibida por MH.")
 
             nro_factura += 1
             _logger.info('SIT action_lote_generate lote a firmar = %s', lote.id)
@@ -114,7 +134,7 @@ class sit_AccountContingencia(models.Model):
             ])
 
             for invoice in facturas:
-                validation_type = self._compute_validation_type_2()
+                validation_type = self.company_id._get_environment_type()#self._compute_validation_type_2()
                 ambiente = "00"
                 if validation_type == 'homologacioin':
                     ambiente = "00"
@@ -157,11 +177,12 @@ class sit_AccountContingencia(models.Model):
                 payload_dte_firma = self.sit_obtener_payload_lote_dte_firma(emisor, self.company_id.sit_passwordPri, payload)
                 _logger.info("SIT payload: %s", payload_dte_firma)
 
-                firmando = self.firmar_documento('production', payload_dte_firma)
-                if firmando:
-                    facturas_firmadas.append(firmando)
-                else:
-                    raise UserError(f"Factura no firmada = {invoice.name}")
+                if not ambiente_test:
+                    firmando = self.firmar_documento('production', payload_dte_firma)
+                    if firmando:
+                        facturas_firmadas.append(firmando)
+                    else:
+                        raise UserError(f"Factura no firmada = {invoice.name}")
 
                 # version = payload["dteJson"]["identificacion"]["ambiente"]
                 payload_dte_envio_mh = self.sit_obtener_payload_lote_dte_info(ambiente, facturas_firmadas, emisor, version)
@@ -170,7 +191,7 @@ class sit_AccountContingencia(models.Model):
                     raise UserError(f"Factura firmada = {firmado}")
 
                 # Generando el DTE
-                dte_lote = self.generar_dte_lote(validation_type, payload_dte_envio_mh, len(facturas_firmadas))
+                dte_lote = self.generar_dte_lote(validation_type, payload_dte_envio_mh, len(facturas_firmadas), ambiente_test)
                 _logger.info("SIT Respuesta MH=%s", dte_lote)
 
                 # Guardar json respuesta SOLO si la factura no lo tenía
@@ -180,27 +201,51 @@ class sit_AccountContingencia(models.Model):
                     })
 
                 hacienda_fhProcesamiento_lote = None
-                try:
+                fh = None
+                if dte_lote and dte_lote.get('fhProcesamiento') and not ambiente_test:
                     fh = dte_lote.get('fhProcesamiento')
-                    _logger.info("SIT Fecha de procesamiento (%s)%s", type(fh), fh)
+
+                try:
                     if fh:
+                        _logger.info("SIT Fecha de procesamiento (%s)%s", type(fh), fh)
                         hacienda_fhProcesamiento_lote = datetime.strptime(fh, '%d/%m/%Y %H:%M:%S')
                         _logger.info("hacienda_fhProcesamiento_lote = %s", hacienda_fhProcesamiento_lote)
+                    else:
+                        # si no hay fecha de Hacienda, usamos la hora actual de El Salvador
+                        if config_utils:
+                            hacienda_fhProcesamiento_lote = config_utils._get_fecha_procesamiento(fh)
+                        if not hacienda_fhProcesamiento_lote:
+                            # fallback final: usar fecha de creación de Odoo
+                            hacienda_fhProcesamiento_lote = self.create_date
+                        _logger.info("Asignando fecha de procesamiento: %s", hacienda_fhProcesamiento_lote)
                 except Exception as e:
                     _logger.warning("No se pudo parsear fecha de procesamiento lote: %s", e)
 
+                if hacienda_fhProcesamiento_lote and hacienda_fhProcesamiento_lote.tzinfo:
+                    hacienda_fhProcesamiento_lote = hacienda_fhProcesamiento_lote.replace(tzinfo=None)
+
                 # Guardar datos de account.lote
-                lote_vals = {
-                    'hacienda_estado_lote': dte_lote.get('estado', ''),
-                    'hacienda_idEnvio_lote': dte_lote.get('idEnvio', ''),
-                    'hacienda_fhProcesamiento_lote': hacienda_fhProcesamiento_lote,
-                    'hacienda_codigoLote_lote': dte_lote.get('codigoLote', ''),
-                    'hacienda_codigoMsg_lote': dte_lote.get('codigoMsg', ''),
-                    'hacienda_descripcionMsg_lote': dte_lote.get('descripcionMsg', ''),
-                    'state': "posted" if dte_lote.get('estado') == 'RECIBIDO' else 'draft',
-                    'lote_recibido_mh': bool(dte_lote.get('codigoLote')),
-                    'sit_json_respuesta': json.dumps(dte_lote) if isinstance(dte_lote, dict) else str(dte_lote),
-                }
+                if not ambiente_test:
+                    lote_vals = {
+                        'hacienda_estado_lote': dte_lote.get('estado', ''),
+                        'hacienda_idEnvio_lote': dte_lote.get('idEnvio', ''),
+                        'hacienda_fhProcesamiento_lote': hacienda_fhProcesamiento_lote,
+                        'hacienda_codigoLote_lote': dte_lote.get('codigoLote', ''),
+                        'hacienda_codigoMsg_lote': dte_lote.get('codigoMsg', ''),
+                        'hacienda_descripcionMsg_lote': dte_lote.get('descripcionMsg', ''),
+                        'state': "posted" if dte_lote.get('estado') == 'RECIBIDO' else 'draft',
+                        'lote_recibido_mh': bool(dte_lote.get('codigoLote')),
+                        'sit_json_respuesta': json.dumps(dte_lote) if isinstance(dte_lote, dict) else str(dte_lote),
+                    }
+                else:
+                    lote_vals = {
+                        'hacienda_estado_lote': dte_lote.get('estado', ''),
+                        'hacienda_fhProcesamiento_lote': hacienda_fhProcesamiento_lote,
+                        'hacienda_codigoMsg_lote': dte_lote.get('codigoMsg', ''),
+                        'hacienda_descripcionMsg_lote': dte_lote.get('descripcionMsg', ''),
+                        'state': "posted" if dte_lote.get('estado') == 'RECIBIDO' else 'draft',
+                        'sit_json_respuesta': json.dumps(dte_lote) if isinstance(dte_lote, dict) else str(dte_lote),
+                    }
 
                 lote_record = None
                 if lote.exists():
@@ -211,8 +256,10 @@ class sit_AccountContingencia(models.Model):
 
                 # Asignar lote a todas las facturas del lote procesado
                 # facturas.write({'sit_lote_contingencia': lote_record.id})
-                _logger.info("Registro de lote creado con ID %s y asignado a facturas %s", lote_record.id,
-                             facturas.ids)
+                _logger.info("Registro de lote creado con ID %s y asignado a facturas %s", lote_record.id, facturas.ids)
+
+                if lote.hacienda_estado_lote and lote.hacienda_estado_lote.strip().upper() == "RECIBIDO":
+                    mensajes.append(f"{lote.name}: {lote.hacienda_estado_lote}")
 
                 # Verificar cuántas facturas se han asignado a este lote y si se excede el límite de lotes
                 if len(facturas_firmadas) >= 400 * 100:
@@ -226,9 +273,37 @@ class sit_AccountContingencia(models.Model):
 
             _logger.info("SIT Fin generar lote")
 
-    def generar_dte_lote(self, enviroment_type, payload_envio_mh, lotes_firmados):
+        # Notificar al usuario si hubo alguna factura con sello o estado RECIBIDO
+        if mensajes:
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': 'Lotes validados',
+                    'message': "\n".join(mensajes),
+                    'type': 'success',
+                    'sticky': False,
+                }
+            }
+
+        # Caso en que no hubo mensajes → retornar None explícitamente
+        return None
+
+    def generar_dte_lote(self, enviroment_type, payload_envio_mh, lotes_firmados, ambiente_test): # Url para el envio de lotes a MH
         _logger.info("SIT  Generando DTE")
         url = None
+        response = None
+
+        if ambiente_test:
+            _logger.info("SIT Ambiente de pruebas, se omite envío del lote a Hacienda y se simula respuesta exitosa.")
+            return {
+                "codigoMsg": "000",
+                "descripcionMsg": "Ambiente de pruebas, no se envió a MH",
+                "observaciones": ["Simulación de éxito en pruebas"],
+                "es_test": True,  # indica que fue ambiente de prueba
+                "estado": "RECIBIDO",
+            }
+
         if enviroment_type == 'homologation':
             host = 'https://apitest.dtes.mh.gob.sv'
             url = host + '/fesv/recepcionlote/'
@@ -333,6 +408,7 @@ class sit_AccountContingencia(models.Model):
             _logger.info("SIT Estado RECIBIDO=%s", json_response)
             return json_response
 
+    ##################################### GENERAR JSON LOTE
     def sit_obtener_payload_lote_dte_info(self, ambiente, doc_firmado, nitEmisor, version):
         invoice_info = {}
         invoice_info["ambiente"] = ambiente
@@ -356,18 +432,21 @@ class sit_AccountContingencia(models.Model):
             invoice_info["dteJson"] = json.loads(doc_firmado)
 
         return invoice_info
+
 # ---------------------------------------------------------------------------------------------    POST CONTINGENCIA
-    def action_post_contingencia(self):
+    def action_post_contingencia(self):  # Generacion de eventos en contingencia(envio a MH)
         '''validamos que partner cumple los requisitos basados en el tipo
-    de documento de la sequencia del diario selecionado
-    FACTURA ELECTRONICAMENTE
-    '''
+        de documento de la sequencia del diario selecionado
+        FACTURA ELECTRONICAMENTE
+        '''
         # NUMERO_FACTURA= super(AccountMove, self).action_post()
         # _logger.info("SIT NUMERO FACTURA =%s", NUMERO_FACTURA)
         _logger.info("SIT Iniciando Validación de Contingencia (account_contingencia_lote)")
+        mensajes = []
         for invoice in self:
+            ambiente_test = False
             try:
-                validation_type = self._compute_validation_type_2()
+                validation_type = self.company_id._get_environment_type()  # self._compute_validation_type_2()
                 _logger.info("SIT action_post validation_type = %s", validation_type)
 
                 ambiente = "00"
@@ -379,42 +458,72 @@ class sit_AccountContingencia(models.Model):
                     ambiente = "01"
                 # Firmado de documento
                 documento_firmado = ""
-                
+
                 payload_contingencia = invoice.obtener_payload_contingencia(validation_type)
 
+                if config_utils:
+                    ambiente_test = config_utils._compute_validation_type_2(self.env, self.company_id)
+                    _logger.info("SIT-Contingencia Tipo de entorno[Ambiente]: %s", ambiente_test)
+
                 _logger.info("SIT Generando DTE conteingencia")
-                documento_firmado_contingencia = invoice.firmar_documento(validation_type, payload_contingencia)
-                payload_dte_contingencia = invoice.sit_obtener_payload_contingencia_dte_info(documento_firmado_contingencia)
+                documento_firmado_contingencia = None
+                if not ambiente_test:
+                    documento_firmado_contingencia = invoice.firmar_documento(validation_type, payload_contingencia)
+
+                payload_dte_contingencia = invoice.sit_obtener_payload_contingencia_dte_info(
+                    documento_firmado_contingencia)
 
                 # self.check_parametros_dte(payload_dte)
-                Resultado = invoice.generar_dte_contingencia(validation_type, payload_dte_contingencia, payload_contingencia)
+                Resultado = invoice.generar_dte_contingencia(validation_type, payload_dte_contingencia,
+                                                             payload_contingencia, ambiente_test)
                 if Resultado:
-                    dat_time  = Resultado['fechaHora']
+                    dat_time = None
+                    fechaHora = None
+                    if not ambiente_test and Resultado['fechaHora']:  # .....
+                        dat_time = Resultado['fechaHora']
+
+                    try:
+                        if config_utils:
+                            fechaHora = config_utils._get_fecha_procesamiento(dat_time)
+                        if not fechaHora:
+                            # fallback final: usar fecha de creación de Odoo
+                            fechaHora = self.create_date
+                        # _logger.info("Fecha de procesamiento asignada: %s", fechaHora)
+                    except Exception as e:
+                        _logger.warning("No se pudo obtener fechaHora de Resultado: %s", e)
+                        fechaHora = None
+
+                    if fechaHora:
+                        # Si tiene tzinfo, lo hacemos naive
+                        if fechaHora.tzinfo is not None:
+                            fechaHora = fechaHora.replace(tzinfo=None)
+                        invoice.sit_fechaHora = fechaHora
+
                     _logger.info("SIT Fecha de procesamiento (%s)%s", type(dat_time), dat_time)
-                    fechaHora = datetime.strptime(dat_time, '%d/%m/%Y %H:%M:%S')
+                    # fechaHora = datetime.strptime(dat_time, '%d/%m/%Y %H:%M:%S')
                     _logger.info("SIT Fecha de procesamiento (%s)%s", type(fechaHora), fechaHora)
-                    _logger.info("SIT Fecha de sit_fechaHora (%s)%s", type(invoice.sit_fechaHora), invoice.sit_fechaHora)
-                    MENSAJE = "Resultado = " + str(Resultado)
+                    _logger.info("SIT Fecha de sit_fechaHora (%s)%s", type(invoice.sit_fechaHora),
+                                 invoice.sit_fechaHora)
+                    # MENSAJE = "Resultado = " + str(Resultado)
                     invoice.sit_estado = Resultado['estado']
                     invoice.hacienda_estado = Resultado['estado']
-                    invoice.sit_fechaHora = fechaHora
+                    # invoice.sit_fechaHora = fechaHora
                     invoice.sit_mensaje = Resultado['mensaje']
-                    invoice.sit_selloRecibido = Resultado['selloRecibido']
+                    invoice.sit_selloRecibido = Resultado.get('selloRecibido', None)
                     invoice.sit_observaciones = Resultado['observaciones']
                     invoice.state = "posted" if Resultado['estado'] == 'RECIBIDO' else 'draft'
 
-
-
                     try:
-                        tz = pytz.timezone('America/El_Salvador') #Obtener zona horaria de El Salvador
+                        tz = pytz.timezone('America/El_Salvador')  # Obtener zona horaria de El Salvador
                         now_sv = datetime.now(tz).replace(tzinfo=None)  # Convertir a naive
                         invoice.fechaHoraTransmision = now_sv
                     except pytz.UnknownTimeZoneError:
-                        raise UserError("No se pudo determinar la zona horaria 'America/El_Salvador'. Verifique su configuración.")
+                        raise UserError(
+                            "No se pudo determinar la zona horaria 'America/El_Salvador'. Verifique su configuración.")
                     except Exception as e:
                         raise UserError(f"Ocurrió un error al asignar la fecha y hora actual: {str(e)}")
 
-                    #JSON
+                    # JSON
                     dteJson = payload_contingencia['dteJson']
                     _logger.info("Tipo de dteJson: %s, json: %s", type(dteJson), dteJson)
                     if isinstance(dteJson, str):
@@ -433,21 +542,26 @@ class sit_AccountContingencia(models.Model):
                         # Otro tipo de dato no esperado
                         invoice.sit_json_respuesta = str(dteJson)
 
-                    #Respuesta json
-                    json_response_data = {
-                        "jsonRespuestaMh": Resultado
-                    }
+                    # Respuesta json
+                    if not ambiente_test:
+                        json_response_data = {
+                            "jsonRespuestaMh": Resultado
+                        }
 
-                    # Convertir el JSON en el campo sit_json_respuesta a un diccionario de Python
-                    try:
-                        json_original = json.loads(invoice.sit_json_respuesta) if invoice.sit_json_respuesta else {}
-                    except json.JSONDecodeError:
-                        json_original = {}
+                        # Convertir el JSON en el campo sit_json_respuesta a un diccionario de Python
+                        try:
+                            json_original = json.loads(invoice.sit_json_respuesta) if invoice.sit_json_respuesta else {}
+                        except json.JSONDecodeError:
+                            json_original = {}
 
-                    # Fusionar JSONs
-                    json_original.update(json_response_data)
-                    sit_json_respuesta_fusionado = json.dumps(json_original)
-                    invoice.sit_json_respuesta = sit_json_respuesta_fusionado
+                        # Fusionar JSONs
+                        json_original.update(json_response_data)
+                        sit_json_respuesta_fusionado = json.dumps(json_original)
+                        invoice.sit_json_respuesta = sit_json_respuesta_fusionado
+
+                if invoice.sit_selloRecibido or invoice.sit_estado == 'RECIBIDO':
+                    mensajes.append(f"{invoice.name}: {invoice.sit_estado}")
+
             except Exception as e:
                 error_msg = traceback.format_exc()
                 _logger.exception("SIT Error durante el _post para invoice ID %s: %s", invoice.id, str(e))
@@ -456,26 +570,38 @@ class sit_AccountContingencia(models.Model):
                     'state': 'draft',
                 })
                 raise e
-                    # raise UserError(_(MENSAJE))
+                # raise UserError(_(MENSAJE))
 
-    def _compute_validation_type_2(self):
-        for rec in self:
-            validation_type = self.env["res.company"]._get_environment_type()
-            if validation_type == "homologation":
-                try:
-                    rec.company_id.get_key_and_certificate(validation_type)
-                except Exception:
-                    validation_type = False
-            return validation_type
+        # Notificar al usuario si hubo alguna factura con sello o estado RECIBIDO
+        if mensajes:
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': 'Contingencia validada',
+                    'message': "\n".join(mensajes),
+                    'type': 'success',
+                    'sticky': False,
+                }
+            }
+
+        # Caso en que no hubo mensajes → retornar None explícitamente
+        return None
+
+    # def _compute_validation_type_2(self):
+    #     for rec in self:
+    #         validation_type = self.env["res.company"]._get_environment_type()
+    #         if validation_type == "homologation":
+    #             try:
+    #                 rec.company_id.get_key_and_certificate(validation_type)
+    #             except Exception:
+    #                 validation_type = False
+    #         return validation_type
 
 # FIMAR FIMAR FIRMAR =====================================================================================================    
     def firmar_documento(self, enviroment_type, payload):
         _logger.info("SIT  Firmando de documento")
         _logger.info("SIT Documento a FIRMAR =%s", payload)
-        if enviroment_type == 'homologation':
-            ambiente = "00"
-        else:
-            ambiente = "01"
         # host = 'http://service-it.com.ar:8113'
         # host = 'http://svfe-api-firmador:8113'
         #host = 'http://192.168.2.25:8113'
@@ -557,24 +683,18 @@ class sit_AccountContingencia(models.Model):
             return body
         return False
 
+    ##################################### GENERAR JSON CONTINGENCIA
     def obtener_payload_contingencia(self, enviroment_type):
         _logger.info("SIT  Obteniendo payload")
-        if enviroment_type == 'homologation': 
-            ambiente = "00"
-        else:
-            ambiente = "01"
         
         self.check_parametros_contingencia()
         invoice_info = self.sit__contingencia_base_map_invoice_info()
         _logger.info("SIT invoice_info CONTINGENCIA = %s", invoice_info)
-        
-
-
 
         _logger.info("SIT payload_data =%s", invoice_info)
         return invoice_info
 
-    def generar_dte_contingencia(self, enviroment_type, payload, payload_original):
+    def generar_dte_contingencia(self, enviroment_type, payload, payload_original, ambiente_test):
         _logger.info("SIT  Generando DTE___contingencia, ambiente: %s", enviroment_type)
         url = None
         if enviroment_type == 'homologation': 
@@ -583,6 +703,17 @@ class sit_AccountContingencia(models.Model):
         else:
             url = config_utils.get_config_value(self.env, 'url_prod_contingencia', self.company_id.id)
         #url = host + '/fesv/contingencia'
+
+        #Regregsar al post si es test
+        if ambiente_test:
+            _logger.info("SIT Ambiente de pruebas contingencia, se omite envío a Hacienda y se simula respuesta exitosa.")
+            return {
+                "codigoMsg": "000",
+                "mensaje": "Ambiente de pruebas, no se envió a MH",
+                "observaciones": ["Simulación de éxito en pruebas"],
+                "es_test": True,  # 👈 indica que fue ambiente de prueba
+                "estado": "RECIBIDO",
+            }
 
         # Refrescar token si hace falta ———
         today = fields.Date.context_today(self)
@@ -724,11 +855,6 @@ class sit_AccountContingencia(models.Model):
         resultado = []    
         json_response = response.json()
 
-
-    
-
-
-
     def check_parametros_contingencia(self):
         # Tipo de documento: iva/nit(campo fax) = 1, dui(campo dui) = 4, otro = 5, pasaporte = 2, extranjero = 3
         if not self.company_id:
@@ -745,17 +871,12 @@ class sit_AccountContingencia(models.Model):
         _logger.info("Tipo contingencia: %s | Constante motivo: %s | Motivo contingencia: %s", self.sit_tipo_contingencia.codigo, constants.MOT_CONTIN_OTRO, self.sit_tipo_contingencia_otro)
         if self.sit_tipo_contingencia and self.sit_tipo_contingencia.codigo == constants.MOT_CONTIN_OTRO:
             if not self.sit_tipo_contingencia_otro or not self.sit_tipo_contingencia_otro.strip():
-                raise UserError(_('El motivoContingencia no definido'))
+                raise UserError(_('MotivoContingencia no definido'))
         if not self.sit_fFin_hFin:
-            raise UserError(_('El campo Fecha de Fin de Contingencia - Hacienda (sit_fFin_hFin) no definido'))        
-
-
-
-
-
+            raise UserError(_('El campo Fecha de Fin de Contingencia - Hacienda (sit_fFin_hFin) no definido'))
 
     def check_parametros_firmado(self):
-
+        _logger.info("SIT-Contingencia Validaciones parametros doc firmado")
         if not self.name:
             raise UserError(_('El Número de control no definido'))
         if not self.company_id.sit_passwordPri:
@@ -802,17 +923,19 @@ class sit_AccountContingencia(models.Model):
         if not self.invoice_line_ids:
             raise UserError(_('La factura no tiene LINEAS DE PRODUCTOS asociada.'))
 
-                
+    def check_parametros_dte(self, generacion_dte, ambiente_test):
+        _logger.info("SIT-Contingencia Validaciones check_parametros_dte")
+        if not (self.company_id and self.company_id.sit_facturacion):
+            _logger.info("SIT No aplica facturación electrónica. Se omite validación de parámetros DTE en modulo de Contingencia.")
+            return False
 
-
-    def check_parametros_dte(self, generacion_dte):
         if not generacion_dte["idEnvio"]:
             ERROR = 'El IDENVIO  no está definido.'
             raise UserError(_(ERROR))
         if not generacion_dte["tipoDte"]:
             ERROR = 'El tipoDte  no está definido.'
             raise UserError(_(ERROR))
-        if not generacion_dte["documento"]:
+        if not ambiente_test and not generacion_dte["documento"]:
             ERROR = 'El DOCUMENTO  no está presente.'
             raise UserError(_(ERROR))
         if not generacion_dte["codigoGeneracion"]:
@@ -836,6 +959,9 @@ class sit_AccountContingencia(models.Model):
         if not journal.sit_codestable:
             raise UserError(_("Configure Código de Establecimiento en diario '%s'.") % journal.name)
 
+        if not journal.sit_codpuntoventa:
+            raise UserError(_("Configure el Punto de Venta en el diario '%s'.") % journal.name)
+
         if not journal.sequence_id:
             raise UserError(_("Configure una secuencia de contingencia en el diario '%s'.") % journal.name)
 
@@ -852,12 +978,14 @@ class sit_AccountContingencia(models.Model):
         if not version_str.strip():
             raise UserError("La versión de contingencia no puede estar vacía.")
         estable = journal.sit_codestable
+        punto_venta = journal.sit_codpuntoventa
         # seq_code = 'CONT'
 
         # Diccionario para reemplazar los placeholders dinámicamente
         replacements = {
             'con': version_str,  # Reemplazo para %(con)s
             'estable': estable,  # Reemplazo para %(estable)s
+            'punto_venta': punto_venta,  # Reemplazo para %(punto_venta)s
         }
 
         # Reemplazar los placeholders en el prefix de la secuencia

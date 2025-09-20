@@ -200,7 +200,6 @@ class AccountMove(models.Model):
     invoice_time = fields.Char(string="Hora de Facturación", compute='_compute_invoice_time', store=True, readonly=True)
 
     # -----Busquedas de configuracion
-
     @property
     def url_firma(self):
         url = config_utils.get_config_value(self.env, 'url_firma', self.company_id.id)
@@ -217,6 +216,14 @@ class AccountMove(models.Model):
             raise UserError(_("El tipo de contenido[content_type] no está configurado en la empresa."))
         return content
     # -----FIN
+
+    @api.onchange("partner_id")
+    def _onchange_partner_id_set_journal(self):
+        """Al seleccionar el cliente, sugerir el diario definido en el cliente."""
+        if self.partner_id and self.partner_id.journal_id:
+            # Solo asigna si no hay diario aún o si quieres sobreescribir
+            if not self.journal_id:
+                self.journal_id = self.partner_id.journal_id
 
     @api.depends('invoice_date')
     def _compute_invoice_time(self):
@@ -459,8 +466,9 @@ class AccountMove(models.Model):
                 raise UserError(_("Configure Código de Establecimiento en diario '%s'.") % journal.name)
 
             tipo = journal.sit_tipo_documento.codigo
+            punto_venta = journal.sit_codpuntoventa
             estable = journal.sit_codestable
-            _logger.info("SIT tipo documento: %s, cod estable: %s", tipo, estable)
+            _logger.info("SIT tipo documento: %s, cod estable: %s, punto venta. %s", tipo, estable, punto_venta)
 
             if not journal.sequence_id:
                 raise UserError(_("Configure la secuencia en el diario '%s'.") % journal.name)
@@ -470,14 +478,15 @@ class AccountMove(models.Model):
 
             # Los placeholders tipo/estable se sustituyen desde el contexto
             dte_param_tipo = config_utils.get_config_value(self.env, 'dte_prefix_tipo', self.company_id.id)  # 'dte'
+            dte_param_puntoventa = config_utils.get_config_value(self.env, 'dte_prefix_puntoVenta', self.company_id.id)  # 'puntoVenta'
             dte_param_estable = config_utils.get_config_value(self.env, 'dte_prefix_codEstable', self.company_id.id)  # 'estable'
-            _logger.info("SIT Parametros numero de control= tipo dte: %s(%s), cod estable: %s(%s)", dte_param_tipo, tipo, dte_param_estable, estable)
+            _logger.info("SIT Parametros numero de control= tipo dte: %s(%s), cod estable: %s(%s), punto venta: %s(%s)", dte_param_tipo, tipo, dte_param_estable, estable, dte_param_puntoventa, punto_venta)
 
-            if not dte_param_tipo or not dte_param_estable:
+            if not dte_param_tipo or not dte_param_estable or not dte_param_puntoventa:
                 raise UserError(_("Configure los parámetros de la plantilla de prefijo DTE para la empresa '%s'.") % self.company_id.name)
 
             # Enviar parametros del prefijo de la secuencia
-            ctx = {dte_param_tipo: tipo, dte_param_estable: estable}
+            ctx = {dte_param_tipo: tipo, dte_param_puntoventa:punto_venta, dte_param_estable: estable}
             prefix_rendered = None
             res = sequence.with_context(**ctx)._get_prefix_suffix()
             if isinstance(res, tuple):
@@ -855,7 +864,7 @@ class AccountMove(models.Model):
 
         # 2) Facturas que sí aplican a DTE
         for invoice in invoices_to_post:
-
+            documento_firmado = None
             # Si el dte ya está posteado, no seguimos
             if invoice.state == "posted":
                 _logger.warning("El documento ID %s ya está en estado 'publicado', se omite el reproceso." % invoice.id)
@@ -968,234 +977,236 @@ class AccountMove(models.Model):
                     payload = invoice.obtener_payload(ambiente, sit_tipo_documento)
 
                     # Firmar el documento y generar el DTE
-                    try:
-                        documento_firmado = invoice.firmar_documento(ambiente, payload)
-                        _logger.info("Documento firmado: %s", documento_firmado)
-                    except Exception as e:
-                        _logger.error("Error al firmar documento: %s", e)
-                        raise
-
-                    if not documento_firmado:
-                        raise UserError("Error en firma del documento")
-
-                    if documento_firmado:
-                        _logger.info("SIT Firmado de documento")
-                        payload_dte = invoice.sit_obtener_payload_dte_info(ambiente, documento_firmado)
-                        self.check_parametros_dte(payload_dte)
-
-                        # Intentar generar el DTE
-                        Resultado = invoice.generar_dte(ambiente, payload_dte, payload)
-                        _logger.warning("SIT Resultado. =%s, estado=%s", Resultado, Resultado.get('estado', ''))
-
-                        # Si el resp es un rechazo por número de control
-                        if not ambiente_test and isinstance(Resultado, dict) and Resultado.get('estado', '').strip().lower() == 'rechazado' and Resultado.get('codigoMsg') == '004':
-                            descripcion = Resultado.get('descripcionMsg', '')
-                            _logger.warning("SIT Descripcion error: %s", descripcion)
-                            if 'identificacion.numerocontrol' in descripcion.lower():
-                                _logger.warning("SIT DTE rechazado por número de control duplicado. Generando nuevo número.")
-
-                                # Generar nuevo número de control
-                                nuevo_nombre = invoice._generate_dte_name(actualizar_secuencia=True)
-                                # Verifica si el nuevo nombre es diferente antes de actualizar
-                                if nuevo_nombre != invoice.name:
-                                    _logger.info("SIT Actualizando nombre DTE: %s a %s", invoice.name, nuevo_nombre)
-                                    invoice.write({'name': nuevo_nombre})  # Actualiza el nombre
-                                    invoice.sequence_number = int(nuevo_nombre.split("-")[-1])
-                                    _logger.info("SIT name actualizado: %s | sequence number: %s", invoice.name, invoice.sequence_number)
-
-                                    # Forzar un commit explícito a la base de datos
-                                    invoice._cr.commit()
-                                else:
-                                    _logger.info("SIT El nombre ya está actualizado, no se requiere escribir.")
-
-                                # Reemplazar numeroControl en el payload original
-                                payload['dteJson']['identificacion']['numeroControl'] = nuevo_nombre
-
-                                # Volver a firmar con el nuevo número
-                                documento_firmado = invoice.firmar_documento(ambiente, payload)
-                                if not documento_firmado:
-                                    raise UserError(
-                                        _('SIT Documento NO Firmado después de reintento con nuevo número de control'))
-
-                                # Intentar nuevamente generar el DTE
-                                payload_dte = invoice.sit_obtener_payload_dte_info(ambiente, documento_firmado)
-                                self.check_parametros_dte(payload_dte)
-                                Resultado = invoice.generar_dte(ambiente, payload_dte, payload)
-
-                        # Guardar json generado
-                        json_dte = payload['dteJson']
-                        _logger.info("Tipo de dteJson: %s | SIT JSON=%s", type(json_dte), json_dte)
-
-                        # Solo serializar si no es string
+                    if not ambiente_test:
                         try:
-                            if isinstance(json_dte, str):
-                                try:
-                                    json_dte = json.loads(json_dte) # Verifica si es un JSON string válido, y lo convierte a dict
-                                except json.JSONDecodeError:
-                                    invoice.sit_json_respuesta = json_dte # Ya era string, pero no era JSON válido -> guardar tal cual
-                                else:
-                                    invoice.sit_json_respuesta = json.dumps(_sanitize(json_dte), ensure_ascii=False) # Era un JSON string válido → ahora es dict
-                            elif isinstance(json_dte, dict):
-                                invoice.sit_json_respuesta = json.dumps(_sanitize(json_dte), ensure_ascii=False)
-                            else:
-                                # Otro tipo de dato no esperado
-                                invoice.sit_json_respuesta = str(json_dte)
+                            documento_firmado = invoice.firmar_documento(ambiente, payload)
+                            _logger.info("Documento firmado: %s", documento_firmado)
                         except Exception as e:
-                            _logger.warning("No se pudo guardar el JSON del DTE: %s", e)
+                            _logger.error("Error al firmar documento: %s", e)
+                            raise
 
-                        estado = None
-                        if Resultado and Resultado.get('estado'):
-                            estado = Resultado['estado'].strip().lower()
+                        if not documento_firmado:
+                            raise UserError("Error en firma del documento")
 
-                        if Resultado and Resultado.get('estado', '').lower() == 'procesado':  # if Resultado:
-                            invoice.actualizar_secuencia()
+                    # if documento_firmado:
+                    _logger.info("SIT Firmado de documento")
+                    payload_dte = invoice.sit_obtener_payload_dte_info(ambiente, documento_firmado)
+                    self.check_parametros_dte(payload_dte, ambiente_test)
 
-                            _logger.info("SIT Resultado DTE | Estado DTE: %s", estado)
-                            # Fecha de procesamiento
-                            #fh_procesamiento = Resultado['fhProcesamiento'] if Resultado and Resultado['fhProcesamiento'] and not ambiente_test else self.invoice_time
-                            fh_procesamiento = None
-                            if Resultado and Resultado.get('fhProcesamiento') and not ambiente_test:
-                                fh_procesamiento = Resultado.get('fhProcesamiento')
-                            if not fh_procesamiento:
-                                fh_procesamiento = self.invoice_time
+                    # Intentar generar el DTE
+                    Resultado = invoice.generar_dte(ambiente, payload_dte, payload, ambiente_test)
+                    _logger.warning("SIT Resultado. =%s, estado=%s", Resultado, Resultado.get('estado', ''))
 
-                            _logger.info("SIT Fecha factura=%s", fh_procesamiento)
-                            if fh_procesamiento:
-                                try:
-                                    fh_dt = datetime.strptime(fh_procesamiento, '%d/%m/%Y %H:%M:%S') + timedelta(hours=6)
-                                    if not invoice.fecha_facturacion_hacienda:
-                                        invoice.fecha_facturacion_hacienda = fh_dt
-                                except Exception as e:
-                                    _logger.warning("Error al parsear fhProcesamiento: %s", e)
-                            _logger.info("SIT Fecha facturacion=%s", invoice.fecha_facturacion_hacienda)
+                    # Si el resp es un rechazo por número de control
+                    if not ambiente_test and isinstance(Resultado, dict) and Resultado.get('estado', '').strip().lower() == 'rechazado' and Resultado.get('codigoMsg') == '004':
+                        descripcion = Resultado.get('descripcionMsg', '')
+                        _logger.warning("SIT Descripcion error: %s", descripcion)
+                        if 'identificacion.numerocontrol' in descripcion.lower():
+                            _logger.warning("SIT DTE rechazado por número de control duplicado. Generando nuevo número.")
 
-                            if ambiente_test:
-                                invoice.write({
-                                    'hacienda_estado': Resultado.get('estado'),
-                                    'hacienda_descripcionMsg': Resultado.get('descripcionMsg'),
-                                    'hacienda_observaciones': str(Resultado.get('observaciones', '')),
-                                    'state': 'posted',  # <-- ¡Actualizamos el estado!
-                                    'recibido_mh': True,
-                                })
-                                # Si no manejas el caso de éxito para el entorno de prueba, la ejecución continúa,
-                                # pero el estado ya está actualizado. Puedes agregar un `return` para salir aquí si es el final de la ejecución.
+                            # Generar nuevo número de control
+                            nuevo_nombre = invoice._generate_dte_name(actualizar_secuencia=True)
+                            # Verifica si el nuevo nombre es diferente antes de actualizar
+                            if nuevo_nombre != invoice.name:
+                                _logger.info("SIT Actualizando nombre DTE: %s a %s", invoice.name, nuevo_nombre)
+                                invoice.write({'name': nuevo_nombre})  # Actualiza el nombre
+                                invoice.sequence_number = int(nuevo_nombre.split("-")[-1])
+                                _logger.info("SIT name actualizado: %s | sequence number: %s", invoice.name, invoice.sequence_number)
 
-                            # Procesar la respuesta de Hacienda
-                            if not ambiente_test:
-                                invoice.hacienda_estado = Resultado['estado']
-                                invoice.hacienda_codigoGeneracion_identificacion = self.hacienda_codigoGeneracion_identificacion
-                                _logger.info("Codigo de generacion session: %s, codigo generacion bd: %s", self.hacienda_codigoGeneracion_identificacion, invoice.hacienda_codigoGeneracion_identificacion)
-                                invoice.hacienda_selloRecibido = Resultado['selloRecibido']
-                                invoice.hacienda_clasificaMsg = Resultado['clasificaMsg']
-                                invoice.hacienda_codigoMsg = Resultado['codigoMsg']
-                                invoice.hacienda_descripcionMsg = Resultado['descripcionMsg']
-                                invoice.hacienda_observaciones = str(Resultado['observaciones'])
+                                # Forzar un commit explícito a la base de datos
+                                invoice._cr.commit()
+                            else:
+                                _logger.info("SIT El nombre ya está actualizado, no se requiere escribir.")
 
-                                codigo_qr = invoice._generar_qr(ambiente, self.hacienda_codigoGeneracion_identificacion, invoice.fecha_facturacion_hacienda)
-                                invoice.sit_qr_hacienda = codigo_qr
+                            # Reemplazar numeroControl en el payload original
+                            payload['dteJson']['identificacion']['numeroControl'] = nuevo_nombre
+
+                            # Volver a firmar con el nuevo número
+                            documento_firmado = invoice.firmar_documento(ambiente, payload)
+                            if not documento_firmado:
+                                raise UserError(
+                                    _('SIT Documento NO Firmado después de reintento con nuevo número de control'))
+
+                            # Intentar nuevamente generar el DTE
+                            payload_dte = invoice.sit_obtener_payload_dte_info(ambiente, documento_firmado)
+                            self.check_parametros_dte(payload_dte, ambiente_test)
+                            Resultado = invoice.generar_dte(ambiente, payload_dte, payload, ambiente_test)
+
+                    # Guardar json generado
+                    json_dte = payload['dteJson']
+                    _logger.info("Tipo de dteJson: %s | SIT JSON=%s", type(json_dte), json_dte)
+
+                    # Solo serializar si no es string
+                    try:
+                        if isinstance(json_dte, str):
+                            try:
+                                json_dte = json.loads(json_dte) # Verifica si es un JSON string válido, y lo convierte a dict
+                            except json.JSONDecodeError:
+                                invoice.sit_json_respuesta = json_dte # Ya era string, pero no era JSON válido -> guardar tal cual
+                            else:
+                                invoice.sit_json_respuesta = json.dumps(_sanitize(json_dte), ensure_ascii=False) # Era un JSON string válido → ahora es dict
+                        elif isinstance(json_dte, dict):
+                            invoice.sit_json_respuesta = json.dumps(_sanitize(json_dte), ensure_ascii=False)
+                        else:
+                            # Otro tipo de dato no esperado
+                            invoice.sit_json_respuesta = str(json_dte)
+                    except Exception as e:
+                        _logger.warning("No se pudo guardar el JSON del DTE: %s", e)
+
+                    estado = None
+                    if Resultado and Resultado.get('estado'):
+                        estado = Resultado['estado'].strip().lower()
+
+                    if Resultado and Resultado.get('estado', '').lower() == 'procesado':  # if Resultado:
+                        invoice.actualizar_secuencia()
+
+                        _logger.info("SIT Resultado DTE | Estado DTE: %s", estado)
+                        # Fecha de procesamiento
+                        #fh_procesamiento = Resultado['fhProcesamiento'] if Resultado and Resultado['fhProcesamiento'] and not ambiente_test else self.invoice_time
+                        fh_procesamiento = None
+                        if Resultado and Resultado.get('fhProcesamiento') and not ambiente_test:
+                            fh_procesamiento = Resultado.get('fhProcesamiento')
+                        if not fh_procesamiento:
+                            fh_procesamiento = self.invoice_time
+
+                        _logger.info("SIT Fecha factura=%s", fh_procesamiento)
+                        if fh_procesamiento:
+                            try:
+                                fh_dt = datetime.strptime(fh_procesamiento, '%d/%m/%Y %H:%M:%S') + timedelta(hours=6)
+                                if not invoice.fecha_facturacion_hacienda:
+                                    invoice.fecha_facturacion_hacienda = fh_dt
+                            except Exception as e:
+                                _logger.warning("Error al parsear fhProcesamiento: %s", e)
+                        _logger.info("SIT Fecha facturacion=%s", invoice.fecha_facturacion_hacienda)
+
+                        if ambiente_test:
+                            invoice.write({
+                                'hacienda_estado': Resultado.get('estado'),
+                                'hacienda_descripcionMsg': Resultado.get('descripcionMsg'),
+                                'hacienda_observaciones': str(Resultado.get('observaciones', '')),
+                                'state': 'posted',  # <-- ¡Actualizamos el estado!
+                            })
+                            # Si no manejas el caso de éxito para el entorno de prueba, la ejecución continúa,
+                            # pero el estado ya está actualizado. Puedes agregar un `return` para salir aquí si es el final de la ejecución.
+
+                        # Procesar la respuesta de Hacienda
+                        if not ambiente_test:
+                            invoice.hacienda_estado = Resultado['estado']
+                            invoice.hacienda_codigoGeneracion_identificacion = self.hacienda_codigoGeneracion_identificacion
+                            _logger.info("Codigo de generacion session: %s, codigo generacion bd: %s", self.hacienda_codigoGeneracion_identificacion, invoice.hacienda_codigoGeneracion_identificacion)
+                            invoice.hacienda_selloRecibido = Resultado['selloRecibido']
+                            invoice.hacienda_clasificaMsg = Resultado['clasificaMsg']
+                            invoice.hacienda_codigoMsg = Resultado['codigoMsg']
+                            invoice.hacienda_descripcionMsg = Resultado['descripcionMsg']
+                            invoice.hacienda_observaciones = str(Resultado['observaciones'])
+
+                            codigo_qr = invoice._generar_qr(ambiente, self.hacienda_codigoGeneracion_identificacion, invoice.fecha_facturacion_hacienda)
+                            invoice.sit_qr_hacienda = codigo_qr
+
+                        if documento_firmado:
                             invoice.sit_documento_firmado = documento_firmado
 
-                            # —————————————————————————————————————————————
-                            # C) Guardar DTE
-                            # —————————————————————————————————————————————
+                        # —————————————————————————————————————————————
+                        # C) Guardar DTE
+                        # —————————————————————————————————————————————
 
-                            # Guardar archivo .json
-                            json_str = json.dumps(payload['dteJson'], ensure_ascii=False, default=str)
-                            json_base64 = base64.b64encode(json_str.encode('utf-8'))
-                            file_name = payload['dteJson']["identificacion"]["numeroControl"] + '.json'
-                            invoice.env['ir.attachment'].sudo().create({
-                                'name': file_name,
-                                'datas': json_base64,
-                                'res_model': self._name,
-                                'res_id': invoice.id,
-                                'mimetype': str(config_utils.get_config_value(self.env, 'content_type', self.company_id.id))
-                                # 'application/json'
-                            })
-                            _logger.info("SIT JSON creado y adjuntado.")
+                        # Guardar archivo .json
+                        json_str = json.dumps(payload['dteJson'], ensure_ascii=False, default=str)
+                        json_base64 = base64.b64encode(json_str.encode('utf-8'))
+                        file_name = payload['dteJson']["identificacion"]["numeroControl"] + '.json'
+                        invoice.env['ir.attachment'].sudo().create({
+                            'name': file_name,
+                            'datas': json_base64,
+                            'res_model': self._name,
+                            'res_id': invoice.id,
+                            'mimetype': str(config_utils.get_config_value(self.env, 'content_type', self.company_id.id))
+                            # 'application/json'
+                        })
+                        _logger.info("SIT JSON creado y adjuntado.")
 
-                            # Respuesta json
-                            if not ambiente_test:
-                                json_response_data = {
-                                    "jsonRespuestaMh": Resultado
-                                }
-                                # Convertir el JSON en el campo sit_json_respuesta a un diccionario de Python
-                                try:
-                                    json_original = json.loads(
-                                        invoice.sit_json_respuesta) if invoice.sit_json_respuesta else {}
-                                except json.JSONDecodeError:
-                                    json_original = {}
-
-                                # Fusionar JSONs
-                                json_original.update(json_response_data)
-                                sit_json_respuesta_fusionado = json.dumps(json_original)
-                                invoice.sit_json_respuesta = sit_json_respuesta_fusionado
-
-                                _logger.info("Codigo de generacion resultado: %s", Resultado['codigoGeneracion'])
-                                invoice.write({
-                                    'hacienda_estado': Resultado['estado'],
-                                    'hacienda_codigoGeneracion_identificacion': Resultado['codigoGeneracion'],
-                                    'hacienda_selloRecibido': Resultado['selloRecibido'],
-                                    'hacienda_clasificaMsg': Resultado['clasificaMsg'],
-                                    'hacienda_codigoMsg': Resultado['codigoMsg'],
-                                    'hacienda_descripcionMsg': Resultado['descripcionMsg'],
-                                    'hacienda_observaciones': str(Resultado.get('observaciones', '')),
-                                    'state': 'posted',
-                                    'recibido_mh': True,
-                                })
-                            else:
-                                invoice.write({
-                                    'state': 'posted',
-                                })
-                            _logger.info("SIT Estado registro= %s.", invoice.state)
-
-                            self.message_post(
-                                body=_("Documento procesado correctamente por Hacienda.")
-                            )
-
-                            # Guardar archivo .pdf y enviar correo al cliente
-                            try:
-                                self.with_context(from_button=False, from_invalidacion=False).sit_enviar_correo_dte_automatico()
-                            except Exception as e:
-                                _logger.warning("SIT | Error al enviar DTE por correo o generar PDF: %s", str(e))
-
-                            return {
-                                'type': 'ir.actions.client',
-                                'tag': 'display_notification',
-                                'params': {
-                                    'title': 'DTE procesado correctamente',
-                                    'message': 'El documento ha sido recibido y sellado por Hacienda.',
-                                    'type': 'success',
-                                    'sticky': False,
-                                }
+                        # Respuesta json
+                        if not ambiente_test:
+                            json_response_data = {
+                                "jsonRespuestaMh": Resultado
                             }
+                            # Convertir el JSON en el campo sit_json_respuesta a un diccionario de Python
+                            try:
+                                json_original = json.loads(
+                                    invoice.sit_json_respuesta) if invoice.sit_json_respuesta else {}
+                            except json.JSONDecodeError:
+                                json_original = {}
 
-                        if isinstance(Resultado, dict) and Resultado.get('type') == 'ir.actions.client':
-                            mensajes_contingencia.append(Resultado)
+                            # Fusionar JSONs
+                            json_original.update(json_response_data)
+                            sit_json_respuesta_fusionado = json.dumps(json_original)
+                            invoice.sit_json_respuesta = sit_json_respuesta_fusionado
+
+                            _logger.info("Codigo de generacion resultado: %s", Resultado['codigoGeneracion'])
+                            invoice.write({
+                                'hacienda_estado': Resultado['estado'],
+                                'hacienda_codigoGeneracion_identificacion': Resultado['codigoGeneracion'],
+                                'hacienda_selloRecibido': Resultado['selloRecibido'],
+                                'hacienda_clasificaMsg': Resultado['clasificaMsg'],
+                                'hacienda_codigoMsg': Resultado['codigoMsg'],
+                                'hacienda_descripcionMsg': Resultado['descripcionMsg'],
+                                'hacienda_observaciones': str(Resultado.get('observaciones', '')),
+                                'state': 'posted',
+                                'recibido_mh': True,
+                            })
                         else:
-                            _logger.info("=== SIT Error en DTE")
-                            # Lanzar error al final si fue rechazado
-                            if estado:
-                                _logger.info("SIT Estado DTE guardado: %s", estado)
-                                if estado == 'rechazado':
-                                    invoice.hacienda_estado = estado
-                                    mensaje = Resultado['descripcionMsg'] or _('Documento rechazado por Hacienda.')
-                                    mensaje_completo = _(
-                                        "DTE rechazado por MH:\n"
-                                        "Número de control: %s\n"
-                                        "%s\n\n"
-                                        "Por favor, vuelva a confirmar el documento."
-                                    ) % (invoice.name, mensaje)
-                                    invoice.write({'state': 'draft'})
-                                    self.env.cr.commit()
-                                    raise UserError(mensaje_completo)
-                                elif estado not in ('procesado', ''):
-                                    invoice.hacienda_estado = estado
-                                    mensaje = Resultado.get('descripcionMsg') or _('DTE no procesado correctamente')
-                                    raise UserError(_("Respuesta inesperada de Hacienda. Estado: %s\nMensaje: %s") % (estado, mensaje))
+                            invoice.write({
+                                'state': 'posted',
+                            })
+                        _logger.info("SIT Estado registro= %s.", invoice.state)
 
-                        # 2) Validar formato
-                        if not invoice.name.startswith("DTE-"):
-                            raise UserError(_("Número de control DTE inválido para la factura %s.") % invoice.id)
+                        self.message_post(
+                            body=_("Documento procesado correctamente por Hacienda.")
+                        )
+
+                        # Guardar archivo .pdf y enviar correo al cliente
+                        try:
+                            self.with_context(from_button=False, from_invalidacion=False).sit_enviar_correo_dte_automatico()
+                        except Exception as e:
+                            _logger.warning("SIT | Error al enviar DTE por correo o generar PDF: %s", str(e))
+
+                        return {
+                            'type': 'ir.actions.client',
+                            'tag': 'display_notification',
+                            'params': {
+                                'title': 'DTE procesado correctamente',
+                                'message': 'El documento ha sido recibido y sellado por Hacienda.',
+                                'type': 'success',
+                                'sticky': False,
+                            }
+                        }
+
+                    if isinstance(Resultado, dict) and Resultado.get('type') == 'ir.actions.client':
+                        mensajes_contingencia.append(Resultado)
+                    else:
+                        _logger.info("=== SIT Error en DTE")
+                        # Lanzar error al final si fue rechazado
+                        if estado:
+                            _logger.info("SIT Estado DTE guardado: %s", estado)
+                            if estado == 'rechazado':
+                                invoice.hacienda_estado = estado
+                                mensaje = Resultado['descripcionMsg'] or _('Documento rechazado por Hacienda.')
+                                mensaje_completo = _(
+                                    "DTE rechazado por MH:\n"
+                                    "Número de control: %s\n"
+                                    "%s\n\n"
+                                    "Por favor, vuelva a confirmar el documento."
+                                ) % (invoice.name, mensaje)
+                                invoice.write({'state': 'draft'})
+                                self.env.cr.commit()
+                                raise UserError(mensaje_completo)
+                            elif estado not in ('procesado', ''):
+                                invoice.hacienda_estado = estado
+                                mensaje = Resultado.get('descripcionMsg') or _('DTE no procesado correctamente')
+                                raise UserError(_("Respuesta inesperada de Hacienda. Estado: %s\nMensaje: %s") % (estado, mensaje))
+
+                    # 2) Validar formato
+                    if not invoice.name.startswith("DTE-"):
+                        raise UserError(_("Número de control DTE inválido para la factura %s.") % invoice.id)
             except UserError:
                 # Si el error es un UserError (como el que lanzas en sit_ccf_base_map_invoice_info_resumen),
                 # Odoo lo manejará y mostrará el mensaje en una ventana emergente.
@@ -1413,7 +1424,7 @@ class AccountMove(models.Model):
         return invoice_info
 
     # FRANCISCO # SE OBTIENE EL JWT Y SE ENVIA A HACIENDA PARA SU VALIDACION
-    def generar_dte(self, environment_type, payload, payload_original):
+    def generar_dte(self, environment_type, payload, payload_original, ambiente_test):
         """
         1) Refresca el token si caducó.
         2) Si no hay JWT en payload['documento'], llama al firmador.
@@ -1431,20 +1442,25 @@ class AccountMove(models.Model):
         max_intentos = 3
         url_receive = None
         dte_json = None
-        ambiente_test = False
         # ——— 1) Selección de URL de Hacienda ———
         # url rest = "https://apitest.dtes.mh.gob.sv"
         # url prod = "https://api.dtes.mh.gob.sv"
-
-        if config_utils:
-            ambiente_test = config_utils._compute_validation_type_2(self.env, self.company_id)
         _logger.info("SIT Tipo de entorno[Ambiente]: %s", ambiente_test)
 
         # Validar y parsear dteJson si es string
-        dte_json_raw = payload_original.get("dteJson")
+        # dte_json_raw = payload_original.get("dteJson")
 
-        if not dte_json_raw or not str(dte_json_raw).strip():
-            _logger.error("El JSON del DTE está vacío o inválido")
+        # if not dte_json_raw or not str(dte_json_raw).strip():
+        #     _logger.error("El JSON del DTE está vacío o inválido")
+        #     raise UserError("El JSON del DTE está vacío o inválido")
+
+        # Obtener el JSON real del DTE
+        if "dteJson" in payload_original and payload_original["dteJson"]:
+            dte_json_raw = payload_original["dteJson"]
+        elif payload_original:
+            # Caso cuando el JSON ya viene completo en payload_original
+            dte_json_raw = payload_original
+        else:
             raise UserError("El JSON del DTE está vacío o inválido")
 
         if isinstance(dte_json_raw, str):
@@ -1502,38 +1518,41 @@ class AccountMove(models.Model):
         }
 
         # ——— 3) Obtener o firmar el JWT ———
-        jwt_token = payload.get("documento")
-        url = config_utils.get_config_value(self.env, 'url_firma', self.company_id.id)
-        if not url:
-            _logger.error("SIT | No se encontró 'url_firma' en la configuración para la compañía ID %s", self.company_id.id)
-            raise UserError(_("La URL de firma no está configurada en la empresa."))
-        if not (isinstance(jwt_token, str) and jwt_token.strip()):
-            firmador_url = (
-                    getattr(self.company_id, "sit_firmador", None)
-                    or url
-            )
-            sign_payload = {
-                "nit": dte_json["emisor"]["nit"],
-                "activo": True,
-                "passwordPri": payload_original.get("passwordPri")
-                               or self.company_id.sit_passwordPri
-                               or dte_json.get("passwordPri"),
-                "dteJson": dte_json,
-            }
-            try:
-                resp_sign = requests.post(firmador_url, headers={"Content-Type": "application/json"}, json=sign_payload, timeout=30)
-                resp_sign.raise_for_status()
-                data_sign = resp_sign.json()
-                if data_sign.get("status") != "OK":
-                    # raise UserError(_("Firma rechazada: %s – %s") % (data_sign.get("status"), data_sign.get("message", "")))
-                    return data_sign
-                jwt_token = data_sign["body"]
-            except Exception as e:
-                _logger.warning("Error al firmar el documento: %s", e)
-                return {
-                    "estado": "ERROR_FIRMA",
-                    "mensaje": str(e),
+        jwt_token = None
+        url = None
+        if not ambiente_test:
+            jwt_token = payload.get("documento")
+            url = config_utils.get_config_value(self.env, 'url_firma', self.company_id.id)
+            if not url:
+                _logger.error("SIT | No se encontró 'url_firma' en la configuración para la compañía ID %s", self.company_id.id)
+                raise UserError(_("La URL de firma no está configurada en la empresa."))
+            if not (isinstance(jwt_token, str) and jwt_token.strip()):
+                firmador_url = (
+                        getattr(self.company_id, "sit_firmador", None)
+                        or url
+                )
+                sign_payload = {
+                    "nit": dte_json["emisor"]["nit"],
+                    "activo": True,
+                    "passwordPri": payload_original.get("passwordPri")
+                                   or self.company_id.sit_passwordPri
+                                   or dte_json.get("passwordPri"),
+                    "dteJson": dte_json,
                 }
+                try:
+                    resp_sign = requests.post(firmador_url, headers={"Content-Type": "application/json"}, json=sign_payload, timeout=30)
+                    resp_sign.raise_for_status()
+                    data_sign = resp_sign.json()
+                    if data_sign.get("status") != "OK":
+                        # raise UserError(_("Firma rechazada: %s – %s") % (data_sign.get("status"), data_sign.get("message", "")))
+                        return data_sign
+                    jwt_token = data_sign["body"]
+                except Exception as e:
+                    _logger.warning("Error al firmar el documento: %s", e)
+                    return {
+                        "estado": "ERROR_FIRMA",
+                        "mensaje": str(e),
+                    }
 
         # ——— 4) Construir el payload para Hacienda ———
         ident = dte_json["identificacion"] if dte_json["identificacion"] else NotImplemented
@@ -1552,15 +1571,54 @@ class AccountMove(models.Model):
         for intento in range(1, max_intentos + 1):
             _logger.info(f"Intento {intento} de {max_intentos} para enviar DTE a Hacienda")
             if ambiente_test:
-                _logger.info("SIT Ambiente de pruebas, se omite envío a Hacienda y se simula respuesta exitosa.")
-                return {
+                # Simular parámetros para _crear_contingencia
+                resp_test = type("RespSimulado", (), {"status_code": 200, "text": "Simulación de prueba"})()
+                data_test = {
+                    "estado": "PROCESADO",
+                    "clasificaMsg": "00",
+                    "codigoMsg": "000",
+                    "descripcionMsg": "Simulación de contingencia en pruebas",
+                    "observaciones": ["Prueba de contingencia"]
+                }
+                mensaje_test = "Simulación de contingencia en ambiente de prueba"
+
+                resultado_contingencia = {}
+                _logger.info(f"Es contingencia?: {self.sit_es_configencia}")
+                if self.sit_es_configencia:
+                    resultado_contingencia = self._crear_contingencia(resp_test, data_test, mensaje_test) or {}
+
+                # Construir resultado final combinando ambiente_test + contingencia
+                resultado_final = {
                     "codigoMsg": "000",
                     "descripcionMsg": "Ambiente de pruebas, no se envió a MH",
                     "observaciones": ["Simulación de éxito en pruebas"],
-                    "es_test": True,  # 👈 indica que fue ambiente de prueba
+                    "es_test": True,
                     "estado": "PROCESADO",
                 }
 
+                # Unimos la info de contingencia si existe
+                if resultado_contingencia:
+                    resultado_final.update({
+                        "contingencia_title": resultado_contingencia.get('title'),
+                        "contingencia_message": resultado_contingencia.get('message'),
+                        "contingencia_type": resultado_contingencia.get('type'),
+                    })
+
+                    # Si la contingencia requiere notificación, devolvemos acción cliente
+                    if resultado_contingencia.get('notificar'):
+                        return {
+                            'type': 'ir.actions.client',
+                            'tag': 'display_notification',
+                            'params': {
+                                'title': resultado_contingencia.get('title', 'Información'),
+                                'message': resultado_contingencia.get('message', ''),
+                                'type': resultado_contingencia.get('type', 'info'),
+                                'sticky': False,
+                            }
+                        }
+
+                _logger.info("SIT Ambiente de pruebas, se omite envío a Hacienda y se simula respuesta exitosa.")
+                return resultado_final
             resp = None
             try:
                 resp = requests.post(url_receive, headers=headers, json=send_payload, timeout=30)
@@ -1791,6 +1849,7 @@ class AccountMove(models.Model):
         return
 
     def check_parametros_firmado(self):
+        _logger.info("SIT-Hacienda_fe Validaciones parametros doc firmado")
         if not (self.company_id and self.company_id.sit_facturacion):
             _logger.info("SIT No aplica facturación electrónica. Se omite validación de parámetros de firmado.")
             return False
@@ -1846,23 +1905,28 @@ class AccountMove(models.Model):
             ERROR = 'La UNIDAD DE MEDIDA del producto  ' + line_temp["descripcion"] + ' no está definido.'
             raise UserError(_(ERROR))
 
-    def check_parametros_dte(self, generacion_dte):
+    def check_parametros_dte(self, generacion_dte, ambiente_test):
+        _logger.info("SIT-Hacienda_fe Validaciones check_parametros_dte")
         if not (self.company_id and self.company_id.sit_facturacion):
             _logger.info("SIT No aplica facturación electrónica. Se omite validación de parámetros DTE.")
             return False
 
+        if not generacion_dte["ambiente"]:
+            raise UserError(_('El ambiente  no está definido.'))
         if not generacion_dte["idEnvio"]:
             ERROR = 'El IDENVIO  no está definido.'
             raise UserError(_(ERROR))
         if not generacion_dte["tipoDte"]:
             ERROR = 'El tipoDte  no está definido.'
             raise UserError(_(ERROR))
-        if not generacion_dte["documento"]:
+        if not ambiente_test and not generacion_dte["documento"]:
             ERROR = 'El DOCUMENTO  no está presente.'
             raise UserError(_(ERROR))
         if not generacion_dte["codigoGeneracion"]:
             ERROR = 'El codigoGeneracion  no está definido.'
             raise UserError(_(ERROR))
+        if not generacion_dte["version"]:
+            raise UserError(_('La version dte no está definida.'))
         return True
 
     def _evaluar_error_contingencia(self, status_code, origen="desconocido"):
@@ -2044,6 +2108,7 @@ class AccountMove(models.Model):
                 'sit_tipo_contingencia': tipo_contingencia.id if tipo_contingencia else False,
                 'contingencia_activa': True,
                 'sit_usar_lotes': usar_lotes,
+                'hacienda_codigoGeneracion_identificacion': self.sit_generar_uuid(),
             })
 
             if usar_lotes:
