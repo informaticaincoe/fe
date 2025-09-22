@@ -28,6 +28,7 @@
         "data/res.configuration.csv",
         "data/dte_config.xml",
         "views/res_partner_view_journal.xml",
+        "views/view_journal_sale_order.xml",
     ],
     "demo": [],
     "images": [],

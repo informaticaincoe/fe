@@ -13,6 +13,7 @@
         "contacts",
         #"web"
         # TODO this module should be merged with l10n_ar_afipws_fe as the dependencies are the same
+        "account",
     ],
     # "external_dependencies": {"python": ["pyafipws", "OpenSSL", "pysimplesoap"]},
     "data": [

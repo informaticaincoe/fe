@@ -68,6 +68,7 @@ class AccountMoveLine(models.Model):
     def _compute_precios_tipo_venta(self):
         for line in self:
 
+            _logger.info("SIT Producto: %s", line.product_id)
             if not line.product_id:
                 _logger.info("SIT Sin producto asignado, se omite la línea")
                 continue
