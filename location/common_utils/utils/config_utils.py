@@ -4,10 +4,21 @@ import logging
 _logger = logging.getLogger(__name__)
 
 import pytz
-import datetime
+# import datetime
+from datetime import datetime
+import pytz
 
 from odoo.exceptions import UserError
 from .constants import SCHEDULE_PAY_CONVERSION
+
+try:
+    from odoo.addons.common_utils.utils import config_utils
+    from odoo.addons.common_utils.utils import constants
+    _logger.info("SIT Modulo config_utils contingencia")
+except ImportError as e:
+    _logger.error(f"Error al importar 'config_utils' en modulo de contingencia: {e}")
+    config_utils = None
+
 
 def get_config_value(env, clave, company_id):
     """
@@ -31,7 +42,7 @@ def compute_validation_type_2(env):
 
     if not config or not config.value_text:
         _logger.warning("SIT No se encontró la clave 'ambiente' en res.configuration. Usando valor por defecto '00'")
-        return "00"
+        raise UserError("No se encontró la configuración del ambiente en la configuracion de empresa. Por favor verifique que exista la clave 'ambiente'.")
 
     ambiente = config.value_text.strip()
     _logger.info("SIT Valor ambiente desde res.configuration: %s", ambiente)
@@ -44,26 +55,27 @@ def compute_validation_type_2(env):
 
 def _compute_validation_type_2(env, company):
     """
-    Busca el tipo de entorno (production o pruebas) dependiendo del valor en res.configuration.
+    Busca el tipo de entorno (production o pruebas) dependiendo del valor en res.company.
     """
-    _logger.info("SIT Entrando a compute_validation_type_2 desde res.config.settings")
+    _logger.info("SIT Entrando a compute_validation_type_2 desde res.company")
     entorno_pruebas = False
 
-    config_settings = env["res.config.settings"].sudo().search([('company_id', '=', company.id)], order='id desc', limit=1)
-    if config_settings:
-        parameter_env_type = config_settings.afip_ws_env_type
-        if not parameter_env_type:
-            _logger.info("SIT No se encontró la selección del tipo de ambiente. Usando valor por defecto pruebas('00')")
-            return "00"
+    #config_settings = env["res.config.settings"].sudo().search([('company_id', '=', company.id)], order='id desc', limit=1)
+    config_settings_entorno = env["res.company"].sudo().search([('id', '=', company.id)], order='id desc', limit=1)
+    if config_settings_entorno:
+        parameter_env_type = config_settings_entorno.sit_entorno_test
+        # if not parameter_env_type:
+        #     _logger.info("SIT No se encontró el tipo de ambiente. Usando valor por defecto pruebas('00')")
+        #     return "00"
 
         _logger.info("SIT Valor ambiente desde res.config.settings: %s", parameter_env_type)
-        if parameter_env_type == "production":
+        if not parameter_env_type:
             entorno_pruebas = False
         else:
             entorno_pruebas = True
-    if not config_settings:
-        _logger.info("SIT No se encontro el tipo de entorno configurado: %s", config_settings)
-        raise UserError(_("No se encontró configuración de ambiente para la compañía %s. Por favor configure el tipo de ambiente en Configuración.") % company.name)
+    if not config_settings_entorno:
+        _logger.info("SIT No se encontro el tipo de entorno configurado: %s", config_settings_entorno)
+        raise UserError(_("No se encontró configuración de ambiente para la compañía %s. Por favor configure el tipo de entorno.") % company.name)
     return entorno_pruebas
 
 def get_fecha_emi():
@@ -208,3 +220,38 @@ def to_int(value, default=0):
         return int(value)
     except (TypeError, ValueError):
         return default
+
+def _get_fecha_procesamiento(self, fh_str=None, fmt='%d/%m/%Y %H:%M:%S'):
+    """
+    Devuelve un datetime válido para 'fecha de procesamiento'.
+    - Si fh_str está definido e interpretable, se convierte a datetime.
+    - Si fh_str no existe o es inválido, retorna la hora actual de El Salvador.
+    - Si tampoco se puede, usa create_date ajustado a la zona horaria de El Salvador.
+    """
+    salvador_tz = pytz.timezone('America/El_Salvador')
+
+    # 1) Si hay fecha de Hacienda, intentar parsear
+    if fh_str:
+        try:
+            fecha = datetime.strptime(fh_str, fmt)
+            _logger.info("Fecha de procesamiento válida recibida: %s", fecha)
+            return fecha
+        except Exception as e:
+            _logger.warning("No se pudo parsear fecha '%s': %s", fh_str, e)
+
+    # 2) Si no hay fh_str o falló, usar hora actual de El Salvador
+    try:
+        now_salvador = datetime.now(salvador_tz)
+        _logger.info("Usando hora actual de El Salvador como fecha de procesamiento: %s", now_salvador)
+        return now_salvador
+    except Exception as e:
+        _logger.warning("Error al obtener hora de El Salvador: %s", e)
+
+    # 3) Último fallback: usar create_date convertido a El Salvador
+    if hasattr(self, "create_date") and self.create_date:
+        create_date_salvador = self.create_date.astimezone(salvador_tz)
+        _logger.info("Usando create_date ajustado a El Salvador: %s", create_date_salvador)
+        return create_date_salvador
+
+    _logger.warning("No se pudo obtener ninguna fecha de procesamiento, devolviendo None")
+    return None

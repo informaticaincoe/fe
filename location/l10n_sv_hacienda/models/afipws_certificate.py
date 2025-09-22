@@ -31,6 +31,7 @@ _logger = logging.getLogger(__name__)
 
 
 class HaciendaCertificate(models.Model):
+
     _name = "afipws.certificate"
     _description = "afipws.certificate"
     _rec_name = "alias_id"
@@ -44,6 +45,9 @@ class HaciendaCertificate(models.Model):
         index=True,
         null=True
     )
+
+
+
     csr = fields.Text(
         "Request Certificate",
         readonly=True,

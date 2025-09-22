@@ -470,12 +470,14 @@ class sit_AccountContingencia(models.Model):
                 if not ambiente_test:
                     documento_firmado_contingencia = invoice.firmar_documento(validation_type, payload_contingencia)
 
-                payload_dte_contingencia = invoice.sit_obtener_payload_contingencia_dte_info(
-                    documento_firmado_contingencia)
+                    if not documento_firmado_contingencia:
+                        raise UserError("Error en firma del documento")
+
+                _logger.info("SIT Documento firmado: %s", documento_firmado_contingencia)
+                payload_dte_contingencia = invoice.sit_obtener_payload_contingencia_dte_info(documento_firmado_contingencia)
 
                 # self.check_parametros_dte(payload_dte)
-                Resultado = invoice.generar_dte_contingencia(validation_type, payload_dte_contingencia,
-                                                             payload_contingencia, ambiente_test)
+                Resultado = invoice.generar_dte_contingencia(validation_type, payload_dte_contingencia, payload_contingencia, ambiente_test)
                 if Resultado:
                     dat_time = None
                     fechaHora = None
@@ -728,7 +730,7 @@ class sit_AccountContingencia(models.Model):
             'Content-Type': 'application/json',
         }
 
-        _logger.info("SIT json =%s", payload)
+        _logger.info("SIT json =%s", payload_original)
         _logger.info("SIT contingencia  = requests.request(POST, %s, headers=%s, data=%s)", url, headers, payload)
 
         try:
