@@ -20,4 +20,3 @@ l10n_sv.access_account_move_incoterms_field,access.account.move.incoterms.field,
 l10n_sv.access_account_move_domicilio_fiscal_field,access.account.move.domicilio_fiscal.field,l10n_sv.model_account_move_domicilio_fiscal_field,base.group_user,1,1,0,0
 l10n_sv.access_account_journal_tipo_modelo_field,access.account.journal.tipo_modelo.field,l10n_sv.model_account_journal_tipo_modelo_field,base.group_user,1,1,1,1
 l10n_sv.access_account_move_tipo_operacion_field,access.account.move.tipo_operacion.field,l10n_sv.model_account_move_tipo_operacion_field,base.group_user,1,1,1,1
-access_account_move_anexo,access_account_move_anexo,account.model_account_move,account.group_account_user,1,1,1,1

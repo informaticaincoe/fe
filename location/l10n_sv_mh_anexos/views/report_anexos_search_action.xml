@@ -1,0 +1,20 @@
+<odoo>
+    <data>
+        <record id="view_anexos_fechas_search" model="ir.ui.view">
+            <field name="name">account.move.anexo.fechas.search</field>
+            <field name="model">account.move</field>
+            <field name="arch" type="xml">
+                <search string="Buscar por fecha">
+
+                    <filter name="este_mes" string="Este mes"
+                            domain="[('invoice_date','&gt;=', time.strftime('%%Y-%%m-01')),
+                                     ('invoice_date','&lt;=', time.strftime('%%Y-%%m-%d'))]"/>
+                    <field name="invoice_date" string="Fecha de Emisión"
+                           widget="date"/>
+
+
+                </search>
+            </field>
+        </record>
+    </data>
+</odoo>

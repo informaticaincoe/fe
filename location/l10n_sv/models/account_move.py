@@ -1,6 +1,16 @@
 # -*- coding: utf-8 -*-
 from odoo import fields, models, api
+import logging
 
+_logger = logging.getLogger(__name__)
+
+try:
+    from odoo.addons.common_utils.utils import config_utils
+    from odoo.addons.common_utils.utils import constants
+    _logger.info("SIT Modulo config_utils [hacienda ws-account_move]")
+except ImportError as e:
+    _logger.error(f"Error al importar 'config_utils': {e}")
+    config_utils = None
 
 class sit_account_move(models.Model):
     
@@ -29,11 +39,82 @@ class sit_account_move(models.Model):
         store=True
     )
 
+    hacienda_estado = fields.Text("Hacienda Estado")
+    amount_tax = fields.Float("amount_tax")
+
+    anexo_type = fields.Selection([
+        ("consumidor_final", "Consumidor Final"),
+        ("credito_fiscal", "Crédito Fiscal"),
+        ("exportacion", "Exportación"),
+    ], string="Tipo de Anexo - Hacienda")
+
+    invoice_month = fields.Char(
+        string="Mes",
+        compute='_compute_invoice_month',
+        store=False
+    )
+
+    @api.depends('invoice_date')
+    def _compute_invoice_month(self):
+        for record in self:
+            if record.invoice_date:
+                # Solo número del mes con dos dígitos
+                record.invoice_month = record.invoice_date.strftime('%m')
+            else:
+                record.invoice_month = ''
+
+
     sit_facturacion = fields.Boolean(
         related='company_id.sit_facturacion',
         readonly=True,
         store=True,
     )
+
+    razon_social = fields.Char(
+        string="Cliente/Proveedor",
+        related='partner_id.name',
+        readonly=True,
+        store=False,  # no se guarda en la base de datos
+    )
+
+    tipo_documento_identificacion = fields.Char(
+        string="Tipo documento identificacion",
+        compute='_compute_get_tipo_documento',
+        readonly=True,
+        store=False,
+    )
+
+    numero_documento = fields.Char(
+        string="Número de documento de identificacion",
+        compute='_compute_get_tipo_documento',
+        readonly=True,
+        store=False,  # no se guarda en la base de datos
+    )
+
+    @api.depends('partner_id')
+    def _compute_get_tipo_documento(self):
+        for record in self:
+            if record.partner_id:
+                _logger.info("DUI: %s", record.partner_id.dui)
+                record.numero_documento = record.partner_id.dui
+            elif record.partner_vat:
+                    record.numero_documento = record.partner_id.vat
+            else:
+                record.numero_documento = ''
+
+    @api.depends('partner_id')
+    def _compute_get_tipo_documento(self):
+        for record in self:
+            if record.partner_id and record.partner_id.dui:
+                record.tipo_documento_identificacion = "01"
+                record.numero_documento = record.partner_id.dui
+            elif record.partner_id and record.partner_id.vat:
+                record.tipo_documento_identificacion = "03"
+                record.numero_documento = record.partner_id.vat
+            else:
+                record.tipo_documento_identificacion = ''
+                record.numero_documento = ''
+
 
     def _get_condiciones_pago_selection(self):
         return [

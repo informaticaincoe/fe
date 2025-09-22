@@ -1,0 +1,22 @@
+<odoo>
+    <data>
+        <record id="view_anexo_sujeto_excluido_list" model="ir.ui.view">
+            <field name="name">account.move.anexo.sujeto.excluido.list</field>
+            <field name="model">account.move</field>
+            <field name="arch" type="xml">
+                <list string="Anexos Sujeto excluido">
+                    <field name="codigo_tipo_documento_cliente" string="Tipo documento"/>
+                    <field name="documento_sujeto_excluido" string="Número de documento"/>
+                    <field name="razon_social" string="Nombre"/>
+                    <field name="invoice_date" string="Fecha de Emisión"/>
+                    <field name="hacienda_selloRecibido" string="Número de serie"/><!-- Sello-->
+                    <field name="hacienda_codigoGeneracion_identificacion" string="Número de documento"/><!-- Sello-->
+                    <field name="total_operacion" string="Monto de la operacion"/>
+                    <field name="retencion_iva_amount"/>
+
+                    <field name="numero_anexo"/>
+                </list>
+            </field>
+        </record>
+    </data>
+</odoo>

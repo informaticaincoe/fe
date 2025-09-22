@@ -1,0 +1,38 @@
+<odoo>
+    <data>
+        <record id="view_anexo_consumidor_final_list" model="ir.ui.view">
+            <field name="name">account.move.anexo.consumidor.final.list</field>
+            <field name="model">account.move</field>
+            <field name="arch" type="xml">
+                <list string="Detalle de Anexos">
+                    <field name="invoice_date" string="Fecha de Emisión"/>
+                    <field name="clase_documento"/>
+                    <field name="codigo_tipo_documento"/>
+                    <field name="name" string="Número de resolución"/>
+                    <field name="hacienda_selloRecibido" string="Serie del documento"/>
+                    <field name="numero_control_interno_del"/>
+                    <field name="numero_control_interno_al"/>
+                    <field name="numero_documento_del_al" string="Número de documento DEL"/>
+                    <field name="numero_documento_del_al" string="Número de documento AL"/>
+                    <field name="numero_maquina_registradora"/>
+                    <field name="total_exento"/>
+                    <field name="ventas_exentas_no_sujetas"/>
+                    <field name="total_no_sujeto" string="Ventas no sujetas"/>
+                    <field name="total_gravado" string="Ventas grabadas locales"/>
+                    <field name="exportaciones_dentro_centroamerica" />
+                    <field name="exportaciones_fuera_centroamerica" />
+                    <field name="exportaciones_de_servicio" />
+                    <field name="ventas_tasa_cero" />
+                    <field name="ventas_cuenta_terceros" />
+                    <field name="total_operacion" />
+                    <field name="numero_anexo" />
+
+<!--                    <field name="tipo_documento_identificacion"/>-->
+<!--                    <field name="numero_documento"/>-->
+<!--                    <field name="razon_social" string="Cliente/Proveedor"/>-->
+<!--                    <field name="amount_total" string="Total"/>-->
+                </list>
+            </field>
+        </record>
+    </data>
+</odoo>
