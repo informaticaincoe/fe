@@ -64,8 +64,6 @@ class AccountMove(models.Model):
             _logger.info("SIT sit_anulacion_base_map_invoice_info: empresa %s no aplica a facturación electrónica, no se genera payload.", self.company_id.id if self.company_id else None)
             return {}
 
-        _logger.info("SIT [INICIO] sit_anulacion_base_map_invoice_info: self.id=%s, sel.factura_reemplazar=%s", self.id, self.sit_factura_a_reemplazar.company_id)
-
         vat = self.sit_factura_a_reemplazar.company_id.vat
         if isinstance(vat, str):
             nit = vat.replace("-", "")
@@ -99,9 +97,11 @@ class AccountMove(models.Model):
         invoice_info = {}
         FechaHoraAnulacion = None
         invoice_info["version"] = self._get_version_invalidacion()
-        ambiente = str(get_constantes_anulacion()['AMBIENTE']) #"00" if self._compute_validation_type_2() == 'homologation' else "01"
-        invoice_info["ambiente"] = ambiente
 
+        ambiente = None
+        if config_utils:
+            ambiente = config_utils.compute_validation_type_2(self.env) #str(get_constantes_anulacion()['AMBIENTE']) #"00" if self._compute_validation_type_2() == 'homologation' else "01"
+        invoice_info["ambiente"] = ambiente
         if self.sit_codigoGeneracion_invalidacion:
             invoice_info["codigoGeneracion"] = self.sit_codigoGeneracion_invalidacion
         else:
@@ -336,7 +336,7 @@ class AccountMove(models.Model):
 
         nit = self.company_id.vat.replace("-", "")
         invoice_info = {
-            "ambiente": get_constantes_anulacion()['AMBIENTE'],
+            "ambiente": ambiente,
             "idEnvio": int(self.sit_evento_invalidacion.id),
             "version": self._get_version_invalidacion(),
             "documento": doc_firmado

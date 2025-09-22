@@ -40,17 +40,16 @@ class sit_account_move(models.Model):
             _logger.info("SIT NO sit_es_configencia")                
             #self.sit_block_hacienda = False
 
-
 # ---------------------------------------------------------------------------------------------
-# FACTURA CONTINGENCIA
+# LOTES DE CONTINGENCIA
 #---------------------------------------------------------------------------------------------
     def action_post_contingencia_validation(self):
         '''validamos que partner cumple los requisitos basados en el tipo
-    de documento de la sequencia del diario selecionado
-    FACTURA ELECTRONICAMENTE
-    '''
+        de documento de la sequencia del diario selecionado
+        FACTURA ELECTRONICAMENTE
+        '''
         # NUMERO_FACTURA= super(AccountMove, self).action_post()
-        # _logger.info("SIT NUMERO FACTURA =%s", NUMERO_FACTURA)
+        _logger.info("SIT action_post_contingencia_validation Validacion de contingencia =%s", self.id)
         for invoice in self:
 
             MENSAJE = "action_post_contingencia -->" + str(self.name)
@@ -262,19 +261,23 @@ class sit_account_move(models.Model):
         }
         actualizar_informacion_dte = False
 
-        _logger.info("SIT Partner: %s | Parent: %s", self.invoice_user_id.partner_id.vat,
-                     self.invoice_user_id.partner_id.parent_id.vat)
+        ambiente_test = False
+        if config_utils:
+            ambiente_test = config_utils._compute_validation_type_2(self.env, self.company_id)
+            _logger.info("SIT Validaciones[Ambiente]: %s", ambiente_test)
+
+        _logger.info("SIT Partner: %s | Parent: %s", self.invoice_user_id.partner_id.vat, self.invoice_user_id.partner_id.parent_id.vat)
 
         try:
             if not self.hacienda_codigoGeneracion_identificacion:
                 raise Exception("No tiene código de generación.")
 
             payload = None
-            ambiente = config_utils.compute_validation_type_2(self.env) if config_utils else None
+            ambiente = config_utils.compute_validation_type_2(self.env) if config_utils else None # Se asigna en el json
             _logger.info(f"SIT Ambiente calculado: {ambiente}")
 
             # Firmar solo si no está firmado
-            if not self.sit_documento_firmado:
+            if not ambiente_test and not self.sit_documento_firmado:
                 _logger.info("Documento no firmado. Se procede a firmar.")
                 payload = self.obtener_payload(ambiente, self.journal_id.sit_tipo_documento.codigo)
                 _logger.info(f"Payload para firma obtenido: {payload}")
@@ -297,10 +300,10 @@ class sit_account_move(models.Model):
             _logger.info(f"Payload DTE: {payload_dte}")
 
             _logger.info("Validando parámetros DTE")
-            self.check_parametros_dte(payload_dte)
+            self.check_parametros_dte(payload_dte, ambiente_test)
 
             _logger.info("Generando DTE en Hacienda")
-            Resultado = self.generar_dte(ambiente, payload_dte, payload)
+            Resultado = self.generar_dte(ambiente, payload_dte, payload, ambiente_test)
             _logger.info(f"Resultado generado: {Resultado}")
 
             if not Resultado:
@@ -342,8 +345,8 @@ class sit_account_move(models.Model):
 
                 # Intentar nuevamente generar el DTE
                 payload_dte = self.sit_obtener_payload_dte_info(ambiente, documento_firmado)
-                self.check_parametros_dte(payload_dte)
-                Resultado = self.generar_dte(ambiente, payload_dte, payload)
+                self.check_parametros_dte(payload_dte, ambiente_test)
+                Resultado = self.generar_dte(ambiente, payload_dte, payload, ambiente_test)
                 estado = Resultado.get('estado', '').strip().lower() if Resultado else None
             else:
                 actualizar_informacion_dte = False
@@ -370,12 +373,17 @@ class sit_account_move(models.Model):
                 _logger.warning(f"No se pudo guardar el JSON del DTE: {e}")
 
             _logger.info("Estado: %s", estado)
-            if estado == 'procesado':
+            if estado and estado.lower() == 'procesado':
                 _logger.info("Estado procesado, actualizando secuencia y datos...")
                 self.actualizar_secuencia()
 
                 # Fecha procesamiento MH
-                fh_procesamiento = Resultado.get('fhProcesamiento')
+                fh_procesamiento = None
+                if Resultado.get('fhProcesamiento') and not ambiente_test:
+                    fh_procesamiento = Resultado.get('fhProcesamiento')
+                if not fh_procesamiento:
+                    fh_procesamiento = self.invoice_time
+
                 if fh_procesamiento:
                     try:
                         fh_dt = datetime.strptime(fh_procesamiento, '%d/%m/%Y %H:%M:%S') + timedelta(hours=6)
@@ -385,28 +393,46 @@ class sit_account_move(models.Model):
                     except Exception as e:
                         _logger.warning(f"Error al parsear fhProcesamiento: {e}")
 
-                self.write({
-                    'hacienda_estado': Resultado['estado'],
-                    'hacienda_selloRecibido': Resultado.get('selloRecibido'),
-                    'hacienda_clasificaMsg': Resultado.get('clasificaMsg'),
-                    'hacienda_codigoMsg': Resultado.get('codigoMsg'),
-                    'hacienda_descripcionMsg': Resultado.get('descripcionMsg'),
-                    'hacienda_observaciones': str(Resultado.get('observaciones', '')),
-                    'state': 'posted',
-                    'recibido_mh': True,
-                    'sit_json_respuesta': self.sit_json_respuesta,
-                })
+                if ambiente_test:
+                    self.write({
+                        'hacienda_estado': Resultado['estado'],
+                        'hacienda_descripcionMsg': Resultado.get('descripcionMsg'),
+                        'hacienda_observaciones': str(Resultado.get('observaciones', '')),
+                        'state': 'posted',
+                    })
+                else:
+                    self.write({
+                        'hacienda_estado': Resultado['estado'],
+                        'hacienda_selloRecibido': Resultado.get('selloRecibido'),
+                        'hacienda_clasificaMsg': Resultado.get('clasificaMsg'),
+                        'hacienda_codigoMsg': Resultado.get('codigoMsg'),
+                        'hacienda_descripcionMsg': Resultado.get('descripcionMsg'),
+                        'hacienda_observaciones': str(Resultado.get('observaciones', '')),
+                        'state': 'posted',
+                        'recibido_mh': True,
+                        'sit_json_respuesta': self.sit_json_respuesta,
+                    })
+
+                    qr_code = self._generar_qr(ambiente, self.hacienda_codigoGeneracion_identificacion,
+                                               self.fecha_facturacion_hacienda)
+                    self.sit_qr_hacienda = qr_code
+                    self.sit_documento_firmado = documento_firmado
+                    _logger.info("QR generado y firma guardada")
+
+                    try:
+                        json_original = json.loads(self.sit_json_respuesta) if self.sit_json_respuesta else {}
+                    except json.JSONDecodeError:
+                        json_original = {}
+                        _logger.warning("No se pudo cargar sit_json_respuesta para fusionar JSONRespuestaMh")
+
+                    json_original.update({"jsonRespuestaMh": Resultado})
+                    self.sit_json_respuesta = json.dumps(json_original)
+                    _logger.info("JSON respuesta MH fusionado correctamente")
                 _logger.info("Campos MH actualizados correctamente")
 
                 resultado_final["exito"] = True
                 resultado_final["mensaje"] = "Procesado correctamente"
                 resultado_final["resultado_mh"] = Resultado
-
-                qr_code = self._generar_qr(ambiente, self.hacienda_codigoGeneracion_identificacion,
-                                           self.fecha_facturacion_hacienda)
-                self.sit_qr_hacienda = qr_code
-                self.sit_documento_firmado = documento_firmado
-                _logger.info("QR generado y firma guardada")
 
                 try:
                     json_str = json.dumps(json_dte, ensure_ascii=False, default=str)
@@ -422,16 +448,6 @@ class sit_account_move(models.Model):
                     _logger.info("SIT JSON creado y adjuntado como attachment")
                 except Exception as e:
                     _logger.warning(f"Error al crear o adjuntar JSON: {e}")
-
-                try:
-                    json_original = json.loads(self.sit_json_respuesta) if self.sit_json_respuesta else {}
-                except json.JSONDecodeError:
-                    json_original = {}
-                    _logger.warning("No se pudo cargar sit_json_respuesta para fusionar JSONRespuestaMh")
-
-                json_original.update({"jsonRespuestaMh": Resultado})
-                self.sit_json_respuesta = json.dumps(json_original)
-                _logger.info("JSON respuesta MH fusionado correctamente")
 
                 try:
                     self.with_context(from_button=False, from_invalidacion=False).sit_enviar_correo_dte_automatico()
@@ -504,7 +520,13 @@ class sit_account_move(models.Model):
                 }
 
             # Validar que esos lotes tengan el sello y código
-            lotes_no_procesados = [lote for lote in lotes if not lote.lote_recibido_mh or not lote.hacienda_codigoLote_lote]
+            lotes_no_procesados = [
+                lote for lote in lotes
+                if not (
+                        (lote.lote_recibido_mh and lote.hacienda_codigoLote_lote)
+                        or (lote.hacienda_estado_lote or '').strip().upper() == "RECIBIDO"
+                )
+            ]
 
             if lotes_no_procesados:
                 mensaje = "Existen lotes pendientes de envío o no procesados. No se permite reenviar hasta que se procesen."
@@ -524,7 +546,7 @@ class sit_account_move(models.Model):
         else:
             # Si no se usan lotes, verificar por bloque
             bloque_ids = facturas.mapped('sit_bloque_contingencia.id')
-            bloques = self.env['account.contingencia.bloque'].browse(bloque_ids)
+            # bloques = self.env['account.contingencia.bloque'].browse(bloque_ids)
 
             if len(set(bloque_ids)) != 1:
                 mensaje = "Los documentos seleccionados no pertenecen al mismo bloque."

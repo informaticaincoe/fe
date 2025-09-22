@@ -1,8 +1,9 @@
-<odoo noupdate="1">
+<odoo noupdate="0">
     <record id="dte_prefix_param1" model="res.configuration">
         <field name="company_id" ref="base.main_company"/>
         <field name="value_text">dte</field>
         <field name="clave">dte_prefix_tipo</field>
+        <field name="description">Prefijo que indica el tipo de DTE en el número de control</field>
         <field name="active">True</field>
     </record>
 
@@ -10,6 +11,24 @@
         <field name="company_id" ref="base.main_company"/>
         <field name="value_text">estable</field>
         <field name="clave">dte_prefix_codEstable</field>
+        <field name="description">Código del establecimiento a incluir en el número de control</field>
+        <field name="active">True</field>
+    </record>
+
+    <record id="dte_prefix_para3" model="res.configuration">
+        <field name="company_id" ref="base.main_company"/>
+        <field name="value_text">punto_venta</field>
+        <field name="clave">dte_prefix_puntoVenta</field>
+        <field name="description">Código del punto de venta que se usará en el número de control</field>
+        <field name="active">True</field>
+    </record>
+
+    <record id="dte_prefix_para4" model="res.configuration">
+        <field name="company_id" ref="base.main_company"/>
+        <field name="value_text">DTE-%(dte)s-%(punto_venta)s%(estable)s-</field>
+        <field name="clave">dte_prefix_numControl</field>
+        <field name="description">Formato completo del número de control de los DTE</field>
         <field name="active">True</field>
     </record>
 </odoo>
+

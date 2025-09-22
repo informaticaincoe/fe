@@ -243,174 +243,85 @@ class AccountMove(models.Model):
     #         resultado.append(body)
     #         return body
 
-    def obtener_payload_fex(self, enviroment_type, sit_tipo_documento):
-        """Construye el payload FEX solo si la FE está activa; de lo contrario, no hace nada."""
-        if not self.env.company.sit_facturacion:
-            _logger.info("FE OFF: omitiendo obtener_payload_fex en %s", self._name)
-            return None
-
-        self.ensure_one()
-        _logger.info("SIT  Obteniendo payload")
-        ambiente = "00" if enviroment_type == 'homologation' else "01"
-        invoice_info = self.sit_fex_base_map_invoice_info()
-        _logger.info("SIT invoice_info FExportacion= %s", invoice_info)
-        self.check_parametros_firmado_fex()
-        _logger.info("SIT payload_data =%s", invoice_info)
-        return invoice_info
-
-    def generar_dte_fex(self, enviroment_type, payload, payload_original):
-        """Genera el DTE FEX solo si la FE está activa; si está apagada, no hace nada."""
-        if not self.env.company.sit_facturacion:
-            _logger.info("FE OFF: omitiendo generar_dte_fex en %s", self._name)
-            return None
-
-        self.ensure_one()
-        _logger.info("SIT  Generando DTE")
-        #host = 'https://apitest.dtes.mh.gob.sv' if enviroment_type == 'homologation' else 'https://api.dtes.mh.gob.sv'
-        #url = host + '/fesv/recepciondte'
-        url = None
-        if enviroment_type == 'homologation':
-            host = 'https://apitest.dtes.mh.gob.sv'
-            url = host + '/fesv/recepciondte'
-        else:
-            url = config_utils.get_config_value(self.env, 'url_prod_hacienda', self.company_id.id)
-
-        if not self.company_id.sit_token_fecha:
-            self.company_id.get_generar_token()
-        elif self.company_id.sit_token_fecha.date() and self.company_id.sit_token_fecha.date() < self.date:
-            self.company_id.get_generar_token()
-
-        headers = {
-            'Content-Type': 'application/json',
-            'User-Agent': self.company_id.sit_token_user,
-            'Authorization': self.company_id.sit_token,
-        }
-
-        if 'version' not in payload:
-            payload['version'] = 3
-
-        _logger.info("SIT = requests.request(POST, %s, headers=%s, data=%s)", url, headers, payload)
-        try:
-            _logger.info("________________________________________________ =%s", payload)
-            response = requests.request("POST", url, headers=headers, data=json.dumps(payload))
-            _logger.info("SIT DTE response =%s", response)
-            _logger.info("SIT DTE response =%s", response.status_code)
-            _logger.info("SIT DTE response.text =%s", response.text)
-        except Exception as e:
-            error = str(e)
-            _logger.info('SIT error= %s, ', error)
-            if "error" in error or "" in error:
-                MENSAJE_ERROR = str(error['status']) + ", " + str(error['error']) + ", " + str(error['message'])
-                raise UserError(_(MENSAJE_ERROR))
-            else:
-                raise UserError(_(error))
-
-        if response.status_code in [401]:
-            MENSAJE_ERROR = "ERROR de conexión : " + str(response)
-            raise UserError(_(MENSAJE_ERROR))
-
-        json_response = response.json()
-        _logger.info("SIT json_responset =%s", json_response)
-
-        if json_response.get('estado') in ["RECHAZADO", 402]:
-            estado = json_response.get('estado')
-            amb = 'TEST' if json_response.get('ambiente') == '00' else 'PROD'
-            clasificaMsg = json_response.get('clasificaMsg')
-            message = json_response.get('descripcionMsg')
-            observaciones = json_response.get('observaciones')
-            MENSAJE_ERROR = (
-                f"Código de Error..:{estado}, Ambiente:{amb}, "
-                f"ClasificaciónMsje:{clasificaMsg}, Descripcion:{message}, "
-                f"Detalle:{observaciones}, DATA: {json.dumps(payload_original)}"
-            )
-            self.hacienda_estado = estado
-            raise UserError(_(MENSAJE_ERROR))
-
-        status = json_response.get('status')
-        if status in [400, 401, 402]:
-            error = json_response.get('error', 'Error desconocido')
-            message = json_response.get('message', 'Mensaje no proporcionado')
-            MENSAJE_ERROR = f"Código de Error:{status}, Error:{error}, Detalle:{message}"
-            raise UserError(_(MENSAJE_ERROR))
-
-        if json_response.get('estado') == "PROCESADO":
-            return json_response
-
-        return None
-
-    def check_parametros_fex(self):
-        """Valida solo si la FE está activa; si está apagada, no bloquea."""
-        if not self.env.company.sit_facturacion:
-            _logger.info("FE OFF: omitiendo check_parametros_fex en %s", self._name)
-            return None
-
-        if not self.name:
-            raise UserError(_('El Número de control no definido'))
-        if not self.company_id.tipoEstablecimiento.codigo:
-            raise UserError(_('El tipoEstablecimiento no definido'))
-        if not self.sit_tipoAnulacion:
-            raise UserError(_('El tipoAnulacion no definido'))
-        return None
-
-    def check_parametros_firmado_fex(self):
-        """Valida solo si la FE está activa; si está apagada, no bloquea."""
-        if not self.env.company.sit_facturacion:
-            _logger.info("FE OFF: omitiendo check_parametros_firmado_fex en %s", self._name)
-            return None
-
-        if not self.journal_id.sit_tipo_documento.codigo:
-            raise UserError(_('El Tipo de  DTE no definido.'))
-        if not self.name:
-            raise UserError(_('El Número de control no definido'))
-        if not self.company_id.sit_passwordPri:
-            raise UserError(_('El valor passwordPri no definido'))
-        if not self.company_id.sit_uuid:
-            raise UserError(_('El valor uuid no definido'))
-        if not self.company_id.vat:
-            raise UserError(_('El emisor no tiene NIT configurado.'))
-        if not self.company_id.company_registry:
-            raise UserError(_('El emisor no tiene NRC configurado.'))
-        if not self.company_id.name:
-            raise UserError(_('El emisor no tiene NOMBRE configurado.'))
-        if not self.company_id.codActividad:
-            raise UserError(_('El emisor no tiene CODIGO DE ACTIVIDAD configurado.'))
-        if not self.company_id.tipoEstablecimiento:
-            raise UserError(_('El emisor no tiene TIPO DE ESTABLECIMIENTO configurado.'))
-        if not self.company_id.state_id:
-            raise UserError(_('El emisor no tiene DEPARTAMENTO configurado.'))
-        if not self.company_id.munic_id:
-            raise UserError(_('El emisor no tiene MUNICIPIO configurado.'))
-        if not self.company_id.email:
-            raise UserError(_('El emisor no tiene CORREO configurado.'))
-        if not self.journal_id.sit_tipo_documento.codigo:
-            raise UserError(_('El Tipo de DTE no definido.'))
-        if not self.name:
-            raise UserError(_('El Número de control no definido'))
-
-        tipo_dte = self.journal_id.sit_tipo_documento.codigo
-        if tipo_dte == constants.COD_DTE_FEX:
-            if not self.partner_id.name:
-                raise UserError(_('El receptor no tiene NOMBRE configurado para facturas tipo 01.'))
-            if self.partner_id.is_company and not self.partner_id.vat:
-                _logger.info("SIT, es compañia se requiere NIT")
-                raise UserError(_('El receptor no tiene NIT configurado.'))
-            if self.partner_id.is_company and not self.partner_id.nrc:
-                _logger.info("SIT, es compañia se requiere NRC")
-                raise UserError(_('El receptor no tiene NRC configurado.'))
-            if not self.partner_id.name:
-                raise UserError(_('El receptor no tiene NOMBRE configurado.'))
-            if not self.partner_id.codActividad:
-                raise UserError(_('El receptor no tiene CODIGO DE ACTIVIDAD configurado.'))
-            if not self.partner_id.state_id:
-                raise UserError(_('El receptor no tiene DEPARTAMENTO configurado.'))
-            if not self.partner_id.munic_id:
-                raise UserError(_('El receptor no tiene MUNICIPIO configurado.'))
-            if not self.partner_id.email:
-                raise UserError(_('El receptor no tiene CORREO configurado.'))
-
-        if not self.invoice_line_ids:
-            raise UserError(_('La factura no tiene LINEAS DE PRODUCTOS asociada.'))
-        return None
+    # def generar_dte_fex(self, enviroment_type, payload, payload_original):
+    #     """Genera el DTE FEX solo si la FE está activa; si está apagada, no hace nada."""
+    #     if not self.env.company.sit_facturacion:
+    #         _logger.info("FE OFF: omitiendo generar_dte_fex en %s", self._name)
+    #         return None
+    #
+    #     self.ensure_one()
+    #     _logger.info("SIT  Generando DTE")
+    #     #host = 'https://apitest.dtes.mh.gob.sv' if enviroment_type == 'homologation' else 'https://api.dtes.mh.gob.sv'
+    #     #url = host + '/fesv/recepciondte'
+    #     url = None
+    #     if enviroment_type == 'homologation':
+    #         host = 'https://apitest.dtes.mh.gob.sv'
+    #         url = host + '/fesv/recepciondte'
+    #     else:
+    #         url = config_utils.get_config_value(self.env, 'url_prod_hacienda', self.company_id.id)
+    #
+    #     if not self.company_id.sit_token_fecha:
+    #         self.company_id.get_generar_token()
+    #     elif self.company_id.sit_token_fecha.date() and self.company_id.sit_token_fecha.date() < self.date:
+    #         self.company_id.get_generar_token()
+    #
+    #     headers = {
+    #         'Content-Type': 'application/json',
+    #         'User-Agent': self.company_id.sit_token_user,
+    #         'Authorization': self.company_id.sit_token,
+    #     }
+    #
+    #     if 'version' not in payload:
+    #         payload['version'] = 3
+    #
+    #     _logger.info("SIT = requests.request(POST, %s, headers=%s, data=%s)", url, headers, payload)
+    #     try:
+    #         _logger.info("________________________________________________ =%s", payload)
+    #         response = requests.request("POST", url, headers=headers, data=json.dumps(payload))
+    #         _logger.info("SIT DTE response =%s", response)
+    #         _logger.info("SIT DTE response =%s", response.status_code)
+    #         _logger.info("SIT DTE response.text =%s", response.text)
+    #     except Exception as e:
+    #         error = str(e)
+    #         _logger.info('SIT error= %s, ', error)
+    #         if "error" in error or "" in error:
+    #             MENSAJE_ERROR = str(error['status']) + ", " + str(error['error']) + ", " + str(error['message'])
+    #             raise UserError(_(MENSAJE_ERROR))
+    #         else:
+    #             raise UserError(_(error))
+    #
+    #     if response.status_code in [401]:
+    #         MENSAJE_ERROR = "ERROR de conexión : " + str(response)
+    #         raise UserError(_(MENSAJE_ERROR))
+    #
+    #     json_response = response.json()
+    #     _logger.info("SIT json_responset =%s", json_response)
+    #
+    #     if json_response.get('estado') in ["RECHAZADO", 402]:
+    #         estado = json_response.get('estado')
+    #         amb = 'TEST' if json_response.get('ambiente') == '00' else 'PROD'
+    #         clasificaMsg = json_response.get('clasificaMsg')
+    #         message = json_response.get('descripcionMsg')
+    #         observaciones = json_response.get('observaciones')
+    #         MENSAJE_ERROR = (
+    #             f"Código de Error..:{estado}, Ambiente:{amb}, "
+    #             f"ClasificaciónMsje:{clasificaMsg}, Descripcion:{message}, "
+    #             f"Detalle:{observaciones}, DATA: {json.dumps(payload_original)}"
+    #         )
+    #         self.hacienda_estado = estado
+    #         raise UserError(_(MENSAJE_ERROR))
+    #
+    #     status = json_response.get('status')
+    #     if status in [400, 401, 402]:
+    #         error = json_response.get('error', 'Error desconocido')
+    #         message = json_response.get('message', 'Mensaje no proporcionado')
+    #         MENSAJE_ERROR = f"Código de Error:{status}, Error:{error}, Detalle:{message}"
+    #         raise UserError(_(MENSAJE_ERROR))
+    #
+    #     if json_response.get('estado') == "PROCESADO":
+    #         return json_response
+    #
+    #     return None
 
     def check_parametros_linea_firmado_fex(self, line_temp):
         """Valida líneas solo si la FE está activa; si está apagada, no bloquea."""
@@ -426,20 +337,4 @@ class AccountMove(models.Model):
             raise UserError(_('El PRECIO UNITARIO del producto  %s no está definido.') % line_temp.get("descripcion"))
         if not line_temp.get("uniMedida"):
             raise UserError(_('La UNIDAD DE MEDIDA del producto  %s no está definida.') % line_temp.get("descripcion"))
-        return None
-
-    def check_parametros_dte_fex(self, generacion_dte):
-        """Valida el blob DTE solo si la FE está activa; si está apagada, no bloquea."""
-        if not self.env.company.sit_facturacion:
-            _logger.info("FE OFF: omitiendo check_parametros_dte_fex en %s", self._name)
-            return None
-
-        if not generacion_dte.get("ambiente"):
-            raise UserError(_('El ambiente no está definido.'))
-        if not generacion_dte.get("idEnvio"):
-            raise UserError(_('El IDENVIO no está definido.'))
-        if not generacion_dte.get("documento"):
-            raise UserError(_('El DOCUMENTO no está presente.'))
-        if not generacion_dte.get("version"):
-            raise UserError(_('La versión DTE no está definida.'))
         return None

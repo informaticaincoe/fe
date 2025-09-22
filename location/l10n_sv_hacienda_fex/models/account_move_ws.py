@@ -15,6 +15,7 @@ tz_el_salvador = pytz.timezone('America/El_Salvador')
 
 
 import logging
+import json
 
 _logger = logging.getLogger(__name__)
 
@@ -39,7 +40,7 @@ class AccountMove(models.Model):
             _logger.info("FE OFF: omitiendo sit_base_map_invoice_info_fex en %s", self._name)
             return None
 
-        _logger.info("SIT sit_base_map_invoice_info self = %s", self)
+        _logger.info("SIT sit_base_map_invoice_info self FEX= %s", self)
         invoice_info = {}
         nit = (self.company_id.vat or "").replace("-", "")
         invoice_info["nit"] = nit
@@ -47,6 +48,20 @@ class AccountMove(models.Model):
         invoice_info["passwordPri"] = self.company_id.sit_passwordPri
         _logger.info("SIT sit_base_map_invoice_info = %s", invoice_info)
 
+        if self.sit_json_respuesta and not self.hacienda_selloRecibido:
+            try:
+                # Intentamos convertir el sit_json_respuesta a un diccionario Python
+                json_data = json.loads(self.sit_json_respuesta)
+
+                # Verificamos si el campo ambiente existe y es igual a "00"
+                ambiente = json_data.get("identificacion", {}).get("ambiente", None)
+
+                if ambiente == "00":
+                    _logger.info("SIT Ambiente 00 detectado. Sobreescribiendo JSON.")
+                    invoice_info["dteJson"] = self.sit__fex_base_map_invoice_info_dtejson()
+            except json.JSONDecodeError as e:
+                _logger.error(f"SIT Error al procesar el JSON: {e}")
+                invoice_info["dteJson"] = self.sit_json_respuesta  # En caso de error en la conversión, mantenemos el JSON original
         if not self.hacienda_selloRecibido and self.sit_factura_de_contingencia and self.sit_json_respuesta:
             _logger.info("SIT sit_base_map_invoice_info contingencia")
             invoice_info["dteJson"] = self.sit_json_respuesta
@@ -60,7 +75,7 @@ class AccountMove(models.Model):
             _logger.info("FE OFF: omitiendo sit__fex_base_map_invoice_info_dtejson")
             return None
 
-        _logger.info("SIT sit_base_map_invoice_info_dtejson self = %s", self)
+        _logger.info("SIT sit_base_map_invoice_info_dtejson self FEX= %s", self)
         invoice_info = {}
         invoice_info["identificacion"] = self.sit__fex_base_map_invoice_info_identificacion()
         _logger.info("SIT sit_base_map_invoice_info_dtejson = %s", invoice_info)
@@ -85,7 +100,7 @@ class AccountMove(models.Model):
             _logger.info("FE OFF: omitiendo sit__fex_base_map_invoice_info_identificacion")
             return None
 
-        _logger.info("SIT sit_base_map_invoice_info_identificacion self = %s", self)
+        _logger.info("SIT sit_base_map_invoice_info_identificacion self FEX= %s", self)
         invoice_info = {}
         invoice_info["version"] = int(self.journal_id.sit_tipo_documento.version)
 
@@ -120,7 +135,7 @@ class AccountMove(models.Model):
             _logger.info("FE OFF: omitiendo sit__fex_base_map_invoice_info_emisor")
             return None
 
-        _logger.info("SIT sit__fex_base_map_invoice_info_emisor self = %s", self)
+        _logger.info("SIT sit__fex_base_map_invoice_info_emisor self FEX= %s", self)
         invoice_info, direccion = {}, {}
         nit = (self.company_id.vat or '').replace("-", '') if self.company_id else None
         nrc = (self.company_id.company_registry or '').replace("-", '') if self.company_id else None
@@ -186,7 +201,7 @@ class AccountMove(models.Model):
             _logger.info("FE OFF: omitiendo sit__fex_base_map_invoice_info_receptor")
             return None
 
-        _logger.info("SIT sit_base_map_invoice_info_receptor self = %s", self)
+        _logger.info("SIT sit_base_map_invoice_info_receptor self FEX= %s", self)
         invoice_info = {}
 
         raw_doc = None
@@ -227,7 +242,7 @@ class AccountMove(models.Model):
             _logger.info("FE OFF: omitiendo sit_fex_base_map_invoice_info_cuerpo_documento")
             return None
 
-        _logger.info("SIT sit_base_map_invoice_info_cuerpo_documento self = %s", self)
+        _logger.info("SIT sit_base_map_invoice_info_cuerpo_documento self FEX= %s", self)
         lines = []
         item_numItem = 0
         total_Gravada = 0.0
@@ -312,7 +327,7 @@ class AccountMove(models.Model):
             _logger.info("FE OFF: omitiendo sit_fex_base_map_invoice_info_resumen")
             return None
 
-        _logger.info("SIT sit_base_map_invoice_info_resumen self = %s", self)
+        _logger.info("SIT sit_base_map_invoice_info_resumen self FEX= %s", self)
         invoice_info = {}
         invoice_info["totalGravada"] = round(getattr(self, 'total_gravado', 0.0), 2)
         invoice_info["totalNoGravado"] = 0
@@ -347,20 +362,20 @@ class AccountMove(models.Model):
             invoice_info["pagos"] = [pagos]
         return invoice_info
 
-    def sit_obtener_payload_fex_dte_info(self, ambiente, doc_firmado):
-        if not self.env.company.sit_facturacion:
-            _logger.info("FE OFF: omitiendo sit_obtener_payload_fex_dte_info")
-            return None
-
-        _logger.info("SIT sit_obtener_payload_exp_dte_info self = %s", self)
-        invoice_info = {}
-        nit = (self.company_id.vat or "").replace("-", "")
-        invoice_info["ambiente"] = ambiente
-        invoice_info["idEnvio"] = 1
-        invoice_info["version"] = 1
-        invoice_info["documento"] = doc_firmado
-        invoice_info["codigoGeneracion"] = self.sit_generar_uuid()
-        return invoice_info
+    # def sit_obtener_payload_fex_dte_info(self, ambiente, doc_firmado):
+    #     if not self.env.company.sit_facturacion:
+    #         _logger.info("FE OFF: omitiendo sit_obtener_payload_fex_dte_info")
+    #         return None
+    #
+    #     _logger.info("SIT sit_obtener_payload_exp_dte_info self = %s", self)
+    #     invoice_info = {}
+    #     nit = (self.company_id.vat or "").replace("-", "")
+    #     invoice_info["ambiente"] = ambiente
+    #     invoice_info["idEnvio"] = 1
+    #     invoice_info["version"] = 1
+    #     invoice_info["documento"] = doc_firmado
+    #     invoice_info["codigoGeneracion"] = self.sit_generar_uuid()
+    #     return invoice_info
 
     def sit_generar_uuid(self):
         if not self.env.company.sit_facturacion:

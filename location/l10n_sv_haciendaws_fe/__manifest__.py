@@ -27,6 +27,7 @@
         "views/account_move_nc_view.xml",
         "data/res.configuration.csv",
         "data/dte_config.xml",
+        "views/res_partner_view_journal.xml",
     ],
     "demo": [],
     "images": [],
