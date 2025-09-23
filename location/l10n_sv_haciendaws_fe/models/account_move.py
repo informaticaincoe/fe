@@ -451,18 +451,23 @@ class AccountMove(models.Model):
         Si actualizar_secuencia=True, consume la secuencia con next_by_id y la actualiza en BD.
         Si actualizar_secuencia=False, devuelve una previsualización sin consumir.
         """
-        if self.company_id and self.company_id.sit_facturacion:
-            self.ensure_one()
+        self.ensure_one()
+        journal = journal or self.journal_id
+        doc_electronico = False
+
+        if journal and journal.sit_tipo_documento and journal.sit_tipo_documento.codigo:
+            doc_electronico = True
+        _logger.info("SIT diario: %s, tipo. %s, | es dte? %s | Actualizar secuencia? %s", journal, journal.type, doc_electronico, actualizar_secuencia)
+
+        if self.company_id and self.company_id.sit_facturacion and doc_electronico:
             nuevo_numero = 0
-            journal = journal or self.journal_id
-            _logger.info("SIT diario: %s, tipo. %s | Actualizar secuencia? %s", journal, journal.type, actualizar_secuencia)
 
             if journal.type not in ('sale', 'purchase'):
                 return False
 
-            if not journal.sit_tipo_documento or not journal.sit_tipo_documento.codigo:
+            if doc_electronico and not journal.sit_tipo_documento or not journal.sit_tipo_documento.codigo:
                 raise UserError(_("Configure Tipo de DTE en diario '%s'.") % journal.name)
-            if not journal.sit_codestable:
+            if doc_electronico and not journal.sit_codestable:
                 raise UserError(_("Configure Código de Establecimiento en diario '%s'.") % journal.name)
 
             tipo = journal.sit_tipo_documento.codigo
@@ -865,6 +870,7 @@ class AccountMove(models.Model):
         # 2) Facturas que sí aplican a DTE
         for invoice in invoices_to_post:
             documento_firmado = None
+            doc_electronico = False
             # Si el dte ya está posteado, no seguimos
             if invoice.state == "posted":
                 _logger.warning("El documento ID %s ya está en estado 'publicado', se omite el reproceso." % invoice.id)
@@ -895,7 +901,9 @@ class AccountMove(models.Model):
 
             try:
                 journal = invoice.journal_id
-                _logger.info("SIT Procesando invoice %s (journal=%s)", invoice.id, journal.name)
+                if journal and journal.sit_tipo_documento and journal.sit_tipo_documento.codigo:
+                    doc_electronico = True
+                _logger.info("SIT Procesando invoice %s (journal=%s, es documento electronico? %s)", invoice.id, journal.name, doc_electronico)
 
                 if not self.invoice_time:
                     self._compute_invoice_time()
@@ -912,7 +920,7 @@ class AccountMove(models.Model):
                 # —————————————————————————————————————————————
                 # 1) Número de control DTE
                 prefix = (config_utils.get_config_value(self.env, 'dte_prefix', self.company_id.id) or "DTE-").lower()
-                if not (invoice.name and invoice.name.startswith(prefix)):
+                if doc_electronico and not (invoice.name and invoice.name.startswith(prefix)):
                     numero_control = invoice._generate_dte_name()
                     if not numero_control:
                         raise UserError(_("No se pudo generar número de control DTE para la factura %s.") % invoice.id)
@@ -2179,19 +2187,23 @@ class AccountMove(models.Model):
             ambiente_test = config_utils._compute_validation_type_2(self.env, self.company_id)
             _logger.info("SIT Validaciones[Ambiente]: %s", ambiente_test)
 
-        if not self.invoice_date:
-            raise ValidationError("Debe seleccionar la fecha de la Factura.")
+        doc_electronico = False
+        if self.journal_id and self.journal_id.sit_tipo_documento and self.journal_id.sit_tipo_documento.codigo:
+            doc_electronico = True
 
-        if not self.condiciones_pago:
+        if not self.invoice_date:
+            raise ValidationError("Debe seleccionar la fecha del documento.")
+
+        if doc_electronico and not self.condiciones_pago:
             raise ValidationError("Debe seleccionar una Condicion de la Operación.")
 
-        if not self.forma_pago:
+        if doc_electronico and not self.forma_pago:
             raise ValidationError("Seleccione una Forma de Pago.")
 
         if self.journal_id and not self.journal_id.report_xml:
             raise ValidationError("El diario debe tener un reporte PDF configurado.")
 
-        if not ambiente_test and self.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_NC and self.inv_refund_id and not self.inv_refund_id.hacienda_selloRecibido:
+        if not ambiente_test and self.journal_id.sit_tipo_documento and self.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_NC and self.inv_refund_id and not self.inv_refund_id.hacienda_selloRecibido:
             raise ValidationError("El documento relacionado aún no cuenta con el sello de Hacienda.")
 
         res = super().action_post()
