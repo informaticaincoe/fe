@@ -20,6 +20,8 @@
         'views/view_anexo_contribuyentes.xml',
         'views/view_anexo_compras.xml',
         'views/view_anexo_sujeto_excluido.xml',
+        'views/view_anexo_casilla162.xml',
+        'views/view_anexo_documentos_anulados_y_extraviados.xml.xml',
 
         "views/report_anexos_action.xml",
         # 'views/anexos_report_views.xml',

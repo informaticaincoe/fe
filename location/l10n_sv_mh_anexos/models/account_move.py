@@ -2,6 +2,8 @@
 from odoo import fields, models, api
 import logging
 import re
+import io
+import base64
 
 _logger = logging.getLogger(__name__)
 
@@ -140,6 +142,20 @@ class account_move(models.Model):
         readonly=True,
     )
 
+    tipo_operacion_renta = fields.Char(
+        string="Tipo de operacion (renta)",
+        compute='_compute_get_tipo_operacion_renta',
+        readonly=True,
+        store=False,
+    )
+
+    tipo_ingreso_renta = fields.Char(
+        string="Tipo de ingreso (renta)",
+        compute='_compute_get_tipo_ingreso_renta',
+        readonly=True,
+        store=False,
+    )
+
     numero_anexo = fields.Char(
         string="Número del anexo",
         compute='_compute_get_numero_anexo',
@@ -149,6 +165,13 @@ class account_move(models.Model):
     retencion_iva_amount = fields.Char(
         string="Retencion IVA 13%",
         readonly=True,
+    )
+
+    retencion_iva_amount_1 = fields.Char(
+        string="Percepción IVA 1%",
+        compute="_compute_retencion_iva_amount",
+        readonly=True,
+        store=False
     )
 
     @api.depends('invoice_date')
@@ -191,6 +214,13 @@ class account_move(models.Model):
     nit_o_nrc_cliente = fields.Char(
         string="NIT o NRC cliente",
         compute='_compute_get_nrc_o_nit',
+        readonly=True,
+        store=False,
+    )
+
+    nit_company = fields.Char(
+        string="NIT o NRC cliente",
+        compute='_compute_get_nit_company',
         readonly=True,
         store=False,
     )
@@ -322,10 +352,20 @@ class account_move(models.Model):
             else:
                 record.exportaciones_fuera_centroamerica = 0.0
 
-    @api.depends('journal_id')
+    @api.depends('invoice_line_ids', 'invoice_line_ids.product_id', 'invoice_line_ids.price_subtotal',
+                 'codigo_tipo_documento')
     def _compute_get_exportaciones_de_servicio(self):
         for record in self:
-            record.exportaciones_de_servicio = '0.0'
+            total_servicios = 0.0
+
+            # if record.codigo_tipo_documento == '11':
+            for line in record.invoice_line_ids:
+                # _logger.info("linea %s", line)
+                if record.codigo_tipo_documento == '11' and line.product_id and line.product_id.product_tmpl_id.type == "service":
+                    _logger.info("linea 0roduct id %s ", line.product_id.product_tmpl_id.type == "service")
+                    total_servicios += line.price_subtotal
+
+            record.exportaciones_de_servicio = total_servicios
 
     @api.depends('journal_id')
     def _compute_get_ventas_tasa_cero(self):
@@ -338,6 +378,16 @@ class account_move(models.Model):
             record.ventas_cuenta_terceros = '0.0'
 
     @api.depends('journal_id')
+    def _compute_get_tipo_operacion_renta(self):
+        for record in self:
+            record.tipo_operacion_renta = '0.0'
+
+    @api.depends('journal_id')
+    def _compute_get_tipo_ingreso_renta(self):
+        for record in self:
+            record.tipo_ingreso_renta = '0.0'
+
+    @api.depends('journal_id')
     def _compute_get_numero_anexo(self):
         for record in self:
             ctx = self.env.context
@@ -347,10 +397,10 @@ class account_move(models.Model):
     @api.depends('partner_id')
     def _compute_get_nrc_o_nit(self):
         for record in self:
-            if record.nrc_cliente:
-                record.nit_o_nrc_cliente = record.nrc_cliente
-            elif record.nit_cliente:
-                record.nit_o_nrc_cliente = record.nit_cliente
+            if record.partner_id.vat:
+                record.nit_o_nrc_cliente = record.partner_id.vat
+            elif record.partner_id.nrc:
+                record.nit_o_nrc_cliente = record.partner_id.nrc
             else:
                 record.nit_o_nrc_cliente = ''
 
@@ -367,10 +417,20 @@ class account_move(models.Model):
     @api.depends('partner_id')
     def _compute_get_dui_cliente(self):
         for record in self:
-            if record.partner_id and record.numero_anexo == '1' and record.nit_o_nrc_cliente == '':
-                record.tipo_documento_identificacion = " "
+            if record.partner_id  and record.nit_o_nrc_cliente == '':
+                _logger.info("dentro %s, %s", record.partner_id.dui, record.partner_id.name)
+                record.dui_cliente = record.partner_id.dui
             else:
-                record.tipo_documento_identificacion = record.partner_id.dui
+                _logger.info("fuera %s, %s", record.partner_id.dui, record.partner_id.name)
+                record.dui_cliente = ""
+
+    @api.depends('partner_id')
+    def _compute_get_nit_company(self):
+        for record in self:
+            if record.partner_id.vat:
+                record.nit_company = record.partner_id.vat
+            else:
+                record.nit_company = ''
 
     @api.depends('partner_id')
     def _compute_get_codigo_tipo_documento_cliente(self):
@@ -391,3 +451,116 @@ class account_move(models.Model):
                 record.documento_sujeto_excluido = record.partner_id.vat or ""
             else:
                 record.documento_sujeto_excluido = ""
+
+    @api.depends('invoice_line_ids.price_subtotal', 'codigo_tipo_documento')
+    def _compute_retencion_iva_amount(self):
+        for record in self:
+            if record.codigo_tipo_documento == '14':  # sujeto excluido
+                record.retencion_iva_amount_1 = str(round(float(record.amount_untaxed) * 0.01, 2))
+            else:
+                record.retencion_iva_amount_1 = '0.0'
+
+
+
+
+    def _get_anexo_contribuyentes_data(self):
+        """
+        Función para generar los datos del anexo de contribuyentes en formato CSV.
+        """
+        # Mapea los nombres de los campos a los encabezados de la tabla
+        # csv_headers = [
+        #     "Fecha de Emisión",
+        #     "Clase de documento",
+        #     "Código de documento",
+        #     "Número de resolución",
+        #     "Sello Recibido",
+        #     "Número de documento",
+        #     "Número de control interno",
+        #     "NIT o NRC del cliente",
+        #     "Razón social",
+        #     "Ventas exentas",
+        #     "Ventas exentas no sujetas a proporcionalidad",
+        #     "Ventas no sujetas",
+        #     "Ventas gravadas locales",
+        #     "Débito fiscal",
+        #     "Ventas a cuenta de terceros no domiciliados",
+        #     "Débito fiscal a cuenta de terceros",
+        #     "Total ventas",
+        #     "DUI cliente",
+        #     "Ventas a zonas francas y DPA (tasa cero)",
+        #     "Número del anexo",
+        # ]
+
+        # Mapea los nombres de los campos de Odoo al orden de la vista
+        csv_fields = [
+            'invoice_date',
+            'clase_documento',
+            'codigo_tipo_documento',
+            'name',
+            'hacienda_selloRecibido',
+            'hacienda_codigoGeneracion_identificacion',
+            'numero_control_interno_al',
+            'nit_o_nrc_cliente',
+            'razon_social',
+            'total_exento',
+            'ventas_exentas_no_sujetas',
+            'total_no_sujeto',
+            'total_gravado',
+            'debito_fiscal_contribuyentes',
+            'ventas_cuenta_terceros',
+            'debito_fiscal_cuenta_terceros',
+            'total_operacion',
+            'dui_cliente',
+            'ventas_tasa_cero',
+            'tipo_ingreso_renta',
+            'tipo_operacion_renta',
+            'numero_anexo',
+        ]
+
+        csv_content = io.StringIO()
+        # csv_content.write(';'.join(csv_headers) + '\n')
+
+        # Buscar explícitamente todos los registros que cumplen el dominio de la vista
+        # Esto asegura que el CSV se genere con datos incluso si la vista está vacía.
+        records_to_export = self.env['account.move'].search([
+            ('codigo_tipo_documento', '=', '01'),
+            ('hacienda_estado', '=', 'PROCESADO'),
+            ('hacienda_selloRecibido', '!=', '')
+        ])
+
+        for record in records_to_export:
+            row_data = []
+            for field_name in csv_fields:
+                value = record[field_name]
+                if value is None:
+                    value = ""
+                # Convertir a cadena y eliminar comillas y puntos
+                clean_value = str(value).replace('"', '').replace("'", '').replace('.', '')
+                row_data.append(clean_value)
+
+            csv_content.write(';'.join(row_data) + '\n')
+
+        return csv_content.getvalue().encode('utf-8')
+
+
+    def action_download_csv_anexo(self):
+        """
+        Función para descargar el anexo de contribuyentes como un archivo CSV.
+        """
+        csv_data = self._get_anexo_contribuyentes_data()
+
+        # Crea un adjunto temporal para servir el archivo.
+        attachment = self.env['ir.attachment'].create({
+            'name': 'anexo_consumidor_final.csv',
+            'type': 'binary',
+            'datas': base64.b64encode(csv_data),
+            'res_model': 'account.move',
+            'res_id': self.ids[0] if self.ids else False,
+            'public': True,  # Esto permite que el archivo se sirva a través de la URL.
+        })
+
+        return {
+            'type': 'ir.actions.act_url',
+            'url': f'/web/content/{attachment.id}?download=true',
+            'target': 'self',
+        }
