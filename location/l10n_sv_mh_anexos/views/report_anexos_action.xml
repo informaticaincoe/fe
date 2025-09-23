@@ -72,9 +72,9 @@
             <field name="view_id" ref="view_anexo_anulados_y_extraviado_list"/>
             <field name="search_view_id" ref="view_anexos_fechas_search"/>
             <field name="domain">
-                [('codigo_tipo_documento', '=', '14'), ('retencion_iva_amount', '!=', False), ('hacienda_estado', '=',
-                'PROCESADO')]
+                [('sit_evento_invalidacion', '!=', False)]
             </field>
+
             <field name="context">{'numero_anexo': 7}</field>
         </record>
 
