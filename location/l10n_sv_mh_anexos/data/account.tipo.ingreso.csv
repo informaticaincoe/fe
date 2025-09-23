@@ -1,0 +1,14 @@
+id,codigo,valor
+tipo_ingreso_0,0,Para periodos anteriores a enero 2025
+tipo_ingreso_1,1,Profesiones, Artes y Oficios
+tipo_ingreso_2,2,Actividades de Servicios
+tipo_ingreso_3,3,Actividades Comerciales
+tipo_ingreso_4,4,Actividades Industriales
+tipo_ingreso_5,5,Actividades Agropecuarias
+tipo_ingreso_6,6,Utilidades y Dividendos
+tipo_ingreso_7,7,Exportaciones de bienes
+tipo_ingreso_8,8,Servicios Realizados en el Exterior y Utilizados en El Salvador
+tipo_ingreso_9,9,Exportaciones de servicios
+tipo_ingreso_10,10,Otras rentas gravables
+tipo_ingreso_12,12,Ingresos que ya fueron sujetos de retención informados en el F14 y consolidados en F910
+tipo_ingreso_13,13,Sujetos pasivos excluidos (art. 6 LISR) e ingresos que no constituyen hecho generador del ISR

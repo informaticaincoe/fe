@@ -1,0 +1,10 @@
+id,codigo,valor
+tipo_costo_1,1,Gastos de Venta sin Donación
+tipo_costo_2,2,Gastos de Administración sin Donación
+tipo_costo_3,3,Gastos Financieros sin Donación
+tipo_costo_4,4,Costo Artículos Producidos/Comprados Importaciones/Internaciones
+tipo_costo_5,5,Costo Artículos Producidos/Comprados Interno
+tipo_costo_6,6,Costos Indirectos de Fabricación
+tipo_costo_7,7,Mano de Obra
+tipo_costo_8,8,Operaciones informadas en más de 1 anexo
+tipo_costo_9,9,Excepciones (Instituciones públicas, no inscritos a IVA, operaciones no deducibles para renta, entre otros.)

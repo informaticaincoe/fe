@@ -84,6 +84,16 @@
             </xpath>
 
             <xpath expr="//page[@name='general_info']" position="after">
+                <page string="Diarios" name="diarios_config">
+                    <group>
+                        <field name="configuration_journal_ids"
+                               widget="many2many_tags"
+                               options="{'no_create': True}"/>
+                    </group>
+                </page>
+            </xpath>
+
+            <xpath expr="//page[@name='general_info']" position="after">
                 <page string="Plan de cuentas" name="discounts_settings">
                     <group>
                         <field name="account_discount_id"/>

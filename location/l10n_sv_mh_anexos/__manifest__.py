@@ -25,7 +25,8 @@
 
         "views/report_anexos_action.xml",
         # 'views/anexos_report_views.xml',
-
+        "data/account.tipo.costo.gasto.csv",
+        "data/account.tipo.ingreso.csv",
     ],
     'demo': [
         # 'demo.xml',

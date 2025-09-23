@@ -68,6 +68,75 @@ class ResCompany(models.Model):
 
     sit_entorno_test = fields.Boolean('Entorno de pruebas', default=False, help="La generación de documentos electrónicos se realizará en el ambiente de pruebas")
 
+    configuration_journal_ids = fields.Many2many(
+        comodel_name="account.journal",
+        string="Diarios permitidos",
+        compute="_compute_journal_configurations",
+        inverse="_set_journal_configurations"
+    )
+
+    def _compute_journal_configurations(self):
+        """
+        Computa los diarios permitidos de la empresa.
+        Para cada empresa, busca todas las configuraciones (`res.configuration`) asociadas a ella
+        y obtiene los diarios seleccionados a través del campo `journal_ids` (campo computado).
+        Luego asigna esos diarios al campo `configuration_journal_ids` de la empresa
+        para mostrarlos en la pestaña "Diarios" del formulario de res.company.
+
+        Nota:
+            Aunque se usa `journal_ids` en el código, este campo es computado y
+            actúa solo como intermediario. El valor real que se guarda en la base de datos
+            es `sit_journal_ids_str` en `res.configuration`.
+        """
+        for company in self:
+            journals = self.env['res.configuration'].search(
+                [('company_id', '=', company.id)]
+            ).mapped('journal_ids')
+            company.configuration_journal_ids = journals
+
+    def _compute_journal_configurations(self):
+        """
+        Computa los diarios permitidos de la empresa.
+
+        Para cada empresa, busca todas las configuraciones (`res.configuration`) asociadas a ella
+        y obtiene los diarios seleccionados a través del campo `journal_ids` (campo computado).
+        Luego asigna esos diarios al campo `configuration_journal_ids` de la empresa
+        para mostrarlos en la pestaña "Diarios" del formulario de res.company.
+
+        Nota:
+            Aunque se usa `journal_ids` en el código, este campo es computado y
+            actúa solo como intermediario. El valor real que se guarda en la base de datos
+            es `sit_journal_ids_str` en `res.configuration`.
+        """
+        for company in self:
+            journals = self.env['res.configuration'].search(
+                [('company_id', '=', company.id)]
+            ).mapped('journal_ids')
+            company.configuration_journal_ids = journals
+
+    def _set_journal_configurations(self):
+        """
+        Guarda los diarios seleccionados desde la pestaña "Diarios" de la empresa.
+
+        Para cada empresa:
+            1. Busca una configuración (`res.configuration`) existente asociada a la empresa.
+            2. Si no existe, crea una nueva configuración.
+            3. Asigna los diarios seleccionados (`configuration_journal_ids`) al campo
+               `journal_ids` de la configuración.
+
+        Nota:
+            `journal_ids` es un campo computado con inverse, que actúa como intermediario.
+            El valor se almacena realmente en el campo `sit_journal_ids_str` como
+            una cadena de IDs separados por comas.
+        """
+        for company in self:
+            config = self.env['res.configuration'].search(
+                [('company_id', '=', company.id)], limit=1
+            )
+            if not config:
+                config = self.env['res.configuration'].create({'company_id': company.id})
+            config.journal_ids = company.configuration_journal_ids
+
     def get_generar_token(self):
         _logger.info("SIT get_generar_token = %s,%s,%s", self.sit_token_user, self.sit_token_pass, self.sit_passwordPri)
         autenticacion = self._autenticar(self.sit_token_user, self.sit_token_pass)
