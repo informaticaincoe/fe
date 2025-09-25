@@ -46,7 +46,6 @@ class AccountMove(models.Model):
             sale_orders = rec.invoice_line_ids.mapped('sale_line_ids.order_id')
             rec.sale_order_id = sale_orders[:1] if sale_orders else False
 
-
     def action_post(self):
         # Si FE está desactivada → comportamiento estándar de Odoo
         if not self.env.company.sit_facturacion:

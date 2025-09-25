@@ -10,6 +10,7 @@
     "depends": [
         "purchase",
         "account",
+        "l10n_sv",
     ],
     "demo": [
     ],

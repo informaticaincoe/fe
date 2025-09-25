@@ -30,7 +30,7 @@
                     <!-- <field class="oe_left" name="amount_text" placeholder="amount to text"/> -->
                     <field name="codigo_tipo_documento" invisible="1"/>
 
-                    <group string="Retenciones" col="2" invisible="codigo_tipo_documento == '11'">
+                    <group string="Retenciones" col="2" invisible="move_type != 'out_invoice' or not codigo_tipo_documento or codigo_tipo_documento == '11'">
                         <field name="apply_retencion_renta"  invisible="not codigo_tipo_documento in ('01', '03', '14')"/>
                         <field name="retencion_renta_amount" readonly="1" widget="monetary"
                                options="{'currency_field': 'currency_id'}" invisible="not codigo_tipo_documento in ('01', '03', '14')"/>
@@ -44,7 +44,7 @@
 
                     </group>
                     <field name="total_pagar_text" placeholder="Total en letras"/>
-                    <group string="Totales por tipo de operación" col="2">
+                    <group string="Totales por tipo de operación" col="2" invisible="move_type != 'out_invoice' and not codigo_tipo_documento">
                          <!-- invisible="1" modifiers="{'invisible': [['hide_no_sujeto_exento','=',True]]}" -->
                         <field name="total_no_sujeto"
                                widget="monetary"
@@ -54,18 +54,18 @@
                         <field name="sub_total_ventas" widget="monetary" readonly="1" invisible="codigo_tipo_documento == '11'"/><!-- invisible="1" modifiers="{'invisible': [['hide_no_sujeto_exento','=',True]]}" -->
                     </group>
 
-                    <group string="Descuentos Por Tipo de Operación" col="2">
+                    <group string="Descuentos Por Tipo de Operación" col="2" invisible="move_type != 'out_invoice' and not codigo_tipo_documento">
                         <field name="descuento_no_sujeto_pct" invisible="codigo_tipo_documento == '11'"/><!-- invisible="1" modifiers="{'invisible': [['hide_no_sujeto_exento','=',True]]}" -->
                         <field name="descuento_exento_pct" invisible="codigo_tipo_documento == '11'"/><!-- invisible="1" modifiers="{'invisible': [['hide_no_sujeto_exento','=',True]]}" -->
                         <field name="descuento_gravado_pct"/>
                         <field name="descuento_global_monto" invisible="not show_global_discount"/>
                     </group>
 
-                    <group string="Totales" col="2">
+                    <group string="Totales" col="2" invisible="move_type != 'out_invoice' and not codigo_tipo_documento">
                         <field name="total_descuento" widget="percent" readonly="1"/>
                         <field name="descuento_global" widget="percent" readonly="1" invisible="not show_global_discount"/>
-                        <field name="seguro" widget="monetary"/>
-                        <field name="flete" widget="monetary"/>
+                        <field name="seguro" widget="monetary" invisible="not codigo_tipo_documento or codigo_tipo_documento != '11'"/>
+                        <field name="flete" widget="monetary" invisible="not codigo_tipo_documento or codigo_tipo_documento != '11'"/>
                         <field name="sub_total" widget="monetary" readonly="1" invisible="codigo_tipo_documento == '11'"/>
                         <field name="total_operacion" widget="monetary" readonly="1"/>
                         <field name="total_pagar" widget="monetary" readonly="1"/>
