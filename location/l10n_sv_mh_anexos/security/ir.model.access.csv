@@ -1,2 +1,7 @@
 id,name,model_id:id,group_id:id,perm_read,perm_create,perm_write,perm_unlink
 access_account_move_anexo,access_account_move_anexo,account.model_account_move,account.group_account_user,1,1,1,1
+access_tipo_ingreso_user,access.tipo.ingreso,model_account_tipo_ingreso,base.group_user,1,1,1,1
+access_tipo_costo_gasto_user,access.tipo.costo.gasto,model_account_tipo_costo_gasto,base.group_user,1,1,1,1
+access_tipo_operacion_user,access.tipo.operacion,model_account_tipo_operacion,base.group_user,1,1,1,1
+access_clasificacion_facturacion_user,access.clasificacion.facturacion,model_account_clasificacion_facturacion,base.group_user,1,1,1,1
+access_sector_user,access.sector,model_account_sector,base.group_user,1,1,1,1

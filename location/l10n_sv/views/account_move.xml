@@ -13,7 +13,8 @@
                         <field name="sit_regimen" string="Régimen de Exportación" invisible="journal_code != 'EXP'"/>
                     </group>
                 </xpath>
-                <xpath expr="//label[@for='journal_id']" position="before">
+
+                <xpath expr="//label[@for='journal_id']" position="after">
                     <!--                    <field name="invoice_payment_term_name" invisible="1"/>-->
                     <group string="Pago Hacienda" invisible="journal_code == 'SLR'">
                         <field name="invoice_payment_term_id" string="Términos de Pago"/>

@@ -1,15 +1,16 @@
 <odoo>
     <data>
         <!-- Acción Consumidor Final -->
-        <record id="action_anexo_clientes" model="ir.actions.act_window">
-            <field name="name">Anexo Clientes</field>
+        <record id="action_anexo_consumidor_final" model="ir.actions.act_window">
+            <field name="name">Anexo Consumidor final</field>
             <field name="res_model">account.move</field>
             <field name="view_mode">list</field>
             <field name="view_id" ref="view_anexo_consumidor_final_list"/>
             <field name="search_view_id" ref="view_anexos_fechas_search"/>
-            <field name="domain">[('codigo_tipo_documento', 'in', ['01', '11']), ('hacienda_estado', '=', 'PROCESADO'),
-                ('hacienda_selloRecibido', '!=', '')]
-            </field>
+<!--            <field name="domain">[('codigo_tipo_documento', 'in', ['01', '11']), ('hacienda_estado', '=', 'PROCESADO'),-->
+<!--                ('hacienda_selloRecibido', '!=', '')]-->
+<!--            </field>-->
+            <field name="domain">[('codigo_tipo_documento','in', ['01','11'])]</field>
             <field name="context">{'numero_anexo': 2}</field>
         </record>
 
@@ -21,6 +22,7 @@
             <field name="view_id" ref="view_anexo_contribuyentes_list"/>
             <field name="search_view_id" ref="view_anexos_fechas_search"/>
             <!--            <field name="domain">[('codigo_tipo_documento', '=', '03'), ('hacienda_estado', '=', 'PROCESADO'), ('hacienda_selloRecibido', '!=', '')]</field>-->
+<!--            <field name="domain">[('codigo_tipo_documento', '=', '01','11')]</field>-->
             <field name="domain">[('codigo_tipo_documento','in', ['01', '11', '03'])]</field>
 
             <field name="context">{'numero_anexo': 1}</field>
@@ -78,6 +80,17 @@
             <field name="context">{'numero_anexo': 7}</field>
         </record>
 
+
+        <record id="action_anexo_clientes" model="ir.actions.act_window">
+            <field name="name">Clientes</field>
+            <field name="res_model">account.move</field>
+            <field name="view_mode">list</field>
+            <field name="view_id" ref="view_anexo_clientes_list"/>
+            <field name="search_view_id" ref="view_anexos_fechas_search"/>
+            <field name="domain">[('codigo_tipo_documento','in', ['01', '11', '03'])]</field>
+            <field name="context">{'numero_anexo': 4}</field>
+        </record>
+
         <menuitem
                 id="menu_hacienda_reports"
                 name="Anexos de Hacienda"
@@ -89,7 +102,7 @@
                 id="menu_anexo_consumidor_final"
                 name="Anexo Consumidor Final"
                 parent="menu_hacienda_reports"
-                action="action_anexo_clientes"
+                action="action_anexo_consumidor_final"
                 sequence="10"/>
 
         <menuitem
@@ -127,5 +140,12 @@
                 action="action_anexo_anulados_y_extraviados"
                 sequence="30"/>
 
-    </data>
+        <menuitem
+                id="menu_anexo_clientes"
+                name="Anexo Clientes"
+                parent="menu_hacienda_reports"
+                action="action_anexo_clientes"
+                sequence="30"/>
+
+    </data>x
 </odoo>

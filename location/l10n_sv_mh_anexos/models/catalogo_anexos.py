@@ -16,3 +16,35 @@ class TipoCostoGasto(models.Model):
     codigo = fields.Integer("Código")
     valor = fields.Char("Valor")
 
+
+class TipoOperacion(models.Model):
+    _name = "account.tipo.operacion"
+    _description = "Tipo de Operacion"
+    _rec_name = "valor"
+
+    codigo = fields.Integer("Código")
+    valor = fields.Char("Valor")
+
+class TipoOperacion(models.Model):
+    _name = "account.tipo.operacion"
+    _description = "Tipo de Operacion"
+    _rec_name = "valor"
+
+    codigo = fields.Integer("Código")
+    valor = fields.Char("Valor")
+
+class ClasificacionFacturacion(models.Model):
+    _name = "account.clasificacion.facturacion"
+    _description = "Calificación"
+    _rec_name = "valor"
+
+    codigo = fields.Integer("Código")
+    valor = fields.Char("Valor")
+
+class Sector(models.Model):
+    _name = "account.sector"
+    _description = "Sector"
+    _rec_name = "valor"
+
+    codigo = fields.Integer("Código")
+    valor = fields.Char("Valor")
