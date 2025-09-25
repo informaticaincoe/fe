@@ -1003,9 +1003,9 @@ class AccountMove(models.Model):
         _logger = logging.getLogger(__name__)
 
         # Log previo al write
-        _logger.warning("[WRITE-PRE] move_ids=%s, vals=%s", self.ids, vals)
+        _logger.warning("Account_move_invocie_sv [WRITE-PRE] move_ids=%s, vals=%s", self.ids, vals)
         tb_str = ''.join(traceback.format_stack())
-        _logger.debug("[WRITE-PRE-STACK] Stack:\n%s", tb_str)
+        _logger.debug("Account_moveinvoice_sv [WRITE-PRE-STACK] Stack:\n%s", tb_str)
 
         # Ejecutar write original
         res = super().write(vals)

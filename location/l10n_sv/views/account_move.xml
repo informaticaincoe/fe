@@ -27,7 +27,7 @@
                     </group>
                 </xpath>
                 <notebook>
-                    <page string="FEL" name="certificados2" invisible="journal_code == 'SLR'">
+                    <page string="FEL" name="certificados2" invisible="journal_code == 'SLR' or not codigo_tipo_documento">
                         <group>
                             <field name="sit_qr_hacienda" widget="image" invisible="0"/>
                             <field name="sit_json_respuesta" invisible="1"/>

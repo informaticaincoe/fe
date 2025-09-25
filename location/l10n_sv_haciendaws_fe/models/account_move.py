@@ -444,11 +444,20 @@ class AccountMove(models.Model):
         List related invoice information to fill CbtesAsoc.
         """
         self.ensure_one()
+
+        _logger.info("Iniciando get_related_invoices_data para move_id=%s", self.id)
+        _logger.info("Tipo de documento: %s", self.l10n_latam_document_type_id.internal_type)
+
         if self.l10n_latam_document_type_id.internal_type == "credit_note":
+            _logger.info("Relacionado con una Nota de Crédito, reversed_entry_id: %s",
+                         self.reversed_entry_id.id if self.reversed_entry_id else None)
             return self.reversed_entry_id
         elif self.l10n_latam_document_type_id.internal_type == "debit_note":
+            _logger.info("Relacionado con una Nota de Débito, debit_origin_id: %s",
+                         self.debit_origin_id.id if self.debit_origin_id else None)
             return self.debit_origin_id
         else:
+            _logger.info("No es una Nota de Crédito ni Nota de Débito, devolviendo browse()")
             return self.browse()
 
     def _generate_dte_name(self, journal=None, actualizar_secuencia=False):
@@ -470,7 +479,7 @@ class AccountMove(models.Model):
             if journal.type not in ('sale', 'purchase'):
                 return False
 
-            if doc_electronico and not journal.sit_tipo_documento or not journal.sit_tipo_documento.codigo:
+            if doc_electronico and (not journal.sit_tipo_documento or not journal.sit_tipo_documento.codigo):
                 raise UserError(_("Configure Tipo de DTE en diario '%s'.") % journal.name)
             if doc_electronico and not journal.sit_codestable:
                 raise UserError(_("Configure Código de Establecimiento en diario '%s'.") % journal.name)
