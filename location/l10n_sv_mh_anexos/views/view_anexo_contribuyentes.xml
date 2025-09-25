@@ -5,8 +5,9 @@
             <field name="model">account.move</field>
             <field name="arch" type="xml">
                 <list string="Detalle de Anexos contribuyentes">
-                    <!--                    <field name="invoice_month" string="Mes" />-->
-                    <!--                    <field name="name" string="Documento"/>-->
+                    <header>
+                        <button name="action_download_csv_anexo" type="object" string="Descargar CSV" class="oe_highlight" display="always"/>
+                    </header>
                     <field name="invoice_date" string="Fecha de Emisión"/>
                     <field name="clase_documento"/>
                     <field name="codigo_tipo_documento"/>
@@ -14,7 +15,7 @@
                     <field name="hacienda_selloRecibido" string="Serie del documento"/>
                     <field name="hacienda_codigoGeneracion_identificacion" string="Número de documento"/>
                     <field name="numero_control_interno_al" string="Número de control interno"/>
-                    <field name="nit_o_nrc_cliente" string="NIT o NRC del cliente"/>
+                    <field name="nit_o_nrc_anexo_contribuyentes" string="NIT o NRC del cliente"/>
                     <field name="razon_social"/>
                     <field name="total_exento"/>
                     <field name="ventas_exentas_no_sujetas"/>
@@ -27,6 +28,8 @@
 
                     <field name="total_operacion" string="Total ventas"/>
                     <field name="dui_cliente" string="DUI cliente"/>
+                    <field name="tipo_operacion_display"/>
+                    <field name="tipo_ingreso_display"/>
                     <field name="numero_anexo" />
                 </list>
             </field>

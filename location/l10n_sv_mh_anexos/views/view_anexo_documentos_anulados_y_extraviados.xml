@@ -5,13 +5,19 @@
             <field name="model">account.move</field>
             <field name="arch" type="xml">
                 <list string="Detalle de documentos extraviados y anulados">
+                    <header>
+                        <button name="action_download_csv_anexo" type="object" string="Descargar CSV" class="oe_highlight" display="always"/>
+                    </header>
                     <field name="name" string="Número de resolución"/>
-                    <field name="clase_documento"/>
+                    <field name="clase_documento_display"/>
+                    <field name="desde_tiquete_preimpreso" string="Desde (preimrpeso)"/>
+                    <field name="hasta_tiquete_preimpreso" string="hasta (preimrpeso)"/>
                     <field name="codigo_tipo_documento" string="Tipo de documento"/>
-                    <field name="hacienda_codigoGeneracion_identificacion" string="Tipo de documento"/>
-
-
-
+                    <field name="tipo_de_detalle" string="Tipo detalle"/>
+                    <field name="hacienda_selloRecibido" string="Serie"/>
+                    <field name="desde" string="Desde"/>
+                    <field name="hasta" string="Hasta"/>
+                    <field name="hacienda_codigoGeneracion_identificacion" string="Codigo de generación"/>
                 </list>
             </field>
         </record>

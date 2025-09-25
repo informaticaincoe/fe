@@ -34,6 +34,8 @@
         "data/account.tipo.ingreso.csv",
         "data/account.tipo.operacion.csv",
         "data/account.clasificacion.facturacion.csv",
+        "data/account.clase.documento.csv",
+        "data/account.tipo.documento.identificacion.csv",
         "data/account.sector.csv",
     ],
     'demo': [

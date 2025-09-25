@@ -5,15 +5,28 @@
             <field name="model">account.move</field>
             <field name="arch" type="xml">
                 <list string="Anexos Sujeto excluido">
-                    <field name="codigo_tipo_documento_cliente" string="Tipo documento"/>
+                    <header>
+                        <button name="action_download_csv_anexo"
+                                type="object"
+                                string="Descargar CSV"
+                                class="oe_highlight"
+                                context="{'numero_anexo': '5'}"
+                                display="always"
+                        />
+                    </header>
+
+                    <field name="codigo_tipo_documento_cliente_display" string="Tipo documento"/>
                     <field name="documento_sujeto_excluido" string="Número de documento"/>
                     <field name="razon_social" string="Nombre"/>
                     <field name="invoice_date" string="Fecha de Emisión"/>
                     <field name="hacienda_selloRecibido" string="Número de serie"/><!-- Sello-->
-                    <field name="hacienda_codigoGeneracion_identificacion" string="Número de documento"/><!-- Sello-->
+                    <field name="name" string="Número de documento"/><!-- Sello-->
                     <field name="total_operacion" string="Monto de la operacion"/>
-<!--                    <field name="retencion_iva_amount"/>-->
-
+                    <field name="retencion_iva_amount" string="Monto de la retencion IVA 13%"/>
+                    <field name="tipo_operacion_display"/>
+                    <field name="clasificacion_facturacion_display"/>
+                    <field name="sector_display"/>
+                    <field name="tipo_costo_gasto_display"/>
                     <field name="numero_anexo"/>
                 </list>
             </field>

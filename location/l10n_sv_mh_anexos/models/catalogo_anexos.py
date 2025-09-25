@@ -48,3 +48,19 @@ class Sector(models.Model):
 
     codigo = fields.Integer("Código")
     valor = fields.Char("Valor")
+
+class ClaseDocumento(models.Model):
+    _name = "account.clase.documento"
+    _description = "clase.documento"
+    _rec_name = "valor"
+
+    codigo = fields.Integer("Código")
+    valor = fields.Char("Valor")
+
+class TipoDocumentoIdentificacion(models.Model):
+    _name = "account.tipo.documento.identificacion"
+    _description = "tipo documento identificacion"
+    _rec_name = "valor"
+
+    codigo = fields.Integer("Código")
+    valor = fields.Char("Valor")
