@@ -3,6 +3,9 @@
 from odoo import api, fields, models, _
 from odoo.exceptions import RedirectWarning, UserError, ValidationError, AccessError
 
+import logging
+_logger = logging.getLogger(__name__)
+
 class AccountMove(models.Model):
     _inherit = "account.move"
 
@@ -50,6 +53,13 @@ class AccountMove(models.Model):
         # 1) Solo asigno la secuencia estándar para diarios NO sale
         non_sales = self.filtered(lambda m: m.journal_id.type != 'sale')
         for move in non_sales:
+            _logger.info("Revisando move %s con diario %s (%s)", move.id, move.journal_id.name, move.journal_id.type)
+
+            if not (move.company_id and move.company_id.sit_facturacion) or not move.journal_id.sit_tipo_documento:
+                _logger.warning("Move %s omitido: sin company_id.sit_facturacion y sin tipo de documento en el diario %s", move.id, move.journal_id.id)
+                continue
+
+            _logger.info("Move %s pasa validaciones, continúa con el flujo", move.id)
             if move.name == '/':
                 journal = move.journal_id
                 if not journal:
@@ -73,23 +83,29 @@ class AccountMove(models.Model):
     @api.onchange('journal_id')
     def onchange_journal_id(self):
         """Resetea nombre y deja que el core compute lo demás; si FE OFF, no toques nada extra."""
+        _logger.info("SIT-ONCHANGE: Iniciando onchange_journal_id para move_id=%s, journal_id=%s", self.id,
+                     self.journal_id.id if self.journal_id else None)
+
         # Llama primero al core por si tiene lógica propia
         try:
             super(AccountMove, self).onchange_journal_id()
+            _logger.info("SIT-ONCHANGE: super().onchange_journal_id ejecutado, name=%s", self.name)
         except AttributeError:
-            pass
+            _logger.warning("SIT-ONCHANGE: super().onchange_journal_id no existe en esta versión")
+
         # Si quieres forzar reset del nombre cuando FE ON:
         if self.env.company.sit_facturacion:
+            _logger.info("SIT-ONCHANGE: FE activado, reseteando name a '/' (antes name=%s)", self.name)
             self.name = '/'
             try:
+                _logger.info("SIT-ONCHANGE: llamando a _compute_name()")
                 self._compute_name()
-            except Exception:
-                # en algunas versiones, _compute_name puede no existir o ser privado
-                pass
+                _logger.info("SIT-ONCHANGE: _compute_name() ejecutado, name=%s", self.name)
+            except Exception as e:
+                _logger.error("SIT-ONCHANGE: Error ejecutando _compute_name(): %s", e)
 
     def _constrains_date_sequence(self):
         return
-
 
     def write(self, vals):
         # para evitar que pongan name = False

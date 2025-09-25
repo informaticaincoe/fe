@@ -16,7 +16,7 @@
 
                 <xpath expr="//label[@for='journal_id']" position="after">
                     <!--                    <field name="invoice_payment_term_name" invisible="1"/>-->
-                    <group string="Pago Hacienda" invisible="journal_code == 'SLR'">
+                    <group string="Pago Hacienda" invisible="move_type != 'out_invoice' and not codigo_tipo_documento">
                         <field name="invoice_payment_term_id" string="Términos de Pago"/>
                         <field name="condiciones_pago" string="Condiciones de Pago"
                                options="{'no_open': True, 'no_create': True}"/>

@@ -295,7 +295,10 @@ class AccountMove(models.Model):
                     # usar un record virtual para métodos que requieren ensure_one()
                     virtual_move = self.env['account.move'].new(vals)
                     # virtual_move._onchange_journal()  # por si depende del diario
-                    generated_name = virtual_move._generate_dte_name()
+                    # Marcamos en el contexto que el DTE se genera automáticamente
+                    # generated_name = virtual_move._generate_dte_name()
+                    generated_name = virtual_move.with_context(_dte_auto_generated=True)._generate_dte_name()
+
                     if generated_name:
                         vals['name'] = generated_name
                         _logger.info("SIT Nombre generado dinámicamente (venta/compra): %s", vals['name'])
@@ -336,7 +339,9 @@ class AccountMove(models.Model):
         _logger.info("Valores finales antes de super().create: %s", vals_list)
         # no forzar name
         self._fields['name'].required = False
-        records = super().create(vals_list)
+        # Añadimos `_dte_auto_generated=True` en el contexto para marcar que el campo `name`, fue generado automáticamente por la lógica DTE. Esto es indispensable porque
+        # el constraint `_check_name_sales` valida que las facturas de venta no tengan modificaciones manuales en `name`.
+        records = super(AccountMove, self.with_context(_dte_auto_generated=True)).create(vals_list)
         _logger.info("Registros creados: %s", records.ids)
 
         # Refuerzo para name si quedó en '/'
@@ -638,7 +643,6 @@ class AccountMove(models.Model):
             #    _logger.info("SIT Secuencia '%s' actualizada a %s", seq_code, next_num)
 
             # _logger.info("SIT Actualizar secuencia _generar_dte_name(): %s", actualizar_secuencia)
-
             return nuevo_name
         else:
             return None  # <--- Omitir, que Odoo siga normal
@@ -921,7 +925,7 @@ class AccountMove(models.Model):
                 # 1) Número de control DTE
                 prefix = (config_utils.get_config_value(self.env, 'dte_prefix', self.company_id.id) or "DTE-").lower()
                 if doc_electronico and not (invoice.name and invoice.name.startswith(prefix)):
-                    numero_control = invoice._generate_dte_name()
+                    numero_control = invoice.with_context(_dte_auto_generated=True)._generate_dte_name() # invoice._generate_dte_name()
                     if not numero_control:
                         raise UserError(_("No se pudo generar número de control DTE para la factura %s.") % invoice.id)
                     invoice.name = numero_control
@@ -1013,7 +1017,7 @@ class AccountMove(models.Model):
                             _logger.warning("SIT DTE rechazado por número de control duplicado. Generando nuevo número.")
 
                             # Generar nuevo número de control
-                            nuevo_nombre = invoice._generate_dte_name(actualizar_secuencia=True)
+                            nuevo_nombre = invoice.with_context(_dte_auto_generated=True)._generate_dte_name() # invoice._generate_dte_name(actualizar_secuencia=True)
                             # Verifica si el nuevo nombre es diferente antes de actualizar
                             if nuevo_nombre != invoice.name:
                                 _logger.info("SIT Actualizando nombre DTE: %s a %s", invoice.name, nuevo_nombre)
@@ -2280,7 +2284,9 @@ class AccountMove(models.Model):
 
     def write(self, vals):
         # Ejecutar write normal para todas las facturas
+        _logger.warning("[WRITE-PRE] move_id=%s, vals=%s", self.id, vals)
         res = super().write(vals)
+        _logger.warning("[WRITE-POST] move_id=%s, name=%s", self.id, self.name)
 
         # Filtrar solo las facturas que aplican a facturación electrónica
         facturas_aplican = self.filtered(lambda inv: inv.company_id and inv.company_id.sit_facturacion)

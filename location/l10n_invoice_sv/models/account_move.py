@@ -14,10 +14,10 @@ from odoo.tools import float_round
 class AccountMove(models.Model):
     _inherit = 'account.move'
 
-    codigo_tipo_documento = fields.Char(
-        related='journal_id.sit_tipo_documento.codigo',
-        store=True
-    )
+    # codigo_tipo_documento = fields.Char(
+    #     related='journal_id.sit_tipo_documento.codigo',
+    #     store=True
+    # )
 
     apply_retencion_iva = fields.Boolean(string="Aplicar Retención IVA", default=False)
     retencion_iva_amount = fields.Monetary(string="Monto Retención IVA", currency_field='currency_id',
@@ -999,10 +999,26 @@ class AccountMove(models.Model):
                 move.write({'line_ids': nuevas_lineas})
 
     def write(self, vals):
+        import logging, traceback
+        _logger = logging.getLogger(__name__)
+
+        # Log previo al write
+        _logger.warning("[WRITE-PRE] move_ids=%s, vals=%s", self.ids, vals)
+        tb_str = ''.join(traceback.format_stack())
+        _logger.debug("[WRITE-PRE-STACK] Stack:\n%s", tb_str)
+
+        # Ejecutar write original
         res = super().write(vals)
+
+        # Log posterior al write
+        _logger.warning("[WRITE-POST] move_ids=%s, vals=%s", self.ids, vals)
+
+        # Manejo de descuentos
         campos_descuento = {'descuento_gravado', 'descuento_exento', 'descuento_no_sujeto', 'descuento_global_monto'}
         if any(c in vals for c in campos_descuento):
+            _logger.info("[WRITE-DESCUENTO] Se detectaron campos de descuento, agregando líneas de seguro/flete")
             self.agregar_lineas_seguro_flete()
+
         return res
 
     def create(self, vals):
