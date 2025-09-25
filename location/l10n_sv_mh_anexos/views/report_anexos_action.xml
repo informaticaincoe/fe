@@ -1,13 +1,16 @@
 <odoo>
     <data>
         <!-- Acción Consumidor Final -->
-        <record id="action_anexo_clientes" model="ir.actions.act_window">
-            <field name="name">Anexo Clientes</field>
+        <record id="action_anexo_consumidor_final" model="ir.actions.act_window">
+            <field name="name">Anexo Consumidor final</field>
             <field name="res_model">account.move</field>
             <field name="view_mode">list</field>
             <field name="view_id" ref="view_anexo_consumidor_final_list"/>
             <field name="search_view_id" ref="view_anexos_fechas_search"/>
-            <field name="domain">[('codigo_tipo_documento', 'in', ['01', '11']), ('hacienda_estado', '=', 'PROCESADO'), ('hacienda_selloRecibido', '!=', '')]</field>
+<!--            <field name="domain">[('codigo_tipo_documento', 'in', ['01', '11']), ('hacienda_estado', '=', 'PROCESADO'),-->
+<!--                ('hacienda_selloRecibido', '!=', '')]-->
+<!--            </field>-->
+            <field name="domain">[('codigo_tipo_documento','in', ['01','11'])]</field>
             <field name="context">{'numero_anexo': 2}</field>
         </record>
 
@@ -18,7 +21,10 @@
             <field name="view_mode">list</field>
             <field name="view_id" ref="view_anexo_contribuyentes_list"/>
             <field name="search_view_id" ref="view_anexos_fechas_search"/>
-            <field name="domain">[('codigo_tipo_documento', '=', '03'), ('hacienda_estado', '=', 'PROCESADO'), ('hacienda_selloRecibido', '!=', '')]</field>
+            <!--            <field name="domain">[('codigo_tipo_documento', '=', '03'), ('hacienda_estado', '=', 'PROCESADO'), ('hacienda_selloRecibido', '!=', '')]</field>-->
+<!--            <field name="domain">[('codigo_tipo_documento', '=', '01','11')]</field>-->
+            <field name="domain">[('codigo_tipo_documento','in', ['01', '11', '03'])]</field>
+
             <field name="context">{'numero_anexo': 1}</field>
         </record>
 
@@ -29,7 +35,9 @@
             <field name="view_mode">list</field>
             <field name="view_id" ref="view_anexo_compras_list"/>
             <field name="search_view_id" ref="view_anexos_fechas_search"/>
-            <field name="domain">[('codigo_tipo_documento', 'in', ['03', '05', '06', '11']), ('hacienda_estado', '=', 'PROCESADO'), ('hacienda_selloRecibido', '!=', '')]</field>
+            <!--            <field name="domain">[('codigo_tipo_documento', 'in', ['03', '05', '06', '11']), ('hacienda_estado', '=', 'PROCESADO'), ('hacienda_selloRecibido', '!=', '')]</field>-->
+            <field name="domain">[('codigo_tipo_documento','in', ['01', '11', '03'])]</field>
+
             <field name="context">{'numero_anexo': 3}</field>
         </record>
 
@@ -40,8 +48,47 @@
             <field name="view_mode">list</field>
             <field name="view_id" ref="view_anexo_sujeto_excluido_list"/>
             <field name="search_view_id" ref="view_anexos_fechas_search"/>
-            <field name="domain">[('codigo_tipo_documento', 'in', ['14']), ('hacienda_estado', '=', 'PROCESADO'), ('hacienda_selloRecibido', '!=', '')]</field>
+            <field name="domain">[('codigo_tipo_documento', 'in', ['14']), ('hacienda_estado', '=', 'PROCESADO'),
+                ('hacienda_selloRecibido', '!=', '')]
+            </field>
             <field name="context">{'numero_anexo': 5}</field>
+        </record>
+
+        <record id="action_anexo_casilla162" model="ir.actions.act_window">
+            <field name="name">Anexo Casilla 162 (Percepciones efectuadas)</field>
+            <field name="res_model">account.move</field>
+            <field name="view_mode">list</field>
+            <field name="view_id" ref="view_anexo_casilla162_list"/>
+            <field name="search_view_id" ref="view_anexos_fechas_search"/>
+            <field name="domain">
+                [('codigo_tipo_documento', '=', '14'), ('retencion_iva_amount', '!=', False), ('hacienda_estado', '=',
+                'PROCESADO')]
+            </field>
+            <field name="context">{'numero_anexo': 7}</field>
+        </record>
+
+        <record id="action_anexo_anulados_y_extraviados" model="ir.actions.act_window">
+            <field name="name">Anexo documentos extraviados y anulados</field>
+            <field name="res_model">account.move</field>
+            <field name="view_mode">list</field>
+            <field name="view_id" ref="view_anexo_anulados_y_extraviado_list"/>
+            <field name="search_view_id" ref="view_anexos_fechas_search"/>
+            <field name="domain">
+                [('sit_evento_invalidacion', '!=', False)]
+            </field>
+
+            <field name="context">{'numero_anexo': 7}</field>
+        </record>
+
+
+        <record id="action_anexo_clientes" model="ir.actions.act_window">
+            <field name="name">Clientes</field>
+            <field name="res_model">account.move</field>
+            <field name="view_mode">list</field>
+            <field name="view_id" ref="view_anexo_clientes_list"/>
+            <field name="search_view_id" ref="view_anexos_fechas_search"/>
+            <field name="domain">[('codigo_tipo_documento','in', ['01', '11', '03'])]</field>
+            <field name="context">{'numero_anexo': 4}</field>
         </record>
 
         <menuitem
@@ -55,7 +102,7 @@
                 id="menu_anexo_consumidor_final"
                 name="Anexo Consumidor Final"
                 parent="menu_hacienda_reports"
-                action="action_anexo_clientes"
+                action="action_anexo_consumidor_final"
                 sequence="10"/>
 
         <menuitem
@@ -78,5 +125,27 @@
                 parent="menu_hacienda_reports"
                 action="action_anexo_sujeto_excluido"
                 sequence="10"/>
-    </data>
+
+        <menuitem
+                id="menu_anexo_casilla162"
+                name="Anexo Casilla 162 (Percepciones)"
+                parent="menu_hacienda_reports"
+                action="action_anexo_casilla162"
+                sequence="30"/>
+
+        <menuitem
+                id="menu_anexo_extraviados_y_anulados"
+                name="Anexo docuemntos extraviados y anulados"
+                parent="menu_hacienda_reports"
+                action="action_anexo_anulados_y_extraviados"
+                sequence="30"/>
+
+        <menuitem
+                id="menu_anexo_clientes"
+                name="Anexo Clientes"
+                parent="menu_hacienda_reports"
+                action="action_anexo_clientes"
+                sequence="30"/>
+
+    </data>x
 </odoo>

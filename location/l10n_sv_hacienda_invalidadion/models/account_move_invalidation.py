@@ -330,6 +330,8 @@ class AccountMoveInvalidation(models.Model):
                     _logger.info("SIT Generando DTE")
                     # Guardar firma
                     invoice.sit_documento_firmado_invalidacion = str(documento_firmado)
+                    _logger.info("invoice.sit_documento_firmado_invalidacion = %s", str(invoice.sit_documento_firmado_invalidacion))
+
 
                     # Obtiene el payload DTE
                     payload_dte = invoice.sit_factura_a_reemplazar.sit_obtener_payload_anulacion_dte_info(validation_type, documento_firmado)
@@ -623,11 +625,15 @@ class AccountMoveInvalidation(models.Model):
             'Authorization': f"Bearer {self.sit_factura_a_reemplazar.company_id.sit_token}"  # authorization
         }
         try:
+            _logger.info("SIT generar_dte_invalidacion url =%s", url)
+
             response = requests.request("POST", url, headers=headers, data=json.dumps(payload))
+
             _logger.info("SIT generar_dte_invalidacion DTE response =%s", response)
             _logger.info("SIT generar_dte_invalidacion DTE response =%s", response.status_code)
             _logger.info("SIT generar_dte_invalidacion DTE response.text =%s", response.text)
         except Exception as e:
+
             _logger.error("SIT Error posterior al crear la invalidación: %s ", e, exc_info=True)
             error_msg = ""
             if isinstance(e, dict):

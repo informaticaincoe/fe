@@ -27,9 +27,6 @@
 
                     <field name="total_operacion" string="Total ventas"/>
                     <field name="dui_cliente" string="DUI cliente"/>
-                    <field name="ventas_tasa_cero" />
-                    <field name="ventas_cuenta_terceros" />
-                    <field name="total_operacion" />
                     <field name="numero_anexo" />
                 </list>
             </field>

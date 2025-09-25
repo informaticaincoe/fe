@@ -1,0 +1,22 @@
+<odoo>
+    <data>
+        <record id="view_anexo_clientes_list" model="ir.ui.view">
+            <field name="name">account.move.anexo.clientes.list</field>
+            <field name="model">account.move</field>
+            <field name="arch" type="xml">
+                <list string="Anexos Clientes">
+                    <field name="invoice_month" string="Mes"/>
+                    <field name="codigo_tipo_documento_cliente" string="Documento de identificacion"/>
+                    <field name="razon_social" string="Nombre"/>
+                    <field name="invoice_date" string="Fecha de Emisión"/>
+
+
+                    <field name="total_operacion" string="Monto de la operacion"/>
+<!--                    <field name="retencion_iva_amount"/>-->
+
+                    <field name="numero_anexo"/>
+                </list>
+            </field>
+        </record>
+    </data>
+</odoo>

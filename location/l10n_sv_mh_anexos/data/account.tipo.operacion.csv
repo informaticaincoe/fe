@@ -1,0 +1,11 @@
+id,codigo,valor
+tipo_operacion_0,0,Para periodos anteriores a enero 2025
+tipo_operacion_00,0,Cuando se trate de periodos tributarios anteriores a febrero 2024
+tipo_operacion_1,1,Gravada
+tipo_operacion_2,2,No gravada o exenta
+tipo_operacion_3,3,Excluido o no constituyente renta
+tipo_operacion_4,4,Mixta (Se refiere cuando en un mismo documento se encuentre una operación gravada y exenta)
+tipo_operacion_8,8,Operaciones informales en mas de 1 anexo
+tipo_operacion_9,9,Excepciones (Instituciones públicas no inscritos a IVA, operaciones no deducibles para renta, entre otros)
+tipo_operacion_12,12,Ingresos que ya fueron sujetos de retención en F910
+tipo_operacion_13,13,Sujetos pasivos excluidos (art. 6 LISR) e ingresos que no constituyen hecho generador del ISR

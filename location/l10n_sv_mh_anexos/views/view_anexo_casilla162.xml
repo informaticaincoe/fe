@@ -1,0 +1,19 @@
+<odoo>
+    <data>
+        <record id="view_anexo_casilla162_list" model="ir.ui.view">
+            <field name="name">anexo.casilla162.list</field>
+            <field name="model">account.move</field>
+            <field name="arch" type="xml">
+                <list string="Anexo Percepciones (Casilla 162)">
+                    <field name="nit_company"/>
+                    <field name="invoice_date"/>
+                    <field name="codigo_tipo_documento"/>
+                    <field name="hacienda_selloRecibido" string="Serie del documento"/>
+                    <field name="name" string="Número de documento"/>
+
+                    <field name="numero_anexo" string="Monto percibido (1%)"/>
+                </list>
+            </field>
+        </record>
+    </data>
+</odoo>

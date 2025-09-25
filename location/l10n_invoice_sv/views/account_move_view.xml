@@ -30,7 +30,7 @@
                     <!-- <field class="oe_left" name="amount_text" placeholder="amount to text"/> -->
                     <field name="codigo_tipo_documento" invisible="1"/>
 
-                    <group string="Retenciones" col="2" invisible="move_type != 'out_invoice' or not codigo_tipo_documento or codigo_tipo_documento == '11'">
+                    <group name="group_retenciones"  string="Retenciones" col="2" invisible="move_type != 'out_invoice' or not codigo_tipo_documento or codigo_tipo_documento == '11'">
                         <field name="apply_retencion_renta"  invisible="not codigo_tipo_documento in ('01', '03', '14')"/>
                         <field name="retencion_renta_amount" readonly="1" widget="monetary"
                                options="{'currency_field': 'currency_id'}" invisible="not codigo_tipo_documento in ('01', '03', '14')"/>

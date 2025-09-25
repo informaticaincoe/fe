@@ -1,0 +1,6 @@
+id,codigo,valor
+clasificacion_facturacion_0,0,Cuando se trata de periodos tributarios anteriores a febrero de 2024
+clasificacion_facturacion_1,1,Costo
+clasificacion_facturacion_2,2,Gasto
+clasificacion_facturcion_8,8,Operaciones informales en mas de 1 anexo
+clasificacion_facturcion_9,9,Excepciones (Instituciones públicas no inscritos a IVA, operaciones no deducibles para renta, entre otros)

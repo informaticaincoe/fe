@@ -12,7 +12,7 @@
                     <field name="hacienda_selloRecibido" string="Número de serie"/><!-- Sello-->
                     <field name="hacienda_codigoGeneracion_identificacion" string="Número de documento"/><!-- Sello-->
                     <field name="total_operacion" string="Monto de la operacion"/>
-                    <field name="retencion_iva_amount"/>
+<!--                    <field name="retencion_iva_amount"/>-->
 
                     <field name="numero_anexo"/>
                 </list>

@@ -1,0 +1,19 @@
+<odoo>
+    <data>
+        <record id="view_anexo_anulados_y_extraviado_list" model="ir.ui.view">
+            <field name="name">account.move.anexo.documentos.extraviados.y.anulados.list</field>
+            <field name="model">account.move</field>
+            <field name="arch" type="xml">
+                <list string="Detalle de documentos extraviados y anulados">
+                    <field name="name" string="Número de resolución"/>
+                    <field name="clase_documento"/>
+                    <field name="codigo_tipo_documento" string="Tipo de documento"/>
+                    <field name="hacienda_codigoGeneracion_identificacion" string="Tipo de documento"/>
+
+
+
+                </list>
+            </field>
+        </record>
+    </data>
+</odoo>
