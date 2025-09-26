@@ -1,3 +1,6 @@
 id,company_id:id,pwd,value_type,value_text,description,active,clave
 config_version_contingencia,base.main_company,,int,3,Versión vigente para el evento de contingencia,True,version_contingencia
 config_version_lote,base.main_company,,int,2,Versión vigente para el evento de lotes en contingencia,True,version_lote
+config_url_contingencia_hacienda,base.main_company,,text,https://api.dtes.mh.gob.sv/fesv/contingencia,URL de conexión al entorno de producción de Hacienda para el de eventos de contingencia,True,url_prod_contingencia
+config_url_lotes_hacienda,base.main_company,,text,https://apitest.dtes.mh.gob.sv/fesv/recepcionlote/,URL de conexión al entorno de producción de Hacienda para el envío de lotes en eventos de contingencia,True,url_prod_lotes
+config_url_auth_hacienda,base.main_company,,text,https://api.dtes.mh.gob.sv/seguridad/auth,URL de acceso al servicio de autenticación de Hacienda en entorno de producción,True,url_auth_prod_hacienda

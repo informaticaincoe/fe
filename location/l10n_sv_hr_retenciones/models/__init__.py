@@ -7,5 +7,8 @@ from . import hr_contract
 from . import hr_salary_rule
 from . import res_company
 from . import hr_attendance
-#from . import hr_leave
+from . import hr_leave
 from . import hr_leave_type
+from . import hr_payroll_structure
+from . import hr_salary_attachment_mass_state_wizard
+from . import hr_salary_attachment

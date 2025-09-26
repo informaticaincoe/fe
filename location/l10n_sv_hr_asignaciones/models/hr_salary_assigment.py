@@ -1,6 +1,6 @@
 from odoo import models, fields, api, _
-from datetime import datetime, timedelta
-from odoo.exceptions import UserError
+from datetime import datetime, timedelta, date
+from odoo.exceptions import UserError, ValidationError
 import logging
 import unicodedata
 import re
@@ -23,8 +23,15 @@ class HrSalaryAssignment(models.Model):
     _name = 'hr.salary.assignment'
     _description = 'Salary Assignment'
 
+    PERIOD_MONTHS = [
+        ('01', 'enero'), ('02', 'febrero'), ('03', 'marzo'),
+        ('04', 'abril'), ('05', 'mayo'), ('06', 'junio'),
+        ('07', 'julio'), ('08', 'agosto'), ('09', 'septiembre'),
+        ('10', 'octubre'), ('11', 'noviembre'), ('12', 'diciembre'),
+    ]
+
     # Campos principales de la asignación
-    employee_id = fields.Many2one('hr.employee', string='Empleado')
+    employee_id = fields.Many2one('hr.employee', string='Empleado', check_company=True)
     horas_extras_ids = fields.One2many(
         'hr.horas.extras',
         'salary_assignment_id',
@@ -41,7 +48,7 @@ class HrSalaryAssignment(models.Model):
     monto = fields.Float("Monto", required=False)
     periodo = fields.Date("Periodo", required=True)
     description = fields.Text(string="Descripción", help="Descripción")
-    payslip_id = fields.Many2one('hr.payslip', string='Histórico (Boleta)', help="Si se desea vincular con un recibo de pago.")
+    payslip_id = fields.Many2one('hr.payslip', string='Histórico (Boleta)', help="Si se desea vincular con un recibo de pago.", check_company=True)
 
     # horas_diurnas = fields.Char("Horas extras diurnas", invisible=False)
     # horas_nocturnas = fields.Char("Horas extras nocturnas", invisible=False)
@@ -53,6 +60,62 @@ class HrSalaryAssignment(models.Model):
     mostrar_horas_extras = fields.Boolean(string="Mostrar Horas Extras", default=False, store=True)
 
     codigo_empleado = fields.Char(string="Código de empleado", store=False)
+
+    company_id = fields.Many2one("res.company", string="Compañía", required=True, default=lambda self: self.env.company, index=True,)
+
+    # ----- Filtro por año, mes y dia -----
+    employee_name = fields.Char(
+        string="Nombre del Empleado",
+        compute='_compute_employee_name',
+        store=True,
+        help="Nombre completo del empleado para búsquedas y agrupaciones."
+    )
+
+    def year_selection(self):
+        current_year = date.today().year
+        years = list(range(current_year - 3, current_year + 2))
+        return [(str(y), str(y)) for y in years]
+
+    period_year = fields.Selection(
+        selection=year_selection,
+        string='Año',
+        compute='_compute_period_fields',
+        store=True,
+        index=True
+    )
+    period_month = fields.Selection(
+        selection=PERIOD_MONTHS,
+        string='Mes',
+        compute='_compute_period_fields',
+        store=True,
+        index=True
+    )
+    period_quincena = fields.Selection(
+        selection=[('1', '1ª quincena'), ('2', '2ª quincena')],
+        string='Quincena',
+        compute='_compute_period_fields',
+        store=True,
+        index=True
+    )
+
+    # Métodos compute para los nuevos campos
+    @api.depends('employee_id.name')
+    def _compute_employee_name(self):
+        for rec in self:
+            rec.employee_name = rec.employee_id.name or False
+
+    @api.depends('periodo')
+    def _compute_period_fields(self):
+        for rec in self:
+            if rec.periodo:
+                d = rec.periodo
+                rec.period_year = str(d.year)
+                rec.period_month = f"{d.month:02d}"
+                rec.period_quincena = '1' if d.day <= 15 else '2'
+            else:
+                rec.period_year = False
+                rec.period_month = False
+                rec.period_quincena = False
 
     def unlink(self):
         for asignacion in self:
@@ -81,6 +144,15 @@ class HrSalaryAssignment(models.Model):
             contrato = empleado.contract_id
             if not contrato:
                 raise UserError("No se encontró contrato para el empleado.")
+
+            cid = empleado.company_id.id
+            self = self.with_company(cid)  # ✅ asegura contexto
+            dias_mes = config_utils.get_dias_promedio_salario(self.env, cid)
+
+            calendar = contrato.resource_calendar_id
+            if not calendar:
+                raise UserError("No se encontró el horario de trabajo para el empleado.")
+            horas_laboradas = calendar.hours_per_day if calendar else 8
 
             conversion = {
                 'monthly': 1, 'semi-monthly': 2, 'bi-weekly': 52 / 12 / 2,
@@ -140,12 +212,19 @@ class HrSalaryAssignment(models.Model):
             # Determinar si es un viático con horas extras
             es_viatico_con_horas_extras = vals.get('tipo') == 'VIATICO' and any(vals.get(campo) for campo in horas_campos)
 
-            # Construir dominio de búsqueda
+            # calcular comp_id una sola vez
+            comp_id = vals.get('company_id') or (
+                    vals.get('employee_id') and self.env['hr.employee'].browse(vals['employee_id']).company_id.id
+            ) or self.env.company.id
+
             domain = [
                 ('employee_id', '=', vals.get('employee_id')),
                 ('tipo', '=', vals.get('tipo')),
                 ('periodo', '=', vals.get('periodo')),
+                ('company_id', '=', comp_id),
             ]
+
+            existing = self.with_company(comp_id).search(domain, limit=1)
 
             # Solo agregar la condición de 'mostrar_horas_extras' si el tipo es VIATICO
             # y ese campo está presente en vals
@@ -362,10 +441,13 @@ class HrSalaryAssignment(models.Model):
         try:
             records = []
             asignaciones_omitidas = []
+                #horas_validas = False
 
             for vals in vals_list:
+                #self._validar_asignacion(vals)
                 empleado = None
                 _logger.info("Creando asignación con datos: %s", vals)
+
                 if vals.get("tipo") == "COMISION":
                     for k, v in vals.items():
                         _logger.info("Campo: %s - Tipo: %s - Valor: %s", k, type(v), v)
@@ -382,21 +464,47 @@ class HrSalaryAssignment(models.Model):
                     vals["tipo"] = tipo
                     _logger.info("Procesando asignación tipo: %s", tipo)
 
+                    # Validación correcta de horas extras
+                    # if tipo == constants.ASIGNACION_HORAS_EXTRA.upper():
+                    #     horas_validas = False
+                    # for cmd in vals.get('horas_extras_ids', []):
+                    #     if cmd[0] == 0 and isinstance(cmd[2], dict):
+                    #         if any(float(cmd[2].get(campo, 0) or 0) > 0 for campo in [
+                    #             constants.HORAS_DIURNAS, constants.HORAS_NOCTURNAS,
+                    #             constants.HORAS_DIURNAS_DESCANSO, constants.HORAS_NOCTURNAS_DESCANSO,
+                    #             constants.HORAS_DIURNAS_ASUETO, constants.HORAS_NOCTURNAS_ASUETO
+                    #         ]):
+                    #             horas_validas = True
+                    #             break
+                    # if not horas_validas:
+                    #     raise UserError("No puede guardar una asignación de horas extras sin ingresar al menos una hora.")
+
                     # Buscar empleado por código o ID
                     codigo_empleado = vals.get('codigo_empleado')
                     _logger.info("Codigo del empleado: %s", codigo_empleado)
 
                     # Si viene de importación (usa código de empleado)
                     if codigo_empleado:
-                        if isinstance(codigo_empleado, str):
-                            codigo_empleado = codigo_empleado.strip()
+                        cod = codigo_empleado.strip() if isinstance(codigo_empleado, str) else codigo_empleado
 
-                        if not codigo_empleado:
-                            raise UserError("Debe proporcionar el código de empleado (codigo_empleado).")
+                        # No filtres por company_id aquí si no viene en el archivo;
+                        # busca por barcode y luego desambiguas tú.
+                        emp_domain = [('barcode', '=', cod)]
+                        if vals.get('company_id'):
+                            emp_domain.append(('company_id', '=', vals['company_id']))
+                        empleados = self.env['hr.employee'].search(emp_domain)
 
-                        empleado = self.env['hr.employee'].search([('barcode', '=', codigo_empleado)], limit=1)
-                        if not empleado:
-                            raise UserError(f"No se encontró un empleado con código: {codigo_empleado}")
+                        if not empleados:
+                            raise UserError(f"No se encontró un empleado con código: {cod}")
+
+                        if len(empleados) > 1 and not vals.get('company_id'):
+                            empresas = ", ".join(sorted({e.company_id.display_name for e in empleados}))
+                            raise UserError(
+                                f"El código {cod} existe en múltiples empresas ({empresas}). "
+                                f"Indique la empresa en el archivo (columna company_id) para desambiguar."
+                            )
+
+                        empleado = empleados[0]
                         vals['employee_id'] = empleado.id
 
                     # Si viene del formulario (usa employee_id directo)
@@ -471,6 +579,10 @@ class HrSalaryAssignment(models.Model):
 
                         monto_total = self._calcular_monto_horas_extras(empleado, horas_dict)
                         vals['monto'] = float_round(monto_total, precision_digits=2)
+
+                        # Validar que el monto sea mayor que cero
+                        # if not vals['monto'] or vals['monto'] <= 0:
+                        #     raise ValidationError(_("El monto de horas extras debe ser mayor que cero."))
                         # También guarda la descripción en las horas extras
                         if 'horas_extras_ids' in vals and horas_dict:
                             for cmd in vals['horas_extras_ids']:
@@ -490,6 +602,7 @@ class HrSalaryAssignment(models.Model):
                 except Exception as e:
                     _logger.error("Error al crear asignación con datos %s", vals)
                     _logger.error("Excepción completa:\n%s", traceback.format_exc())
+
             # Notificación si hay asignaciones omitidas por duplicado exacto
             if asignaciones_omitidas:
                 mensaje = "Algunas asignaciones no se agregaron porque ya existían con los mismos datos:\n\n"
@@ -509,6 +622,22 @@ class HrSalaryAssignment(models.Model):
             _logger.error("Error procesando descripción: %s", traceback.format_exc())
             raise
 
+
+    # def _validar_asignacion(self, vals, record=None):
+    #     """
+    #     Valida que:
+    #     - Exista empleado
+    #     - Exista tipo de asignacion
+    #     """
+    #     empleado_id = vals.get('employee_id') or (record and record.employee_id.id)
+    #     tipo = vals.get('tipo') or (record and record.tipo)
+    #
+    #     if not empleado_id:
+    #         raise ValidationError(_("Debe seleccionar un empleado."))
+    #
+    #     if not tipo:
+    #         raise ValidationError(_("Debe seleccionar el tipo de asignación."))
+
     def action_descargar_plantilla(self):
         """
         Acción que permite descargar la plantilla de asignaciones salariales desde un archivo adjunto.
@@ -516,7 +645,10 @@ class HrSalaryAssignment(models.Model):
         Si no se encuentra, muestra una notificación de error al usuario.
         """
         # Busca el archivo adjunto con la plantilla
-        attachment = self.env['ir.attachment'].search([('name', '=', constants.NOMBRE_PLANTILLA_ASIGNACIONES)], limit=1)
+        attachment = self.env['ir.attachment'].search([
+            ('name', '=', constants.NOMBRE_PLANTILLA_ASIGNACIONES),
+            ('company_id', '=', self.env.company.id)
+        ], limit=1)
         if not attachment:
             return {
                 'type': 'ir.actions.client',
@@ -556,7 +688,7 @@ class HrSalaryAssignment(models.Model):
         # Si ya es float o int
         if isinstance(valor, (float, int)):
             _logger.info("Valor numérico directo detectado: %.4f", float(valor))
-            return round(float(valor), 4)
+            return round(float(valor), 2)
 
         # Si es texto
         if isinstance(valor, str):
@@ -573,8 +705,8 @@ class HrSalaryAssignment(models.Model):
                         _logger.warning("Minutos inválidos detectados en valor '%s' (>= 60)", valor)
                         raise UserError(_("Minutos no pueden ser iguales o mayores a 60: '%s'" % valor))
 
-                    total = round(horas + (minutos / 60.0), 4)
-                    _logger.info("Valor '%s' convertido a %.4f horas decimales", valor, total)
+                    total = round(horas + (minutos / 60.0), 2)
+                    _logger.info("Valor '%s' convertido a %.2f horas decimales", valor, total)
                     return total
 
                 except Exception as e:
@@ -583,8 +715,9 @@ class HrSalaryAssignment(models.Model):
 
             # Si es un decimal en texto (ej. "1.25")
             try:
-                decimal = round(float(valor), 4)
-                _logger.info("Valor decimal string '%s' convertido a %.4f horas", valor, decimal)
+                valor_normalizado = str(valor).replace(',', '.')
+                decimal = round(float(valor_normalizado), 2)
+                _logger.info("Valor decimal string '%s' convertido a %.2f horas", valor, decimal)
                 return decimal
             except ValueError:
                 _logger.warning("Valor inválido para horas: '%s'", valor)

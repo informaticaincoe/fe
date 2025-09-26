@@ -17,6 +17,7 @@ tz_el_salvador = pytz.timezone('America/El_Salvador')
 
 
 import logging
+import json
 
 _logger = logging.getLogger(__name__)
 
@@ -26,10 +27,10 @@ class AccountMove(models.Model):
 
 
 
-######################################### FCE-EXPORTACION
+######################################### FCE-SUJETO EXCLUIDO
     @only_fe
     def sit_base_map_invoice_info_fse(self):
-        _logger.info("SIT sit_base_map_invoice_info self = %s", self)
+        _logger.info("SIT sit_base_map_invoice_info self FSE= %s", self)
 
         invoice_info = {}
         nit=self.company_id.vat
@@ -39,12 +40,32 @@ class AccountMove(models.Model):
         invoice_info["passwordPri"] = self.company_id.sit_passwordPri
         _logger.info("SIT sit_base_map_invoice_info = %s", invoice_info)
 
-        invoice_info["dteJson"] = self.sit__fse_base_map_invoice_info_dtejson()
+        #invoice_info["dteJson"] = self.sit__fse_base_map_invoice_info_dtejson()
+        if self.sit_json_respuesta and not self.hacienda_selloRecibido:
+            try:
+                # Intentamos convertir el sit_json_respuesta a un diccionario Python
+                json_data = json.loads(self.sit_json_respuesta)
+
+                # Verificamos si el campo ambiente existe y es igual a "00"
+                ambiente = json_data.get("identificacion", {}).get("ambiente", None)
+
+                if ambiente == "00":
+                    _logger.info("SIT Ambiente 00 detectado. Sobreescribiendo JSON.")
+                    invoice_info["dteJson"] = self.sit__fse_base_map_invoice_info_dtejson()
+            except json.JSONDecodeError as e:
+                _logger.error(f"SIT Error al procesar el JSON: {e}")
+                invoice_info["dteJson"] = self.sit_json_respuesta  # En caso de error en la conversión, mantenemos el JSON original
+        if not self.hacienda_selloRecibido and self.sit_factura_de_contingencia and self.sit_json_respuesta:
+            _logger.info("SIT sit_base_map_invoice_info contingencia")
+            invoice_info["dteJson"] = self.sit_json_respuesta
+        else:
+            _logger.info("SIT sit_base_map_invoice_info dte")
+            invoice_info["dteJson"] = self.sit__fse_base_map_invoice_info_dtejson()
         return invoice_info
 
     @only_fe
     def sit__fse_base_map_invoice_info_dtejson(self):
-        _logger.info("SIT sit_base_map_invoice_info_dtejson self = %s", self)
+        _logger.info("SIT sit_base_map_invoice_info_dtejson self FSE= %s", self)
         invoice_info = {}
         invoice_info["identificacion"] = self.sit__fse_base_map_invoice_info_identificacion()
         _logger.info("SIT sit_base_map_invoice_info_dtejson = %s", invoice_info)
@@ -64,9 +85,9 @@ class AccountMove(models.Model):
 
     @only_fe
     def sit__fse_base_map_invoice_info_identificacion(self):
-        _logger.info("SIT sit_base_map_invoice_info_identificacion self = %s", self)
+        _logger.info("SIT sit_base_map_invoice_info_identificacion self FSE= %s", self)
         invoice_info = {}
-        invoice_info["version"] = 1
+        invoice_info["version"] = int(self.journal_id.sit_tipo_documento.version) #1
         validation_type = self._compute_validation_type_2()
         param_type = self.env["ir.config_parameter"].sudo().get_param("afip.ws.env.type")
         if param_type:
@@ -95,10 +116,18 @@ class AccountMove(models.Model):
         os.environ['TZ'] = 'America/El_Salvador'  # Establecer la zona horaria
         datetime.datetime.now()
         salvador_timezone = pytz.timezone('America/El_Salvador')
-        FechaEmi = datetime.datetime.now(salvador_timezone)
+        # FechaEmi = datetime.datetime.now(salvador_timezone)
+
+        FechaEmi = None
+        if self.invoice_date:
+            FechaEmi = self.invoice_date
+        else:
+            FechaEmi = config_utils.get_fecha_emi()
         _logger.info("SIT FechaEmi = %s (%s)", FechaEmi, type(FechaEmi))
-        invoice_info["fecEmi"] = FechaEmi.strftime('%Y-%m-%d')
-        invoice_info["horEmi"] = FechaEmi.strftime('%H:%M:%S')
+
+        invoice_info["fecEmi"] = FechaEmi # FechaEmi.strftime('%Y-%m-%d')
+        invoice_info["horEmi"] = self.invoice_time # FechaEmi.strftime('%H:%M:%S')
+
         invoice_info["tipoMoneda"] =  self.currency_id.name
         if invoice_info["tipoOperacion"] == 1:
             invoice_info["tipoModelo"] = 1
@@ -115,7 +144,7 @@ class AccountMove(models.Model):
 
     @only_fe
     def sit__fse_base_map_invoice_info_emisor(self):
-        _logger.info("SIT sit__fse_base_map_invoice_info_emisor self = %s", self)
+        _logger.info("SIT sit__fse_base_map_invoice_info_emisor self FSE= %s", self)
         invoice_info = {}
         direccion = {}
         nit=self.company_id.vat
@@ -146,7 +175,7 @@ class AccountMove(models.Model):
 
     @only_fe
     def sit__fse_base_map_invoice_info_sujeto_excluido(self):
-        _logger.info("SIT sit_base_map_invoice_info_receptor self = %s", self)
+        _logger.info("SIT sit_base_map_invoice_info_receptor self FSE= %s", self)
         direccion_rec = {}
         invoice_info = {}
        # Número de Documento (Nit)
@@ -184,16 +213,18 @@ class AccountMove(models.Model):
 
     @only_fe
     def sit_fse_base_map_invoice_info_cuerpo_documento(self):
-            _logger.info("SIT sit_base_map_invoice_info_cuerpo_documento self = %s", self)
+            _logger.info("SIT sit_base_map_invoice_info_cuerpo_documento self FSE= %s", self)
 
             lines = []
-            _logger.info("SIT sit_base_map_invoice_info_cuerpo_documento self = %s", self.invoice_line_ids)
+            _logger.info("SIT sit_fse_base_map_invoice_info_cuerpo_documento self FSE= %s", self.invoice_line_ids)
 
             # for line in self.invoice_line_ids.filtered(lambda x: not x.display_type):
             item_numItem = 0
             total_Gravada = 0.0
             totalIva = 0.0
             uniMedida = None
+            codigo_tributo_codigo = None
+            codigo_tributo = None
             for line in self.invoice_line_ids:
                 if not line.custom_discount_line:
                     item_numItem += 1
@@ -247,8 +278,6 @@ class AccountMove(models.Model):
 
                         or 0.0
                     )
-                    codigo_tributo_codigo=None
-                    codigo_tributo=None
                     for line_tributo in line.tax_ids:
                         codigo_tributo_codigo = line_tributo.tributos_hacienda.codigo
                         codigo_tributo = line_tributo.tributos_hacienda
@@ -271,6 +300,7 @@ class AccountMove(models.Model):
                         sit_amount_base = round(line.quantity * line.price_unit, 2)
                     compraS = line_temp["cantidad"] * (line.price_unit - (line.price_unit * (line.discount / 100)))
                     line_temp["compra"] = round(compraS,2)
+                    _logger.info("line_temp['compra']=%s", line_temp["compra"])
 
                     totalIva += 0
 
@@ -280,7 +310,7 @@ class AccountMove(models.Model):
 
     @only_fe
     def sit_fse_base_map_invoice_info_resumen(self):
-        _logger.info("SIT sit_base_map_invoice_info_resumen self = %s", self)
+        _logger.info("SIT sit_base_map_invoice_info_resumen self FSE= %s", self)
         invoice_info = {}
 
         subtotal = sum(line.price_subtotal for line in self.invoice_line_ids)
@@ -348,7 +378,10 @@ class AccountMove(models.Model):
         invoice_info["ambiente"] = ambiente
         invoice_info["idEnvio"] = 1
         invoice_info["version"] = 1
-        invoice_info["documento"] = doc_firmado
+        if doc_firmado:
+            invoice_info["documento"] = doc_firmado
+        else:
+            invoice_info["documento"] = None
         invoice_info["codigoGeneracion"] = self.sit_generar_uuid()
         return invoice_info
 

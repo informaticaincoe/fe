@@ -1,0 +1,8 @@
+id,codigo,valor
+sector_0,0,Cuando se trata de periodos tributarios anteriores a febrero de 2024
+sector_1,1,Industria
+sector_2,2,Comercio
+sector_3,3,Agropecuaria
+sector_4,4,Servicios, profesiones, Artes y Oficios
+sector_8,8,Operaciones informadas en más de 1 anexo
+sector_9,9,Excepciones (Instituciones públicas, no inscritos a IVA, operaciones no deducibles para renta, entre otros)

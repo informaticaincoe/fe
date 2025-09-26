@@ -1,5 +1,5 @@
 import logging
-from odoo import models, api, _
+from odoo import models, api, fields, _
 from odoo.exceptions import ValidationError
 import logging
 
@@ -14,6 +14,13 @@ except ImportError as e:
 
 class SaleOrder(models.Model):
     _inherit = 'sale.order'
+
+    journal_id = fields.Many2one(
+        comodel_name="account.journal",
+        string="Diario",
+        domain=lambda self: self._get_allowed_journals_domain(),
+        help="Seleccione el diario permitido por la empresa"
+    )
 
     @api.constrains('journal_id', 'partner_id')
     def _check_journal_and_partner_identification(self):
@@ -48,3 +55,18 @@ class SaleOrder(models.Model):
             if tipo_doc_journal and tipo_doc_journal.codigo in (constants.COD_DTE_FEX):
                 if not order.recintoFiscal:
                     raise ValidationError("Debe seleccionar un recinto fiscal.")
+
+    @api.onchange("partner_id")
+    def _onchange_partner_id_set_journal(self):
+        """Al seleccionar el cliente, sugerir el diario definido en el cliente."""
+        if self.partner_id and self.partner_id.journal_id:
+            # Solo asigna si no hay diario aún
+            if not self.journal_id:
+                self.journal_id = self.partner_id.journal_id
+
+    def _get_allowed_journals_domain(self):
+        # Tomar configuración de la compañía actual
+        config = self.env['res.configuration'].sudo().search([('company_id', '=', self.env.company.id)], limit=1)
+        if config and config.journal_ids:
+            return [('id', 'in', config.journal_ids.ids)]
+        return []

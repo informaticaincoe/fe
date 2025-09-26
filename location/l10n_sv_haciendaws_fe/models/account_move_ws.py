@@ -88,7 +88,12 @@ class AccountMove(models.Model):
         invoice_info["nit"] = nit
         invoice_info["activo"] = True
         invoice_info["passwordPri"] = self.company_id.sit_passwordPri
-        invoice_info["dteJson"] = self.sit__ccf_base_map_invoice_info_dtejson()
+        if not self.hacienda_selloRecibido and self.sit_factura_de_contingencia and self.sit_json_respuesta:
+            _logger.info("SIT sit_base_map_invoice_info ccf")
+            invoice_info["dteJson"] = self.sit_json_respuesta
+        else:
+            _logger.info("SIT sit_base_map_invoice_info dte ccf")
+            invoice_info["dteJson"] = self.sit__ccf_base_map_invoice_info_dtejson()
         return invoice_info
 
     def sit__ccf_base_map_invoice_info_dtejson(self):
@@ -209,7 +214,7 @@ class AccountMove(models.Model):
         return invoice_info
 
     def sit__ccf_base_map_invoice_info_receptor(self):
-        _logger.info("SIT sit_base_map_invoice_info_receptor self = %s", self)
+        _logger.info("SIT sit__ccf_base_map_invoice_info_receptor self Hacienda_ws_fe= %s", self)
         direccion_rec = {}
         invoice_info = {}
         nit = self.partner_id.vat if self.partner_id and self.partner_id.vat else None
@@ -296,12 +301,13 @@ class AccountMove(models.Model):
             iva_tax_found = False
             tributo_found = False
             iva_tax_name = "IVA 13% Ventas Bienes"
+            iva_exc_name = "(Copia)IVA 13% Ventas Bienes"
 
             for line_tax in line.tax_ids:
                 _logger.info("SIT: Evaluando impuesto '%s' en la línea del producto %s", line_tax.name, line.product_id.name)
 
                 # Verificamos si es el impuesto de IVA obligatorio
-                if line_tax.name == iva_tax_name:
+                if line_tax.name == iva_tax_name or line_tax.name == iva_exc_name:
                     iva_tax_found = True
                     if line_tax.tributos_hacienda:
                         tributo_found = True
@@ -399,18 +405,26 @@ class AccountMove(models.Model):
         return lines, codigo_tributo, total_Gravada, line.tax_ids, totalIva
 
     def sit_ccf_base_map_invoice_info_resumen(self, total_Gravada, total_tributos, totalIva, identificacion):
-        _logger.info("SIT sit_base_map_invoice_info_resumen self = %s", self)
+        _logger.info("SIT sit_ccf_base_map_invoice_info_resumen self Hacienda_ws_fe= %s", self)
         _logger.info("total_tributos = %s", total_tributos)
         _logger.info("total_tributos tributos_hacienda = %s", total_tributos.tributos_hacienda.codigo)
         total_des = 0
         por_des = 0
         for line in self.invoice_line_ids.filtered(lambda x: x.price_unit < 0):
             total_des += (line.precio_unitario * -1 / self.get_valor_iva_divisor_config())
+            _logger.info(
+                "Linea %s: precio_unitario=%s, parcial calculado=%s, total_des acumulado=%s",
+                line.id, line.precio_unitario, parcial, total_des
+            )
         if total_des:
-            total_gral = self.amount_total + (total_des)
-            por_des = 100 - round(((total_gral - (total_des * self.get_valor_iva_divisor_config())) / total_gral) * 100)
+            total_gral = self.amount_total + total_des
+            por_des = 100 - round(
+                ((total_gral - (total_des * self.get_valor_iva_divisor_config())) / total_gral) * 100
+            )
+            _logger.info("total_des=%s, amount_total=%s, total_gral=%s, por_des=%s", total_des, self.amount_total, total_gral, por_des)
         else:
             total_des = self.descuento_gravado
+            _logger.info("No hay lineas con precio_unit < 0, total_des = descuento_gravado=%s", total_des)
         invoice_info = {}
         tributos = {}
         pagos = {}
@@ -421,7 +435,7 @@ class AccountMove(models.Model):
         invoice_info["descuNoSuj"] = round(self.descuento_no_sujeto, 2)  # 0
         invoice_info["descuExenta"] = round(self.descuento_exento, 2)  # 0
         invoice_info["descuGravada"] = round(total_des, 2)
-        invoice_info["porcentajeDescuento"] = por_des
+        invoice_info["porcentajeDescuento"] = self.descuento_global_monto
         invoice_info["totalDescu"] = round(self.total_descuento, 2)  # 0
         _logger.info("SIT  identificacion[tipoDte] = %s", identificacion['tipoDte'])
         _logger.info("SIT  identificacion[tipoDte] = %s", identificacion)
@@ -511,7 +525,7 @@ class AccountMove(models.Model):
     ###--------FE-FACTURA ELECTRONICA-----------##
 
     def sit_base_map_invoice_info(self):
-        _logger.info("SIT sit_base_map_invoice_info self = %s", self)
+        _logger.info("SIT sit_base_map_invoice_info self hacienda_ws_fe= %s", self)
         invoice_info = {}
 
         if not (self.company_id and self.company_id.sit_facturacion):
@@ -526,7 +540,22 @@ class AccountMove(models.Model):
         invoice_info["nit"] = nit
         invoice_info["activo"] = True
         invoice_info["passwordPri"] = self.company_id.sit_passwordPri
-        if not self.hacienda_selloRecibido and self.sit_factura_de_contingencia and not self.sit_json_respuesta:
+        if self.sit_json_respuesta and not self.hacienda_selloRecibido:
+            try:
+                # Intentamos convertir el sit_json_respuesta a un diccionario Python
+                json_data = json.loads(self.sit_json_respuesta)
+
+                # Verificamos si el campo ambiente existe y es igual a "00"
+                ambiente = json_data.get("identificacion", {}).get("ambiente", None)
+
+                if ambiente == "00":
+                    _logger.info("SIT Ambiente 00 detectado. Sobreescribiendo JSON.")
+                    invoice_info["dteJson"] = self.sit_base_map_invoice_info_dtejson()
+            except json.JSONDecodeError as e:
+                _logger.error(f"SIT Error al procesar el JSON: {e}")
+                invoice_info["dteJson"] = self.sit_json_respuesta  # En caso de error en la conversión, mantenemos el JSON original
+
+        if not self.hacienda_selloRecibido and self.sit_factura_de_contingencia and self.sit_json_respuesta:
             _logger.info("SIT sit_base_map_invoice_info contingencia")
             invoice_info["dteJson"] = self.sit_json_respuesta
         else:
@@ -550,7 +579,8 @@ class AccountMove(models.Model):
                                                                          cuerpoDocumento[3],
                                                                          invoice_info["identificacion"],
                                                                          invoice_info["cuerpoDocumento"])
-        invoice_info["extension"] = self.sit_base_map_invoice_info_extension()
+        # invoice_info["extension"] = self.sit_base_map_invoice_info_extension()
+        invoice_info["extension"] = None
         invoice_info["apendice"] = None
         return invoice_info
 
@@ -631,7 +661,7 @@ class AccountMove(models.Model):
         return invoice_info
 
     def sit_base_map_invoice_info_receptor(self):
-        _logger.info("SIT sit_base_map_invoice_info_receptor self = %s", self)
+        _logger.info("SIT sit_base_map_invoice_info_receptor self Hacienda_ws_fe= %s", self)
         invoice_info = {}
 
         # 1) ¿qué DTE es?
@@ -699,12 +729,13 @@ class AccountMove(models.Model):
 
     def sit_base_map_invoice_info_cuerpo_documento(self):
         lines = []
-        _logger.info("SIT sit_base_map_invoice_info_cuerpo_documento self = %s", self.invoice_line_ids)
+        _logger.info("SIT sit_base_map_invoice_info_cuerpo_documento self Hacienda_ws_fe= %s", self.invoice_line_ids)
         item_numItem = 0
         total_Gravada = 0.0
         totalIva = 0.0
         ventaGravada = 0.0
         ventaExenta = 0.0
+        codigo_tributo = None
 
         for line in self.invoice_line_ids.filtered(lambda x: x.precio_unitario > 0):
             item_numItem += 1
@@ -732,10 +763,11 @@ class AccountMove(models.Model):
 
             line_temp["descripcion"] = line.name
             line_temp["precioUni"] = round(line.precio_unitario, 2)
-            line_temp["montoDescu"] = (
+            line_temp["montoDescu"] = round( (
                     line_temp["cantidad"] * (line.price_unit * (line.discount / 100))
                     or 0.0
-            )
+            ), 2)
+
             line_temp["ventaNoSuj"] = round(line.precio_no_sujeto, 2)  # 0.0
 
             iva_tax_found = False
@@ -761,7 +793,6 @@ class AccountMove(models.Model):
                 ) % iva_tax_name)
 
 
-            codigo_tributo = None
             codigo_tributo_codigo = 0
             for line_tributo in line.tax_ids:
                 codigo_tributo_codigo = line_tributo.tributos_hacienda.codigo
@@ -837,20 +868,31 @@ class AccountMove(models.Model):
         return lines, codigo_tributo, total_Gravada, float(totalIva)
 
     def sit_base_map_invoice_info_resumen(self, tributo_hacienda, total_Gravada, totalIva, identificacion, cuerpo_documento):
-        _logger.info("SIT sit_base_map_invoice_info_resumen self = %s", self)
+        _logger.info("SIT sit_base_map_invoice_info_resumen self Hacienda_ws_fe= %s", self)
         total_des = 0
         total_gral = self.amount_total + total_des
         por_des = 0
         for line in self.invoice_line_ids.filtered(lambda x: x.price_unit < 0):
             total_des += (line.precio_unitario * -1)
+            total_des += parcial
+            _logger.info(
+                "Linea %s: precio_unitario=%s, parcial=%s, total_des acumulado=%s",
+                line.id, line.precio_unitario, parcial, total_des
+            )
 
         total_gral = self.amount_total + total_des
+        _logger.info("amount_total=%s, total_des=%s, total_gral=%s", self.amount_total, total_des, total_gral)
+
         if total_des:
-            total_gral = self.amount_total + total_des
             por_des = 100 - round(((total_gral - total_des) / total_gral) * 100)
+            _logger.info("Se aplica descuento de líneas negativas: por_des=%s", por_des)
         else:
             total_des = self.descuento_gravado
             por_des = self.descuento_global
+            _logger.info(
+                "No hay líneas negativas. total_des=%s, por_des=%s",
+                total_des, por_des
+            )
         _logger.info("SIT total des = %s, total gravado %s", total_des, self.total_gravado)
 
         subtotal = sum(line.price_subtotal for line in self.invoice_line_ids)
@@ -872,7 +914,7 @@ class AccountMove(models.Model):
 
             monto_descu += round(line.quantity * (line.price_unit * (line.discount / 100)), 2)
 
-            por_des = 100 - round(((total_gral - total_des) / total_gral) * 100)
+            # por_des = 100 - round(((total_gral - total_des) / total_gral) * 100)
 
         subtotal = sum(line.price_subtotal for line in self.invoice_line_ids)
         total = self.amount_total
@@ -886,7 +928,7 @@ class AccountMove(models.Model):
         invoice_info["descuNoSuj"] = round(self.descuento_no_sujeto, 2)  # 0
         invoice_info["descuExenta"] = round(self.descuento_exento, 2)  # 0
         invoice_info["descuGravada"] = round(total_des, 2)
-        invoice_info["porcentajeDescuento"] = round(por_des, 2)
+        invoice_info["porcentajeDescuento"] = round(self.descuento_global_monto, 2)
         invoice_info["totalDescu"] = round(self.total_descuento, 2)  # 0
         if identificacion['tipoDte'] != constants.COD_DTE_FE:
             if tributo_hacienda:
@@ -975,7 +1017,10 @@ class AccountMove(models.Model):
         invoice_info["idEnvio"] = "00001"
         invoice_info["tipoDte"] = self.journal_id.sit_tipo_documento.codigo
         invoice_info["version"] = int(self.journal_id.sit_tipo_documento.version)
-        invoice_info["documento"] = doc_firmado
+        if doc_firmado:
+            invoice_info["documento"] = doc_firmado
+        else:
+            invoice_info["documento"] = None
         invoice_info["codigoGeneracion"] = self.hacienda_codigoGeneracion_identificacion  # self.sit_generar_uuid()
         return invoice_info
 
@@ -1002,11 +1047,16 @@ class AccountMove(models.Model):
         invoice_info["nit"] = nit
         invoice_info["activo"] = True
         invoice_info["passwordPri"] = self.company_id.sit_passwordPri
-        invoice_info["dteJson"] = self.sit_base_map_invoice_info_ndc_dtejson()
+        if not self.hacienda_selloRecibido and self.sit_factura_de_contingencia and self.sit_json_respuesta:
+            _logger.info("SIT sit_base_map_invoice_info ndc")
+            invoice_info["dteJson"] = self.sit_json_respuesta
+        else:
+            _logger.info("SIT sit_base_map_invoice_info dte ndc")
+            invoice_info["dteJson"] = self.sit_base_map_invoice_info_ndc_dtejson()
         return invoice_info
 
     def sit_base_map_invoice_info_ndc_dtejson(self):
-        _logger.info("SIT sit_base_map_invoice_info_dtejson self = %s", self)
+        _logger.info("SIT sit_base_map_invoice_info_dtejson self Hacienda_ws_fe= %s", self)
         invoice_info = {}
         invoice_info["identificacion"] = self.sit_ndc_base_map_invoice_info_identificacion()
         invoice_info["documentoRelacionado"] = self.sit__ndc_relacionado()
@@ -1329,6 +1379,7 @@ class AccountMove(models.Model):
         lines_temp['tipoGeneracion'] = int(
             constants.COD_TIPO_DOC_GENERACION_DTE)  # Cat-007 Tipo de generacion del documento
         lines_temp['numeroDocumento'] = self.inv_refund_id.hacienda_codigoGeneracion_identificacion
+
         # invoice_date = self.inv_refund_id.invoice_date
         # if invoice_date:
         # new_date = invoice_date + timedelta(hours=20)
@@ -1355,8 +1406,14 @@ class AccountMove(models.Model):
             'nit': nit,
             'activo': True,
             'passwordPri': self.company_id.sit_passwordPri,
-            'dteJson': self.sit_base_map_invoice_info_ndd_dtejson(),
+            #'dteJson': self.sit_base_map_invoice_info_ndd_dtejson(),
         }
+        if not self.hacienda_selloRecibido and self.sit_factura_de_contingencia and self.sit_json_respuesta:
+            _logger.info("SIT sit_base_map_invoice_info ndd")
+            invoice_info["dteJson"] = self.sit_json_respuesta
+        else:
+            _logger.info("SIT sit_base_map_invoice_info dte ndd")
+            invoice_info["dteJson"] = self.sit_base_map_invoice_info_ndd_dtejson()
         return invoice_info
 
     def sit_base_map_invoice_info_ndd_dtejson(self):

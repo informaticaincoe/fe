@@ -59,7 +59,8 @@
         'wizard/account_move_reversal.xml',
         'views/account_lines.xml',
         'views/sale_order.xml',
-        'data/account_retention_accounts.xml'
+        'data/account_retention_accounts.xml',
+        'data/account_discount.xml'
     ],
     'demo': [],
     'installable': True,

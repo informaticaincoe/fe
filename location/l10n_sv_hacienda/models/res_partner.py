@@ -24,6 +24,7 @@ class ResPartner(models.Model):
     # tipoEstablecimiento = fields.Many2one("account.move.tipo_establecimiento.field", string="Tipo de Establecimiento")
     # Separo esto para poder heredar de otros
     # modulos y extender los datos
+
     def parce_census_vals(self, census):
 
         # porque imp_iva activo puede ser S o AC

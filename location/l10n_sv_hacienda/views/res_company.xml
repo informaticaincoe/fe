@@ -11,6 +11,7 @@
                     <separator string="Información para Hacienda" class="mt32 o_group_col_12" colspan="4"/>
                     <group>
                         <field name="sit_facturacion" string="Genera Facturación Electrónica?" readonly="0"/>
+                        <field name="sit_entorno_test" readonly="0"/>
                         <field name="codActividad" string="codActividad" readonly="0"/>
                         <field name="tipoEstablecimiento" string="tipoEstablecimiento" readonly="0"/>
                     </group>
@@ -30,8 +31,8 @@
                         <group>
                             <field name="sit_token_user" string="Usuario (NIT)"/>
                             <field name="sit_token_pass" string="Password (Contraseña de API)" password="True"/>
-                            <field name="sit_passwordPri" string="Password Firmado (contraseña Privada)"
-                                   password="True"/>
+                            <field name="sit_passwordPri" string="Password Firmado (contraseña Privada)" password="True"/>
+                            <field name="certificate_type"/>
                         </group>
                         <separator string="Certificados Cargados" class="mt32 o_group_col_12" colspan="4"/>
                         <group>
@@ -78,6 +79,16 @@
                                 </group>
                             </form>
                         </field>
+                    </group>
+                </page>
+            </xpath>
+
+            <xpath expr="//page[@name='general_info']" position="after">
+                <page string="Diarios" name="diarios_config">
+                    <group>
+                        <field name="configuration_journal_ids"
+                               widget="many2many_tags"
+                               options="{'no_create': True}"/>
                     </group>
                 </page>
             </xpath>

@@ -3,16 +3,13 @@
     <data>
         <template id="report_boleta_pago_template" name="Boleta de pago">
             <t name="Boleta de pago" t-name="rrhh_base.report_boleta_pago_template">
-                <t t-name="rrhh_base.report_boleta_pago_template">
-                    <t t-call="web.html_container">
-                        <t t-set="safe_lang"
-                           t-value="o.partner_id.lang if o.partner_id.lang in env['res.lang'].search([('active','=',True)]).mapped('code') else 'es_419'"/>
-                        <t t-set="o" t-value="o.with_context(lang=safe_lang)"/>
-                        <meta charset="UTF-8"/>
-                        <t t-call-assets="web.assets_pdf" t-js="false"/>
-                        <t t-set="o" t-value="docs[0]"/>
-
-                        <div class="page">
+                <t name="Boleta de pago" t-name="rrhh_base.report_boleta_pago_template">
+                    <t t-name="rrhh_base.report_boleta_pago_template">
+                        <t t-call="web.html_container">
+                            <meta charset="UTF-8"/>
+                            <t t-call-assets="web.assets_pdf" t-js="false"/>
+                            <t t-set="o" t-value="docs[0]"/>
+                            <div class="page">
                             <style>
                                 body {
                                 font-family: 'Inter', sans-serif !important;
@@ -140,10 +137,11 @@
                                     </td>
                                 </tr>
                             </table>
-                            <t t-set="dias_asistencia"
-                               t-value="sum(                                       (o.worked_days_line_ids                                          .filtered(lambda l: l.name in ('Asistencia','Vacaciones')))                                       .mapped('number_of_days')                                    ) or 0.0"/>
+                            <t t-set="dias_asistencia" t-value="sum((o.worked_days_line_ids.filtered(lambda l: l.name in ('Asistencia','Vacaciones'))).mapped('number_of_days')) or 0.0"/>
+                            <t t-set="dias_faltas_injustificadas" t-value="sum((o.worked_days_line_ids.filtered(lambda l: l.name in ('Falta Injustificada'))).mapped('number_of_days')) or 0.0"/>
+                            <t t-set="dias_trabajados" t-value="dias_asistencia - dias_faltas_injustificadas"/>
 
-                            <t t-set="dias_trabajados" t-value="dias_asistencia"/>
+
 
                             <!-- Sueldo base y días -->
                             <table style="margin-bottom: 3%; table-layout: auto; width: 100%;">
@@ -244,7 +242,15 @@
 
 
                             <!-- Pago por hora extra -->
-                            <t t-set="pago_por_hora" t-value="o.employee_id.hourly_cost"/>
+                            <!-- Cálculo directo de pago_por_hora usando o.basic_wage -->
+                            <t t-set="salario_mensual_base" t-value="o.basic_wage or 0.0"/>
+                            <!-- Horas semanales estándar (ajusta si es diferente para tu compañía) -->
+                            <t t-set="horas_semanales_estandar" t-value="44"/>
+                            <!-- Calcula las horas mensuales (aproximación de 4.33333 semanas por mes, que es 52 semanas/12 meses) -->
+                            <t t-set="horas_trabajadas_mensuales" t-value="horas_semanales_estandar * (52 / 12)"/>
+                            <t t-set="pago_por_hora"
+                               t-value="salario_mensual_base / horas_trabajadas_mensuales if horas_trabajadas_mensuales else 0.0"/>
+
                             <t t-set="pago_por_he_diurna"
                                t-value="round(he_diurna_cantidad * (pago_por_hora * (float(config_he_diurna.value_text) / 100)),2)"/>
                             <t t-set="pago_por_he_nocturna"
@@ -490,7 +496,8 @@
                                     </td>
                                 </tr>
                             </table>
-                        </div>
+                            </div>
+                        </t>
                     </t>
                 </t>
             </t>

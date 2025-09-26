@@ -5,14 +5,9 @@
         <record id="input_type_deduccion_venta_empleados" model="hr.payslip.input.type">
             <field name="name">Venta a empleados</field>
             <field name="code">VENTA_EMPLEADOS</field>
-        </record>
-
-        <record id="attachment_type_venta_empleados" model="hr.payslip.input.type">
-            <field name="name">Venta a empleados</field>
+            <field name="available_in_attachments">true</field>
             <field name="is_quantity">true</field>
-            <field name="code">VENTA_EMPLEADOS</field>
-            <field name="create_uid">2</field>
-            <field name="write_uid">2</field>
+            <field name="country_id" eval="False"/>
         </record>
 
         <!-- Crear regla salarial de deducción de renta -->
@@ -29,14 +24,5 @@
             <field name="amount_other_input_id" ref="input_type_deduccion_venta_empleados"/>
             <field name="appears_on_payslip" eval="True"/>
         </record>
-
-        <record id="salary_type_deduccion_venta_empleados" model="hr.payslip.input.type">
-            <field name="name">Venta a empleados</field>
-            <field name="code">VENTA_EMPLEADOS</field>
-            <field name="active">true</field>
-            <field name="available_in_attachments">true</field>
-            <field name="is_quantity">true</field>
-        </record>
-
     </data>
 </odoo>

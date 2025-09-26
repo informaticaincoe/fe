@@ -30,15 +30,18 @@
         "data/salary_rules_attendance.xml",
         "data/hr_leave_type_data.xml",
         "data/renta_servicios_profesionales.xml",
-
         "security/hr_retencion_groups.xml",
         "security/ir.model.access.csv",
-
         "views/hr_payslip_inherit_view.xml",
         "views/hr_payslip_form_inherit.xml",
         "views/hr_leave_vacation_type.xml",
-
         "views/hr_contract_form_view.xml",
+        "views/hr_payroll_structure_form_inherit_view.xml",
+        "views/hr_salary_attachment_mass_state_views.xml",
+        "views/hr_deductions_download.xml",
+        "views/hr_salary_attachment_views_search.xml",
+        "views/hr_leave_excel_template.xml",
+        # "data/cleanup_deducciones.xml",
     ],
     "installable": True,
     "auto_install": False,

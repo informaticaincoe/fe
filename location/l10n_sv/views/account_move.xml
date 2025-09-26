@@ -13,9 +13,10 @@
                         <field name="sit_regimen" string="Régimen de Exportación" invisible="journal_code != 'EXP'"/>
                     </group>
                 </xpath>
-                <xpath expr="//label[@for='journal_id']" position="before">
+
+                <xpath expr="//label[@for='journal_id']" position="after">
                     <!--                    <field name="invoice_payment_term_name" invisible="1"/>-->
-                    <group string="Pago Hacienda" invisible="journal_code == 'SLR'">
+                    <group string="Pago Hacienda" invisible="move_type != 'out_invoice' and not codigo_tipo_documento">
                         <field name="invoice_payment_term_id" string="Términos de Pago"/>
                         <field name="condiciones_pago" string="Condiciones de Pago"
                                options="{'no_open': True, 'no_create': True}"/>
@@ -26,18 +27,18 @@
                     </group>
                 </xpath>
                 <notebook>
-                    <page string="FEL" name="certificados2" invisible="journal_code == 'SLR'">
+                    <page string="FEL" name="certificados2" invisible="journal_code == 'SLR' or not codigo_tipo_documento">
                         <group>
                             <field name="sit_qr_hacienda" widget="image" invisible="0"/>
                             <field name="sit_json_respuesta" invisible="1"/>
                         </group>
-                        <group modifiers='{"invisible": [["sit_facturacion","=", false]]}' invisible="not sit_facturacion">
+                        <group>
                             <field name="sit_facturacion" invisible="1"/>
 
                             <field name="sit_tipo_contingencia" options="{'no_open': True, 'no_create': True}"/>
                             <field name="sit_tipo_contingencia_valores" invisible="1"/>
                             <field name="sit_tipo_contingencia_otro" options="{'no_open': True, 'no_create': True}"/>
-                            <field name="sit_modelo_facturacion"/>
+                            <!--                            <field name="sit_modelo_facturacion"/>-->
                             <field name="sit_tipo_transmision" options="{'no_open': True, 'no_create': True}"/>
                         </group>
                     </page>

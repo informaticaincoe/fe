@@ -10,7 +10,11 @@ class ResConfigSettings(models.TransientModel):
     _inherit = "res.config.settings"
 
     afip_ws_env_type = fields.Selection(
-        [("homologation", "Test"), ("production", "Prod")],
+        [
+            ("homologation", "Test"),
+            ("production", "Prod"),
+        ],
         string="Tipo de entorno de HACIENDA",
         config_parameter="afip.ws.env.type",
+        default="production",
     )

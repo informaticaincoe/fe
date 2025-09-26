@@ -9,13 +9,7 @@
       <field name="inherit_id" ref="account.view_move_form"/>
       <field name="arch" type="xml">
         <xpath expr="//field[@name='sit_regimen']" position="before">
-          <field name="tipoItemEmisor">
-            <attribute name="modifiers">
-              {
-                "required": [["journal_id.sit_tipo_documento", "=", "11"]]
-              }
-            </attribute>
-          </field>
+            <field name="tipoItemEmisor" invisible="not codigo_tipo_documento or codigo_tipo_documento != '11'"/>
         </xpath>
       </field>
     </record>

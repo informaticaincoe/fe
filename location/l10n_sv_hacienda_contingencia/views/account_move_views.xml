@@ -19,7 +19,7 @@
                         invisible="['|', ('sit_es_configencia', '=', False)]"/>
                 <widget name="web_ribbon" title="Congin" 
                         invisible="[('payment_state', '!=', 'paid'), '|', ('move_type', 'not in', ('out_invoice', 'out_refund', 'in_invoice', 'in_refund', 'out_receipt', 'in_receipt'))]"/>
-                <button name="action_post_contingencia" type="object" 
+                <button name="action_post_contingencia_validation" type="object"
                         invisible="['|', ('state', '!=', 'draft'), ('sit_es_configencia', '=', False)]" 
                         string="Validar Contingencia" class="oe_highlight" groups="account.group_account_invoice"/>
             </xpath>
@@ -30,12 +30,28 @@
         <field name="model">account.move</field>
         <field name="inherit_id" ref="l10n_invoice_sv.view_invoice_form_sv"/>
         <field name="arch" type="xml">
-            <xpath expr="//field[@name='partner_id']" position="after">
+            <xpath expr="//field[@name='partner_id']" position="after" invisible="move_type != 'out_invoice' and not codigo_tipo_documento">
                 <label for="sit_factura_de_contingencia"/>
                 <field name="sit_factura_de_contingencia"
                        readonly="1"
-                       options='{"no_open": true, "no_create": true}'/>
+                       options='{"no_open": true, "no_create": true}'
+                       invisible="move_type != 'out_invoice' and not codigo_tipo_documento"/>
             </xpath>
         </field>
+    </record>
+
+    <!-- Herencia para el formulario principal de account.move -->
+    <record id="view_account_move_form_inherit_contingencia" model="ir.ui.view">
+      <field name="name">account.move.form.inherit.contingencia</field>
+      <field name="model">account.move</field>
+      <field name="inherit_id" ref="account.view_move_form"/>
+      <field name="arch" type="xml">
+        <!-- Ubicamos el campo debajo de sit_factura_de_contingencia -->
+        <xpath expr="//field[@name='sit_factura_de_contingencia']" position="after">
+          <group>
+            <field name="sit_es_configencia" string="Contingencia" invisible="move_type != 'out_invoice' and not codigo_tipo_documento"/>
+          </group>
+        </xpath>
+      </field>
     </record>
 </odoo>

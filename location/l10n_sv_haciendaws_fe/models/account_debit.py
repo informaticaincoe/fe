@@ -12,8 +12,8 @@ class AccountDebitNote(models.TransientModel):
         _logger.info("SIT: Entrando al método create_debit personalizado: %s", self)
         self.ensure_one()
 
-        if not (self.company_id and self.company_id.sit_facturacion):
-            _logger.info("SIT: La empresa %s no aplica a facturación electrónica. Saltando validaciones DTE/Hacienda para ND.", self.company_id.name)
+        if not (self.journal_id.company_id and self.journal_id.company_id.sit_facturacion):
+            _logger.info("SIT: La empresa %s no aplica a facturación electrónica. Saltando validaciones DTE/Hacienda para ND.", self.journal_id.company_id.name)
             return  # Si no aplica, no continuar con la lógica de ND electrónica
 
         if not self.journal_id:

@@ -209,6 +209,12 @@ class HrPayslip(models.Model):
         store=False
     )
 
+    @api.depends('line_ids.amount')
+    def _compute_vacaciones(self):
+        for record in self:
+            vacaciones_lines = record.line_ids.filtered(lambda l: l.code == 'VACACIONES')
+            record.vacaciones = abs(sum(vacaciones_lines.mapped('amount')))
+
     @api.depends('date_from')
     def _compute_quincena(self):
         for record in self:
@@ -272,10 +278,10 @@ class HrPayslip(models.Model):
         for record in self:
             record.total_viaticos_a_pagar = record.viaticos + record.total_overtime
 
-    @api.depends('viaticos', 'total_viaticos_a_pagar', 'salario_pagar')
+    @api.depends('viaticos', 'total_viaticos_a_pagar', 'salario_pagar', 'vacaciones')
     def _compute_total_devengado(self):
         for record in self:
-            record.total_devengado = record.total_viaticos_a_pagar + float(record.salario_pagar) + record.comisiones
+            record.total_devengado = record.total_viaticos_a_pagar + float(record.salario_pagar) + record.comisiones + record.vacaciones
 
     @api.depends('line_ids.amount')
     def _compute_isr(self):
@@ -396,11 +402,6 @@ class HrPayslip(models.Model):
         for record in self:
             record.sueldo_liquido = record.total_devengado - record.total_descuentos
 
-    @api.depends('line_ids.amount')
-    def _compute_vacaciones(self):
-        for record in self:
-            vacaciones_lines = record.line_ids.filtered(lambda l: l.code == 'VACACIONES')
-            record.vacaciones = abs(sum(vacaciones_lines.mapped('amount')))
 
     from odoo import _, api, models
     from odoo.exceptions import UserError

@@ -110,7 +110,13 @@ class HrPayslip(models.Model):
 
             if self.es_nomina_de_vacacion(payslip):
                 _logger.info("Detectada nómina de vacaciones %s → preparando inputs antes del cálculo", payslip.name)
-                self._agregar_regla_vacaciones(payslip)
+
+                # if not payslip.struct_id.is_vacation:
+                #     raise UserError(
+                #         "La estructura seleccionada (%s) no está configurada como de vacaciones. "
+                #         "Por favor, seleccione una estructura válida." % (payslip.struct_id.name or "N/A")
+                #     )
+                payslip._agregar_regla_vacaciones(payslip)
             contract = payslip.contract_id
             _logger.info("Procesando nómina normal: %s para contrato %s", payslip.name, contract.name if contract else "N/A")
 
@@ -134,20 +140,19 @@ class HrPayslip(models.Model):
             _logger.info("period_quincena = %s", payslip.period_quincena)
             #Obtener la nomina de la primera quincena
             if payslip.period_quincena == '2' :
-                primera_quincena = self.env['hr.payslip'].search([('employee_id', '=', payslip.employee_id.id), ('period_quincena', "=", '1'),('period_month', "=", payslip.period_month)], limit=1)
+                primera_quincena = self.env['hr.payslip'].search(
+                    [('employee_id', '=', payslip.employee_id.id), ('period_quincena', '=', '1'),
+                    ('period_month', '=', payslip.period_month), ('company_id', '=', payslip.company_id.id), ], limit=1)
+
                 _logger.info(">>>  %s primera_quincena", primera_quincena)
 
                 ISSS_anterior = primera_quincena.input_line_ids.filtered(lambda l: l.name == "Deducción ISSS")
+                _logger.info(">>>Quincena anterior: %s ", ISSS_anterior)
+
                 ISSS_actual = payslip.input_line_ids.filtered(lambda l: l.name == "Deducción ISSS")
 
                 _logger.info(">>>  %s ISS quincena anterior", ISSS_anterior.amount)
                 _logger.info(">>>  %s ISS quincena actual", ISSS_actual.amount)
-
-                _logger.info(">>>  %s pago mensual", contract.monthly_yearly_costs)
-
-
-
-
 
         # 2. Llamar al cálculo estándar, que ahora usará los inputs ya creados
         res = super(HrPayslip, self).compute_sheet()
@@ -199,7 +204,7 @@ class HrPayslip(models.Model):
                 _logger.error("No se encontró tipo de input con código %s", code)
                 raise UserError(_("No se encontró el tipo de input para %s.") % code)
             else:
-                _logger.debug("Tipo de input encontrado → código=%s, nombre=%s", code, tipo.name)
+                _logger.info("Tipo de input encontrado → código=%s, nombre=%s", code, tipo.name)
 
         # Determinar si es contrato profesional
         is_professional = contract.wage_type == constants.SERVICIOS_PROFESIONALES
@@ -273,11 +278,13 @@ class HrPayslip(models.Model):
                     'amount': float_round(valor, precision_digits=2),
                     'payslip_id': slip.id,
                     'input_type_id': tipo.id,
+                    #'company_id': slip.company_id.id,  # <-- agregamos la empresa
                 })
                 _logger.info("Input agregado: código=%s, nombre=%s, monto=%.2f, nómina ID=%d", code, tipo.name, valor,
                              slip.id)
             else:
                 _logger.warning("Tipo de input para código %s no encontrado, no se creó input", code)
+
 
     # ==========FALTAS INJUSTIFICADAS
     def _aplicar_descuento_septimo_por_faltas(self):
@@ -334,7 +341,8 @@ class HrPayslip(models.Model):
                     ('employee_id', '=', slip.employee_id.id),
                     ('date_start', '>=', fecha_ini),
                     ('date_stop', '<=', fecha_fin),
-                    ('work_entry_type_id.code', '=', falta_code)
+                    ('work_entry_type_id.code', '=', falta_code),
+                    ('company_id', '=', slip.company_id.id),
                 ])
 
                 if not faltas_entries:
@@ -451,7 +459,7 @@ class HrPayslip(models.Model):
         dias_tomados = self._get_dias_vacaciones_tomados(slip)
 
         # Primero ajusta las líneas worked_days según work_entries reales
-        self._ajustar_lineas_vacaciones()
+        #self._ajustar_lineas_vacaciones()
 
         # NUEVO: obtener el importe real ya calculado en worked_days_line_ids para vacaciones
         base_vacaciones = sum(
@@ -495,6 +503,7 @@ class HrPayslip(models.Model):
                     'amount': float_round(datos_vac["extra_30"], precision_digits=2),
                     'payslip_id': slip.id,
                     'input_type_id': tipo_vacaciones.id,
+                    # 'company_id': slip.company_id.id,
                 })
                 _logger.info(f"Creado input VACACIONES en {slip.name} → días={datos_vac['dias_vacaciones']} extra={datos_vac['extra_30']}")
 
@@ -542,11 +551,10 @@ class HrPayslip(models.Model):
                 ('employee_id', '=', slip.employee_id.id),
                 ('date_start', '>=', slip.date_from),
                 ('date_start', '<', date_to_plus),
+                ('company_id', '=', slip.company_id.id),
             ]).filtered(lambda we: we.duration > 0)
 
             # Filtrar solo entradas que cuentan como asistencia
-            _logger.info("Entradas de trabajo encontradas: %d para %s (%s → %s)", len(work_entries), slip.employee_id.name, slip.date_from, slip.date_to)
-
             _logger.info("Entradas de trabajo encontradas: %d para %s (%s → %s)", len(work_entries), slip.employee_id.name, slip.date_from, slip.date_to)
 
             # Calcular horas totales
@@ -580,6 +588,7 @@ class HrPayslip(models.Model):
             ('holiday_status_id.is_vacation', '=', True),
             ('date_from', '<=', slip.date_to),
             ('date_to', '>=', slip.date_from),
+            ('company_id', '>=', slip.company_id.id),
         ])
 
         # Sumar los días aprobados en ese período

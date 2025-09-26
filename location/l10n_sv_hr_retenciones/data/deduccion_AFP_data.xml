@@ -5,6 +5,7 @@
         <record id="input_type_deduccion_afp" model="hr.payslip.input.type">
             <field name="name">AFP CRECER</field>
             <field name="code">AFP</field>
+            <field name="country_id" eval="False"/>
         </record>
 
         <!-- Definición de una regla salarial relacionada con la deducción AFP -->
@@ -26,6 +27,7 @@
         <record id="input_type_afp_empleador" model="hr.payslip.input.type">
             <field name="name">AFP CRECER Empleador</field>
             <field name="code">AFP_EMP</field>
+            <field name="country_id" eval="False"/>
         </record>
 
         <!-- Regla salarial para AFP Empleador -->
@@ -47,6 +49,7 @@
         <record id="input_type_deduccion_afp_conf" model="hr.payslip.input.type">
             <field name="name">AFP CONFIA</field>
             <field name="code">AFP_CONF</field>
+            <field name="country_id" eval="False"/>
         </record>
 
         <!-- Definición de una regla salarial relacionada con la deducción AFP -->
@@ -67,6 +70,7 @@
         <record id="input_type_afp_conf_empleador" model="hr.payslip.input.type">
             <field name="name">AFP CONFIA Empleador</field>
             <field name="code">AFP_CONF_EMP</field>
+            <field name="country_id" eval="False"/>
         </record>
 
         <!-- Regla salarial para AFP Empleador -->
@@ -88,6 +92,7 @@
         <record id="input_type_deduccion_ipsfa" model="hr.payslip.input.type">
             <field name="name">IPSFA</field>
             <field name="code">IPSFA</field>
+            <field name="country_id" eval="False"/>
         </record>
 
         <!-- Definición de una regla salarial relacionada con la deducción IPSFA -->
@@ -108,6 +113,7 @@
         <record id="input_type_ipsfa_empleador" model="hr.payslip.input.type">
             <field name="name">IPSFA Empleador</field>
             <field name="code">IPSFA_EMP</field>
+            <field name="country_id" eval="False"/>
         </record>
 
         <!-- Regla salarial para AFP Empleador -->

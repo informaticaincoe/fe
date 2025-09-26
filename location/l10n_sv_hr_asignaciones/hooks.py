@@ -102,6 +102,7 @@ def copiar_reglas_a_estructuras(env, mapping):
         'quantity', 'note',
         'account_debit', 'account_credit',
         'amount_other_input_id',
+        'condition_other_input_id'
     ]
 
     fields_available = env['hr.salary.rule'].fields_get().keys()
@@ -117,61 +118,73 @@ def copiar_reglas_a_estructuras(env, mapping):
             continue
 
         for codigo_destino in destinos:
-            estructura_destino = env['hr.payroll.structure'].search([('code', '=', codigo_destino)], limit=1)
-            if not estructura_destino:
-                _logger.error(f"No se encontró la estructura destino ({codigo_destino})")
-                continue
+            try:
+                estructura_destino = env['hr.payroll.structure'].search([('code', '=', codigo_destino)], limit=1)
+                if not estructura_destino:
+                    _logger.error(f"No se encontró la estructura destino ({codigo_destino})")
+                    continue
 
-            _logger.info(f"Iniciando copia/actualización de reglas de {codigo_origen} a {codigo_destino}")
+                _logger.info(f"Iniciando copia/actualización de reglas de {codigo_origen} a {codigo_destino}")
 
-            # Solo filtra si es PLAN_PRO
-            domain = [('struct_id', '=', estructura_origen.id)]
+                # Solo filtra si es PLAN_PRO
+                domain = [('struct_id', '=', estructura_origen.id)]
 
-            if codigo_destino == constants.STRUCTURE_PLAN_PROD:
-                domain.append(('code', 'not in', list(constants.REGLAS_EXCLUIR_SERVICIOS_PROFESIONALES)))
-                _logger.info(
-                    f"Aplicando filtro de exclusión en PLAN_PRO: {constants.REGLAS_EXCLUIR_SERVICIOS_PROFESIONALES}")
-
-            reglas_a_copiar = env['hr.salary.rule'].search(domain)
-
-            for regla in reglas_a_copiar:
-                _logger.debug(f"Evaluando regla: {regla.code} - {regla.name}")
+                if codigo_destino == constants.STRUCTURE_PLAN_PROD:
+                    domain.append(('code', 'not in', list(constants.REGLAS_EXCLUIR_SERVICIOS_PROFESIONALES)))
+                    _logger.info(
+                        f"Aplicando filtro de exclusión en PLAN_PRO: {constants.REGLAS_EXCLUIR_SERVICIOS_PROFESIONALES}")
 
                 try:
-                    vals = regla.read(campos_existentes)[0]
-
-                    for campo in constants.CAMPOS_MANY2ONE_REGLAS:
-                        if campo in vals and isinstance(vals[campo], (list, tuple)):
-                            vals[campo] = vals[campo][0] if vals[campo] else False
-
-                    vals['struct_id'] = estructura_destino.id
-                    vals['name'] = regla.name
-
-                    regla_destino = env['hr.salary.rule'].search([
-                        ('struct_id', '=', estructura_destino.id),
-                        ('code', '=', regla.code)
-                    ], limit=1)
-
-                    if regla_destino:
-                        _logger.debug(f"Regla {regla.code} ya existe en {codigo_destino}, actualizando...")
-                        regla_destino.write(vals)
-                        _logger.info(f"La regla {regla.code} ya existe en estructura {codigo_destino}, se actualizó.")
-                    else:
-                        nueva_regla = env['hr.salary.rule'].create(vals)
-                        _logger.info(f"Regla {nueva_regla.code} copiada a estructura {codigo_destino} SIN (copy).")
+                    reglas_a_copiar = env['hr.salary.rule'].search(domain)
                 except Exception as e:
-                    _logger.error(f"Error copiando regla {regla.code} a estructura {codigo_destino}: {e}")
+                    _logger.error(f"Error buscando reglas en {codigo_origen}: {e}")
+                    continue
 
-            # --- NUEVO: eliminar reglas excluidas que pudieran existir en la estructura destino ---
-            if codigo_destino == constants.STRUCTURE_PLAN_PROD:
-                reglas_excluidas_destino = env['hr.salary.rule'].search([
-                    ('struct_id', '=', estructura_destino.id),
-                    ('code', 'in', list(constants.REGLAS_EXCLUIR_SERVICIOS_PROFESIONALES))
-                ])
-                if reglas_excluidas_destino:
-                    codigos_eliminados = reglas_excluidas_destino.mapped('code')
-                    reglas_excluidas_destino.unlink()
-                    _logger.info(
-                        f"Se eliminaron reglas excluidas {codigos_eliminados} de la estructura {codigo_destino}")
+                for regla in reglas_a_copiar:
+                    _logger.debug(f"Evaluando regla: {regla.code} - {regla.name}")
 
-            _logger.info(f"Copia/actualización de reglas de {codigo_origen} a {codigo_destino} finalizada.")
+                    try:
+                        vals = regla.read(campos_existentes)[0]
+
+                        for campo in constants.CAMPOS_MANY2ONE_REGLAS:
+                            if campo in vals and isinstance(vals[campo], (list, tuple)):
+                                vals[campo] = vals[campo][0] if vals[campo] else False
+
+                        vals['struct_id'] = estructura_destino.id
+                        vals['name'] = regla.name
+
+                        regla_destino = env['hr.salary.rule'].search([
+                            ('struct_id', '=', estructura_destino.id),
+                            ('code', '=', regla.code)
+                        ], limit=1)
+
+                        if regla_destino:
+                            _logger.debug(f"Regla {regla.code} ya existe en {codigo_destino}, actualizando...")
+                            regla_destino.write(vals)
+                            _logger.info(
+                                f"La regla {regla.code} ya existe en estructura {codigo_destino}, se actualizó.")
+                        else:
+                            nueva_regla = env['hr.salary.rule'].create(vals)
+                            _logger.info(f"Regla {nueva_regla.code} copiada a estructura {codigo_destino} SIN (copy).")
+                    except Exception as e:
+                        _logger.error(f"Error copiando regla {regla.code} a estructura {codigo_destino}: {e}")
+
+                # --- NUEVO: eliminar reglas excluidas que pudieran existir en la estructura destino ---
+                if codigo_destino == constants.STRUCTURE_PLAN_PROD:
+                    try:
+                        reglas_excluidas_destino = env['hr.salary.rule'].search([
+                            ('struct_id', '=', estructura_destino.id),
+                            ('code', 'in', list(constants.REGLAS_EXCLUIR_SERVICIOS_PROFESIONALES))
+                        ])
+                        if reglas_excluidas_destino:
+                            codigos_eliminados = reglas_excluidas_destino.mapped('code')
+                            reglas_excluidas_destino.unlink()
+                            _logger.info(
+                                f"Se eliminaron reglas excluidas {codigos_eliminados} de la estructura {codigo_destino}")
+                    except Exception as e:
+                        _logger.error(f"Error eliminando reglas excluidas en {codigo_destino}: {e}")
+
+                _logger.info(f"Copia/actualización de reglas de {codigo_origen} a {codigo_destino} finalizada.")
+            except Exception as e:
+                _logger.error(f"Error procesando destino {codigo_destino} desde {codigo_origen}: {e}")
+                continue

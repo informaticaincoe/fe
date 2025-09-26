@@ -1,0 +1,19 @@
+<odoo>
+    <data>
+        <record id="view_anexo_compras_list" model="ir.ui.view">
+            <field name="name">account.move.anexo.compras.list</field>
+            <field name="model">account.move</field>
+            <field name="arch" type="xml">
+                <list string="Detalle de Anexos Compras">
+                    <!--                    <field name="invoice_month" string="Mes" />-->
+                    <!--                    <field name="name" string="Documento"/>-->
+                    <field name="invoice_date" string="Fecha de Emisión"/>
+                    <field name="clase_documento"/>
+                    <field name="codigo_tipo_documento"/>
+                    <field name="name" string="Número de documento"/>
+
+                </list>
+            </field>
+        </record>
+    </data>
+</odoo>

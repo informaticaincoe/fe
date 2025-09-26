@@ -69,8 +69,10 @@ CONST_CODIGOS_APORTES_PATRONALES = ['AFP_EMP', 'AFP_CONF_EMP', 'ISSS_EMP', 'INCA
 CONST_CODIGOS_DEDUCCIONES_EMPLEADO = ['AFP', 'AFP_CONF', 'ISSS', 'RENTA', 'FSV', 'FONDO_PENSIONES', 'PRESTAMOS', 'VENTA_EMPLEADOS', 'OTROS', 'RENTA_SP', 'BANCO', 'DESC_FALTA_SEPTIMO', 'FALTA_INJ', 'IPSFA']
 COD_ISSS_EMP = "ISSS_EMP"
 COD_AFP_EMP = "AFP_EMP"
+COD_AFP_CONF_EMP = "AFP_CONF_EMP"
+COD_IPSFA_EMP = "IPSFA_EMP"
 REGLAS_EXCLUIR_SERVICIOS_PROFESIONALES = {'RENTA', 'ISSS', 'AFP', 'AFP_EMP', 'AFP_CONF', 'AFP_CONF_EMP', 'ISSS_EMP', 'INCAF', 'IPSFA', 'IPSFA_EMP'}
-CAMPOS_MANY2ONE_REGLAS = {'category_id', 'account_debit', 'account_credit', 'amount_other_input_id'}
+CAMPOS_MANY2ONE_REGLAS = {'category_id', 'account_debit', 'account_credit', 'amount_other_input_id', 'condition_other_input_id'}
 
 #Modulo de asignaciones salariales
 ASIGNACION_COMISIONES = "comision"
@@ -86,6 +88,8 @@ HORAS_NOCTURNAS_ASUETO = "horas_nocturnas_asueto"
 PERIODO = "periodo"
 NOMBRE_PLANTILLA_ASIGNACIONES = "Plantilla de Asignaciones"
 NOMBRE_PLANTILLA_ASISTENCIA = "Plantilla de Asistencia"
+NOMBRE_PLANTILLA_DEDUCCIONES = "Plantilla de deducciones"
+NOMBRE_PLANTILLA_TIEMPO_PERSONAL = "Plantilla tiempo personal"
 CODES_VACACIONES = ['VAC', 'VACACIONES']
 
 CUENTAS_ASIGNACIONES = {

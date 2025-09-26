@@ -36,6 +36,8 @@
         'views/cron_contingencia.xml',
         'data/res.configuration.csv',
         'views/account_incoterms_views.xml',
+        'views/res_company_view_lote.xml',
+        'data/account_journal_data.xml',
     ],
     # only loaded in demonstration mode
     "demo": [],

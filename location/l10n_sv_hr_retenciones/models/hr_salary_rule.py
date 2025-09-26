@@ -42,7 +42,7 @@ class HrSalaryRule(models.Model):
         reglas = {codigo: default_cuentas.copy() for codigo in constants.CONST_CODIGOS_DEDUCCIONES_EMPLEADO}
         reglas.update({codigo: cuentas_empleador.copy() for codigo in constants.CONST_CODIGOS_APORTES_PATRONALES})
         reglas.update({codigo: cuentas_fin_semana.copy() for codigo in constants.REGLASAL_VACACION})
-
+        _logger.info("reglas %s", reglas)
         try:
             config_utils.actualizar_cuentas_reglas_generico(self.env, reglas)
             _logger.info("Actualización de cuentas de asignaciones completada correctamente.")

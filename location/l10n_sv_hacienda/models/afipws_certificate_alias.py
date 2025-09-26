@@ -28,6 +28,9 @@ except ImportError as e:
     _logger.error(f"Error al importar 'config_utils': {e}")
     config_utils = None
 
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+EXTRA_ADDONS = os.path.join(PROJECT_ROOT, "mnt", "extra-addons", "src")
+
 class HaciendaCertificateAlias(models.Model):
     _name = "afipws.certificate_alias"
     _description = "HACIENDA Distingish Name / Alias"
@@ -184,7 +187,7 @@ class HaciendaCertificateAlias(models.Model):
         """ """
         # TODO reemplazar todo esto por las funciones nativas de pyafipws
         #directorio='C:/Users/Admin/Documents/GitHub/fe/location/mnt'
-        directorio=config_utils.get_config_value(self.env, 'mnt', self.company_id.id)
+        directorio= EXTRA_ADDONS # config_utils.get_config_value(self.env, 'mnt', self.company_id.id)
         listado_directorio = os.listdir( directorio) 
 
         # doc = minidom.parse( directorio + '/PrivateKey_06140902221032.key')
@@ -272,7 +275,7 @@ class HaciendaCertificateAlias(models.Model):
 
 
         #directorio='C:/Users/Admin/Documents/GitHub/fe/location/mnt'
-        directorio = config_utils.get_config_value(self.env, 'mnt', self.company_id.id)
+        directorio = EXTRA_ADDONS # config_utils.get_config_value(self.env, 'mnt', self.company_id.id)
         listado_directorio = os.listdir( directorio) 
         _logger.info("SIT selfl %s, %s", self.id, self.ids)
         _logger.info("SIT directorio actual %s", directorio)

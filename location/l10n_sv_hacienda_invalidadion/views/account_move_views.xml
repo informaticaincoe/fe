@@ -9,7 +9,7 @@
             <!-- Aquí agregamos el botón "Anular factura" -->
             <xpath expr="//header/button[@name='action_post']" position="after">
                 <button name="action_button_anulacion"
-                        string="Anular factura"
+                        string="Invalidar"
                         type="object"
                         class="btn btn-danger"
                         context="{'save_first': True}"

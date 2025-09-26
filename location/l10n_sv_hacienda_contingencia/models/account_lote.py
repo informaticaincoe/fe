@@ -101,7 +101,7 @@ class sit_account_lote(models.Model):
     )
 
     lote_recibido_mh = fields.Boolean(string="Lote recibido por MH", copy=False)
-    lote_activo = fields.Boolean(string="Contingencia Activa", copy=False, default=True)
+    lote_activo = fields.Boolean(string="Lote Activo", copy=False, default=True)
 
     sit_json_respuesta = fields.Text("Json de Respuesta", default="")
 
@@ -117,6 +117,7 @@ class sit_account_lote(models.Model):
     ]
 
     journal_id = fields.Many2one('account.journal', string='Diario', required=False)
+    company_id = fields.Many2one('res.company', string="Compañía")
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -142,9 +143,11 @@ class sit_account_lote(models.Model):
     def generar_nombre_lote(self, journal=None, actualizar_secuencia=False):
         journal = journal or self.journal_id
 
+        # Validaciones
         version_lote = config_utils.get_config_value(
             self.env, 'version_lote', journal.company_id.id
         )
+        _logger.info("Versión lote: %s | Compañía: %s", version_lote, journal.company_id)
 
         if version_lote is None:
             raise UserError(_("Debe definir la versión del lote."))
@@ -153,16 +156,46 @@ class sit_account_lote(models.Model):
         if not journal.sit_codestable:
             raise UserError(_("Configure Código de Establecimiento en diario '%s'.") % journal.name)
 
+        if not journal.sit_codpuntoventa:
+            raise UserError(_("Configure el Punto de Venta en el diario '%s'.") % journal.name)
+
+        if not journal.sequence_id:
+            raise UserError(_("Configure una secuencia de lote en el diario '%s'.") % journal.name)
+
+        # Obtener secuencia configurada para actualizar el número, no para generar el nombre
+        sequence = journal.sequence_id
+        if not sequence or not sequence.exists():
+            raise UserError(_("El diario '%s' no tiene una secuencia configurada para lotes.") % journal.name)
+
+        prefix = sequence.prefix or ''  # prefijo dinámico de la secuencia
+        _logger.info("Prefix lote: %s", prefix)
+
         version_str = str(version_lote).zfill(2)
+        if not version_str.strip():
+            raise UserError("La versión de lote no puede estar vacía.")
         estable = journal.sit_codestable
-        seq_code = 'LOT'
+        punto_venta = journal.sit_codpuntoventa
+        # seq_code = 'LOT'
+
+        # Armar patrón dinámico basado en prefix de la secuencia
+        # Ejemplo: prefix="LOT-%(version)s-0000%(estable)s-" → se sustituye aquí
+        # Diccionario para reemplazar placeholders con valores dinámicos
+        replacements = {
+            'lote': version_str,
+            'estable': estable,
+            'punto_venta': punto_venta,
+        }
+        # pattern_prefix = prefix.replace('%(lote)s', version_str).replace('%(estable)s', estable)
+        # Reemplazar todos los placeholders en el prefijo de la secuencia
+        pattern_prefix = prefix
+        for key, value in replacements.items():
+            pattern_prefix = pattern_prefix.replace(f'%({key})s', value)
+
+        _logger.info("Prefijo dinámico final lote: %s", pattern_prefix)
 
         # Buscar último nombre generado con formato LOT-version-0000estable-
-        domain = [
-            ('journal_id', '=', journal.id),
-            ('name', 'like', f'LOT-{version_str}-0000{estable}-%')
-        ]
-        ultimo = self.search(domain, order='name desc', limit=1)
+        ultimo = self.search([('journal_id', '=', journal.id), ('name', 'like', f'{pattern_prefix}%')],
+                             order='name desc', limit=1)
 
         if ultimo:
             try:
@@ -173,14 +206,19 @@ class sit_account_lote(models.Model):
         else:
             nuevo_numero = 1
 
-        nuevo_name = f"LOT-{version_str}-0000{estable}-{str(nuevo_numero).zfill(15)}"
+        # nuevo_name = f"LOT-{version_str}-0000{estable}-{str(nuevo_numero).zfill(15)}"
+        # Generar el nuevo nombre con el prefix de la secuencia
+        nuevo_name = f"{pattern_prefix}{str(nuevo_numero).zfill(15)}"
 
+        # Verificar duplicado
         if self.search_count([('name', '=', nuevo_name), ('journal_id', '=', journal.id)]):
             raise UserError(_("El número de lote generado ya existe: %s") % nuevo_name)
 
+        _logger.info("Nombre de lote generado dinámicamente con prefix: %s", nuevo_name)
+
         # Actualizar secuencia si es necesario
-        sequence = self.env['ir.sequence'].search([('code', '=', seq_code)], limit=1)
-        if actualizar_secuencia and sequence:
+        # sequence = self.env['ir.sequence'].search([('code', '=', seq_code)], limit=1)
+        if actualizar_secuencia:
             next_num = nuevo_numero + 1
             if sequence.use_date_range:
                 today = fields.Date.context_today(self)
@@ -191,7 +229,10 @@ class sit_account_lote(models.Model):
                 ], limit=1)
                 if date_range and date_range.number_next_actual < next_num:
                     date_range.number_next_actual = next_num
+                    _logger.info("Secuencia con date_range '%s' actualizada a %s", sequence.code, next_num)
             else:
                 if sequence.number_next_actual < next_num:
                     sequence.number_next_actual = next_num
+                    _logger.info("Secuencia '%s' actualizada a %s", sequence.code, next_num)
+
         return nuevo_name

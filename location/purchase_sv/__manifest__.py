@@ -10,6 +10,8 @@
     "depends": [
         "purchase",
         "account",
+        "l10n_sv",
+        "l10n_sv_hacienda_contingencia",
     ],
     "demo": [
     ],

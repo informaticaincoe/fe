@@ -1,0 +1,15 @@
+<odoo>
+    <record id="view_hr_salary_attachment_tree_inherit" model="ir.ui.view">
+        <field name="name">hr.salary.attachment.tree.inherit</field>
+        <field name="model">hr.salary.attachment</field>
+        <field name="inherit_id" ref="hr_payroll.hr_salary_attachment_view_tree"/>
+        <field name="arch" type="xml">
+            <list>
+                <header>
+                    <button name="action_descargar_plantilla_deducciones" type="object" icon="fa-download"
+                            string="Plantilla" display="always"/>
+                </header>
+            </list>
+        </field>
+    </record>
+</odoo>

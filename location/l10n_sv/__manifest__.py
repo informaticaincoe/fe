@@ -44,7 +44,10 @@
         "security/ir.model.access.csv",
         "views/account_catalogos.xml",
         "data/catalogos.xml",
+        'data/account.journal.tipo_modelo.field.csv',
         "views/menuitem.xml",
+        # Archivos de las vistas de los anexos en el orden correcto
+        # "views/report_anexos.xml",
         # 'views/anexos_report_tabbed.xml',
         "views/product_template.xml",
         'views/view_res_company.xml',
@@ -53,7 +56,7 @@
         'views/view_ir_sequence.xml',
         'views/account_journal_view.xml',
         'views/account_move.xml',
-        # 'views/account_move_line.xml',     
+        'views/account_move_line.xml',
         'views/account_tax.xml',
 
         'data/res_country_data.xml',
@@ -82,8 +85,8 @@
         'data/account.move.tipo_operacion.field.csv',
         'data/account.move.regimen.field.csv',
         'data/account_tax_sv.xml',
-        'data/account.journal.tipo_modelo.field.csv',
-        #'views/anexos_report_views.xml'
+        # 'views/anexos_report_views.xml',
+
     ],
     'demo': [
         # 'demo.xml',
@@ -91,7 +94,6 @@
     'installable': True,
     'application': False,
     'auto_install': False,
-    'pre_init_hook': 'migrate',
     'country_code': 'SV',
     # 'post_init_hook': 'drop_data',
 }
