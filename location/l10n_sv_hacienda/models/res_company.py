@@ -78,25 +78,6 @@ class ResCompany(models.Model):
     def _compute_journal_configurations(self):
         """
         Computa los diarios permitidos de la empresa.
-        Para cada empresa, busca todas las configuraciones (`res.configuration`) asociadas a ella
-        y obtiene los diarios seleccionados a través del campo `journal_ids` (campo computado).
-        Luego asigna esos diarios al campo `configuration_journal_ids` de la empresa
-        para mostrarlos en la pestaña "Diarios" del formulario de res.company.
-
-        Nota:
-            Aunque se usa `journal_ids` en el código, este campo es computado y
-            actúa solo como intermediario. El valor real que se guarda en la base de datos
-            es `sit_journal_ids_str` en `res.configuration`.
-        """
-        for company in self:
-            journals = self.env['res.configuration'].search(
-                [('company_id', '=', company.id)]
-            ).mapped('journal_ids')
-            company.configuration_journal_ids = journals
-
-    def _compute_journal_configurations(self):
-        """
-        Computa los diarios permitidos de la empresa.
 
         Para cada empresa, busca todas las configuraciones (`res.configuration`) asociadas a ella
         y obtiene los diarios seleccionados a través del campo `journal_ids` (campo computado).
