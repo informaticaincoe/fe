@@ -678,10 +678,16 @@ class AccountMove(models.Model):
                 raw_doc = self.partner_id.fax or ''
         tipo_doc = getattr(self.partner_id.l10n_latam_identification_type_id, 'codigo', None)
 
+        _logger.info("SIT Tipo de documento: %s, monto total= %s", tipo_dte, self.amount_total)
         if not raw_doc:
-            raise UserError(_(
-                "Receptor sin documento de identidad (DUI o NIT) para DTE %s.\nCliente: %s"
-            ) % (tipo_dte, self.partner_id.display_name))
+            if tipo_dte and tipo_dte == constants.COD_DTE_FE and self.amount_total and self.amount_total >= 25000:
+                raise UserError(_(
+                    "Receptor sin documento de identidad (DUI o NIT) para DTE %s.\nCliente: %s"
+                ) % (tipo_dte, self.partner_id.display_name))
+            elif tipo_dte and tipo_dte != constants.COD_DTE_FE:
+                raise UserError(_(
+                    "Receptor sin documento de identidad (DUI o NIT) para DTE %s.\nCliente: %s"
+                ) % (tipo_dte, self.partner_id.display_name))
 
         # 3) limpio sólo dígitos
         # cleaned = re.sub(r'\D', '', raw_doc)
@@ -701,7 +707,7 @@ class AccountMove(models.Model):
         #     num_doc = cleaned
 
         invoice_info['numDocumento'] = num_doc
-        invoice_info['tipoDocumento'] = tipo_doc
+        invoice_info['tipoDocumento'] = tipo_doc if num_doc else None
 
         # 5) NRC
         raw_nrc = self.partner_id.nrc.replace("-", "") if self.partner_id and self.partner_id.nrc else ''
@@ -723,7 +729,7 @@ class AccountMove(models.Model):
 
         # 8) Teléfono y correo
         invoice_info['telefono'] = self.partner_id.phone or ''
-        invoice_info['correo'] = self.partner_id.email or ''
+        invoice_info['correo'] = self.partner_id.email or self.company_id.email or ''
 
         return invoice_info
 

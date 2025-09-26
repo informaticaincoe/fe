@@ -95,144 +95,71 @@ class AccountMove(models.Model):
         for move in self:
             move.show_sit_tipo_documento = move.move_type in ('in_invoice', 'in_refund')
             _logger.info("Compute show_sit_tipo_documento: move id=%s, move_type=%s, show=%s", move.id, move.move_type, move.show_sit_tipo_documento)
-    # @api.constrains('name')
-    # def _check_name_sales(self):
-    #     """
-    #     Restricción: evitar la modificación manual del campo `name` en facturas de venta.
-    #
-    #     Contexto:
-    #     ----------
-    #     - En facturas de venta (`move_type == 'out_invoice'`), el campo `name`
-    #       representa el número oficial del DTE (documento tributario electrónico).
-    #     - Este número debe asignarse únicamente de manera automática por el sistema
-    #       usando la lógica de `_generate_dte_name`.
-    #     - Si el usuario intenta cambiarlo manualmente, debe bloquearse para garantizar
-    #       la integridad y trazabilidad contable/fiscal.
-    #
-    #     Mecanismo:
-    #     ----------
-    #     - Usamos un flag en el contexto (`_dte_auto_generated=True`) al momento de
-    #       llamar a `super().create(vals_list)`. Esto indica que el `name` fue generado
-    #       automáticamente por el flujo DTE.
-    #     - Si el constraint detecta que el contexto NO contiene ese flag, significa que
-    #       alguien (usuario u otro flujo externo) intentó modificar el campo manualmente.
-    #       → En este caso se lanza un UserError.
-    #     """
-    #     for move in self:
-    #         if move.move_type != 'out_invoice':
-    #             _logger.info("No es factura de venta, no se valida el name: move_id=%s", move.id)
-    #             continue
-    #
-    #         # Detectar si el name fue generado automáticamente vía contexto
-    #         auto_generated = self.env.context.get('_dte_auto_generated', False)
-    #         _logger.info("move_id=%s, auto_generated=%s", move.id, auto_generated)
-    #
-    #         if not auto_generated:
-    #             _logger.warning("Intento de modificar manualmente el número de la factura de venta: move_id=%s, name=%s", move.id, move.name)
-    #             raise UserError(_("No está permitido modificar manualmente el número de la factura de venta."))
-    #         else:
-    #             _logger.info("Nombre generado automáticamente permitido: move_id=%s, name=%s", move.id, move.name)
-
-    # @api.constrains('name')
-    # def _check_name_sales(self):
-    #     """
-    #     Restricción: evitar la modificación manual del campo `name` en facturas de venta.
-    #
-    #     Contexto:
-    #     ----------
-    #     - En facturas de venta (`move_type == 'out_invoice'`), el campo `name`
-    #         representa el número oficial del DTE (documento tributario electrónico).
-    #     - Este número debe asignarse únicamente de manera automática por el sistema
-    #         usando la lógica de `_generate_dte_name`.
-    #     - Si el usuario intenta cambiarlo manualmente, debe bloquearse para garantizar
-    #         la integridad y trazabilidad contable/fiscal.
-    #
-    #     Mecanismo:
-    #     ----------
-    #     - Usamos un flag en el contexto (`_dte_auto_generated=True`) al momento de
-    #         llamar a `super().create(vals_list)`. Esto indica que el `name` fue generado
-    #         automáticamente por el flujo DTE.
-    #     - Si el constraint detecta que el contexto NO contiene ese flag, significa que
-    #         alguien (usuario u otro flujo externo) intentó modificar el campo manualmente.
-    #         → En este caso se lanza un UserError.
-    #     """
-    #     for move in self:
-    #         if move.move_type == 'out_invoice' or move.move_type == 'out_refund':
-    #             old_name = move.name or ''
-    #             new_name = vals.get('name') or ''
-    #
-    #             _logger.info(
-    #                 "Account_move_purchase [WRITE-VALIDATION] move_id=%s, state=%s, old_name=%s, new_name=%s, auto_generated=%s",
-    #                 move.id, move.state, old_name, new_name,
-    #                 self.env.context.get('_dte_auto_generated', False)
-    #             )
-    #
-    #             # Si el valor no cambia, dejamos pasar
-    #             if old_name == new_name:
-    #                 _logger.info(
-    #                     "Account_move_purchase [WRITE-VALIDATION] El valor de 'name' no cambió (se mantiene %s). Permitido.",
-    #                     old_name
-    #                 )
-    #                 continue
-    #
-    #         # Detectar si el name fue generado automáticamente vía contexto
-    #         auto_generated = self.env.context.get('_dte_auto_generated', False)
-    #         _logger.info("move_id=%s, auto_generated=%s", move.id, auto_generated)
-    #
-    #         if not auto_generated:
-    #             _logger.warning(
-    #                 "Intento de modificar manualmente el número de la factura de venta: move_id=%s, name=%s", move.id,
-    #                 move.name)
-    #             raise UserError(_("No está permitido modificar manualmente el número de la factura de venta."))
-    #         else:
-    #             _logger.info("Nombre generado automáticamente permitido: move_id=%s, name=%s", move.id, move.name)
 
     def write(self, vals):
         if 'name' in vals:
             for move in self:
-                if move.move_type == 'out_invoice' or move.move_type == 'out_refund':
-                    # if 'name' in vals and vals['name'].startswith('05 '):
-                    #     _logger.warning(
-                    #         "[WRITE-CLEAN] Limpiando prefijo '05 ' de move_id=%s, old_name=%s, vals_name=%s",
-                    #         move.id, move.name, vals['name']
-                    #     )
-                    #     # Limpiar el prefijo temporal
-                    #     vals['name'] = vals['name'][3:]
-                    # else:
-                    old_name = move.name or ''
-                    new_name = vals.get('name') or ''
+                # if move.move_type not in ('out_invoice', 'out_refund'):
+                #     continue
 
+                _logger.info("Tipo de documento(dte): %s", move.codigo_tipo_documento)
+                if not move.codigo_tipo_documento:
+                    continue
+
+                old_name = move.name or ''
+                new_name = vals.get('name') or ''
+
+                _logger.info(
+                    "[WRITE-VALIDATION] move_id=%s, state=%s, old_name=%s, new_name=%s, "
+                    "auto_generated=%s, manual_update=%s",
+                    move.id, move.state, old_name, new_name,
+                    self.env.context.get("_dte_auto_generated"),
+                    self.env.context.get("_dte_manual_update")
+                )
+
+                # Si el valor no cambia, dejamos pasar
+                if old_name == new_name:
                     _logger.info(
-                        "Account_move_purchase [WRITE-VALIDATION] move_id=%s, state=%s, old_name=%s, new_name=%s, auto_generated=%s",
-                        move.id, move.state, old_name, new_name,
-                        self.env.context.get('_dte_auto_generated', False)
+                        "Account_move_purchase [WRITE-VALIDATION] El valor de 'name' no cambió (se mantiene %s). Permitido.",
+                        old_name
+                    )
+                    continue
+
+                # Si no viene con el flag de generación automática → bloquear
+                bloquear = True  # asumimos que siempre se bloquea
+
+                # Permitir reset a '/'
+                if old_name == '/' and new_name != '/':
+                    bloquear = False
+                # Permitir actualización desde onchange / auto-generada
+                elif self.env.context.get("_dte_auto_generated"):
+                    bloquear = False
+                # Permitir actualización manual explícita
+                elif self.env.context.get("_dte_manual_update"):
+                    bloquear = False
+
+                _logger.info(
+                    "SIT Bloquear modificacion de name: %s, name anterior: %s, nuevo name. %s",
+                    bloquear, old_name, new_name
+                )
+
+                _logger.info("SIT Bloquear modificacion de name: %s, name anterior: %s, nuevo name. %s", bloquear,
+                             old_name, new_name)
+                if bloquear:
+                    _logger.warning(
+                        "[WRITE-VALIDATION] Intento de modificar manualmente el 'name' en factura de venta "
+                        "(move_id=%s). Valor anterior: %s → Nuevo valor: %s",
+                        move.id, old_name, new_name
+                    )
+                    raise UserError(
+                        _("No está permitido modificar manualmente el número de la factura de venta, "
+                          "ni en borrador ni validada.")
                     )
 
-                    # Si el valor no cambia, dejamos pasar
-                    if old_name == new_name:
-                        _logger.info(
-                            "Account_move_purchase [WRITE-VALIDATION] El valor de 'name' no cambió (se mantiene %s). Permitido.",
-                            old_name
-                        )
-                        continue
-
-                    # Si no viene con el flag de generación automática → bloquear
-                    if not self.env.context.get('_dte_auto_generated', False):
-                        _logger.warning(
-                            "[WRITE-VALIDATION] Intento de modificar manualmente el 'name' en factura de venta "
-                            "(move_id=%s). Valor anterior: %s → Nuevo valor: %s",
-                            move.id, old_name, new_name
-                        )
-                        raise UserError(
-                            _("No está permitido modificar manualmente el número de la factura de venta, "
-                              "ni en borrador ni validada.")
-                        )
-
-                    _logger.info(
-                        "[WRITE-VALIDATION] Cambio de 'name' permitido por flag auto-generado. "
-                        "Valor anterior: %s → Nuevo valor: %s",
-                        old_name, new_name
-                    )
+                _logger.info(
+                    "[WRITE-VALIDATION] Cambio de 'name' permitido. Valor anterior: %s → Nuevo valor: %s",
+                    old_name, new_name
+                )
         return super().write(vals)
 
     def action_post(self):

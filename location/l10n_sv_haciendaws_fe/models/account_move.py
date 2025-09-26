@@ -249,7 +249,7 @@ class AccountMove(models.Model):
 
     @api.onchange('journal_id', 'l10n_latam_document_type_id')
     def _onchange_journal_id(self):
-        _logger.info("Cambiando el tipo de documento o el diario")
+        _logger.info("Cambiando el tipo de documento o el diario. Self: %s Journal: %s", self.id, self.journal_id.name)
         # Verifica que el campo 'name' (número de control) no se modifique después de haber sido asignado
         if self.name and self.name.startswith("DTE-"):
             _logger.info("El número de control ya ha sido asignado y no debe modificarse.")
@@ -471,7 +471,8 @@ class AccountMove(models.Model):
 
         if journal and journal.sit_tipo_documento and journal.sit_tipo_documento.codigo:
             doc_electronico = True
-        _logger.info("SIT diario: %s, tipo. %s, | es dte? %s | Actualizar secuencia? %s", journal, journal.type, doc_electronico, actualizar_secuencia)
+        _logger.info("SIT diario: %s, tipo. %s, | es dte? %s | Actualizar secuencia? %s", journal, journal.type,
+                     doc_electronico, actualizar_secuencia)
 
         if self.company_id and self.company_id.sit_facturacion and doc_electronico:
             nuevo_numero = 0
@@ -493,19 +494,23 @@ class AccountMove(models.Model):
                 raise UserError(_("Configure la secuencia en el diario '%s'.") % journal.name)
 
             sequence = journal.sequence_id
-            #seq_code = sequence.code
+            # seq_code = sequence.code
 
             # Los placeholders tipo/estable se sustituyen desde el contexto
             dte_param_tipo = config_utils.get_config_value(self.env, 'dte_prefix_tipo', self.company_id.id)  # 'dte'
-            dte_param_puntoventa = config_utils.get_config_value(self.env, 'dte_prefix_puntoVenta', self.company_id.id)  # 'puntoVenta'
-            dte_param_estable = config_utils.get_config_value(self.env, 'dte_prefix_codEstable', self.company_id.id)  # 'estable'
-            _logger.info("SIT Parametros numero de control= tipo dte: %s(%s), cod estable: %s(%s), punto venta: %s(%s)", dte_param_tipo, tipo, dte_param_estable, estable, dte_param_puntoventa, punto_venta)
+            dte_param_puntoventa = config_utils.get_config_value(self.env, 'dte_prefix_puntoVenta',
+                                                                 self.company_id.id)  # 'puntoVenta'
+            dte_param_estable = config_utils.get_config_value(self.env, 'dte_prefix_codEstable',
+                                                              self.company_id.id)  # 'estable'
+            _logger.info("SIT Parametros numero de control= tipo dte: %s(%s), cod estable: %s(%s), punto venta: %s(%s)",
+                         dte_param_tipo, tipo, dte_param_estable, estable, dte_param_puntoventa, punto_venta)
 
             if not dte_param_tipo or not dte_param_estable or not dte_param_puntoventa:
-                raise UserError(_("Configure los parámetros de la plantilla de prefijo DTE para la empresa '%s'.") % self.company_id.name)
+                raise UserError(
+                    _("Configure los parámetros de la plantilla de prefijo DTE para la empresa '%s'.") % self.company_id.name)
 
             # Enviar parametros del prefijo de la secuencia
-            ctx = {dte_param_tipo: tipo, dte_param_puntoventa:punto_venta, dte_param_estable: estable}
+            ctx = {dte_param_tipo: tipo, dte_param_puntoventa: punto_venta, dte_param_estable: estable}
             prefix_rendered = None
             res = sequence.with_context(**ctx)._get_prefix_suffix()
             if isinstance(res, tuple):
@@ -521,13 +526,40 @@ class AccountMove(models.Model):
                 _logger.info("SIT Reutilizando número ya asignado por Odoo: %s", self.name)
                 return self.name
 
-            # Buscar último documento usando prefijo dinámico
+            # Obtener secuencia configurada
+            date_range = None
+            seq_next = sequence.number_next_actual
+            # _logger.info("SIT Ultimo num. control: %s(correlativo: %s) | Siguiente numero:%s ", ultimo.name, ultima_parte, siguiente_dte)
+            if sequence:
+                # fecha_factura = fields.Date.from_string('2025-09-25')
+                fecha_factura = self.invoice_date or self.date or fields.Date.context_today(self)
+                _logger.info("SIT | Sequence: %s, Fecha documento: %s", sequence, fecha_factura)
+                if sequence.use_date_range:
+                    date_range = self.env['ir.sequence.date_range'].search([
+                        ('sequence_id', '=', sequence.id),
+                        ('date_from', '<=', fecha_factura),
+                        ('date_to', '>=', fecha_factura)
+                    ], limit=1)
+                    if date_range:
+                        seq_next = date_range.number_next_actual
+
+            # Buscar último documento en BD dentro del rango de fechas
             domain = [
                 ('journal_id', '=', journal.id),
                 ('name', 'like', prefix_rendered + '%'),
-                ('company_id', '=', self.company_id.id)
+                ('company_id', '=', self.company_id.id),
             ]
+            if sequence.use_date_range and date_range:
+                domain += ['|',
+                           '&', ('invoice_date', '>=', date_range.date_from),
+                           ('invoice_date', '<=', date_range.date_to),
+                           '&', ('date', '>=', date_range.date_from), ('date', '<=', date_range.date_to)
+                           ]
+                _logger.info("Dominio aplicado con fechas (invoice_date o date): %s", domain)
+
             ultimo = self.search(domain, order='name desc', limit=1)
+            if ultimo:
+                _logger.info("Último DTE -> ID: %s | Name: %s", ultimo.id, ultimo.name)
 
             # Ajuste de secuencia según último DTE emitido
             ultima_parte = 0
@@ -544,40 +576,27 @@ class AccountMove(models.Model):
 
             _logger.info("SIT Ultimo num. control: %s(correlativo: %s) ", ultimo.name if ultimo else None, ultima_parte)
 
-            # Obtener secuencia configurada
-            date_range = None
-            seq_next = sequence.number_next_actual
-            _logger.info("SIT Ultimo num. control: %s(correlativo: %s) | Siguiente numero:%s ", ultimo.name, ultima_parte, siguiente_dte)
-            if sequence:
-                _logger.info("SIT | Sequence: %s", sequence)
-                if sequence.use_date_range:
-                    today = fields.Date.context_today(self)
-                    date_range = self.env['ir.sequence.date_range'].search([
-                        ('sequence_id', '=', sequence.id),
-                        ('date_from', '<=', today),
-                        ('date_to', '>=', today)
-                    ], limit=1)
-                    if date_range:
-                        seq_next = date_range.number_next_actual
+            # ------------------------------
+            if ultima_parte >= seq_next:
+                siguiente_dte = ultima_parte + 1
+            else:
+                siguiente_dte = seq_next
+            _logger.info("SIT Control correlativos → Ultimo BD: %s | Seq: %s | Siguiente: %s", ultima_parte, seq_next,
+                         siguiente_dte)
 
-                # ------------------------------
-                if ultima_parte >= seq_next:
-                    siguiente_dte = ultima_parte + 1
-                else:
-                    siguiente_dte = seq_next
-                _logger.info("SIT Control correlativos → Ultimo BD: %s | Seq: %s | Siguiente: %s", ultima_parte, seq_next, siguiente_dte)
-
-                if sequence.use_date_range and date_range:
-                    if date_range.number_next_actual < siguiente_dte:
-                        _logger.info("SIT | Corrigiendo desfase date_range: estaba %s, ajustando a %s", date_range.number_next_actual, siguiente_dte)
-                        date_range.number_next_actual = siguiente_dte
-                        #candidate_num = date_range.number_next_actual if date_range else sequence.number_next_actual
-                else:
-                    # if sequence.number_next_actual < nuevo_numero:
-                    if sequence.number_next_actual < siguiente_dte:
-                        _logger.info("SIT | Corrigiendo desfase sequence: estaba %s, ajustando a %s", sequence.number_next_actual, siguiente_dte)
-                        sequence.number_next_actual = siguiente_dte
-                #candidate_num = sequence.number_next_actual
+            if sequence.use_date_range and date_range:
+                if date_range.number_next_actual < siguiente_dte:
+                    _logger.info("SIT | Corrigiendo desfase date_range: estaba %s, ajustando a %s",
+                                 date_range.number_next_actual, siguiente_dte)
+                    date_range.number_next_actual = siguiente_dte
+                    # candidate_num = date_range.number_next_actual if date_range else sequence.number_next_actual
+            else:
+                # if sequence.number_next_actual < nuevo_numero:
+                if sequence.number_next_actual < siguiente_dte:
+                    _logger.info("SIT | Corrigiendo desfase sequence: estaba %s, ajustando a %s",
+                                 sequence.number_next_actual, siguiente_dte)
+                    sequence.number_next_actual = siguiente_dte
+            # candidate_num = sequence.number_next_actual
 
             # 1) obtener prefijo de la secuencia
             prefix_raw = (sequence.prefix or '').strip()
@@ -620,8 +639,8 @@ class AccountMove(models.Model):
                     sequence_date=self.invoice_date)  # **ctx convierte un diccionario en argumentos separados
                 # Ahora forzamos el incremento si ya está actualizado
                 if int(nuevo_name.split('-')[-1]) < siguiente_dte:
-                    #siguiente_dte = int(nuevo_name.split('-')[-1]) + 1
-                    nuevo_name = f"{prefix_rendered}{str(siguiente_dte).zfill(15)}"
+                    # siguiente_dte = int(nuevo_name.split('-')[-1]) + 1
+                    nuevo_name = f"{prefix_rendered}{str(siguiente_dte).zfill(sequence.padding)}"
 
                 # Forzar la actualización del siguiente número en la secuencia
                 if sequence.use_date_range and date_range:
@@ -630,7 +649,7 @@ class AccountMove(models.Model):
                     sequence.number_next_actual = siguiente_dte
             else:
                 # Solo previsualización, construimos nombre sin afectar secuencia
-                nuevo_name = f"{prefix_rendered}{str(siguiente_dte).zfill(15)}"
+                nuevo_name = f"{prefix_rendered}{str(siguiente_dte).zfill(sequence.padding)}"
 
             # Verificar duplicado antes de retornar
             # if self.search_count([('name', '=', nuevo_name), ('journal_id', '=', journal.id)]):
@@ -651,8 +670,9 @@ class AccountMove(models.Model):
             #     nuevo_numero = seq._next_do(sequence_date=self.invoice_date, context=ctx)
             #    _logger.info("SIT Secuencia '%s' actualizada a %s", seq_code, next_num)
 
-            # _logger.info("SIT Actualizar secuencia _generar_dte_name(): %s", actualizar_secuencia)
+            _logger.info("SIT Name generado: %s", nuevo_name)
             return nuevo_name
+
         else:
             return None  # <--- Omitir, que Odoo siga normal
 

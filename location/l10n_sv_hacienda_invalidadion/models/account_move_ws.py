@@ -268,6 +268,14 @@ class AccountMove(models.Model):
                 dui = self.partner_id.vat
 
         if not dui:
+            if self.company_id:
+                if self.company_id.partner_id.dui:
+                    dui = self.company_id.partner_id.dui
+                else:
+                    dui = self.company_id.partner_id.vat
+        _logger.info("SIT Dui responsable de invalidacion: %s", dui)
+
+        if not dui:
             raise UserError(
                 _("No se encontró el DUI del responsable en la empresa. Por favor verifique el campo DUI en el partner de la compañía."))
 

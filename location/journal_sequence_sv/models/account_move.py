@@ -83,8 +83,7 @@ class AccountMove(models.Model):
     @api.onchange('journal_id')
     def onchange_journal_id(self):
         """Resetea nombre y deja que el core compute lo demás; si FE OFF, no toques nada extra."""
-        _logger.info("SIT-ONCHANGE: Iniciando onchange_journal_id para move_id=%s, journal_id=%s", self.id,
-                     self.journal_id.id if self.journal_id else None)
+        _logger.info("SIT-ONCHANGE: Iniciando onchange_journal_id para move_id=%s, journal_id=%s", self.id, self.journal_id.id if self.journal_id else None)
 
         # Llama primero al core por si tiene lógica propia
         try:
@@ -93,13 +92,24 @@ class AccountMove(models.Model):
         except AttributeError:
             _logger.warning("SIT-ONCHANGE: super().onchange_journal_id no existe en esta versión")
 
+        if self.name != '/' and self.env.company.sit_facturacion:
+            raise UserError(_(
+                "No puede cambiar el diario porque este documento ya tiene un número asignado: %s."
+            ) % self.name)
+
         # Si quieres forzar reset del nombre cuando FE ON:
-        if self.env.company.sit_facturacion:
+        if self.env.company.sit_facturacion and self.name == '/':
             _logger.info("SIT-ONCHANGE: FE activado, reseteando name a '/' (antes name=%s)", self.name)
-            self.name = '/'
+            # self.name = '/'
             try:
-                _logger.info("SIT-ONCHANGE: llamando a _compute_name()")
-                self._compute_name()
+                nuevo_name = self.with_context(_dte_auto_generated=True,_dte_manual_update=True)._generate_dte_name(
+                    journal=self.journal_id,
+                    actualizar_secuencia=False  # solo preview
+                )
+                if nuevo_name:
+                    _logger.info("SIT-ONCHANGE: previsualizando name=%s", nuevo_name)
+                    self.name = nuevo_name  # ← Se muestra en pantalla
+                # self._compute_name()
                 _logger.info("SIT-ONCHANGE: _compute_name() ejecutado, name=%s", self.name)
             except Exception as e:
                 _logger.error("SIT-ONCHANGE: Error ejecutando _compute_name(): %s", e)
