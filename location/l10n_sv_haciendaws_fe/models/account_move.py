@@ -2150,6 +2150,8 @@ class AccountMove(models.Model):
                 'contingencia_activa': True,
                 'sit_usar_lotes': usar_lotes,
                 'hacienda_codigoGeneracion_identificacion': self.sit_generar_uuid(),
+                'fechaHoraTransmision': fields.Datetime.now(),
+                'sit_fInicio_hInicio': fields.Datetime.now(),
             })
 
             if usar_lotes:

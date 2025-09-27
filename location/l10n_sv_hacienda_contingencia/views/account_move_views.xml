@@ -30,12 +30,13 @@
         <field name="model">account.move</field>
         <field name="inherit_id" ref="l10n_invoice_sv.view_invoice_form_sv"/>
         <field name="arch" type="xml">
-            <xpath expr="//field[@name='partner_id']" position="after" invisible="move_type != 'out_invoice' and not codigo_tipo_documento">
+            <xpath expr="//field[@name='partner_id']" position="after">
                 <label for="sit_factura_de_contingencia"/>
+                <field name="codigo_tipo_documento" invisible="1"/>
                 <field name="sit_factura_de_contingencia"
                        readonly="1"
                        options='{"no_open": true, "no_create": true}'
-                       invisible="move_type != 'out_invoice' and not codigo_tipo_documento"/>
+                       invisible="not codigo_tipo_documento"/>
             </xpath>
         </field>
     </record>

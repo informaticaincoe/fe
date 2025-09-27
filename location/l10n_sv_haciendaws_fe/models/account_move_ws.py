@@ -88,12 +88,13 @@ class AccountMove(models.Model):
         invoice_info["nit"] = nit
         invoice_info["activo"] = True
         invoice_info["passwordPri"] = self.company_id.sit_passwordPri
-        if not self.hacienda_selloRecibido and self.sit_factura_de_contingencia and self.sit_json_respuesta:
-            _logger.info("SIT sit_base_map_invoice_info ccf")
-            invoice_info["dteJson"] = self.sit_json_respuesta
-        else:
-            _logger.info("SIT sit_base_map_invoice_info dte ccf")
-            invoice_info["dteJson"] = self.sit__ccf_base_map_invoice_info_dtejson()
+        # if not self.hacienda_selloRecibido and self.sit_factura_de_contingencia and self.sit_json_respuesta:
+        #     _logger.info("SIT sit_base_map_invoice_info ccf")
+        #     invoice_info["dteJson"] = self.sit_json_respuesta
+        # else:
+        #     _logger.info("SIT sit_base_map_invoice_info dte ccf")
+        #     invoice_info["dteJson"] = self.sit__ccf_base_map_invoice_info_dtejson()
+        invoice_info["dteJson"] = self.sit__ccf_base_map_invoice_info_dtejson()
         return invoice_info
 
     def sit__ccf_base_map_invoice_info_dtejson(self):
@@ -540,27 +541,28 @@ class AccountMove(models.Model):
         invoice_info["nit"] = nit
         invoice_info["activo"] = True
         invoice_info["passwordPri"] = self.company_id.sit_passwordPri
-        if self.sit_json_respuesta and not self.hacienda_selloRecibido:
-            try:
-                # Intentamos convertir el sit_json_respuesta a un diccionario Python
-                json_data = json.loads(self.sit_json_respuesta)
-
-                # Verificamos si el campo ambiente existe y es igual a "00"
-                ambiente = json_data.get("identificacion", {}).get("ambiente", None)
-
-                if ambiente == "00":
-                    _logger.info("SIT Ambiente 00 detectado. Sobreescribiendo JSON.")
-                    invoice_info["dteJson"] = self.sit_base_map_invoice_info_dtejson()
-            except json.JSONDecodeError as e:
-                _logger.error(f"SIT Error al procesar el JSON: {e}")
-                invoice_info["dteJson"] = self.sit_json_respuesta  # En caso de error en la conversión, mantenemos el JSON original
-
-        if not self.hacienda_selloRecibido and self.sit_factura_de_contingencia and self.sit_json_respuesta:
-            _logger.info("SIT sit_base_map_invoice_info contingencia")
-            invoice_info["dteJson"] = self.sit_json_respuesta
-        else:
-            _logger.info("SIT sit_base_map_invoice_info dte")
-            invoice_info["dteJson"] = self.sit_base_map_invoice_info_dtejson()
+        invoice_info["dteJson"] = self.sit_base_map_invoice_info_dtejson()
+        # if self.sit_json_respuesta and not self.hacienda_selloRecibido:
+        #     try:
+        #         # Intentamos convertir el sit_json_respuesta a un diccionario Python
+        #         json_data = json.loads(self.sit_json_respuesta)
+        #
+        #         # Verificamos si el campo ambiente existe y es igual a "00"
+        #         ambiente = json_data.get("identificacion", {}).get("ambiente", None)
+        #
+        #         if ambiente == "00":
+        #             _logger.info("SIT Ambiente 00 detectado. Sobreescribiendo JSON.")
+        #             invoice_info["dteJson"] = self.sit_base_map_invoice_info_dtejson()
+        #     except json.JSONDecodeError as e:
+        #         _logger.error(f"SIT Error al procesar el JSON: {e}")
+        #         invoice_info["dteJson"] = self.sit_json_respuesta  # En caso de error en la conversión, mantenemos el JSON original
+        #
+        # if not self.hacienda_selloRecibido and self.sit_factura_de_contingencia and self.sit_json_respuesta:
+        #     _logger.info("SIT sit_base_map_invoice_info contingencia")
+        #     invoice_info["dteJson"] = self.sit_json_respuesta
+        # else:
+        #     _logger.info("SIT sit_base_map_invoice_info dte")
+        #     invoice_info["dteJson"] = self.sit_base_map_invoice_info_dtejson()
         return invoice_info
 
     def sit_base_map_invoice_info_dtejson(self):
@@ -678,33 +680,42 @@ class AccountMove(models.Model):
                 raw_doc = self.partner_id.fax or ''
         tipo_doc = getattr(self.partner_id.l10n_latam_identification_type_id, 'codigo', None)
 
-        _logger.info("SIT Tipo de documento: %s, monto total= %s", tipo_dte, self.amount_total)
+        monto_limite = 0.0
+        if config_utils:
+            monto_conf = config_utils.get_config_value(self.env, 'dte_limit_cons_final', self.company_id.id)
+            try:
+                monto_limite = float(monto_conf) if monto_conf is not None else 0.0
+            except Exception:
+                _logger.warning("El valor de dte_limit_cons_final no es numérico: %s", monto_conf)
+                monto_limite = 0.0
+        _logger.info("SIT Tipo de documento: %s, monto total= %.2f, monto limite= %.2f", tipo_dte, self.amount_total, monto_limite)
+
         if not raw_doc:
-            if tipo_dte and tipo_dte == constants.COD_DTE_FE and self.amount_total and self.amount_total >= 25000:
+            if tipo_dte and tipo_dte == constants.COD_DTE_FE and self.amount_total and self.amount_total >= monto_limite:
                 raise UserError(_(
                     "Receptor sin documento de identidad (DUI o NIT) para DTE %s.\nCliente: %s"
-                ) % (tipo_dte, self.partner_id.display_name))
+                ) % (self.journal_id.sit_tipo_documento.codigo if self.journal_id.sit_tipo_documento else None, self.partner_id.display_name))
             elif tipo_dte and tipo_dte != constants.COD_DTE_FE:
                 raise UserError(_(
                     "Receptor sin documento de identidad (DUI o NIT) para DTE %s.\nCliente: %s"
                 ) % (tipo_dte, self.partner_id.display_name))
 
         # 3) limpio sólo dígitos
-        # cleaned = re.sub(r'\D', '', raw_doc)
-        # if not cleaned or not tipo_doc:
-        #     raise UserError(_(
-        #         "Receptor sin documento válido para DTE %s:\nraw=%r, tipo=%r") %
-        #                     (tipo_dte, raw_doc, tipo_doc)
-        #                     )
-        #
+        cleaned = re.sub(r'\D', '', raw_doc)
+        if not cleaned or not tipo_doc:
+            raise UserError(_(
+                "Receptor sin documento válido para DTE %s:\nraw=%r, tipo=%r") %
+                            (tipo_dte, raw_doc, tipo_doc)
+                            )
+
         # # 4) si es DTE 13, poner guión xxxxxxxx-x
         num_doc = raw_doc  # None
-        # if tipo_doc is not None and tipo_doc == constants.COD_TIPO_DOCU_DUI: #if tipo_dte == '13':
-        #     if len(cleaned) != 9:
-        #         raise UserError(_("Para DTE 01 el DUI debe ser 9 dígitos (8+1). Se dieron %d.") % len(cleaned))
-        #     num_doc = f"{cleaned[:8]}-{cleaned[8]}"
-        # else:
-        #     num_doc = cleaned
+        if tipo_doc is not None and tipo_doc == constants.COD_TIPO_DOCU_DUI: #if tipo_dte == '13':
+            if len(cleaned) != 9:
+                raise UserError(_("Para DTE 01 el DUI debe ser 9 dígitos (8+1). Se dieron %d.") % len(cleaned))
+            num_doc = f"{cleaned[:8]}-{cleaned[8]}"
+        else:
+            num_doc = cleaned
 
         invoice_info['numDocumento'] = num_doc
         invoice_info['tipoDocumento'] = tipo_doc if num_doc else None
@@ -1053,12 +1064,13 @@ class AccountMove(models.Model):
         invoice_info["nit"] = nit
         invoice_info["activo"] = True
         invoice_info["passwordPri"] = self.company_id.sit_passwordPri
-        if not self.hacienda_selloRecibido and self.sit_factura_de_contingencia and self.sit_json_respuesta:
-            _logger.info("SIT sit_base_map_invoice_info ndc")
-            invoice_info["dteJson"] = self.sit_json_respuesta
-        else:
-            _logger.info("SIT sit_base_map_invoice_info dte ndc")
-            invoice_info["dteJson"] = self.sit_base_map_invoice_info_ndc_dtejson()
+        # if not self.hacienda_selloRecibido and self.sit_factura_de_contingencia and self.sit_json_respuesta:
+        #     _logger.info("SIT sit_base_map_invoice_info ndc")
+        #     invoice_info["dteJson"] = self.sit_json_respuesta
+        # else:
+        #     _logger.info("SIT sit_base_map_invoice_info dte ndc")
+        #     invoice_info["dteJson"] = self.sit_base_map_invoice_info_ndc_dtejson()
+        invoice_info["dteJson"] = self.sit_base_map_invoice_info_ndc_dtejson()
         return invoice_info
 
     def sit_base_map_invoice_info_ndc_dtejson(self):
@@ -1412,14 +1424,14 @@ class AccountMove(models.Model):
             'nit': nit,
             'activo': True,
             'passwordPri': self.company_id.sit_passwordPri,
-            #'dteJson': self.sit_base_map_invoice_info_ndd_dtejson(),
+            'dteJson': self.sit_base_map_invoice_info_ndd_dtejson(),
         }
-        if not self.hacienda_selloRecibido and self.sit_factura_de_contingencia and self.sit_json_respuesta:
-            _logger.info("SIT sit_base_map_invoice_info ndd")
-            invoice_info["dteJson"] = self.sit_json_respuesta
-        else:
-            _logger.info("SIT sit_base_map_invoice_info dte ndd")
-            invoice_info["dteJson"] = self.sit_base_map_invoice_info_ndd_dtejson()
+        # if not self.hacienda_selloRecibido and self.sit_factura_de_contingencia and self.sit_json_respuesta:
+        #     _logger.info("SIT sit_base_map_invoice_info ndd")
+        #     invoice_info["dteJson"] = self.sit_json_respuesta
+        # else:
+        #     _logger.info("SIT sit_base_map_invoice_info dte ndd")
+        #     invoice_info["dteJson"] = self.sit_base_map_invoice_info_ndd_dtejson()
         return invoice_info
 
     def sit_base_map_invoice_info_ndd_dtejson(self):

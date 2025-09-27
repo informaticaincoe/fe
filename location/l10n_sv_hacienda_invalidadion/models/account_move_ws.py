@@ -129,7 +129,6 @@ class AccountMove(models.Model):
         _logger.info("SIT Identificación json: %s", invoice_info)
         return invoice_info
 
-
     def sit_invalidacion_base_map_invoice_info_emisor(self):
         _logger.info("SIT [INICIO] Emisor: self.id=%s", self.id)
 
