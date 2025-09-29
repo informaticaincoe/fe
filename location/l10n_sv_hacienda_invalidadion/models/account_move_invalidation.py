@@ -393,8 +393,7 @@ class AccountMoveInvalidation(models.Model):
                                                  invoice.hacienda_fhProcesamiento_anulacion)
 
                             # Guardar archivo .json
-                            file_name = 'Invalidacion ' + invoice.sit_factura_a_reemplazar.name.replace('/',
-                                                                                                        '_') + '.json'
+                            file_name = 'Invalidacion ' + invoice.sit_factura_a_reemplazar.name.replace('/', '_') + '.json'
                             _logger.info("SIT file_name =%s", file_name)
                             _logger.info("SIT self._name =%s", self._name)
                             _logger.info("SIT invoice.id =%s", invoice.id)
@@ -570,6 +569,7 @@ class AccountMoveInvalidation(models.Model):
             resultado.append(status)
             resultado.append(body)
             return body
+        return None
 
     def obtener_payload_anulacion(self, enviroment_type):
         _logger.info("SIT  Obteniendo payload")
@@ -606,13 +606,8 @@ class AccountMoveInvalidation(models.Model):
                 "descripcionMsg": "Documento invalidado en ambiente de pruebas, no se envió a MH",
                 "observaciones": ["Simulación de invalidación con éxito en pruebas"],
             }
-        else:
-            if enviroment_type == constants.AMBIENTE_TEST:
-                # host = 'https://apitest.dtes.mh.gob.sv'
-                host = "https://api.dtes.mh.gob.sv"
-            else:
-                host = "https://api.dtes.mh.gob.sv"
-        url = host + '/fesv/anulardte'
+
+        url = config_utils.get_config_value(self.env, 'url_invalidacion', self.company_id.id) if config_utils else 'https://api.dtes.mh.gob.sv/fesv/anulardte'
 
         # ——— Refrescar token si hace falta ———
         today = fields.Date.context_today(self)
@@ -686,6 +681,8 @@ class AccountMoveInvalidation(models.Model):
         if json_response['estado'] in ["PROCESADO"]:
             self.write({'invalidacion_recibida_mh': True})
             return json_response
+        else:
+            raise UserError(_("Respuesta inesperada al invalidar DTE: %s") % json_response)
 
     def _autenticar(self,user,pwd,):
         _logger.info("SIT self = %s", self)
@@ -698,13 +695,12 @@ class AccountMoveInvalidation(models.Model):
         enviroment_type = self._get_environment_type()
         _logger.info("SIT Modo = %s", enviroment_type)
 
+        url = None
         if enviroment_type == 'homologation':
-            host = 'https://apitest.dtes.mh.gob.sv'
-
+            url = config_utils.get_config_value(self.env, 'autenticar_test', self.company_id.id) if config_utils else 'https://apitest.dtes.mh.gob.sv/seguridad/auth'
         else:
-            host = 'https://api.dtes.mh.gob.sv'
-
-        url = host + '/seguridad/auth'
+            url = config_utils.get_config_value(self.env, 'autenticar_prod', self.company_id.id) if config_utils else 'https://api.dtes.mh.gob.sv/seguridad/auth'
+        # url = host + '/seguridad/auth'
 
         self.check_hacienda_values()
 
@@ -741,11 +737,7 @@ class AccountMoveInvalidation(models.Model):
             raise UserError(_("No se encontró la compañía asociada a la factura a reemplazar."))
         enviroment_type = company._get_environment_type()
         #enviroment_type = 'homologation'
-        if enviroment_type == 'homologation':
-            host = 'https://admin.factura.gob.sv'
-
-        else:
-            host = 'https://admin.factura.gob.sv'
+        host = config_utils.get_config_value(self.env, 'consulta_dte', self.company_id.id) if config_utils else 'https://admin.factura.gob.sv'
 
         # https://admin.factura.gob.sv/consultaPublica?ambiente=00&codGen=00000000-0000-00000000-000000000000&fechaEmi=2022-05-01
         fechaEmision = str(fechaEmi.year) + "-" + str(fechaEmi.month).zfill(2) + "-" + str(fechaEmi.day).zfill(2)
@@ -794,11 +786,11 @@ class AccountMoveInvalidation(models.Model):
 
         enviroment_type = company._get_environment_type()
         if enviroment_type == 'homologation':
-            host = 'https://admin.factura.gob.sv'
             ambiente = "00"
         else:
-            host = 'https://admin.factura.gob.sv'
             ambiente = "01"
+
+        host = config_utils.get_config_value(self.env, 'consulta_dte', self.company_id.id) if config_utils else 'https://admin.factura.gob.sv'
         texto_codigo_qr = host + "/consultaPublica?ambiente=" + str(ambiente) + "&codGen=" + str(
             self.hacienda_codigoGeneracion_identificacion) + "&fechaEmi=" + str(self.hacienda_fhProcesamiento_anulacion)
         _logger.info("SIT generando qr xxx texto_codigo_qr= %s", texto_codigo_qr)
@@ -845,6 +837,7 @@ class AccountMoveInvalidation(models.Model):
 
         if not self.sit_tipoAnulacion or self.sit_tipoAnulacion == False:
             raise UserError(_('El tipoAnulacion no definido'))
+        return True
 
     def check_parametros_firmado_anu(self):
         if not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion):
@@ -909,6 +902,7 @@ class AccountMoveInvalidation(models.Model):
         # Validaciones comunes para cualquier tipo de DTE
         if not self.sit_factura_a_reemplazar.invoice_line_ids:
             raise UserError(_('La factura no tiene LINEAS DE PRODUCTOS asociada.'))
+        return True  # ✅ Indicamos explícitamente que pasó la validación
 
     def check_parametros_dte_invalidacion(self, generacion_dte, ambiente_test):
         # Validación de empresa

@@ -36,8 +36,7 @@ class SaleOrder(models.Model):
             _logger.info("sit_tipo_documento.codigo: %s", getattr(order.journal_id.sit_tipo_documento, 'codigo', None))
             _logger.info("Partner: %s", order.partner_id)
             _logger.info("l10n_latam_identification_type_id: %s", order.partner_id.l10n_latam_identification_type_id)
-            _logger.info("l10n_latam_identification_type_id.codigo: %s",
-                         getattr(order.partner_id.l10n_latam_identification_type_id, 'codigo', None))
+            _logger.info("l10n_latam_identification_type_id.codigo: %s", getattr(order.partner_id.l10n_latam_identification_type_id, 'codigo', None))
 
             if not order.journal_id:
                 raise ValidationError(_("Debe seleccionar un diario para la cotización."))
@@ -60,9 +59,11 @@ class SaleOrder(models.Model):
     def _onchange_partner_id_set_journal(self):
         """Al seleccionar el cliente, sugerir el diario definido en el cliente."""
         if self.partner_id and self.partner_id.journal_id:
-            # Solo asigna si no hay diario aún
-            if not self.journal_id:
-                self.journal_id = self.partner_id.journal_id
+            old_journal = self.journal_id.id if self.journal_id else None
+            self.journal_id = self.partner_id.journal_id
+            _logger.info("[ONCHANGE PARTNER] partner_id=%s cambió journal de %s → %s", self.partner_id.id, old_journal, self.journal_id.id)
+        else:
+            _logger.info("[ONCHANGE PARTNER] partner_id=%s no tiene journal definido", self.partner_id.id if self.partner_id else None)
 
     def _get_allowed_journals_domain(self):
         # Tomar configuración de la compañía actual

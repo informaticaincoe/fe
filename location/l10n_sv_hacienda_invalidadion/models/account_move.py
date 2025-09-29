@@ -282,183 +282,6 @@ class AccountMove(models.Model):
                         # validation_type = False
         return validation_type
 
-
-    # FIMAR FIMAR FIRMAR =====================================================================================================    
-    # def firmar_documento_anu(self, enviroment_type, payload):
-    #     _logger.info("SIT  Firmando de documento")
-    #     _logger.info("SIT Documento a FIRMAR =%s", payload)
-    #
-    #     # Validación de empresa
-    #     if not (self.company_id and self.company_id.sit_facturacion):
-    #         raise UserError(_("Solo se pueden firmar documentos de empresas con facturación electrónica."))
-    #
-    #     ambiente_test = False
-    #     if config_utils:
-    #         ambiente_test = config_utils._compute_validation_type_2(self.env)
-    #         _logger.info("SIT Tipo de entorno invalidacion[Ambiente]: %s", ambiente_test)
-    #         if ambiente_test:
-    #             return
-    #
-    #     if enviroment_type == 'homologation':
-    #         ambiente = "00"
-    #     else:
-    #         ambiente = "01"
-    #     # host = 'http://service-it.com.ar:8113'
-    #     # host = 'http://svfe-api-firmador:8113'
-    #     # host = "http://192.168.2.25:8113"
-    #     # url = host + '/firmardocumento/'
-    #     url = config_utils.get_config_value(self.env, 'url_firma', self.company_id.id)
-    #     if not url:
-    #         _logger.error("SIT | No se encontró 'url_firma' en la configuración para la compañía ID %s",
-    #                       self.company_id.id)
-    #         raise UserError(_("La URL de firma no está configurada en la empresa."))
-    #     headers = {
-    #         'Content-Type': 'application/json'
-    #     }
-    #     try:
-    #         MENSAJE = "SIT POST, " + str(url) + ", headers=" + str(headers) + ", data=" + str(json.dumps(payload))
-    #         _logger.info("SIT A FIRMAR = %s", MENSAJE)
-    #         response = requests.request("POST", url, headers=headers, data=json.dumps(payload))
-    #         # _logger.info("SIT firmar_documento response =%s", response.text)
-    #     except Exception as e:
-    #         error = str(e)
-    #         _logger.info('SIT error= %s, ', error)
-    #         if "error" in error or "" in error:
-    #             MENSAJE_ERROR = str(error['status']) + ", " + str(error['error']) + ", " + str(error['message'])
-    #             raise UserError(_(MENSAJE_ERROR))
-    #         else:
-    #             raise UserError(_(error))
-    #     resultado = []
-    #     json_response = response.json()
-    #     if json_response['status'] in [400, 401, 402]:
-    #         _logger.info("SIT Error 40X  =%s", json_response['status'])
-    #         status = json_response['status']
-    #         error = json_response['error']
-    #         message = json_response['message']
-    #         MENSAJE_ERROR = "Código de Error:" + str(status) + ", Error:" + str(error) + ", Detalle:" + str(message)
-    #         raise UserError(_(MENSAJE_ERROR))
-    #     if json_response['status'] in ['ERROR', 401, 402]:
-    #         _logger.info("SIT Error 40X  =%s", json_response['status'])
-    #         status = json_response['status']
-    #         body = json_response['body']
-    #         codigo = body['codigo']
-    #         message = body['mensaje']
-    #         resultado.append(status)
-    #         resultado.append(codigo)
-    #         resultado.append(message)
-    #         MENSAJE_ERROR = "Código de Error:" + str(status) + ", Codigo:" + str(codigo) + ", Detalle:" + str(message)
-    #         raise UserError(_(MENSAJE_ERROR))
-    #     elif json_response['status'] == 'OK':
-    #         status = json_response['status']
-    #         body = json_response['body']
-    #         resultado.append(status)
-    #         resultado.append(body)
-    #         return body
-
-    # def obtener_payload_anulacion(self, enviroment_type, sit_tipo_documento):
-    #     _logger.info("SIT  Obteniendo payload")
-    #
-    #     # Validación de empresa
-    #     if not (self.company_id and self.company_id.sit_facturacion):
-    #         _logger.info("SIT La empresa %s no aplica a facturación electrónica, se detiene la obtención de obtener payload.", self.company_id.id if self.company_id else None)
-    #         return
-    #
-    #     invoice_info = self.sit_anulacion_base_map_invoice_info()
-    #     _logger.info("SIT invoice_info FINVALIDACION = %s", invoice_info)
-    #     self.check_parametros_firmado_anu()
-    #
-    #     _logger.info("SIT payload_data =%s", invoice_info)
-    #     return invoice_info
-
-
-    # def generar_dte_invalidacion(self, enviroment_type, payload, payload_original):
-    #     _logger.info("SIT  Generando DTE Invalidacion =%s", payload)
-    #
-    #     # Validación de empresa
-    #     if not (self.company_id and self.company_id.sit_facturacion):
-    #         _logger.info("SIT La empresa %s no aplica a facturación electrónica, se detiene la generación de DTE.", self.company_id.id if self.company_id else None)
-    #         return  # No continuar si la empresa no aplica
-    #
-    #     ambiente_test = False
-    #     url = None
-    #     host = None
-    #     if config_utils:
-    #         ambiente_test = config_utils._compute_validation_type_2(self.env, self.company_id)
-    #         _logger.info("SIT Tipo de entorno invalidacion[Ambiente]: %s", ambiente_test)
-    #
-    #     if ambiente_test:
-    #         _logger.info("SIT Ambiente de pruebas, se omite envío a Hacienda y se simula respuesta exitosa.")
-    #         return {
-    #             "estado": "PROCESADO",
-    #             "codigoMsg": "000",
-    #             "descripcionMsg": "Documento invalidado en ambiente de pruebas, no se envió a MH",
-    #             "observaciones": ["Simulación de invalidación con éxito en pruebas"],
-    #         }
-    #     else:
-    #         if enviroment_type == constants.AMBIENTE_TEST:
-    #             #host = 'https://apitest.dtes.mh.gob.sv'
-    #             host = "https://api.dtes.mh.gob.sv"
-    #         else:
-    #             host = "https://api.dtes.mh.gob.sv"
-    #         url = host + '/fesv/anulardte'
-    #     agente = self.company_id.sit_token_user
-    #     authorization = self.company_id.sit_token
-    #
-    #     headers = {
-    #      'Content-Type': 'application/json',
-    #      'User-Agent': 'Odoo', #agente,
-    #      'Authorization': f"Bearer {self.company_id.sit_token}" #authorization
-    #     }
-    #     try:
-    #         response = requests.request("POST", url, headers=headers, data=json.dumps(payload))
-    #         _logger.info("SIT generar_dte_invalidacion DTE response =%s", response)
-    #         _logger.info("SIT generar_dte_invalidacion DTE response =%s", response.status_code)
-    #         _logger.info("SIT generar_dte_invalidacion DTE response.text =%s", response.text)
-    #     except Exception as e:
-    #         error = str(e)
-    #         _logger.info('SIT error= %s, ', error)
-    #         if "error" in error or "" in error:
-    #             MENSAJE_ERROR = str(error['status']) + ", " + str(error['error']) +", " +  str(error['message'])
-    #             raise UserError(_(MENSAJE_ERROR))
-    #         else:
-    #             raise UserError(_(error))
-    #     resultado = []
-    #     _logger.info("SIT generar_dte_invalidacion DTE decodificando respuestas invalidacion")
-    #     # status = json_response.get('status')
-    #
-    #     if response.status_code in [  400, 401 ] :
-    #         MENSAJE_ERROR = "ERROR de conexión : " + str(response.text )   + " ((( " +str(json.dumps(payload_original))  + " )))"
-    #         raise UserError(_(MENSAJE_ERROR))
-    #
-    #     json_response = response.json()
-    #     _logger.info("SIT json_response =%s", json_response)
-    #     if json_response['estado'] in [  "RECHAZADO", 402 ] :
-    #         status=json_response['estado']
-    #         ambiente=json_response['ambiente']
-    #         if json_response['ambiente'] == '00':
-    #             ambiente = 'TEST'
-    #         else:
-    #             ambiente = 'PROD'
-    #         clasificaMsg=json_response['clasificaMsg']
-    #         message=json_response['descripcionMsg']
-    #         observaciones=json_response['observaciones']
-    #         MENSAJE_ERROR = "Código de Error..:" + str(status) + ", Ambiente:" + ambiente + ", ClasificaciónMsje:" + str(clasificaMsg) +", Descripcion:" + str(message) +", Detalle:" +  str(observaciones) +", DATA:  " +  str(json.dumps(payload_original))
-    #         self.hacienda_estado= status
-    #
-    #         # MENSAJE_ERROR = "Código de Error:" + str(status) + ", Ambiente:" + ambiente + ", ClasificaciónMsje:" + str(clasificaMsg) +", Descripcion:" + str(message) +", Detalle:" +  str(observaciones)
-    #         raise UserError(_(MENSAJE_ERROR))
-    #     status = json_response.get('status')
-    #     if status and status in [400, 401, 402]:
-    #         _logger.info("SIT Error 40X  =%s", status)
-    #         error = json_response.get('error', 'Error desconocido')  # Si 'error' no existe, devuelve 'Error desconocido'
-    #         message = json_response.get('message', 'Mensaje no proporcionado')  # Si 'message' no existe, devuelve 'Mensaje no proporcionado'
-    #         MENSAJE_ERROR = "Código de Error:" + str(status) + ", Error:" + str(error) + ", Detalle:" + str(message)
-    #         raise UserError(_(MENSAJE_ERROR))
-    #     if json_response['estado'] in [  "PROCESADO" ] :
-    #
-    #         return json_response
-    # #
-
     def _autenticar(self,user,pwd,):
         _logger.info("SIT self = %s", self)
 
@@ -470,13 +293,12 @@ class AccountMove(models.Model):
         enviroment_type = self._get_environment_type()
         _logger.info("SIT Modo = %s", enviroment_type)
 
-        if enviroment_type == 'homologation': 
-            host = 'https://apitest.dtes.mh.gob.sv' 
-
+        url = None
+        if enviroment_type == 'homologation':
+            url = config_utils.get_config_value(self.env, 'autenticar_test', self.company_id.id) if config_utils else 'https://apitest.dtes.mh.gob.sv/seguridad/auth'
         else:
-            host = 'https://api.dtes.mh.gob.sv'
-
-        url = host + '/seguridad/auth'
+            url = config_utils.get_config_value(self.env, 'autenticar_prod', self.company_id.id) if config_utils else 'https://api.dtes.mh.gob.sv/seguridad/auth'
+        # url = host + '/seguridad/auth'
         
         self.check_hacienda_values()
 
@@ -514,11 +336,11 @@ class AccountMove(models.Model):
         if not company:
             raise UserError(_("No se encontró la compañía asociada a la factura a reemplazar."))
         enviroment_type = company._get_environment_type()
-        if enviroment_type == 'homologation': 
-            host = 'https://admin.factura.gob.sv'
-
-        else:
-            host = 'https://admin.factura.gob.sv'
+        # if enviroment_type == 'homologation':
+        #     host = 'https://admin.factura.gob.sv'
+        # else:
+        #     host = 'https://admin.factura.gob.sv'
+        host = config_utils.get_config_value(self.env, 'consulta_dte', self.company_id.id) if config_utils else 'https://admin.factura.gob.sv'
 
         # https://admin.factura.gob.sv/consultaPublica?ambiente=00&codGen=00000000-0000-00000000-000000000000&fechaEmi=2022-05-01 
         fechaEmision =  str(fechaEmi.year) + "-" + str(fechaEmi.month).zfill(2) + "-" + str(fechaEmi.day).zfill(2)
@@ -566,11 +388,11 @@ class AccountMove(models.Model):
 
         enviroment_type = company._get_environment_type()
         if enviroment_type == 'homologation': 
-            host = 'https://admin.factura.gob.sv'
             ambiente = "00"
         else:
-            host = 'https://admin.factura.gob.sv'
             ambiente = "01"
+
+        host = config_utils.get_config_value(self.env, 'consulta_dte', self.company_id.id) if config_utils else 'https://admin.factura.gob.sv'
         texto_codigo_qr = host + "/consultaPublica?ambiente=" + str(ambiente) + "&codGen=" + str(self.hacienda_codigoGeneracion_identificacion) + "&fechaEmi=" + str(self.fecha_facturacion_hacienda)
         _logger.info("SIT generando qr xxx texto_codigo_qr= %s", texto_codigo_qr)
 
@@ -695,3 +517,9 @@ class AccountMove(models.Model):
     #     # Validaciones comunes para cualquier tipo de DTE
     #     if not self.invoice_line_ids:
     #         raise UserError(_('La factura no tiene LINEAS DE PRODUCTOS asociada.'))
+
+    # def action_post(self):
+    #     for move in self:
+    #         if (move.sit_tipoAnulacion in (2, 3)
+    #                 and move.sit_factura_a_reemplazar and not move.sit_factura_a_reemplazar.hacienda_selloRecibido):
+    #             raise UserError(_("Para invalidar este documento, es necesario generar un documento de reemplazo que cuente con el sello de recepción correspondiente."))

@@ -78,6 +78,7 @@ class sit_AccountContingencia(models.Model):
         import pytz
         if self.fechaHoraTransmision:
             FechaEmi = self.fechaHoraTransmision
+            FechaEmi = FechaEmi.replace(tzinfo=pytz.UTC).astimezone(tz_el_salvador)
         else:
             FechaEmi = datetime.datetime.now()
             FechaEmi = FechaEmi.astimezone(tz_el_salvador)
