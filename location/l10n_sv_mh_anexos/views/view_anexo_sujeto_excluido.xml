@@ -10,7 +10,7 @@
                                 type="object"
                                 string="Descargar CSV"
                                 class="oe_highlight"
-                                context="{'numero_anexo': '5'}"
+                                context="{'active_view_id': context.get('active_view_id') or context.get('view_id')}"
                                 display="always"
                         />
                     </header>

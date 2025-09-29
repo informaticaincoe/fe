@@ -5,6 +5,7 @@ import re
 import io
 import base64
 from datetime import date
+from odoo.exceptions import UserError
 
 _logger = logging.getLogger(__name__)
 
@@ -20,8 +21,8 @@ except ImportError as e:
 
 class account_move(models.Model):
     _inherit = 'account.move'
-    # consumidor final
 
+    # consumidor final
     tipo_ingreso_id = fields.Many2one(
         comodel_name="account.tipo.ingreso",
         string="Tipo de Ingreso"
@@ -120,11 +121,11 @@ class account_move(models.Model):
         readonly=True,
         store=False,
     )
-
     codigo_tipo_documento = fields.Char(
         related='journal_id.sit_tipo_documento.codigo',
         store=False
     )
+
 
     codigo_tipo_documento_display = fields.Char(
         string="Tipo de documento",
@@ -132,9 +133,20 @@ class account_move(models.Model):
         store=False
     )
 
+    invoice_date = fields.Date(
+        string="Fecha",
+        readonly=True,
+    )
+
     invoice_month = fields.Char(
         string="Mes",
         compute='_compute_invoice_month',
+        store=False
+    )
+
+    invoice_year = fields.Char(
+        string="Año",
+        compute='_compute_invoice_year',
         store=False
     )
 
@@ -276,6 +288,11 @@ class account_move(models.Model):
         store=False
     )
 
+    amount_tax = fields.Monetary(
+        string="Percepción IVA 1%",
+        readonly=True,
+    )
+
     # === Campos display (codigo + nombre) === #
     tipo_ingreso_display = fields.Char(
         string="Tipo de Ingreso",
@@ -331,7 +348,7 @@ class account_move(models.Model):
         store=False
     )
 
-    desde = fields.Char( # Desde para documentos extraviados y anulados
+    desde = fields.Char(  # Desde para documentos extraviados y anulados
         string="Desde",
         compute="_compute_desde",
         store=False
@@ -344,7 +361,6 @@ class account_move(models.Model):
     )
 
     # === Métodos compute === #
-
 
     @api.depends('tipo_operacion')
     def _compute_get_tipo_operacion_codigo(self):
@@ -359,7 +375,6 @@ class account_move(models.Model):
                 if rec.tipo_ingreso_id else ""
             )
 
-
     @api.depends('tipo_costo_gasto_id')
     def _compute_tipo_costo_gasto_display(self):
         for rec in self:
@@ -367,7 +382,6 @@ class account_move(models.Model):
                 f"{rec.tipo_costo_gasto_id.codigo}. {rec.tipo_costo_gasto_id.valor}"
                 if rec.tipo_costo_gasto_id else ""
             )
-
 
     @api.depends('tipo_operacion')
     def _compute_tipo_operacion_display(self):
@@ -377,7 +391,6 @@ class account_move(models.Model):
                 if rec.tipo_operacion else ""
             )
 
-
     @api.depends('clasificacion_facturacion')
     def _compute_clasificacion_facturacion_display(self):
         for rec in self:
@@ -386,7 +399,6 @@ class account_move(models.Model):
                 if rec.clasificacion_facturacion else ""
             )
 
-
     @api.depends('sector')
     def _compute_sector_display(self):
         for rec in self:
@@ -394,7 +406,6 @@ class account_move(models.Model):
                 f"{rec.sector.codigo}. {rec.sector.valor}"
                 if rec.sector else ""
             )
-
 
     @api.depends('invoice_date')
     def _compute_invoice_month(self):
@@ -405,6 +416,14 @@ class account_move(models.Model):
             else:
                 record.invoice_month = ''
 
+    @api.depends('invoice_date')
+    def _compute_invoice_year(self):
+        for record in self:
+            if record.invoice_year:
+                # Solo número del mes con dos dígitos
+                record.invoice_year = record.invoice_date.strftime('%y')
+            else:
+                record.invoice_year = ''
 
     # si es preimpreso
     sit_facturacion = fields.Boolean(
@@ -504,17 +523,15 @@ class account_move(models.Model):
         readonly=True,
     )
 
-
     @api.depends('journal_id')
     def _compute_get_clase_documento(self):
         for record in self:
             if record.name.startswith("DTE"):
-                _logger.info('name %s ',record.name)
-                _logger.info('clase_documento_id %s ',record.clase_documento_id)
+                _logger.info('name %s ', record.name)
+                _logger.info('clase_documento_id %s ', record.clase_documento_id)
                 record.clase_documento = '4'
             else:
                 record.clase_documento = '1'
-
 
     @api.depends('journal_id')
     def _compute_get_clase_documento_display(self):
@@ -524,12 +541,10 @@ class account_move(models.Model):
             else:
                 record.clase_documento_display = '1. Impreso por imprenta o tiquetes'
 
-
     @api.depends('journal_id')
     def _compute_codigo_tipo_documento_display(self):
         for record in self:
             record.codigo_tipo_documento_display = record.codigo_tipo_documento + ' ' + record.journal_id.name
-
 
     @api.depends('partner_id')
     def _compute_get_tipo_documento(self):
@@ -541,7 +556,6 @@ class account_move(models.Model):
             else:
                 record.tipo_documento_identificacion = ''
 
-
     @api.depends('partner_id')
     def _compute_get_numero_documento(self):
         for record in self:
@@ -551,7 +565,6 @@ class account_move(models.Model):
                 record.numero_documento = "03"
             else:
                 record.numero_documento = ''
-
 
     @api.depends('journal_id')
     def _compute_numero_control_interno_del(self):
@@ -564,13 +577,11 @@ class account_move(models.Model):
                     numero = record.journal_id.name
             record.numero_control_interno_del = numero
 
-
     @api.depends('journal_id')
     def _compute_get_numero_control_documento_interno_del(self):
         for record in self:
             if record.clase_documento == "4":
                 record.numero_control_interno_del = 0
-
 
     @api.depends('journal_id')
     def _compute_get_numero_control_documento_interno_al(self):
@@ -580,18 +591,15 @@ class account_move(models.Model):
             else:
                 record.numero_control_interno_al = 0
 
-
     @api.depends('journal_id')
     def _compute_get_hacienda_codigo_generacion_sin_guion(self):
         for record in self:
             record.numero_documento_del_al = record.hacienda_codigoGeneracion_identificacion
 
-
     @api.depends('journal_id')
     def _compute_get_numero_maquina_registradora(self):
         for record in self:
             record.numero_maquina_registradora = ''
-
 
     @api.depends('journal_id')
     def _compute_get_total_gravado(self):
@@ -601,12 +609,10 @@ class account_move(models.Model):
             else:
                 record.total_gravado_local = 0.00
 
-
     @api.depends('journal_id')
     def _compute_get_ventas_exentas_no_sujetas(self):
         for record in self:
             record.ventas_exentas_no_sujetas = 0.00
-
 
     @api.depends('journal_id')
     def _compute_get_exportaciones_dentro_centroamerica(self):
@@ -619,7 +625,6 @@ class account_move(models.Model):
             else:
                 record.exportaciones_dentro_centroamerica = 0.00
 
-
     @api.depends('journal_id', 'partner_id.country_id', 'codigo_tipo_documento', 'total_gravado')
     def _compute_get_exportaciones_fuera_centroamerica(self):
         for record in self:
@@ -631,7 +636,6 @@ class account_move(models.Model):
                     record.exportaciones_fuera_centroamerica = 0.00
             else:
                 record.exportaciones_fuera_centroamerica = 0.00
-
 
     @api.depends('invoice_line_ids', 'invoice_line_ids.product_id', 'invoice_line_ids.price_subtotal',
                  'codigo_tipo_documento')
@@ -648,30 +652,25 @@ class account_move(models.Model):
 
             record.exportaciones_de_servicio = total_servicios
 
-
     @api.depends('journal_id')
     def _compute_get_ventas_tasa_cero(self):
         for record in self:
             record.ventas_tasa_cero = 0.00
-
 
     @api.depends('journal_id')
     def _compute_get_ventas_cuenta_terceros(self):
         for record in self:
             record.ventas_cuenta_terceros = 0.00
 
-
     @api.depends('journal_id')
     def _compute_get_tipo_operacion_renta(self):
         for record in self:
             record.tipo_operacion_renta = record.tipo_operacion_renta
 
-
     @api.depends('journal_id')
     def _compute_get_tipo_ingreso_renta(self):
         for record in self:
             record.tipo_ingreso_renta = 0.00
-
 
     @api.depends('journal_id')
     def _compute_get_numero_anexo(self):
@@ -679,7 +678,6 @@ class account_move(models.Model):
             ctx = self.env.context
             if ctx.get('numero_anexo'):
                 record.numero_anexo = str(ctx['numero_anexo'])
-
 
     @api.depends('partner_id', 'invoice_date')
     def _compute_get_dui_cliente(self):
@@ -709,7 +707,6 @@ class account_move(models.Model):
                     if record.dui_cliente:
                         record.dui_cliente = record.dui_cliente
 
-
     @api.depends('partner_id')
     def _compute_get_nrc(self):
         for record in self:
@@ -719,7 +716,6 @@ class account_move(models.Model):
                 record.nrc_cliente = ''
             _logger.info("record.nrc_cliente %s ", record.nrc_cliente)
 
-
     @api.depends('partner_id')
     def _compute_get_nit(self):
         for record in self:
@@ -728,7 +724,6 @@ class account_move(models.Model):
             else:
                 record.nit_cliente = ''
             _logger.info("record.nit_cliente %s ", record.nit_cliente)
-
 
     @api.depends('partner_id.vat', 'partner_id.nrc', 'partner_id.dui', 'invoice_date')
     def _compute_nit_nrc_anexo_contribuyentes(self):
@@ -753,18 +748,15 @@ class account_move(models.Model):
             _logger.info("record.nit_cliente %s ", record.nit_cliente)
             record.nit_o_nrc_anexo_contribuyentes = valor
 
-
     @api.depends('partner_id')
     def _compute_get_debito_fiscal(self):
         for record in self:
-            record.debito_fiscal_contribuyentes = 0.00
-
+            record.debito_fiscal_contribuyentes = record.amount_tax
 
     @api.depends('partner_id')
     def _compute_get_debito_fiscal_terceros(self):
         for record in self:
             record.debito_fiscal_cuenta_terceros = 0.00
-
 
     @api.depends('partner_id')
     def _compute_get_nit_company(self):
@@ -816,7 +808,6 @@ class account_move(models.Model):
                 record.documento_sujeto_excluido = record.partner_id.vat or ""
             else:
                 record.documento_sujeto_excluido = ""
-
 
     @api.depends('invoice_line_ids.price_subtotal', 'codigo_tipo_documento')
     def _compute_retencion_iva_amount(self):
@@ -879,45 +870,100 @@ class account_move(models.Model):
     ###################################################################################################
     #                                  Funciones para descarga de csv                                 #
     ###################################################################################################
+    # -*- coding: utf-8 -*-
+    # ... (imports) ...
+
     def action_download_csv_anexo(self):
         """
-        Genera y descarga el CSV del anexo correspondiente.
+        Exporta EXACTAMENTE lo que el usuario tiene en pantalla:
+        - Primero: registros seleccionados (self)
+        - Luego: active_ids del contexto
+        - Por último: active_domain del contexto
+        (Sin rearmar dominios propios)
         """
         ctx = self.env.context
-        numero_anexo = str(ctx.get('numero_anexo') or self.numero_anexo or '')
+        numero_anexo = str(ctx.get("numero_anexo") or self.numero_anexo or "")
 
-        # === Mapeo de documentos permitidos por anexo === #
-        allowed_docs_by_anexo = {
-            '2': ["01", "03", "11"],  # Consumidor final
-            '5': ["14"],  # Sujeto excluido
-            '7': ["01", "03", "05","06", "11", "14"]
-        }
+        # 1) Lo que el usuario seleccionó en la lista (ideal)
+        records_to_export = self
 
-        allowed_docs = allowed_docs_by_anexo.get(numero_anexo, [])
-        if not allowed_docs:
-            _logger.warning("No hay tipos de documentos configurados para el anexo %s", numero_anexo)
+        # 2) Si no hay selección, intentar con active_ids
+        if not records_to_export:
+            active_ids = ctx.get("active_ids") or []
+            if active_ids:
+                model = ctx.get("active_model") or "account.move"
+                records_to_export = self.env[model].browse(active_ids)
+
+        # 3) Si sigue vacío, como último recurso usar active_domain
+        if not records_to_export:
+            domain = ctx.get("active_domain") or ctx.get("domain") or []
+            if domain:
+                records_to_export = self.env["account.move"].search(domain)
+
+        if not records_to_export:
+            _logger.warning("Sin registros para exportar (selección vacía y sin dominio activo).")
             return
 
-        domain = [('codigo_tipo_documento', 'in', allowed_docs)]
-        if numero_anexo == '7':
-            domain.append(('sit_evento_invalidacion', '!=', False))
+        # Detectar la vista usada (opcional, para ordenar columnas según la vista)
+        view_id = None
+        params = ctx.get("params") or {}
+        action_xmlid = params.get("action")
+        if action_xmlid:
+            try:
+                action = self.env["ir.actions.act_window"]._for_xml_id(action_xmlid)
+                view_id = action.get("view_id") and action["view_id"][0] or None
+            except Exception as e:
+                _logger.warning("No se pudo resolver view_id desde acción %s: %s", action_xmlid, e)
 
-        # Buscar solo los movimientos que correspondan
-        records_to_export = self.env['account.move'].search(domain)
+        # Generar CSV usando el recordset ya determinado
+        csv_data = self.env["anexo.csv.utils"].generate_csv(records_to_export, numero_anexo, view_id=view_id)
 
-        csv_data = self.env['anexo.csv.utils'].generate_csv(records_to_export, numero_anexo)
-
-        attachment = self.env['ir.attachment'].create({
-            'name': f'anexo_{numero_anexo}.csv',
-            'type': 'binary',
-            'datas': base64.b64encode(csv_data),
-            'res_model': 'account.move',
-            'res_id': False,
-            'public': True,
+        attachment = self.env["ir.attachment"].create({
+            "name": f"anexo_{numero_anexo}.csv",
+            "type": "binary",
+            "datas": base64.b64encode(csv_data),
+            "res_model": "account.move",
+            "res_id": False,
+            "public": True,
         })
 
         return {
-            'type': 'ir.actions.act_url',
-            'url': f'/web/content/{attachment.id}?download=true',
-            'target': 'self',
+            "type": "ir.actions.act_url",
+            "url": f"/web/content/{attachment.id}?download=true",
+            "target": "self",
         }
+
+        ###################################################################################################
+        #                                  Funciones para facturas menores                                #
+        ###################################################################################################
+        cantidad_total_facturas = fields.Integer(
+            string="Cantidad de facturas",
+            compute="_compute_cantidad_total_facturas",
+            store=False
+        )
+
+        # monto_total_facturas = fields.Integer(
+        #     string="Monto total facturas",
+        #     compute='_compute_monto_total_facturas_clientes_menores',
+        #     readonly=True,
+        # )
+
+        @api.depends("invoice_date")
+        def _compute_cantidad_total_facturas(self):
+            for record in self:
+                cantidad_total_facturas = 0
+                if record.invoice_date:
+                    cantidad_total_facturas = self.search_count([('invoice_date', '=', record.invoice_date)])
+
+                record.cantidad_total_facturas = cantidad_total_facturas
+                _logger.info("Factura %s → total en fecha %s ", record.name, record.invoice_date)
+
+        # @api.depends('journal_id')
+        # def _compute_monto_total_facturas_clientes_menores(self):
+        #     for record in self:
+        #         total_monto = 0
+        #         if record.invoice_date:
+        #             total_monto = self.search_count([('invoice_date', '=', record.invoice_date)])
+        #
+        #         record.monto_total_facturas = total_monto
+        #         _logger.info("Factura %s → total en fecha %s = %s", record.name, record.invoice_date, total)

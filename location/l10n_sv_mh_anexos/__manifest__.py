@@ -26,6 +26,7 @@
         'views/view_anexo_documentos_anulados_y_extraviados.xml',
         'views/view_anexo_casilla162.xml',
         'views/view_anexo_clientes.xml',
+        'views/view_anexo_cliente_mayores.xml',
 
         "views/view_account_new_fields.xml",
         "views/report_anexos_action.xml",

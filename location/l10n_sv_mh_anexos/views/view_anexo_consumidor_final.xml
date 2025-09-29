@@ -6,7 +6,9 @@
             <field name="arch" type="xml">
                 <list string="Detalle de Anexos">
                     <header>
-                        <button name="action_download_csv_anexo" type="object" string="Descargar CSV" class="oe_highlight" display="always"/>
+                        <button name="action_download_csv_anexo" type="object" string="Descargar CSV"
+                                class="oe_highlight" display="always"
+                        />
                     </header>
                     <field name="invoice_date" string="Fecha de Emisión"/>
                     <field name="clase_documento_display"/>
@@ -22,15 +24,15 @@
                     <field name="ventas_exentas_no_sujetas"/>
                     <field name="total_no_sujeto" string="Ventas no sujetas"/>
                     <field name="total_gravado_local" string="Ventas grabadas locales"/>
-                    <field name="exportaciones_dentro_centroamerica" />
-                    <field name="exportaciones_fuera_centroamerica" />
-                    <field name="exportaciones_de_servicio" />
-                    <field name="ventas_tasa_cero" />
-                    <field name="ventas_cuenta_terceros" />
-                    <field name="total_operacion" />
+                    <field name="exportaciones_dentro_centroamerica"/>
+                    <field name="exportaciones_fuera_centroamerica"/>
+                    <field name="exportaciones_de_servicio"/>
+                    <field name="ventas_tasa_cero"/>
+                    <field name="ventas_cuenta_terceros"/>
+                    <field name="total_operacion"/>
                     <field name="tipo_operacion_display"/>
                     <field name="tipo_ingreso_display"/>
-                    <field name="numero_anexo" />
+                    <field name="numero_anexo"/>
                 </list>
             </field>
         </record>

@@ -3,8 +3,7 @@ import io
 import base64
 import logging
 from datetime import date
-
-from odoo import api, models
+from odoo import fields, models, api
 
 _logger = logging.getLogger(__name__)
 
@@ -17,6 +16,7 @@ class AnexoCSVUtils(models.AbstractModel):
         """
         Retorna los nombres de los campos a exportar según el número de anexo.
         """
+        _logger.info("fields %s", numero_anexo)
         if numero_anexo == '5':  # Sujeto Excluido
             return [
                 'codigo_tipo_documento_cliente_display',
@@ -98,30 +98,91 @@ class AnexoCSVUtils(models.AbstractModel):
             ]
         return []
 
-    def generate_csv(self, records, numero_anexo):
+    def generate_csv(self, records, numero_anexo, view_id=None):
         """
-        Genera el contenido del CSV para los registros y el anexo especificado.
+        Genera el CSV usando los campos visibles en la vista tree.
+        Si no se pasa view_id, usa los campos por defecto definidos en _get_anexo_fields.
         """
-        _logger.info("prueba %s", numero_anexo)
-        csv_fields = self._get_anexo_fields(numero_anexo)
         csv_content = io.StringIO()
+        csv_fields = []
 
+        # === Determinar campos desde la vista === #
+        if view_id:
+            try:
+                view = self.env["ir.ui.view"].browse(view_id)
+                arch = view.read_combined(["arch"])["arch"]
+                from lxml import etree
+                xml_root = etree.fromstring(arch.encode("utf-8"))
+                csv_fields = [field.get("name") for field in xml_root.xpath("//field[@name]")]
+            except Exception as e:
+                _logger.warning("No se pudo leer la vista %s: %s", view_id, e)
+
+        # === Si no hay campos de vista, fallback por anexo === #
+        if not csv_fields:
+            csv_fields = self._get_anexo_fields(numero_anexo)
+
+        _logger.info("CSV fields finales usados: %s", csv_fields)
+
+        # === Escribir cabecera === #
+        csv_content.write(";".join(csv_fields) + "\n")
+
+        # === Generar el CSV === #
         for record in records:
             row_data = []
             for field_name in csv_fields:
-                value = record[field_name] if record[field_name] is not None else ""
-                clean_value = str(value).replace('"', '').replace("'", '').replace('.', '')
+                try:
+                    value = getattr(record, field_name, "")
+                except Exception:
+                    value = ""
+
+                if value is None:
+                    clean_value = ""
+                elif isinstance(value, (int, float)):
+                    clean_value = str(value)
+                else:
+                    clean_value = str(value)
 
                 # Formato de fecha
                 if field_name == "invoice_date" and record.invoice_date:
                     clean_value = record.invoice_date.strftime("%d/%m/%Y")
 
-                # Limpieza de campos sensibles
-                if field_name in ["hacienda_selloRecibido", "hacienda_codigoGeneracion_identificacion", "name"]:
-                    clean_value = clean_value.replace("-", "")
+                # Quitar comillas y saltos de línea
+                clean_value = clean_value.replace('"', '').replace("'", '').replace("\n", " ").replace("\r", " ")
 
                 row_data.append(clean_value)
 
-            csv_content.write(';'.join(row_data) + '\n')
+            csv_content.write(";".join(row_data) + "\n")
 
-        return csv_content.getvalue().encode('utf-8')
+        return csv_content.getvalue().encode("utf-8-sig")  # BOM UTF-8 para Excel
+
+class ReportFacturasPorDia(models.TransientModel):
+    _name = "report.facturas.por.dia"
+    _description = "Resumen de facturas por día"
+
+    fecha = fields.Date(string="Fecha")
+    cantidad = fields.Integer(string="Cantidad de facturas")
+    total = fields.Monetary(string="Monto total")
+    currency_id = fields.Many2one("res.currency", default=lambda self: self.env.company.currency_id.id)
+
+    @api.model
+    def load_data(self):
+        """Carga datos agrupados desde account.move"""
+        self.search([]).unlink()  # limpiar antes de insertar
+        data = self.env["account.move"].read_group(
+            domain=[("move_type", "=", "out_invoice")],
+            fields=["invoice_date", "amount_total:sum", "id:count"],
+            groupby=["invoice_date"],
+            orderby="invoice_date",
+        )
+        for row in data:
+            self.create({
+                "fecha": row["invoice_date"],
+                "cantidad": row["invoice_date_count"],
+                "total": row["amount_total"],
+            })
+        return {
+            "type": "ir.actions.act_window",
+            "res_model": "report.facturas.por.dia",
+            "view_mode": "tree",
+            "target": "current",
+        }
