@@ -25,7 +25,7 @@
 
     <record id="dte_prefix_para4" model="res.configuration">
         <field name="company_id" ref="base.main_company"/>
-        <field name="value_text">DTE-%(dte)s-%(punto_venta)s%(estable)s-</field>
+        <field name="value_text">DTE-%(dte)s-%(estable)s%(punto_venta)s-</field>
         <field name="clave">dte_prefix_numControl</field>
         <field name="description">Formato completo del número de control de los DTE</field>
         <field name="active">True</field>

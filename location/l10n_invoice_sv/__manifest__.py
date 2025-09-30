@@ -60,7 +60,8 @@
         'views/account_lines.xml',
         'views/sale_order.xml',
         'data/account_retention_accounts.xml',
-        'data/account_discount.xml'
+        'data/account_discount.xml',
+        'views/res_partner_contribuyente.xml',
     ],
     'demo': [],
     'installable': True,

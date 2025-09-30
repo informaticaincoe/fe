@@ -165,6 +165,13 @@ class AccountMove(models.Model):
         if not self.sit_factura_a_reemplazar:
             raise UserError("Debe seleccionar el documento a invalidar antes de continuar.")
 
+        _logger.info("SIT Tipo invalidacion: %s, tipo de documento: %s, cod generacion: %s, codGeneracion reemplazo: %s",
+                     self.sit_tipoAnulacion, self.journal_id.sit_tipo_documento.codigo, self.hacienda_codigoGeneracion_identificacion, self.sit_factura_a_reemplazar.hacienda_codigoGeneracion_identificacion)
+        if (self.journal_id.sit_tipo_documento and self.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_NC
+                and self.sit_tipoAnulacion in ('1', '3') and self.hacienda_codigoGeneracion_identificacion ==  self.sit_factura_a_reemplazar.hacienda_codigoGeneracion_identificacion):
+            raise UserError(
+                _("Para invalidar este documento, es necesario generar un documento de reemplazo que cuente con el sello de recepción correspondiente."))
+
         if self.sit_evento_invalidacion and self.sit_evento_invalidacion.hacienda_selloRecibido_anulacion and self.sit_evento_invalidacion.invalidacion_recibida_mh:
             raise UserError("Este DTE ya ha sido invalidado por Hacienda. No es posible repetir la anulación.")
 
@@ -517,9 +524,3 @@ class AccountMove(models.Model):
     #     # Validaciones comunes para cualquier tipo de DTE
     #     if not self.invoice_line_ids:
     #         raise UserError(_('La factura no tiene LINEAS DE PRODUCTOS asociada.'))
-
-    # def action_post(self):
-    #     for move in self:
-    #         if (move.sit_tipoAnulacion in (2, 3)
-    #                 and move.sit_factura_a_reemplazar and not move.sit_factura_a_reemplazar.hacienda_selloRecibido):
-    #             raise UserError(_("Para invalidar este documento, es necesario generar un documento de reemplazo que cuente con el sello de recepción correspondiente."))

@@ -225,7 +225,8 @@ class AccountMove(models.Model):
             uniMedida = None
             codigo_tributo_codigo = None
             codigo_tributo = None
-            for line in self.invoice_line_ids:
+            
+            for line in self.invoice_line_ids.filtered(lambda x: x.price_unit > 0):
                 if not line.custom_discount_line:
                     item_numItem += 1
                     line_temp = {}

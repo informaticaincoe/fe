@@ -212,6 +212,7 @@ class AccountMoveInvalidation(models.Model):
                 if sit_tipo_documento not in [constants.COD_DTE_FE, constants.COD_DTE_FEX]:
                     _logger.info("SIT Validando tiempo límite para anulación (24h)")
                     fecha_facturacion_hacienda = None
+                    time_diff = None
                     _logger.info("SIT Ambiente test(type: %s): %s", ambiente_test, type(ambiente_test))
 
                     # Si fecha_facturacion_hacienda es None, usar invoice_date + invoice_time
@@ -220,8 +221,8 @@ class AccountMoveInvalidation(models.Model):
                         _logger.info("SIT Validando tiempo límite en ambiente de prod")
 
                         # Si fecha_facturacion_hacienda es None, usar invoice_date + invoice_time
-                        fecha_facturacion_hacienda = invoice.sit_factura_a_reemplazar.fecha_facturacion_hacienda or (
-                                    invoice.sit_factura_a_reemplazar.invoice_date and invoice.sit_factura_a_reemplazar.invoice_time)
+                        fecha_facturacion_hacienda = (invoice.sit_factura_a_reemplazar.fecha_facturacion_hacienda
+                                                      or (invoice.sit_factura_a_reemplazar.invoice_date and invoice.sit_factura_a_reemplazar.invoice_time))
 
                         if fecha_facturacion_hacienda:
                             if isinstance(fecha_facturacion_hacienda, datetime):
@@ -231,10 +232,7 @@ class AccountMoveInvalidation(models.Model):
                                 # Combinamos invoice_date con invoice_time
                                 try:
                                     # Suponiendo que invoice_date tiene formato '%Y-%m-%d' y invoice_time tiene formato '%H:%M:%S'
-                                    fecha_factura_dt = datetime.combine(fecha_facturacion_hacienda,
-                                                                        datetime.strptime(
-                                                                            invoice.sit_factura_a_reemplazar.invoice_time,
-                                                                            '%H:%M:%S').time())
+                                    fecha_factura_dt = datetime.combine(fecha_facturacion_hacienda, datetime.strptime(invoice.sit_factura_a_reemplazar.invoice_time, '%H:%M:%S').time())
                                 except ValueError as e:
                                     _logger.error(f"Error al combinar invoice_date y invoice_time: {e}")
                                     fecha_factura_dt = None  # En caso de error, establecemos fecha_factura_dt como None
@@ -242,32 +240,78 @@ class AccountMoveInvalidation(models.Model):
                                 # Si es una cadena, intentamos combinar invoice_date y invoice_time
                                 try:
                                     # Suponiendo que invoice_date tiene formato '%Y-%m-%d' y invoice_time tiene formato '%H:%M:%S'
-                                    fecha_factura_dt = datetime.strptime(
-                                        f"{invoice.sit_factura_a_reemplazar.invoice_date} {invoice.sit_factura_a_reemplazar.invoice_time}",
-                                        '%Y-%m-%d %H:%M:%S')
+                                    fecha_factura_dt = datetime.strptime(f"{invoice.sit_factura_a_reemplazar.invoice_date} {invoice.sit_factura_a_reemplazar.invoice_time}", '%Y-%m-%d %H:%M:%S')
                                 except ValueError as e:
-                                    _logger.error(
-                                        f"Error al combinar fecha_facturacion_hacienda con invoice_date y invoice_time: {e}")
+                                    _logger.error(f"Error al combinar fecha_facturacion_hacienda con invoice_date y invoice_time: {e}")
                                     fecha_factura_dt = None  # En caso de error, establecemos fecha_factura_dt como None
                             else:
                                 _logger.warning("SIT El formato de fecha_facturacion_hacienda no es válido.")
 
                             if fecha_factura_dt:
                                 # Convertimos la fecha a la zona horaria de El Salvador y luego a UTC
-                                fecha_factura_utc = pytz.timezone("America/El_Salvador").localize(
-                                    fecha_factura_dt).astimezone(pytz.utc)
+                                fecha_factura_utc = pytz.timezone("America/El_Salvador").localize(fecha_factura_dt).astimezone(pytz.utc)
                                 time_diff = datetime.now(pytz.utc) - fecha_factura_utc
                                 _logger.info(f"Time difference: {time_diff}")
                             else:
                                 _logger.warning("SIT No se pudo obtener una fecha válida para la factura.")
 
-                        fecha_factura_utc = pytz.timezone("America/El_Salvador").localize(fecha_factura_dt).astimezone(
-                            pytz.utc)
-                        time_diff = datetime.now(pytz.utc) - fecha_factura_utc
+                            # Validación de límite de anulación de 24h
+                            # fecha_factura_utc = pytz.timezone("America/El_Salvador").localize(fecha_factura_dt).astimezone(pytz.utc)
+                            # time_diff = datetime.now(pytz.utc) - fecha_factura_utc
 
-                        # if time_diff.total_seconds() > 24 * 3600:
-                        #     _logger.warning("SIT Factura excede el límite de anulación de 24h")
-                        #     raise UserError(_("La anulación no puede realizarse. La factura tiene más de 24 horas."))
+                            if time_diff.total_seconds() > 24 * 3600:
+                                _logger.warning("SIT Factura excede el límite de anulación de 24h")
+                                raise UserError(_("La anulación no puede realizarse. La factura tiene más de 24 horas."))
+                elif sit_tipo_documento:
+                    _logger.info("SIT Validando tiempo límite para anulación (3Meses)")
+                    fecha_facturacion_hacienda = None
+                    time_diff = None
+                    _logger.info("SIT Ambiente test(type: %s): %s", ambiente_test, type(ambiente_test))
+
+                    # Si fecha_facturacion_hacienda es None, usar invoice_date + invoice_time
+                    if not ambiente_test:
+                        fecha_factura_dt = None
+                        _logger.info("SIT Validando tiempo límite en ambiente de prod")
+
+                        # Si fecha_facturacion_hacienda es None, usar invoice_date + invoice_time
+                        fecha_facturacion_hacienda = (invoice.sit_factura_a_reemplazar.fecha_facturacion_hacienda
+                                                      or (e_date and invoice.sit_factura_a_reemplazar.invoice_time))
+
+                        if fecha_facturacion_hacienda:
+                            if isinstance(fecha_facturacion_hacienda, datetime):
+                                fecha_factura_dt = fecha_facturacion_hacienda
+                            elif isinstance(fecha_facturacion_hacienda, date):
+                                # Si fecha_facturacion_hacienda es de tipo date (solo fecha, sin hora)
+                                # Combinamos invoice_date con invoice_time
+                                try:
+                                    # Suponiendo que invoice_date tiene formato '%Y-%m-%d' y invoice_time tiene formato '%H:%M:%S'
+                                    fecha_factura_dt = datetime.combine(fecha_facturacion_hacienda, datetime.strptime(invoice.sit_factura_a_reemplazar.invoice_time, '%H:%M:%S').time())
+                                except ValueError as e:
+                                    _logger.error(f"Error al combinar invoice_date y invoice_time: {e}")
+                                    fecha_factura_dt = None  # En caso de error, establecemos fecha_factura_dt como None
+                            elif isinstance(fecha_facturacion_hacienda, str):
+                                # Si es una cadena, intentamos combinar invoice_date y invoice_time
+                                try:
+                                    # Suponiendo que invoice_date tiene formato '%Y-%m-%d' y invoice_time tiene formato '%H:%M:%S'
+                                    fecha_factura_dt = datetime.strptime(f"{invoice.sit_factura_a_reemplazar.invoice_date} {invoice.sit_factura_a_reemplazar.invoice_time}", '%Y-%m-%d %H:%M:%S')
+                                except ValueError as e:
+                                    _logger.error(f"Error al combinar fecha_facturacion_hacienda con invoice_date y invoice_time: {e}")
+                                    fecha_factura_dt = None  # En caso de error, establecemos fecha_factura_dt como None
+                            else:
+                                _logger.warning("SIT El formato de fecha_facturacion_hacienda no es válido.")
+
+                            if fecha_factura_dt:
+                                # Convertimos la fecha a la zona horaria de El Salvador y luego a UTC
+                                fecha_factura_utc = pytz.timezone("America/El_Salvador").localize(fecha_factura_dt).astimezone(pytz.utc)
+                                time_diff = datetime.now(pytz.utc) - fecha_factura_utc
+                                _logger.info(f"Time difference: {time_diff}")
+                            else:
+                                _logger.warning("SIT No se pudo obtener una fecha válida para la factura.")
+
+                        # Validación de límite de anulación de 3 meses (aproximadamente 90 días)
+                        if time_diff.total_seconds() > 90 * 24 * 3600:
+                            _logger.warning("SIT Factura excede el límite de anulación de 24h")
+                            raise UserError(_("La anulación no puede realizarse. La factura tiene más de 24 horas."))
 
                 if not invoice.hacienda_estado_anulacion or not invoice.hacienda_selloRecibido_anulacion:
                     if invoice.sit_factura_a_reemplazar.move_type != 'entry':
@@ -408,6 +452,7 @@ class AccountMoveInvalidation(models.Model):
                                     'datas': json_base64,
                                     # 'datas_fname': file_name,
                                     'res_model': self._name,
+                                    'company_id': invoice.company_id.id,
                                     'res_id': invoice.id,
                                     'type': 'binary',
                                     'mimetype': 'application/json'

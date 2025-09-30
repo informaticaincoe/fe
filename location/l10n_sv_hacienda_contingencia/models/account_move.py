@@ -443,6 +443,7 @@ class sit_account_move(models.Model):
                         'datas': json_base64,
                         'res_model': self._name,
                         'res_id': self.id,
+                        'company_id': self.company_id.id,
                         'mimetype': str(config_utils.get_config_value(self.env, 'content_type', self.company_id.id)),
                     })
                     _logger.info("SIT JSON creado y adjuntado como attachment")

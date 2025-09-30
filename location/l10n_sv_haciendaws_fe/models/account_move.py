@@ -260,6 +260,8 @@ class AccountMove(models.Model):
         _logger.info("SIT vals list: %s", vals_list)
 
         for vals in vals_list:
+            _logger.info("[CREATE-DEBUG] (antes de crear) move_type=%s, name=%s", vals.get('move_type'), vals.get('name'))
+
             company_id = vals.get("company_id") or self.env.company.id
             company = self.env["res.company"].browse(company_id)
 
@@ -341,7 +343,7 @@ class AccountMove(models.Model):
         self._fields['name'].required = False
         # Añadimos `_dte_auto_generated=True` en el contexto para marcar que el campo `name`, fue generado automáticamente por la lógica DTE. Esto es indispensable porque
         # el constraint `_check_name_sales` valida que las facturas de venta no tengan modificaciones manuales en `name`.
-        records = super(AccountMove, self.with_context(_dte_auto_generated=True)).create(vals_list)
+        records = super().create(vals_list)
         _logger.info("Registros creados: %s", records.ids)
 
         # Refuerzo para name si quedó en '/'
@@ -355,6 +357,14 @@ class AccountMove(models.Model):
         _logger.info("SIT FIN create")
 
         return records
+
+    def _inverse_name(self):
+        _logger.warning("[INVERSE-NAME] name se está modificando: %s", self.name)
+        if not self.name:
+            self.name = '/'
+        for rec in self:
+            if rec.name:  # 👈 Evita sobrescribir si ya está definido
+                continue
 
     @api.depends("move_type")
     def _compute_name(self):
@@ -498,16 +508,13 @@ class AccountMove(models.Model):
 
             # Los placeholders tipo/estable se sustituyen desde el contexto
             dte_param_tipo = config_utils.get_config_value(self.env, 'dte_prefix_tipo', self.company_id.id)  # 'dte'
-            dte_param_puntoventa = config_utils.get_config_value(self.env, 'dte_prefix_puntoVenta',
-                                                                 self.company_id.id)  # 'puntoVenta'
-            dte_param_estable = config_utils.get_config_value(self.env, 'dte_prefix_codEstable',
-                                                              self.company_id.id)  # 'estable'
+            dte_param_puntoventa = config_utils.get_config_value(self.env, 'dte_prefix_puntoVenta', self.company_id.id)  # 'puntoVenta'
+            dte_param_estable = config_utils.get_config_value(self.env, 'dte_prefix_codEstable', self.company_id.id)  # 'estable'
             _logger.info("SIT Parametros numero de control= tipo dte: %s(%s), cod estable: %s(%s), punto venta: %s(%s)",
                          dte_param_tipo, tipo, dte_param_estable, estable, dte_param_puntoventa, punto_venta)
 
             if not dte_param_tipo or not dte_param_estable or not dte_param_puntoventa:
-                raise UserError(
-                    _("Configure los parámetros de la plantilla de prefijo DTE para la empresa '%s'.") % self.company_id.name)
+                raise UserError(_("Configure los parámetros de la plantilla de prefijo DTE para la empresa '%s'.") % self.company_id.name)
 
             # Enviar parametros del prefijo de la secuencia
             ctx = {dte_param_tipo: tipo, dte_param_puntoventa: punto_venta, dte_param_estable: estable}
@@ -581,8 +588,7 @@ class AccountMove(models.Model):
                 siguiente_dte = ultima_parte + 1
             else:
                 siguiente_dte = seq_next
-            _logger.info("SIT Control correlativos → Ultimo BD: %s | Seq: %s | Siguiente: %s", ultima_parte, seq_next,
-                         siguiente_dte)
+            _logger.info("SIT Control correlativos → Ultimo BD: %s | Seq: %s | Siguiente: %s", ultima_parte, seq_next, siguiente_dte)
 
             if sequence.use_date_range and date_range:
                 if date_range.number_next_actual < siguiente_dte:
@@ -635,8 +641,7 @@ class AccountMove(models.Model):
             nuevo_name = None
             if actualizar_secuencia:
                 # Consume la secuencia y actualiza ir.sequence/date_range automáticamente
-                nuevo_name = sequence.with_context(**ctx).next_by_id(
-                    sequence_date=self.invoice_date)  # **ctx convierte un diccionario en argumentos separados
+                nuevo_name = sequence.with_context(**ctx).next_by_id(sequence_date=self.invoice_date)  # **ctx convierte un diccionario en argumentos separados
                 # Ahora forzamos el incremento si ya está actualizado
                 if int(nuevo_name.split('-')[-1]) < siguiente_dte:
                     # siguiente_dte = int(nuevo_name.split('-')[-1]) + 1
@@ -1046,11 +1051,12 @@ class AccountMove(models.Model):
                             _logger.warning("SIT DTE rechazado por número de control duplicado. Generando nuevo número.")
 
                             # Generar nuevo número de control
-                            nuevo_nombre = invoice.with_context(_dte_auto_generated=True)._generate_dte_name() # invoice._generate_dte_name(actualizar_secuencia=True)
+                            nuevo_nombre = invoice.with_context(_dte_auto_generated=True)._generate_dte_name(actualizar_secuencia=True) # invoice._generate_dte_name(actualizar_secuencia=True)
                             # Verifica si el nuevo nombre es diferente antes de actualizar
                             if nuevo_nombre != invoice.name:
                                 _logger.info("SIT Actualizando nombre DTE: %s a %s", invoice.name, nuevo_nombre)
-                                invoice.write({'name': nuevo_nombre})  # Actualiza el nombre
+                                # invoice.write({'name': nuevo_nombre})  # Actualiza el nombre
+                                invoice.with_context(_dte_auto_generated=True).write({'name': nuevo_nombre})
                                 invoice.sequence_number = int(nuevo_nombre.split("-")[-1])
                                 _logger.info("SIT name actualizado: %s | sequence number: %s", invoice.name, invoice.sequence_number)
 
@@ -1159,6 +1165,7 @@ class AccountMove(models.Model):
                             'name': file_name,
                             'datas': json_base64,
                             'res_model': self._name,
+                            'company_id': invoice.company_id.id,
                             'res_id': invoice.id,
                             'mimetype': str(config_utils.get_config_value(self.env, 'content_type', self.company_id.id))
                             # 'application/json'
@@ -2315,9 +2322,13 @@ class AccountMove(models.Model):
 
     def write(self, vals):
         # Ejecutar write normal para todas las facturas
-        _logger.warning("[WRITE-PRE] move_id=%s, vals=%s", self.id, vals)
+        _logger.warning("[WRITE-ORDER(haciendaws_fe] Entró primero: haciendaws_fe")
+
         res = super().write(vals)
-        _logger.warning("[WRITE-POST] move_id=%s, name=%s", self.id, self.name)
+        if len(self) == 1:
+            _logger.warning("[WRITE-POST haciendaws_fe] move_id=%s, name=%s", self.id, self.name)
+        else:
+            _logger.warning("[WRITE-POST haciendaws_fe] Se detectaron múltiples registros, IDs: %s", self.ids)
 
         # Filtrar solo las facturas que aplican a facturación electrónica
         facturas_aplican = self.filtered(lambda inv: inv.company_id and inv.company_id.sit_facturacion)

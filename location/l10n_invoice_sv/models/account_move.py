@@ -106,6 +106,26 @@ class AccountMove(models.Model):
         store=True
     )
 
+    @api.onchange('partner_id')
+    def _onchange_partner_id(self):
+        _logger.info("[ONCHANGE] partner_id cambiado en account.move ID=%s", self.id)
+        if self.partner_id:
+            _logger.info(
+                "[ONCHANGE] Cliente: %s (ID=%s) - gran_contribuyente=%s",
+                self.partner_id.name,
+                self.partner_id.id,
+                self.partner_id.gran_contribuyente
+            )
+            if self.partner_id.gran_contribuyente:
+                self.apply_retencion_iva = True
+                _logger.info("[ONCHANGE] Se activó apply_retencion_iva=True porque es gran contribuyente.")
+            else:
+                self.apply_retencion_iva = False
+                _logger.info("[ONCHANGE] Se estableció apply_retencion_iva=False porque NO es gran contribuyente.")
+        else:
+            self.apply_retencion_iva = False
+            _logger.info("[ONCHANGE] No hay partner seleccionado, apply_retencion_iva=False")
+
     @api.depends('invoice_line_ids')
     def _compute_show_global_discount(self):
         for move in self:
@@ -385,6 +405,7 @@ class AccountMove(models.Model):
                             'type': 'binary',
                             'datas': pdf_base64,
                             'res_model': 'account.move',
+                            'company_id': invoice.company_id.id,
                             'res_id': model_id,
                             'mimetype': 'application/pdf',
                         })
@@ -437,6 +458,7 @@ class AccountMove(models.Model):
                                         'type': 'binary',
                                         'datas': base64.b64encode(invoice.sit_json_respuesta.encode('utf-8')),
                                         'res_model': invoice._name,
+                                        'company_id': invoice.company_id.id,
                                         'res_id': model_id,
                                         'mimetype': 'application/json',
                                     })
@@ -482,6 +504,7 @@ class AccountMove(models.Model):
                                         'type': 'binary',
                                         'datas': base64.b64encode(invalidacion.sit_json_respuesta_invalidacion.encode('utf-8')),
                                         'res_model': 'account.move.invalidation',
+                                        'company_id': invoice.company_id.id,
                                         'res_id': invoice.sit_evento_invalidacion.id,
                                         'mimetype': 'application/json',
                                     })
@@ -1003,6 +1026,7 @@ class AccountMove(models.Model):
         _logger = logging.getLogger(__name__)
 
         # Log previo al write
+        _logger.warning("[WRITE-ORDER(invoice_sv)] Entró primero: invoice_sv")
         _logger.warning("Account_move_invocie_sv [WRITE-PRE] move_ids=%s, vals=%s", self.ids, vals)
         tb_str = ''.join(traceback.format_stack())
         _logger.debug("Account_moveinvoice_sv [WRITE-PRE-STACK] Stack:\n%s", tb_str)
@@ -1011,7 +1035,7 @@ class AccountMove(models.Model):
         res = super().write(vals)
 
         # Log posterior al write
-        _logger.warning("[WRITE-POST] move_ids=%s, vals=%s", self.ids, vals)
+        _logger.warning("[WRITE-POST invoice_sv] move_ids=%s, vals=%s", self.ids, vals)
 
         # Manejo de descuentos
         campos_descuento = {'descuento_gravado', 'descuento_exento', 'descuento_no_sujeto', 'descuento_global_monto'}
@@ -1022,8 +1046,31 @@ class AccountMove(models.Model):
         return res
 
     def create(self, vals):
+        # Llamar al método de creación del movimiento
         move = super().create(vals)
+
+        # Log después de la creación para verificar el nombre
+        _logger.info("SIT: Movimiento creado con ID=%s y nombre: %s", move.id, move.name)
+
+        # Actualizar apply_retencion_iva según gran_contribuyente del partner
+        if move.partner_id:
+            if move.partner_id.gran_contribuyente:
+                move.apply_retencion_iva = True
+                _logger.info(
+                    "SIT: apply_retencion_iva activado (cliente gran contribuyente) para move ID=%s", move.id
+                )
+            else:
+                move.apply_retencion_iva = False
+                _logger.info(
+                    "SIT: apply_retencion_iva desactivado (cliente NO gran contribuyente) para move ID=%s", move.id
+                )
+
+        # Agregar líneas de seguro/flete
         move.agregar_lineas_seguro_flete()
+
+        # Log final para verificar si el nombre cambió después de agregar líneas
+        _logger.info("SIT: Después de agregar líneas de seguro/flete, nombre: %s", move.name)
+
         return move
 
 class AccountMoveSend(models.AbstractModel):
