@@ -289,7 +289,7 @@ class AccountMove(models.Model):
                         # validation_type = False
         return validation_type
 
-    def _autenticar(self,user,pwd,):
+    def _autenticar(self,user,pwd):
         _logger.info("SIT self = %s", self)
 
         if not (self.company_id and self.company_id.sit_facturacion):

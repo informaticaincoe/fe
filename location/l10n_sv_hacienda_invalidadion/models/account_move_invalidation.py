@@ -260,10 +260,10 @@ class AccountMoveInvalidation(models.Model):
                             # time_diff = datetime.now(pytz.utc) - fecha_factura_utc
 
                             if time_diff.total_seconds() > 24 * 3600:
-                                _logger.warning("SIT Factura excede el límite de anulación de 24h")
-                                raise UserError(_("La anulación no puede realizarse. La factura tiene más de 24 horas."))
+                                _logger.warning("SIT Factura excede el límite de invalidación de 24h")
+                                raise UserError(_("La invalidación no puede realizarse. La factura tiene más de 24 horas."))
                 elif sit_tipo_documento:
-                    _logger.info("SIT Validando tiempo límite para anulación (3Meses)")
+                    _logger.info("SIT Validando tiempo límite para invalidacion (3Meses)")
                     fecha_facturacion_hacienda = None
                     time_diff = None
                     _logger.info("SIT Ambiente test(type: %s): %s", ambiente_test, type(ambiente_test))
@@ -275,7 +275,7 @@ class AccountMoveInvalidation(models.Model):
 
                         # Si fecha_facturacion_hacienda es None, usar invoice_date + invoice_time
                         fecha_facturacion_hacienda = (invoice.sit_factura_a_reemplazar.fecha_facturacion_hacienda
-                                                      or (e_date and invoice.sit_factura_a_reemplazar.invoice_time))
+                                                      or (invoice.sit_factura_a_reemplazar.invoice_date and invoice.sit_factura_a_reemplazar.invoice_time))
 
                         if fecha_facturacion_hacienda:
                             if isinstance(fecha_facturacion_hacienda, datetime):
@@ -310,8 +310,8 @@ class AccountMoveInvalidation(models.Model):
 
                         # Validación de límite de anulación de 3 meses (aproximadamente 90 días)
                         if time_diff.total_seconds() > 90 * 24 * 3600:
-                            _logger.warning("SIT Factura excede el límite de anulación de 24h")
-                            raise UserError(_("La anulación no puede realizarse. La factura tiene más de 24 horas."))
+                            _logger.warning("SIT Factura excede el límite de invalidación de 3 Meses")
+                            raise UserError(_("La invalidación no puede realizarse. La factura tiene más de 3 Meses."))
 
                 if not invoice.hacienda_estado_anulacion or not invoice.hacienda_selloRecibido_anulacion:
                     if invoice.sit_factura_a_reemplazar.move_type != 'entry':

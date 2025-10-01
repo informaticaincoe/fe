@@ -1789,11 +1789,12 @@ class AccountMove(models.Model):
         _logger.info("SIT self = %s, %s", user, pwd)
         enviroment_type = self._get_environment_type()
         _logger.info("SIT Modo = %s", enviroment_type)
+        url = None
         if enviroment_type == 'homologation':
-            host = 'https://apitest.dtes.mh.gob.sv'
+            url = config_utils.get_config_value(self.env, 'autenticar_test', self.company_id.id) if config_utils else 'https://apitest.dtes.mh.gob.sv/seguridad/auth'
         else:
-            host = 'https://api.dtes.mh.gob.sv'
-        url = host + '/seguridad/auth'
+            url = config_utils.get_config_value(self.env, 'autenticar_prod', self.company_id.id) if config_utils else 'https://api.dtes.mh.gob.sv/seguridad/auth'
+        # url = host + '/seguridad/auth'
         self.check_hacienda_values()
         try:
             payload = "user=" + user + "&pwd=" + pwd
@@ -1824,10 +1825,7 @@ class AccountMove(models.Model):
         #enviroment_type = 'homologation'
         enviroment_type = self._get_environment_type()
         _logger.info("SIT Modo generar_qr= %s", enviroment_type)
-        if enviroment_type == 'homologation':
-            host = 'https://admin.factura.gob.sv'
-        else:
-            host = 'https://admin.factura.gob.sv'
+        host = config_utils.get_config_value(self.env, 'consulta_dte', self.company_id.id) if config_utils else 'https://admin.factura.gob.sv'
         fechaEmision = str(fechaEmi.year) + "-" + str(fechaEmi.month).zfill(2) + "-" + str(fechaEmi.day).zfill(2)
         texto_codigo_qr = host + "/consultaPublica?ambiente=" + str(ambiente) + "&codGen=" + str(
             codGen) + "&fechaEmi=" + str(fechaEmision)
@@ -1865,11 +1863,10 @@ class AccountMove(models.Model):
 
         enviroment_type = 'homologation'
         if enviroment_type == 'homologation':
-            host = 'https://admin.factura.gob.sv'
             ambiente = "00"
         else:
-            host = 'https://admin.factura.gob.sv'
             ambiente = "01"
+        host = config_utils.get_config_value(self.env, 'consulta_dte', self.company_id.id) if config_utils else 'https://admin.factura.gob.sv'
         texto_codigo_qr = host + "/consultaPublica?ambiente=" + str(ambiente) + "&codGen=" + str(self.hacienda_codigoGeneracion_identificacion) + "&fechaEmi=" + str(self.fecha_facturacion_hacienda)
         codigo_qr = qrcode.QRCode(
             version=1,  # Versión del código QR (ajústala según tus necesidades)
