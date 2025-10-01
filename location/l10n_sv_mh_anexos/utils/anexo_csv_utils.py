@@ -12,29 +12,14 @@ class AnexoCSVUtils(models.AbstractModel):
     _name = "anexo.csv.utils"
     _description = "Utilidades para exportar anexos a CSV"
 
-    def _get_anexo_fields(self, numero_anexo):
+    def _get_fields_by_action_key(self, key: str):
         """
-        Retorna los nombres de los campos a exportar según el número de anexo.
+        key puede ser algo como 'ANX_CF' (tu clave) o un XMLID
+        'l10n_sv_mh_anexos.action_anexo_consumidor_final'.
         """
-        _logger.info("fields %s", numero_anexo)
-        if numero_anexo == '5':  # Sujeto Excluido
-            return [
-                'codigo_tipo_documento_cliente_display',
-                'documento_sujeto_excluido',
-                'razon_social',
-                'invoice_date',
-                'hacienda_selloRecibido',
-                'name',
-                'total_operacion',
-                'retencion_iva_amount',
-                'tipo_operacion_codigo',
-                'clasificacion_facturacion_codigo',
-                'sector_codigo',
-                'tipo_costo_gasto_codigo',
-                'numero_anexo',
-            ]
-        elif numero_anexo == '2':  # Consumidor final
-            return [
+        mapping = {
+            # --- claves propias ---
+            "ANX_CF": [
                 'invoice_date',
                 'clase_documento',
                 'codigo_tipo_documento',
@@ -58,9 +43,45 @@ class AnexoCSVUtils(models.AbstractModel):
                 'tipo_operacion_codigo',
                 'tipo_ingreso_codigo',
                 'numero_anexo',
-            ]
-        elif numero_anexo == '7':
-            return [
+            ],
+            "ANX_CONTRIBUYENTE": [
+                'invoice_date',
+                'clase_documento',
+                'codigo_tipo_documento',
+                'hacienda_codigoGeneracion_identificacion',  # Número de Resolución
+                'hacienda_selloRecibido',  # Número de Serie de Documento
+                'name',  # Número de Documento
+                'numero_control_interno_del',  # Número de Documento
+                'nit_o_nrc_anexo_contribuyentes',
+                'razon_social',
+                'total_exento',
+                'total_no_sujeto',
+                'total_gravado',
+                'debito_fiscal_contribuyentes',
+                'ventas_cuenta_terceros',
+                'debito_fiscal_cuenta_terceros',
+                'total_operacion',
+                'dui_cliente',
+                'tipo_operacion_codigo',
+                'tipo_ingreso_codigo',
+                'numero_anexo'
+            ],
+            "ANX_SE": [
+                'codigo_tipo_documento_cliente',
+                'documento_sujeto_excluido',
+                'razon_social',
+                'invoice_date',
+                'hacienda_selloRecibido',
+                'name',
+                'total_operacion',
+                'retencion_iva_amount',
+                'tipo_operacion_codigo',
+                'clasificacion_facturacion_codigo',
+                'sector_codigo',
+                'tipo_costo_gasto_codigo',
+                'numero_anexo',
+            ],
+            "ANX_C162": [
                 'name',
                 'clase_documento',
                 'desde_tiquete_preimpreso',
@@ -71,89 +92,82 @@ class AnexoCSVUtils(models.AbstractModel):
                 'desde',
                 'hasta',
                 'hacienda_codigoGeneracion_identificacion',
+            ],
+            "ANX_CLIENTES_MENORES": [
+                "invoice_month",
+                "invoice_date",
+                "cantidad_facturas",
+                "monto_total_operacion",
+                "monto_total_impuestos",
+                "invoice_year",
+                "numero_anexo",
+                "name",
+            ],
+            "ANX_CLIENTES_MAYORES": [
+                "invoice_month",
+                "codigo_tipo_documento",
+                "documento_sujeto_excluido",
+                "razon_social",
+                "invoice_date",
+                "codigo_tipo_documento",
+                "hacienda_codigoGeneracion_identificacion",
+                "Número de documento",
+                "total_operacion",
+                "amount_tax",
+                "invoice_year",
+                "numero_anexo",
             ]
-        elif numero_anexo == '1':  # Contribuyente
-            return [
-                'invoice_date',
-                'clase_documento',
-                'codigo_tipo_documento',
-                'name',
-                'hacienda_selloRecibido',
-                'numero_control_interno_al',
-                'hacienda_codigoGeneracion_identificacion',
-                'nit_o_nrc_anexo_contribuyentes',
-                'total_exento',
-                'ventas_exentas_no_sujetas',
-                'total_no_sujeto',
-                'total_gravado',
-                'debito_fiscal_contribuyentes',
-                'ventas_cuenta_terceros',
-                'debito_fiscal_cuenta_terceros',
-                'total_operacion',
-                'dui_cliente',
-                'ventas_tasa_cero',
-                'tipo_ingreso_renta',
-                'tipo_operacion_renta',
-                'numero_anexo',
-            ]
-        return []
+        }
+        return mapping.get(str(key), [])
 
-    def generate_csv(self, records, numero_anexo, view_id=None):
-        """
-        Genera el CSV usando los campos visibles en la vista tree.
-        Si no se pasa view_id, usa los campos por defecto definidos en _get_anexo_fields.
-        """
+    def generate_csv(self, records, numero_anexo=None, view_id=None, include_header=False):
+        from lxml import etree
+
+        ctx = self.env.context
         csv_content = io.StringIO()
         csv_fields = []
 
-        # === Determinar campos desde la vista === #
-        if view_id:
-            try:
-                view = self.env["ir.ui.view"].browse(view_id)
-                arch = view.read_combined(["arch"])["arch"]
-                from lxml import etree
-                xml_root = etree.fromstring(arch.encode("utf-8"))
-                csv_fields = [field.get("name") for field in xml_root.xpath("//field[@name]")]
-            except Exception as e:
-                _logger.warning("No se pudo leer la vista %s: %s", view_id, e)
+        # PRIORIDAD 1: clave del contexto
+        key = ctx.get('anexo_action_id')
+        if key:
+            csv_fields = self._get_fields_by_action_key(key)
 
-        # === Si no hay campos de vista, fallback por anexo === #
-        if not csv_fields:
-            csv_fields = self._get_anexo_fields(numero_anexo)
+        _logger.info("CSV → campos usados: %s", csv_fields)
+        _logger.info("key LIMPIEZA %s", key)
 
-        _logger.info("CSV fields finales usados: %s", csv_fields)
+        if include_header:
+            csv_content.write(";".join(csv_fields) + "\n")
 
-        # === Escribir cabecera === #
-        csv_content.write(";".join(csv_fields) + "\n")
-
-        # === Generar el CSV === #
-        for record in records:
-            row_data = []
-            for field_name in csv_fields:
+        for rec in records:
+            row = []
+            for fname in csv_fields:
                 try:
-                    value = getattr(record, field_name, "")
+                    value = getattr(rec, fname, "")
                 except Exception:
                     value = ""
 
-                if value is None:
-                    clean_value = ""
-                elif isinstance(value, (int, float)):
-                    clean_value = str(value)
-                else:
-                    clean_value = str(value)
+                clean = "" if value is None else str(value)
 
-                # Formato de fecha
-                if field_name == "invoice_date" and record.invoice_date:
-                    clean_value = record.invoice_date.strftime("%d/%m/%Y")
+                if fname == "invoice_date" and getattr(rec, "invoice_date", False):
+                    clean = rec.invoice_date.strftime("%d/%m/%Y")
 
-                # Quitar comillas y saltos de línea
-                clean_value = clean_value.replace('"', '').replace("'", '').replace("\n", " ").replace("\r", " ")
+                if fname in ("hacienda_codigoGeneracion_identificacion",
+                             "hacienda_selloRecibido", "name",
+                             "dui_cliente", "nit_o_nrc_anexo_contribuyentes"):
+                    clean = clean.replace("-", "")
 
-                row_data.append(clean_value)
+                # Solo estos 2 → "0" si vienen vacíos
+                if fname in ("tipo_operacion_codigo", "tipo_ingreso_codigo") and not clean:
+                    clean = "0"
 
-            csv_content.write(";".join(row_data) + "\n")
+                if fname in ("invoice_date") and key in ("ANX_CLIENTES_MENORES", "ANX_CLIENTES_MAYORES"):
+                    clean = rec.invoice_date.strftime("%d%m%Y")
+                clean = clean.replace('"', '').replace("'", '').replace("\n", " ").replace("\r", " ")
+                row.append(clean)
+            csv_content.write(";".join(row) + "\n")
 
-        return csv_content.getvalue().encode("utf-8-sig")  # BOM UTF-8 para Excel
+        return csv_content.getvalue().encode("utf-8-sig")
+
 
 class ReportFacturasPorDia(models.TransientModel):
     _name = "report.facturas.por.dia"

@@ -1,21 +1,31 @@
 <odoo>
     <record id="view_report_account_move_daily_mayores_list" model="ir.ui.view">
         <field name="name">report.account.move.daily.mayores.list</field>
-        <field name="model">report.account.move.daily.mayores</field>
+        <field name="model">account.move</field>
         <field name="arch" type="xml">
             <list string="Facturas agrupadas por día">
+                <header>
+                    <button name="action_download_csv_anexo"
+                            type="object"
+                            string="Descargar CSV"
+                            class="oe_highlight"
+                            display="always"
+                    />
+                </header>
+
                 <field name="invoice_month"/>
+                <field name="codigo_tipo_documento_display"/>
+                <field name="documento_sujeto_excluido"/>
+                <field name="razon_social"/>
                 <field name="invoice_date"/>
-                <field name="cantidad_facturas"/>
-                <field name="monto_total_operacion"/>
-                <field name="monto_total_impuestos"/>
+                <field name="codigo_tipo_documento_display"/>
+                <field name="hacienda_codigoGeneracion_identificacion" string="Número de documento"/>
+                <field name="total_operacion"/>
+                <field name="amount_tax"/>
                 <field name="invoice_year"/>
                 <field name="numero_anexo"/>
-                <field name="name"/> <!-- Quitar este campo -->
             </list>
         </field>
     </record>
-
-
 </odoo>
 

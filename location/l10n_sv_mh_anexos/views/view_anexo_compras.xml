@@ -5,6 +5,14 @@
             <field name="model">account.move</field>
             <field name="arch" type="xml">
                 <list string="Detalle de Anexos Compras">
+                    <header>
+                        <button name="action_download_csv_anexo"
+                                type="object"
+                                string="Descargar CSV"
+                                class="oe_highlight"
+                                display="always"
+                        />
+                    </header>
                     <!--                    <field name="invoice_month" string="Mes" />-->
                     <!--                    <field name="name" string="Documento"/>-->
                     <field name="invoice_date" string="Fecha de Emisión"/>

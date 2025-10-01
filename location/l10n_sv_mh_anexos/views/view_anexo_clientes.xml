@@ -4,6 +4,10 @@
         <field name="model">report.account.move.daily</field>
         <field name="arch" type="xml">
             <list string="Facturas agrupadas por día">
+                <header>
+                    <button name="export_csv_from_action" type="object" string="Descargar CSV" class="oe_highlight" display="always"/>
+
+                </header>
                 <field name="invoice_month"/>
                 <field name="invoice_date"/>
                 <field name="cantidad_facturas"/>

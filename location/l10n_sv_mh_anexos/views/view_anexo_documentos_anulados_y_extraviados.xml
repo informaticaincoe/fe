@@ -6,7 +6,12 @@
             <field name="arch" type="xml">
                 <list string="Detalle de documentos extraviados y anulados">
                     <header>
-                        <button name="action_download_csv_anexo" type="object" string="Descargar CSV" class="oe_highlight" display="always" context="{'active_view_id': context.get('active_view_id') or context.get('view_id')}" />
+                            <button name="action_download_csv_anexo"
+                                    type="object"
+                                    string="Descargar CSV"
+                                    class="oe_highlight"
+                                    display="always"
+                            />
                     </header>
                     <field name="name" string="Número de resolución"/>
                     <field name="clase_documento_display"/>

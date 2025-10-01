@@ -35,10 +35,14 @@ class account_move(models.Model):
         store=False,
     )
 
-    @api.depends('tipo_ingreso_id')
+    @api.depends('tipo_ingreso_id', 'invoice_date')
     def _compute_get_tipo_ingreso_codigo(self):
+        limite = date(2025, 1, 1)
         for rec in self:
-            rec.tipo_ingreso_codigo = (f"{rec.tipo_ingreso_id.codigo}")
+            val = "0"
+            if rec.invoice_date and rec.invoice_date >= limite and rec.tipo_ingreso_id and rec.tipo_ingreso_id.codigo is not None:
+                val = str(rec.tipo_ingreso_id.codigo)
+            rec.tipo_ingreso_codigo = val
 
     tipo_costo_gasto_id = fields.Many2one(
         comodel_name="account.tipo.costo.gasto",
@@ -125,7 +129,6 @@ class account_move(models.Model):
         related='journal_id.sit_tipo_documento.codigo',
         store=False
     )
-
 
     codigo_tipo_documento_display = fields.Char(
         string="Tipo de documento",
@@ -362,18 +365,26 @@ class account_move(models.Model):
 
     # === Métodos compute === #
 
-    @api.depends('tipo_operacion')
+    @api.depends('tipo_operacion', 'invoice_date')
     def _compute_get_tipo_operacion_codigo(self):
+        limite = date(2025, 1, 1)
         for rec in self:
-            rec.tipo_operacion_codigo = (f"{rec.tipo_operacion.codigo}")
+            val = "0"
+            if rec.invoice_date and rec.invoice_date >= limite and rec.tipo_operacion and rec.tipo_operacion.codigo is not None:
+                val = str(rec.tipo_operacion.codigo)
+            rec.tipo_operacion_codigo = val
 
     @api.depends('tipo_ingreso_id')
     def _compute_tipo_ingreso_display(self):
+        limite = date(2025, 1, 1)
         for rec in self:
-            rec.tipo_ingreso_display = (
-                f"{rec.tipo_ingreso_id.codigo}. {rec.tipo_ingreso_id.valor}"
-                if rec.tipo_ingreso_id else ""
-            )
+            if rec.invoice_date >= limite:
+                rec.tipo_ingreso_display = (
+                    f"{rec.tipo_ingreso_id.codigo}. {rec.tipo_ingreso_id.valor}"
+                    if rec.tipo_ingreso_id else ""
+                )
+            else:
+                rec.tipo_ingreso_display = ("0")
 
     @api.depends('tipo_costo_gasto_id')
     def _compute_tipo_costo_gasto_display(self):
@@ -385,11 +396,15 @@ class account_move(models.Model):
 
     @api.depends('tipo_operacion')
     def _compute_tipo_operacion_display(self):
+        limite = date(2025, 1, 1)
         for rec in self:
-            rec.tipo_operacion_display = (
-                f"{rec.tipo_operacion.codigo}. {rec.tipo_operacion.valor}"
-                if rec.tipo_operacion else ""
-            )
+            if rec.invoice_date >= limite:
+                rec.tipo_operacion_display = (
+                    f"{rec.tipo_operacion.codigo}. {rec.tipo_operacion.valor}"
+                    if rec.tipo_operacion else ""
+                )
+            else:
+                rec.tipo_operacion_display = ("0")
 
     @api.depends('clasificacion_facturacion')
     def _compute_clasificacion_facturacion_display(self):
@@ -419,9 +434,9 @@ class account_move(models.Model):
     @api.depends('invoice_date')
     def _compute_invoice_year(self):
         for record in self:
-            if record.invoice_year:
+            if record.invoice_date:
                 # Solo número del mes con dos dígitos
-                record.invoice_year = record.invoice_date.strftime('%y')
+                record.invoice_year = record.invoice_date.strftime('%Y')
             else:
                 record.invoice_year = ''
 
@@ -541,10 +556,15 @@ class account_move(models.Model):
             else:
                 record.clase_documento_display = '1. Impreso por imprenta o tiquetes'
 
-    @api.depends('journal_id')
+    @api.depends('journal_id', 'codigo_tipo_documento')
     def _compute_codigo_tipo_documento_display(self):
         for record in self:
-            record.codigo_tipo_documento_display = record.codigo_tipo_documento + ' ' + record.journal_id.name
+            codigo = record.codigo_tipo_documento or ""  # asegura string
+            nombre = record.journal_id.name or ""  # asegura string
+            if codigo or nombre:
+                record.codigo_tipo_documento_display = f"{codigo} {nombre}".strip()
+            else:
+                record.codigo_tipo_documento_display = ""
 
     @api.depends('partner_id')
     def _compute_get_tipo_documento(self):
@@ -679,33 +699,44 @@ class account_move(models.Model):
             if ctx.get('numero_anexo'):
                 record.numero_anexo = str(ctx['numero_anexo'])
 
-    @api.depends('partner_id', 'invoice_date')
+    @api.depends('partner_id.vat', 'partner_id.nrc', 'partner_id.dui', 'invoice_date')
     def _compute_get_dui_cliente(self):
+        """
+        DUI para anexo:
+        - < 2022-01-01: siempre vacío
+        - >= 2022-01-01: solo si NO hay NIT/NRC; en ese caso usar DUI
+        """
         limite = date(2022, 1, 1)
         for record in self:
             valor = ""
             if record.invoice_date:
-                if record.invoice_date < limite:
-                    valor = record.partner_id.dui or ""
+                if record.invoice_date <= limite:
+                    valor = ""  # Antes de 2022, DUI no se reporta
                 else:
-                    # Desde 2022 → solo si es persona natural (tiene DUI)
-                    if record.partner_id and record.partner_id.dui:
-                        valor = record.partner_id.dui
+                    # Desde 2022: usar DUI solo si NO existe NIT/NRC
+                    if not (record.partner_id.vat or record.partner_id.nrc):
+                        valor = record.partner_id.dui or ""
             record.dui_cliente = valor
 
-    @api.depends('partner_id')  # funcion para anexo de contribuyentes PENDIENTE
-    def _compute_get_dui_cliente_anexo_contribuyentes(self):
+    @api.depends('partner_id.vat', 'partner_id.nrc', 'partner_id.dui', 'invoice_date')
+    def _compute_nit_nrc_anexo_contribuyentes(self):
+        """
+        NIT/NRC para anexo:
+        - < 2022-01-01: obligatorio mostrar NIT o, si no hay, NRC (si ambos faltan queda vacío)
+        - >= 2022-01-01: preferir NIT; si no hay, NRC; si ninguno existe queda vacío (y DUI llenará su columna)
+        """
         limite = date(2022, 1, 1)
         for record in self:
+            valor = ""
             if record.invoice_date:
-                if record.invoice_date < limite:
-                    if record.partner_id.vat:
-                        record.dui_cliente = record.partner_id.vat
-                    else:
-                        record.dui_cliente = record.partner_id.nrc
+                # En ambos escenarios preferimos NIT; luego NRC
+                if record.partner_id.vat:
+                    valor = record.partner_id.vat
+                elif record.partner_id.nrc:
+                    valor = record.partner_id.nrc
                 else:
-                    if record.dui_cliente:
-                        record.dui_cliente = record.dui_cliente
+                    valor = ""  # Si no hay NIT/NRC, lo dejamos vacío (DUI se manejará aparte)
+            record.nit_o_nrc_anexo_contribuyentes = valor
 
     @api.depends('partner_id')
     def _compute_get_nrc(self):
@@ -732,6 +763,8 @@ class account_move(models.Model):
             valor = ""
             if record.invoice_date:
                 if record.invoice_date >= limite:
+                    _logger.info("mayor al limite %s ", record.name)
+
                     # A partir de 2022
                     if record.partner_id.dui:
                         valor = ""  # si tiene DUI, se deja vacío
@@ -870,41 +903,21 @@ class account_move(models.Model):
     ###################################################################################################
     #                                  Funciones para descarga de csv                                 #
     ###################################################################################################
-    # -*- coding: utf-8 -*-
-    # ... (imports) ...
 
     def action_download_csv_anexo(self):
-        """
-        Exporta EXACTAMENTE lo que el usuario tiene en pantalla:
-        - Primero: registros seleccionados (self)
-        - Luego: active_ids del contexto
-        - Por último: active_domain del contexto
-        (Sin rearmar dominios propios)
-        """
         ctx = self.env.context
         numero_anexo = str(ctx.get("numero_anexo") or self.numero_anexo or "")
 
-        # 1) Lo que el usuario seleccionó en la lista (ideal)
-        records_to_export = self
-
-        # 2) Si no hay selección, intentar con active_ids
-        if not records_to_export:
-            active_ids = ctx.get("active_ids") or []
-            if active_ids:
-                model = ctx.get("active_model") or "account.move"
-                records_to_export = self.env[model].browse(active_ids)
-
-        # 3) Si sigue vacío, como último recurso usar active_domain
+        records_to_export = self or self.env[ctx.get("active_model", "account.move")].browse(
+            ctx.get("active_ids", []))
         if not records_to_export:
             domain = ctx.get("active_domain") or ctx.get("domain") or []
             if domain:
                 records_to_export = self.env["account.move"].search(domain)
-
         if not records_to_export:
             _logger.warning("Sin registros para exportar (selección vacía y sin dominio activo).")
             return
 
-        # Detectar la vista usada (opcional, para ordenar columnas según la vista)
         view_id = None
         params = ctx.get("params") or {}
         action_xmlid = params.get("action")
@@ -915,8 +928,12 @@ class account_move(models.Model):
             except Exception as e:
                 _logger.warning("No se pudo resolver view_id desde acción %s: %s", action_xmlid, e)
 
-        # Generar CSV usando el recordset ya determinado
-        csv_data = self.env["anexo.csv.utils"].generate_csv(records_to_export, numero_anexo, view_id=view_id)
+        # lee del contexto: si viene skip_csv_header=True, no pongas encabezado
+        include_header = not bool(ctx.get("skip_csv_header"))
+
+        csv_data = self.env["anexo.csv.utils"].generate_csv(
+            records_to_export, numero_anexo, view_id=view_id, include_header=False
+        )
 
         attachment = self.env["ir.attachment"].create({
             "name": f"anexo_{numero_anexo}.csv",
@@ -926,7 +943,6 @@ class account_move(models.Model):
             "res_id": False,
             "public": True,
         })
-
         return {
             "type": "ir.actions.act_url",
             "url": f"/web/content/{attachment.id}?download=true",
