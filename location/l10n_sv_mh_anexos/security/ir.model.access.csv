@@ -5,3 +5,5 @@ access_tipo_costo_gasto_user,access.tipo.costo.gasto,model_account_tipo_costo_ga
 access_tipo_operacion_user,access.tipo.operacion,model_account_tipo_operacion,base.group_user,1,1,1,1
 access_clasificacion_facturacion_user,access.clasificacion.facturacion,model_account_clasificacion_facturacion,base.group_user,1,1,1,1
 access_sector_user,access.sector,model_account_sector,base.group_user,1,1,1,1
+access_tipo_documento_identificacion_user,access.tipo.documento.identificacion,model_account_tipo_documento_identificacion,base.group_user,1,1,1,1
+access_clase_documento_user,access.clase.documento,model_account_clase_documento,base.group_user,1,1,1,1

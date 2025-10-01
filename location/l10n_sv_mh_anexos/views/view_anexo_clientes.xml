@@ -6,6 +6,8 @@
             <field name="arch" type="xml">
                 <list string="Anexos Clientes">
                     <field name="invoice_month" string="Mes"/>
+                    <field name="clase_documento_display"/>
+
                     <field name="codigo_tipo_documento_cliente" string="Documento de identificacion"/>
                     <field name="razon_social" string="Nombre"/>
                     <field name="invoice_date" string="Fecha de Emisión"/>

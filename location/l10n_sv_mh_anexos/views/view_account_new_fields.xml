@@ -16,7 +16,6 @@
                         <field name="sector"/>
                     </group>
                 </xpath>
-
             </field>
         </record>
     </data>
