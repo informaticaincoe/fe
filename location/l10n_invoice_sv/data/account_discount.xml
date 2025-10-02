@@ -3,7 +3,7 @@
         <!-- Cuenta para descuentos globales -->
         <record id="cuenta_descuentos" model="account.account" forcecreate="0">
             <field name="name">Rebajas y devoluciones sobre ventas</field>
-            <field name="code">5103</field>
+            <field name="code">51033</field>
             <field name="reconcile" eval="True"/>
         </record>
     </data>
