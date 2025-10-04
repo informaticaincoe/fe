@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 
 from odoo import api, fields, models, _
+from datetime import datetime
 from odoo.exceptions import UserError
+from odoo.exceptions import ValidationError
 
 import logging
 _logger = logging.getLogger(__name__)
@@ -20,6 +22,10 @@ class AccountMove(models.Model):
         default=lambda self: self._get_default_tipo_documento(),
         domain=lambda self: self._get_tipo_documento_domain(),
     )
+
+    fecha_aplicacion = fields.Date(string="Fecha de Aplicación")
+
+    fecha_iva = fields.Date(string="Fecha IVA")
 
     #CAMPOS NUMERICOS EN DETALLE DE COMPRAS
     # comp_exenta_nsuj = fields.Float(
@@ -96,6 +102,36 @@ class AccountMove(models.Model):
             move.show_sit_tipo_documento = move.move_type in ('in_invoice', 'in_refund')
             _logger.info("Compute show_sit_tipo_documento: move id=%s, move_type=%s, show=%s", move.id, move.move_type, move.show_sit_tipo_documento)
 
+    @api.onchange('name', 'hacienda_codigoGeneracion_identificacion', 'hacienda_selloRecibido')
+    def _onchange_remove_hyphen_and_spaces(self):
+        if self.move_type != 'in_invoice':
+            return
+
+        # name
+        if self.name:
+            old_name = self.name
+            self.name = self.name.replace('-', '').replace(' ', '')
+            if old_name != self.name:
+                _logger.info("[ONCHANGE] move_id=%s: 'name' changed from '%s' to '%s'", self.id, old_name, self.name)
+
+        # hacienda_codigoGeneracion_identificacion
+        if self.hacienda_codigoGeneracion_identificacion:
+            old_val = self.hacienda_codigoGeneracion_identificacion
+            self.hacienda_codigoGeneracion_identificacion = old_val.replace('-', '').replace(' ', '')
+            if old_val != self.hacienda_codigoGeneracion_identificacion:
+                _logger.info(
+                    "[ONCHANGE] move_id=%s: 'hacienda_codigoGeneracion_identificacion' changed from '%s' to '%s'",
+                    self.id, old_val, self.hacienda_codigoGeneracion_identificacion)
+
+        # hacienda_selloRecibido
+        if self.hacienda_selloRecibido:
+            old_val = self.hacienda_selloRecibido
+            self.hacienda_selloRecibido = old_val.replace('-', '').replace(' ', '')
+            if old_val != self.hacienda_selloRecibido:
+                _logger.info(
+                    "[ONCHANGE] move_id=%s: 'hacienda_selloRecibido' changed from '%s' to '%s'",
+                    self.id, old_val, self.hacienda_selloRecibido)
+
     def write(self, vals):
         if 'name' in vals:
             for move in self:
@@ -163,7 +199,17 @@ class AccountMove(models.Model):
         return super().write(vals)
 
     def action_post(self):
+        _logger.info("SIT Action post purchase: %s", self)
         for move in self:
+
+            _logger.info("SIT-Compra move type: %s, tipo documento %s: ", move.move_type, move.codigo_tipo_documento)
+            if move.move_type != 'in_invoice':
+                _logger.info("SIT Action post no aplica a modulos distintos a compra.")
+                continue
+            elif move.move_type == 'in_invoice' and move.codigo_tipo_documento:
+                _logger.info("SIT Action post no aplica para compras electronicas(como suejto excluido).")
+                continue
+
             if move.move_type == 'in_invoice' and move.codigo_tipo_documento and move.hacienda_codigoGeneracion_identificacion:
                 existing = self.search([
                     ('id', '!=', move.id),
@@ -173,4 +219,59 @@ class AccountMove(models.Model):
                     raise ValidationError(_(
                         "El Número de Resolución '%s' ya existe en otro documento (%s)."
                     ) % (move.hacienda_codigoGeneracion_identificacion, existing.name))
+
+            if not move.fecha_aplicacion:
+                _logger.info("SIT | Fecha de aplicacion no seleccionada.")
+                raise ValidationError("Debe seleccionar la Fecha de Aplicación.")
+
+            if not move.fecha_iva:
+                _logger.info("SIT | Fecha IVA no seleccionada.")
+                raise ValidationError("Debe seleccionar la Fecha de IVA.")
+
+            fecha_iva = move.fecha_iva
+            date_invoice = move.invoice_date
+
+            _logger.info("SIT | Fecha factura: %s, Fecha IVA: %s.", date_invoice, fecha_iva)
+            if fecha_iva and date_invoice:
+                # Ambas son fechas, se comparan directamente
+                if fecha_iva < date_invoice:
+                    _logger.info(
+                        "SIT | Fecha IVA (%s) no debe ser menor a la fecha de la factura (%s).",
+                        fecha_iva,
+                        date_invoice
+                    )
+                    raise ValidationError(
+                        "Fecha IVA (%s) no debe ser menor a la fecha de la factura (%s)." % (
+                            fecha_iva,
+                            date_invoice
+                        )
+                    )
+
         return super(AccountMove, self).action_post()
+
+    def _post(self, soft=True):
+        _logger.info("SIT Purchase.")
+
+        result = super(AccountMove, self)._post(soft=soft)
+
+        for move in self:
+            _logger.info("SIT-Purchase Move id: %s", move.id)
+
+            _logger.info("SIT-Purchase Compra anulada: %s", move.sit_invalidar)
+            AccountInvalidacion = self.env['account.move.invalidation']
+            if move.sit_invalidar:
+                invalidacion = AccountInvalidacion.search([
+                    ('sit_factura_a_reemplazar', '=', move.id)
+                ])
+                _logger.info("SIT-Purchase Invaldiacion: %s", invalidacion)
+
+                if invalidacion:
+                    _logger.info("SIT-Purchase Invaldiacion existe: %s", invalidacion)
+                    continue  # Ya existe la invalidación, no hacer nada más, pero seguir con el resto del flujo
+                else:
+                    _logger.info("SIT-Purchase Invaldiacion no existe, creando anulacion: %s", invalidacion)
+                    move.sit_factura_a_reemplazar = move.id
+                    move.action_button_anulacion()
+
+        # Devuelve el resultado original para que Odoo siga funcionando
+        return result

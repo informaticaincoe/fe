@@ -889,7 +889,7 @@ class AccountMoveInvalidation(models.Model):
             _logger.info("SIT No aplica facturación electrónica. Se omite validación de parámetros de firmado en invalidacion.")
             return False
 
-        if not self.sit_factura_a_reemplazar.journal_id.sit_tipo_documento.codigo:
+        if self.sit_factura_a_reemplazar.move_type != 'in_invoice' and not self.sit_factura_a_reemplazar.journal_id.sit_tipo_documento.codigo:
             raise UserError(_('El Tipo de  DTE no definido.'))
         if not self.sit_factura_a_reemplazar.name:
             raise UserError(_('El Número de control no definido'))

@@ -538,7 +538,18 @@ class AccountMove(models.Model):
                             template.send_mail(invoice.id, force_send=True, email_values={'attachment_ids': [(6, 0, attachment_ids)]})
                             invoice.correo_enviado = True
                             _logger.info("SIT | Correo normal enviado para %s", invoice.name)
-                return True
+
+                            return {
+                                'type': 'ir.actions.client',
+                                'tag': 'display_notification',
+                                'params': {
+                                    'title': "Aviso",
+                                    'message': "El correo fue enviado.",
+                                    'type': 'success',
+                                    'sticky': False,
+                                },
+                            }
+                # return True
 
             # ENVÍO MANUAL: abrir wizard
             compose_form = self.env.ref('mail.email_compose_message_wizard_form', raise_if_not_found=True)

@@ -907,6 +907,11 @@ class AccountMove(models.Model):
 
         # 2) Facturas que sí aplican a DTE
         for invoice in invoices_to_post:
+
+            if invoice.move_type == "in_invoice" and not invoice.journal_id.sit_tipo_documento:
+                _logger.info("Factura ID %s es de compra (in_invoice). Se omite flujo de DTE.", invoice.id)
+                continue
+
             documento_firmado = None
             doc_electronico = False
             # Si el dte ya está posteado, no seguimos
@@ -1212,21 +1217,13 @@ class AccountMove(models.Model):
                         )
 
                         # Guardar archivo .pdf y enviar correo al cliente
+                        resultado_envio_correo = False
                         try:
-                            self.with_context(from_button=False, from_invalidacion=False).sit_enviar_correo_dte_automatico()
+                            resultado_envio_correo = self.with_context(from_button=False, from_invalidacion=False).sit_enviar_correo_dte_automatico()
                         except Exception as e:
                             _logger.warning("SIT | Error al enviar DTE por correo o generar PDF: %s", str(e))
 
-                        return {
-                            'type': 'ir.actions.client',
-                            'tag': 'display_notification',
-                            'params': {
-                                'title': 'DTE procesado correctamente',
-                                'message': 'El documento ha sido recibido y sellado por Hacienda.',
-                                'type': 'success',
-                                'sticky': False,
-                            }
-                        }
+                        _logger.info("SIT Correo enviado: %s", resultado_envio_correo)
 
                     if isinstance(Resultado, dict) and Resultado.get('type') == 'ir.actions.client':
                         mensajes_contingencia.append(Resultado)
@@ -1271,7 +1268,7 @@ class AccountMove(models.Model):
                 })
                 # errores_dte.append("Factura %s: %s" % (invoice.name or invoice.id, str(e)))
                 # UserError(_("Error al procesar la factura %s:\n%s") % (invoice.name or invoice.id, str(e)))
-        _logger.info("SIT Fin _post")
+        _logger.info("SIT Fin _post Facturacion")
 
         # Solo llamar al super si quedan invoices sin postear
         draft_invoices = invoices_to_post.filtered(lambda m: m.state == 'draft')
@@ -2217,8 +2214,11 @@ class AccountMove(models.Model):
         return bloque
 
     def action_post(self):
+        _logger.info("SIT Action post dte. %s", self)
+
+        # Verificar si la facturación electrónica aplica para todas las facturas
         if not all(inv.company_id and inv.company_id.sit_facturacion for inv in self):
-            _logger.info( "SIT No aplica facturación electrónica para alguna factura. Se omite notificación de contingencia.")
+            _logger.info("SIT No aplica facturación electrónica para alguna factura. Se omite notificación de contingencia.")
             return super().action_post()
 
         ambiente_test = False
@@ -2230,24 +2230,97 @@ class AccountMove(models.Model):
         if self.journal_id and self.journal_id.sit_tipo_documento and self.journal_id.sit_tipo_documento.codigo:
             doc_electronico = True
 
+        # Verificar si ya se completaron las validaciones esenciales para continuar
         if not self.invoice_date:
+            _logger.warning("SIT | Fecha del documento no seleccionada.")
             raise ValidationError("Debe seleccionar la fecha del documento.")
 
         if doc_electronico and not self.condiciones_pago:
+            _logger.warning("SIT | No se ha seleccionado una Condición de la Operación.")
             raise ValidationError("Debe seleccionar una Condicion de la Operación.")
 
         if doc_electronico and not self.forma_pago:
+            _logger.warning("SIT | No se ha seleccionado una Forma de Pago.")
             raise ValidationError("Seleccione una Forma de Pago.")
 
-        if self.journal_id and not self.journal_id.report_xml:
+        if doc_electronico and self.journal_id and not self.journal_id.report_xml:
+            _logger.warning("SIT | El diario no tiene un reporte PDF configurado.")
             raise ValidationError("El diario debe tener un reporte PDF configurado.")
 
         if not ambiente_test and self.journal_id.sit_tipo_documento and self.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_NC and self.inv_refund_id and not self.inv_refund_id.hacienda_selloRecibido:
+            _logger.warning("SIT | El documento relacionado aún no tiene el sello de Hacienda.")
             raise ValidationError("El documento relacionado aún no cuenta con el sello de Hacienda.")
 
+        # Verificar si el DTE ha sido recibido y procesado correctamente
+        _logger.info("SIT Estado registro: %s", self.state)
+
+        if not ambiente_test and self.hacienda_selloRecibido and self.state == 'posted':
+            _logger.info("SIT El DTE ha sido recibido y procesado por Hacienda para el documento %s", self.name)
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': "Éxito",
+                    'message': f"El documento electrónico {self.name} ha sido enviado y procesado correctamente por Hacienda.",
+                    'type': 'success',
+                    'sticky': False,
+                },
+            }
+        elif ambiente_test and self.hacienda_estado.lower() == 'procesado':
+            _logger.info("SIT El documento electrónico ha sido procesado correctamente %s", self.name)
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': "Éxito",
+                    'message': f"El documento electrónico {self.name} ha sido procesado correctamente.",
+                    'type': 'success',
+                    'sticky': False,
+                },
+            }
+
+        # Verificar si el correo fue enviado
+        _logger.info("SIT Enviar correo context: %s", self.env.context.get('correo_enviado', False))
+        if not ambiente_test and not self.env.context.get('correo_enviado', False) and self.state == 'posted' and not self.correo_enviado:
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': "Aviso",
+                    'message': "El correo con el DTE no fue enviado.",
+                    'type': 'warning',
+                    'sticky': False,
+                },
+            }
+        elif not ambiente_test and not self.env.context.get('correo_enviado', False) and self.state == 'posted' and self.correo_enviado:
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': "Aviso",
+                    'message': "El correo con el DTE no fue enviado.",
+                    'type': 'warning',
+                    'sticky': False,
+                },
+            }
+        elif self.env.context.get('correo_enviado') and self.state == 'posted':
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': "Aviso",
+                    'message': "El correo fue enviado.",
+                    'type': 'success',
+                    'sticky': False,
+                },
+            }
+
         res = super().action_post()
+
+        # Verificar facturas con contingencia
         facturas_con_contingencia = self.filtered(lambda inv: inv.sit_es_configencia)
         if facturas_con_contingencia:
+            _logger.info("SIT Notificacion contingencias.")
             mensajes = "\n".join(f"{inv.name} guardado en contingencia." for inv in facturas_con_contingencia)
             return {
                 'type': 'ir.actions.client',
@@ -2265,6 +2338,7 @@ class AccountMove(models.Model):
         from_button = self.env.context.get('from_email_button', False)  # Controlar si el envio es desde el post o desde la interfaz(boton)
         es_invalidacion = self.env.context.get('from_invalidacion', False)
         ambiente_test = False
+        correo_enviado = False  # Variable para verificar si al menos una factura fue enviada
 
         if from_button:
             _logger.info("SIT | Método invocado desde botón 'Enviar email'")
@@ -2298,14 +2372,29 @@ class AccountMove(models.Model):
                     getattr(invoice.sit_evento_invalidacion, "invalidacion_recibida_mh", None),
                     getattr(invoice.sit_evento_invalidacion, "correo_enviado_invalidacion", None),
                     from_button,
-                    )
+                )
 
                 if ((not ambiente_test or from_button)
                         or (not ambiente_test and not es_invalidacion and invoice.recibido_mh and not invoice.correo_enviado)
                         or (not ambiente_test and es_invalidacion and invoice.sit_evento_invalidacion.invalidacion_recibida_mh and not invoice.sit_evento_invalidacion.correo_enviado_invalidacion) ):
                     try:
-                        _logger.info("SIT | Enviando correo automático para la factura %s", invoice.name)
+                        _logger.info("SIT | Enviando correo automático para el documento %s", invoice.name)
                         invoice.with_context(from_automatic=True, from_invalidacion=es_invalidacion).sudo().sit_action_send_mail()
+                        correo_enviado = True
+                        # Si el correo fue enviado desde el botón de la interfaz, notificar al usuario
+                        # if from_button:
+                        _logger.info("SIT | Correo enviado correctamente desde el botón para la factura %s", invoice.name)
+                        return {
+                            'type': 'ir.actions.client',
+                            'tag': 'display_notification',
+                            'params': {
+                                'title': "Éxito",
+                                'message': f"El correo del documento {invoice.name} fue enviado correctamente.",
+                                'type': 'success',
+                                'sticky': False,
+                            },
+                        }
+
                     except Exception as e:
                         _logger.error("SIT | Error al intentar enviar el correo para la factura %s: %s", invoice.name, str(e))
                 if ambiente_test:
@@ -2314,8 +2403,30 @@ class AccountMove(models.Model):
                     _logger.info("SIT | La correspondencia ya había sido transmitida. %s", invoice.name)
             else:
                 _logger.info("SIT | Procediendo con envío de correo para documento. %s", invoice.name)
-                invoice.with_context(from_automatic=True, from_invalidacion=es_invalidacion).sudo().sit_action_send_mail()
-        # return True
+                try:
+                    invoice.with_context(from_automatic=True, from_invalidacion=es_invalidacion).sudo().sit_action_send_mail()
+                    correo_enviado = True
+                    # if from_button:
+                    _logger.info("SIT | Correo enviado correctamente desde el botón para la factura %s", invoice.name)
+                    return {
+                        'type': 'ir.actions.client',
+                        'tag': 'display_notification',
+                        'params': {
+                            'title': "Éxito",
+                            'message': f"El correo del documento {invoice.name} fue enviado correctamente.",
+                            'type': 'success',
+                            'sticky': False,
+                        },
+                    }
+                except Exception as e:
+                    _logger.error("SIT | Error al intentar enviar el correo para la factura %s: %s", invoice.name, str(e))
+
+        # Retorna True si al menos una factura fue enviada con éxito, de lo contrario False
+        _logger.info("SIT | Correo enviado: %s", correo_enviado)
+        if correo_enviado:
+            return True
+        else:
+            return False
 
     def write(self, vals):
         # Ejecutar write normal para todas las facturas

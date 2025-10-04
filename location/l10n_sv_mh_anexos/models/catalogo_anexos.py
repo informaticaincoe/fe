@@ -25,14 +25,6 @@ class TipoOperacion(models.Model):
     codigo = fields.Integer("Código")
     valor = fields.Char("Valor")
 
-class TipoOperacion(models.Model):
-    _name = "account.tipo.operacion"
-    _description = "Tipo de Operacion"
-    _rec_name = "valor"
-
-    codigo = fields.Integer("Código")
-    valor = fields.Char("Valor")
-
 class ClasificacionFacturacion(models.Model):
     _name = "account.clasificacion.facturacion"
     _description = "Calificación"

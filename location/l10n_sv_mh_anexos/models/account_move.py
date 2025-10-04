@@ -103,8 +103,10 @@ class account_move(models.Model):
             rec.sector_codigo = (f"{rec.sector.codigo}")
 
     clase_documento_id = fields.Many2one(
-        comodel_name="account.clasificacion.facturacion",
-        string="Clasificacion"
+        # comodel_name="account.clasificacion.facturacion",
+        # string="Clasificacion"
+        string="Clase de documento",
+        comodel_name="account.clase.documento"
     )
 
     clase_documento = fields.Char(
