@@ -14,11 +14,15 @@
                 'account',
                 'phone_validation',
                 'l10n_latam_base',
+                'l10n_sv_haciendaws_fe',
                 ],
     'data': [
         "security/ir.model.access.csv",
+
         "views/report_anexos_search_action.xml",
-        'views/view_anexo_consumidor_final.xml',
+
+        "views/view_report_account_move_consumidor_final_daily_list.xml",
+
         'views/view_anexo_contribuyentes.xml',
         'views/view_anexo_compras.xml',
         'views/view_anexo_sujeto_excluido.xml',
@@ -27,8 +31,8 @@
         'views/view_anexo_casilla162.xml',
         'views/view_anexo_clientes.xml',
         'views/view_anexo_cliente_mayores.xml',
-
         "views/view_account_new_fields.xml",
+
         "views/report_anexos_action.xml",
         # 'views/anexos_report_views.xml',
         "data/account.tipo.costo.gasto.csv",

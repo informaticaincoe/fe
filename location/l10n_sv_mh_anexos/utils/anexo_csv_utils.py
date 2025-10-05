@@ -19,7 +19,7 @@ class AnexoCSVUtils(models.AbstractModel):
         """
         mapping = {
             # --- claves propias ---
-            "ANX_CF": [
+            "ANX_CF_AGRUPADO": [
                 'invoice_date',
                 'clase_documento',
                 'codigo_tipo_documento',

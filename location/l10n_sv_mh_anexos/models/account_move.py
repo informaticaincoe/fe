@@ -177,14 +177,11 @@ class account_move(models.Model):
         compute='_compute_get_numero_control_documento_interno_al',
     )
 
-    # hacienda_codigoGeneracion = fields.Char(
-    #     string="Numero de documento DEL",
-    #     compute='_compute_get_hacienda_codigo_generacion_sin_guion',
-    #     readonly=True,
-    #     store=False,
-    # )
+    numero_documento_del = fields.Char(
+        compute='_compute_get_hacienda_codigo_generacion_sin_guion',
+    )
 
-    numero_documento_del_al = fields.Char(
+    numero_documento_al = fields.Char(
         compute='_compute_get_hacienda_codigo_generacion_sin_guion',
     )
 
@@ -827,11 +824,6 @@ class account_move(models.Model):
                     display = f"{tipo_doc.codigo}. {tipo_doc.valor}"
             record.codigo_tipo_documento_cliente_display = display
 
-    # @api.depends('partner_id')
-    # def _compute_get_codigo_tipo_documento_cliente_display(self):
-    #     for record in self:
-    #         if record.codigo_tipo_documento_cliente == ""
-
     @api.depends("codigo_tipo_documento_cliente", "partner_id.vat", "partner_id.dui")
     def _compute_documento_sujeto_excluido(self):
         for record in self:
@@ -890,16 +882,6 @@ class account_move(models.Model):
             else:
                 record.hasta = 0
 
-    # @api.depends('')
-    # def _compute_resolucion_anexos_anulados(self):
-    #     limite = date(2022, 10, 1)
-    #
-    #     for record in self:
-    #         if record.codigo_tipo_documento == '14':  # sujeto excluido
-    #             record.retencion_iva_amount_1 = str(round(float(record.amount_untaxed) * 0.01, 2))
-    #         else:
-    #             record.retencion_iva_amount_1 = 0.0
-
     ###################################################################################################
     #                                  Funciones para descarga de csv                                 #
     ###################################################################################################
@@ -928,9 +910,6 @@ class account_move(models.Model):
             except Exception as e:
                 _logger.warning("No se pudo resolver view_id desde acción %s: %s", action_xmlid, e)
 
-        # lee del contexto: si viene skip_csv_header=True, no pongas encabezado
-        include_header = not bool(ctx.get("skip_csv_header"))
-
         csv_data = self.env["anexo.csv.utils"].generate_csv(
             records_to_export, numero_anexo, view_id=view_id, include_header=False
         )
@@ -949,37 +928,3 @@ class account_move(models.Model):
             "target": "self",
         }
 
-        ###################################################################################################
-        #                                  Funciones para facturas menores                                #
-        ###################################################################################################
-        cantidad_total_facturas = fields.Integer(
-            string="Cantidad de facturas",
-            compute="_compute_cantidad_total_facturas",
-            store=False
-        )
-
-        # monto_total_facturas = fields.Integer(
-        #     string="Monto total facturas",
-        #     compute='_compute_monto_total_facturas_clientes_menores',
-        #     readonly=True,
-        # )
-
-        @api.depends("invoice_date")
-        def _compute_cantidad_total_facturas(self):
-            for record in self:
-                cantidad_total_facturas = 0
-                if record.invoice_date:
-                    cantidad_total_facturas = self.search_count([('invoice_date', '=', record.invoice_date)])
-
-                record.cantidad_total_facturas = cantidad_total_facturas
-                _logger.info("Factura %s → total en fecha %s ", record.name, record.invoice_date)
-
-        # @api.depends('journal_id')
-        # def _compute_monto_total_facturas_clientes_menores(self):
-        #     for record in self:
-        #         total_monto = 0
-        #         if record.invoice_date:
-        #             total_monto = self.search_count([('invoice_date', '=', record.invoice_date)])
-        #
-        #         record.monto_total_facturas = total_monto
-        #         _logger.info("Factura %s → total en fecha %s = %s", record.name, record.invoice_date, total)

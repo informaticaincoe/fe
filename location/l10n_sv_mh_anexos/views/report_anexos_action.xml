@@ -1,19 +1,5 @@
 <odoo>
     <data>
-        <!-- Acción Consumidor Final -->
-        <record id="action_anexo_consumidor_final" model="ir.actions.act_window">
-            <field name="name">Anexo Consumidor final</field>
-            <field name="res_model">account.move</field>
-            <field name="view_mode">list</field>
-            <field name="view_id" ref="view_anexo_consumidor_final_list"/>
-            <field name="search_view_id" ref="view_anexos_fechas_search"/>
-            <!-- <field name="domain">-->
-            <!--    [('codigo_tipo_documento', 'in', ['01', '11']), ('hacienda_estado', '=', 'PROCESADO'), ('hacienda_selloRecibido', '!=', '')]-->
-            <!-- </field>-->
-            <field name="domain">[('codigo_tipo_documento','in', ['01','11'])]</field>
-            <field name="context">{'numero_anexo': 2, 'anexo_action_id':'ANX_CF'}</field>
-        </record>
-
         <!-- Acción Credito Fiscal -->
         <record id="action_anexo_credito_fiscal" model="ir.actions.act_window">
             <field name="name">Anexo Contribuyentes</field>
@@ -75,31 +61,8 @@
             <field name="context">{'numero_anexo': 7, 'anexo_action_id': 'ANX_ANULADOS'}</field>
         </record>
 
-        <record id="view_anexo_clientes_list" model="ir.ui.view">
-            <field name="name">account.move.anexo.clientes.list</field>
-            <field name="model">account.move</field>
-            <field name="arch" type="xml">
-                <list string="Anexos Clientes menores" create="false" edit="false" delete="false">
-                    <field name="invoice_date" string="Fecha"/>
-                    <!--                    <field name="cantidad_total_facturas" string="Cantidad de facturas"/>-->
-                    <!--                    <field name="amount_total" string="Monto total" sum="Monto"/>-->
-                </list>
-            </field>
-        </record>
-
-        <record id="action_anexo_cliente_menores" model="ir.actions.act_window">
-            <field name="name">Clientes</field>
-            <field name="res_model">report.account.move.daily</field>
-            <field name="view_mode">list</field>
-            <field name="view_id" ref="view_anexo_clientes_list"/>
-            <field name="search_view_id" ref="view_anexos_fechas_search"/>
-            <field name="domain">[('codigo_tipo_documento','in', ['01', '11', '03']), ('move_type','=','out_invoice')]
-            </field>
-            <field name="context">{'numero_anexo': 5, 'anexo_action_id': 'ANX_CLIENTES_MENORES'}</field>
-        </record>
-
         <record id="action_report_account_move_daily" model="ir.actions.act_window">
-            <field name="name">Facturas por día</field>
+            <field name="name">Facturas Cliente menores</field>
             <field name="res_model">report.account.move.daily</field>
             <field name="view_mode">list</field>
             <field name="view_id" ref="view_report_account_move_daily_list"/>
@@ -114,7 +77,7 @@
             <field name="view_mode">list</field>
             <field name="view_id" ref="view_report_account_move_daily_mayores_list"/>
             <field name="search_view_id" ref="view_anexos_fechas_search"/>
-             <field name="domain">[('amount_total', '>', 25000)]</field>
+            <field name="domain">[('amount_total', '>', 25000)]</field>
             <field name="context">{'numero_anexo': 4, 'anexo_action_id': 'ANX_CLIENTES_MAYORES'}</field>
         </record>
 
@@ -134,12 +97,6 @@
                   name="Facturas mayores a 25000"
                   parent="menu_hacienda_reports"
                   action="action_report_account_move_daily_mayores"/>
-        <menuitem
-                id="menu_anexo_consumidor_final"
-                name="Anexo Consumidor Final"
-                parent="menu_hacienda_reports"
-                action="action_anexo_consumidor_final"
-                sequence="10"/>
 
         <menuitem
                 id="menu_anexo_contribuyentes"
@@ -176,11 +133,22 @@
                 action="action_anexo_anulados_y_extraviados"
                 sequence="30"/>
 
-        <menuitem
-                id="menu_anexo_clientes"
-                name="Anexo Clientes"
-                parent="menu_hacienda_reports"
-                action="action_anexo_cliente_menores"
-                sequence="30"/>
+        <record id="action_report_account_move_consumidor_final_agrupado" model="ir.actions.act_window">
+            <field name="name">Anexo Consumidor Final agrupado por día</field>
+            <field name="res_model">report.account.move.consumidor.final.agrupado</field>
+            <field name="view_mode">list</field>
+            <field name="view_id" ref="view_report_account_move_consumidor_final_agrupado_list"/>
+            <field name="search_view_id" ref="view_anexos_fechas_search"/>
+            <field name="domain">[('codigo_tipo_documento','in',['01','11','03','05'])]</field>
+            <field name="context">{'numero_anexo': 2, 'anexo_action_id': 'ANX_CF_AGRUPADO'}</field>
+
+<!--            <field name="context">{'group_by': ['invoice_date']}</field>-->
+        </record>
+
+        <menuitem id="menu_report_account_move_consumidor_final_agrupado"
+                  name="Anexo Consumidor Final"
+                  parent="menu_hacienda_reports"
+                  action="action_report_account_move_consumidor_final_agrupado"
+                  sequence="15"/>
     </data>
 </odoo>
