@@ -32,7 +32,7 @@
                     <field name="dui_cliente" string="DUI cliente"/>
                     <field name="tipo_operacion_display"/>
                     <field name="tipo_ingreso_display"/>
-                    <field name="numero_anexo"/>
+                    <field name="numero_anexo" />
                 </list>
             </field>
         </record>

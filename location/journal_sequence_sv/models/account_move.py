@@ -118,7 +118,10 @@ class AccountMove(models.Model):
         return
 
     def write(self, vals):
+        _logger.info("SIT-Write(journal_sequence_sv): Asigna / en name si es false: %s", vals)
         # para evitar que pongan name = False
         if 'name' in vals and vals['name'] is False:
+            _logger.info("SIT-Write(journal_sequence_sv): Name sin modificacion: %s", vals['name'])
             vals['name'] = '/'
+            _logger.info("SIT-Write(journal_sequence_sv): Name modificado: %s", vals['name'])
         return super().write(vals)

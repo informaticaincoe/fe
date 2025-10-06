@@ -250,7 +250,7 @@ class AccountMove(models.Model):
         totalIva = 0.0
         codigo_tributo = None
 
-        for line in self.invoice_line_ids:
+        for line in self.invoice_line_ids.filtered(lambda x: x.price_unit > 0):
             if getattr(line, 'custom_discount_line', False):
                 continue
 

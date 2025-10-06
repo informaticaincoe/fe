@@ -13,7 +13,8 @@
                         type="object"
                         class="btn btn-danger"
                         context="{'save_first': True}"
-                        groups="account.group_account_invoice"/>
+                        groups="account.group_account_invoice"
+                        invisible="not codigo_tipo_documento"/>
             </xpath>
 <!--            <xpath expr="//header/button[@name='action_post']" position="after">-->
 <!--                <button name="button_anulacion"-->

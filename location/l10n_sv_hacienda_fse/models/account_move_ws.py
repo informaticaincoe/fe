@@ -41,26 +41,6 @@ class AccountMove(models.Model):
         _logger.info("SIT sit_base_map_invoice_info = %s", invoice_info)
 
         invoice_info["dteJson"] = self.sit__fse_base_map_invoice_info_dtejson()
-        # if self.sit_json_respuesta and not self.hacienda_selloRecibido:
-        #     try:
-        #         # Intentamos convertir el sit_json_respuesta a un diccionario Python
-        #         json_data = json.loads(self.sit_json_respuesta)
-        #
-        #         # Verificamos si el campo ambiente existe y es igual a "00"
-        #         ambiente = json_data.get("identificacion", {}).get("ambiente", None)
-        #
-        #         if ambiente == "00":
-        #             _logger.info("SIT Ambiente 00 detectado. Sobreescribiendo JSON.")
-        #             invoice_info["dteJson"] = self.sit__fse_base_map_invoice_info_dtejson()
-        #     except json.JSONDecodeError as e:
-        #         _logger.error(f"SIT Error al procesar el JSON: {e}")
-        #         invoice_info["dteJson"] = self.sit_json_respuesta  # En caso de error en la conversión, mantenemos el JSON original
-        # if not self.hacienda_selloRecibido and self.sit_factura_de_contingencia and self.sit_json_respuesta:
-        #     _logger.info("SIT sit_base_map_invoice_info contingencia")
-        #     invoice_info["dteJson"] = self.sit_json_respuesta
-        # else:
-        #     _logger.info("SIT sit_base_map_invoice_info dte")
-        #     invoice_info["dteJson"] = self.sit__fse_base_map_invoice_info_dtejson()
         return invoice_info
 
     @only_fe
@@ -225,7 +205,8 @@ class AccountMove(models.Model):
             uniMedida = None
             codigo_tributo_codigo = None
             codigo_tributo = None
-            for line in self.invoice_line_ids:
+            
+            for line in self.invoice_line_ids.filtered(lambda x: x.price_unit > 0):
                 if not line.custom_discount_line:
                     item_numItem += 1
                     line_temp = {}

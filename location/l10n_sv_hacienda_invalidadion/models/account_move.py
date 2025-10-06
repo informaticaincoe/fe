@@ -147,29 +147,46 @@ class AccountMove(models.Model):
 # ANULAR FACTURA
 #---------------------------------------------------------------------------------------------
     def action_button_anulacion(self):
-        _logger.info("SIT [INICIO] action_button_anulacion para facturas: %s", self.ids)
+        _logger.info("SIT [INICIO] action_button_anulacion para facturas: %s, clase de documento: %s", self.ids, self.clase_documento_id)
 
-        if not (self.company_id and self.company_id.sit_facturacion):
+        resultado_final = {
+            "exito": False,
+            "mensaje": "",
+            "resultado_mh": None,
+        }
+
+        es_compra = (self.move_type == "in_invoice" and not self.journal_id.sit_tipo_documento)
+
+        if not (es_compra and self.company_id and self.company_id.sit_facturacion):
             raise UserError("Solo se pueden invalidar documentos electrónicos.")
 
-        ambiente_test = False
-        if config_utils:
-            ambiente_test = config_utils._compute_validation_type_2(self.env, self.company_id)
-            _logger.info("SIT Tipo de entorno invalidacion[Ambiente]: %s", ambiente_test)
-
-        # Verificamos si estamos en una factura que puede ser anulada
-        if self.state != 'posted' and self.hacienda_estado != 'PROCESADO':
-            raise UserError("Solo se pueden invalidar facturas que ya han sido publicadas.")
-
         # Si no se ha guardado el evento de invalidación (o si no se ha asignado en el formulario):
+        _logger.info("SIT-Invaldiacion factura a reemplazar: %s", self.sit_factura_a_reemplazar)
         if not self.sit_factura_a_reemplazar:
             raise UserError("Debe seleccionar el documento a invalidar antes de continuar.")
 
-        if self.sit_evento_invalidacion and self.sit_evento_invalidacion.hacienda_selloRecibido_anulacion and self.sit_evento_invalidacion.invalidacion_recibida_mh:
-            raise UserError("Este DTE ya ha sido invalidado por Hacienda. No es posible repetir la anulación.")
+        ambiente_test = False
+        if not es_compra:
+            if config_utils:
+                ambiente_test = config_utils._compute_validation_type_2(self.env, self.company_id)
+                _logger.info("SIT Tipo de entorno invalidacion[Ambiente]: %s", ambiente_test)
 
-        if ambiente_test and self.sit_evento_invalidacion and self.sit_evento_invalidacion.state == "annulment" and str(self.sit_evento_invalidacion.hacienda_estado_anulacion).lower() == "procesado":
-            raise UserError("Este DTE ya ha sido invalidado. No es posible repetir la anulación.")
+            # Verificamos si estamos en una factura que puede ser anulada
+            if self.state != 'posted' and self.hacienda_estado != 'PROCESADO':
+                raise UserError("Solo se pueden invalidar facturas que ya han sido publicadas.")
+
+            _logger.info("SIT Tipo invalidacion: %s, tipo de documento: %s, cod generacion: %s, codGeneracion reemplazo: %s",
+                         self.sit_tipoAnulacion, self.journal_id.sit_tipo_documento.codigo, self.hacienda_codigoGeneracion_identificacion, self.sit_factura_a_reemplazar.hacienda_codigoGeneracion_identificacion)
+            if (self.journal_id.sit_tipo_documento and self.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_NC
+                    and self.sit_tipoAnulacion in ('1', '3') and self.hacienda_codigoGeneracion_identificacion ==  self.sit_factura_a_reemplazar.hacienda_codigoGeneracion_identificacion):
+                raise UserError(
+                    _("Para invalidar este documento, es necesario generar un documento de reemplazo que cuente con el sello de recepción correspondiente."))
+
+            if self.sit_evento_invalidacion and self.sit_evento_invalidacion.hacienda_selloRecibido_anulacion and self.sit_evento_invalidacion.invalidacion_recibida_mh:
+                raise UserError("Este DTE ya ha sido invalidado por Hacienda. No es posible repetir la anulación.")
+
+            if ambiente_test and self.sit_evento_invalidacion and self.sit_evento_invalidacion.state == "annulment" and str(self.sit_evento_invalidacion.hacienda_estado_anulacion).lower() == "procesado":
+                raise UserError("Este DTE ya ha sido invalidado. No es posible repetir la anulación.")
 
         EL_SALVADOR_TZ = timezone('America/El_Salvador')
 
@@ -202,11 +219,14 @@ class AccountMove(models.Model):
                     'sit_factura_a_reemplazar': invoice.id,  # Factura que estamos anulando
                     'sit_fec_hor_Anula': utc_dt,  # Fecha de anulación
                     'sit_codigoGeneracionR': invoice.sit_codigoGeneracionR,
-                    'sit_tipoAnulacion': invoice.sit_tipoAnulacion or '1',  # Tipo de anulación
-                    'sit_motivoAnulacion': invoice.sit_motivoAnulacion or 'Error en la información',
+                    'sit_tipoAnulacion': invoice.sit_tipoAnulacion or '1' if not es_compra else None,  # Tipo de anulación
+                    'sit_motivoAnulacion': invoice.sit_motivoAnulacion or 'Error en la información' if not es_compra else 'Se registro la compra como anulada',
                     'company_id': invoice.company_id.id,
                 }
-
+                if es_compra:
+                    invalidation['state'] = 'annulment'
+                    invalidation['sit_nombreSolicita'] = invoice.partner_id.id
+                    invalidation['sit_nombreResponsable'] = invoice.partner_id.id
                 _logger.info("SIT Diccionario para crear invalidación: %s", invalidation)
 
                 if existing:
@@ -225,7 +245,14 @@ class AccountMove(models.Model):
                 })
                 _logger.info("SIT Estado de factura actualizado a cancelado: %s", invoice.name)
 
-                resultado = invalidation.button_anul()
+                resultado = None
+                if not es_compra:
+                    resultado = invalidation.button_anul()
+                else:
+                    resultado_final["mensaje"] = "Se registro la anulación de la compra."
+                    resultado_final["exito"] = True
+                    resultado_final["notificar"] = True
+                    resultado = resultado_final
                 _logger.info("SIT Método button_anul ejecutado correctamente para ID: %s", invalidation.id)
 
                 if resultado.get('exito'):
@@ -282,7 +309,7 @@ class AccountMove(models.Model):
                         # validation_type = False
         return validation_type
 
-    def _autenticar(self,user,pwd,):
+    def _autenticar(self,user,pwd):
         _logger.info("SIT self = %s", self)
 
         if not (self.company_id and self.company_id.sit_facturacion):
@@ -517,9 +544,3 @@ class AccountMove(models.Model):
     #     # Validaciones comunes para cualquier tipo de DTE
     #     if not self.invoice_line_ids:
     #         raise UserError(_('La factura no tiene LINEAS DE PRODUCTOS asociada.'))
-
-    # def action_post(self):
-    #     for move in self:
-    #         if (move.sit_tipoAnulacion in (2, 3)
-    #                 and move.sit_factura_a_reemplazar and not move.sit_factura_a_reemplazar.hacienda_selloRecibido):
-    #             raise UserError(_("Para invalidar este documento, es necesario generar un documento de reemplazo que cuente con el sello de recepción correspondiente."))

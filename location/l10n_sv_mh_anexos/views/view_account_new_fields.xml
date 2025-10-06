@@ -9,7 +9,7 @@
                 <!-- Insertamos después del grupo de Retenciones -->
                 <xpath expr="//group[@name='group_retenciones']" position="after">
                     <group string="Clasificación de Operaciones" col="2">
-                        <field name="tipo_ingreso_id" invisible="move_type == 'in_invoice' and not codigo_tipo_documento"/>/>
+                        <field name="tipo_ingreso_id" invisible="move_type == 'in_invoice' or not codigo_tipo_documento"/>/>
                         <field name="tipo_costo_gasto_id"/>
                         <field name="tipo_operacion"/>
                         <field name="clasificacion_facturacion"/>
