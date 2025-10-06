@@ -22,6 +22,12 @@ except ImportError as e:
 class account_move(models.Model):
     _inherit = 'account.move'
 
+    @staticmethod
+    def _only_digits(val):
+        """Devuelve solo los dígitos del valor (sin guiones/plecas/espacios)."""
+        import re
+        return re.sub(r'\D', '', val or '')
+
     # consumidor final
     tipo_ingreso_id = fields.Many2one(
         comodel_name="account.tipo.ingreso",
@@ -621,7 +627,6 @@ class account_move(models.Model):
         for record in self:
             record.numero_maquina_registradora = ''
 
-
     @api.depends('journal_id')
     def _compute_get_total_gravado(self):
         for record in self:
@@ -709,40 +714,78 @@ class account_move(models.Model):
             if ctx.get('numero_anexo'):
                 record.numero_anexo = str(ctx['numero_anexo'])
 
-
-    @api.depends('partner_id', 'invoice_date')
+    @api.depends('partner_id.vat', 'partner_id.nrc', 'partner_id.dui', 'invoice_date', 'partner_id.is_company',
+                 'partner_id.company_type')
     def _compute_get_dui_cliente(self):
+        """
+        Q. DUI del Cliente (campo Q del anexo):
+        - Solo para Personas Naturales y periodos >= 2022-01-01.
+        - Es OPCIONAL; si se llena, H (NIT/NRC) debe quedar VACÍO.
+        - Para periodos < 2022-01-01 el DUI debe ir VACÍO.
+        - Formato: 9 caracteres sin guiones.
+        """
         limite = date(2022, 1, 1)
-        for record in self:
+        for rec in self:
             valor = ""
-            if record.invoice_date:
-                if record.invoice_date <= limite:
-                    valor = ""  # Antes de 2022, DUI no se reporta
-                else:
-                    # Desde 2022: usar DUI solo si NO existe NIT/NRC
-                    if not (record.partner_id.vat or record.partner_id.nrc):
-                        valor = record.partner_id.dui or ""
-            record.dui_cliente = valor
+            is_person = (rec.partner_id and (rec.partner_id.company_type or (
+                "company" if rec.partner_id.is_company else "person")) == "person")
+            period = rec.invoice_date or limite
 
-    @api.depends('partner_id.vat', 'partner_id.nrc', 'partner_id.dui', 'invoice_date')
+            dui = self._only_digits(getattr(rec.partner_id, "dui", ""))
+
+            if is_person and period >= limite and dui:
+                # Solo aceptamos exactamente 9 dígitos (la guía exige 9, sin guiones/pleca)
+                if len(dui) == 9:
+                    valor = dui
+                else:
+                    # Guardamos vacío para exportación, pero dejamos rastro en logs
+                    _logger.warning("DUI inválido (no 9 dígitos) en %s: '%s'", rec.name, dui)
+                    valor = ""
+            else:
+                valor = ""  # Todos los demás casos
+
+            rec.dui_cliente = valor
+
+    @api.depends('partner_id.vat', 'partner_id.nrc', 'partner_id.dui', 'invoice_date', 'partner_id.is_company',
+                 'partner_id.company_type')
     def _compute_nit_nrc_anexo_contribuyentes(self):
         """
-        NIT/NRC para anexo:
-        - < 2022-01-01: obligatorio mostrar NIT o, si no hay, NRC (si ambos faltan queda vacío)
-        - >= 2022-01-01: preferir NIT; si no hay, NRC; si ninguno existe queda vacío (y DUI llenará su columna)
+        H. NIT o NRC del Cliente (campo H del anexo):
+        - Personas Naturales:
+            * Periodo >= 2022-01-01:
+                - Si completa DUI (Q), este campo debe ir VACÍO.
+                - Si NO completa DUI, entonces DEBE completar NIT o NRC (preferencia NIT).
+            * Periodo < 2022-01-01: este campo es OBLIGATORIO (DUI debe ir vacío).
+        - Personas Jurídicas: NUNCA DUI; usar NIT o, si no, NRC.
+        Además: limpiar guiones/plecas y no formatear aquí (solo exportar limpio).
         """
         limite = date(2022, 1, 1)
-        for record in self:
+        for rec in self:
             valor = ""
-            if record.invoice_date:
-                # En ambos escenarios preferimos NIT; luego NRC
-                if record.partner_id.vat:
-                    valor = record.partner_id.vat
-                elif record.partner_id.nrc:
-                    valor = record.partner_id.nrc
+            is_person = (rec.partner_id and (rec.partner_id.company_type or (
+                "company" if rec.partner_id.is_company else "person")) == "person")
+            period = rec.invoice_date or limite  # si no hay fecha, tratamos como >=2022 para no falsear DUI pre-2022
+
+            nit = self._only_digits(getattr(rec.partner_id, "vat", ""))
+            nrc = self._only_digits(getattr(rec.partner_id, "nrc", ""))
+            dui = self._only_digits(getattr(rec.partner_id, "dui", ""))
+
+            if is_person:
+                if period >= limite:
+                    # Si DUI está presente -> H vacío
+                    if dui:
+                        valor = ""
+                    else:
+                        # Debe llenar NIT o NRC (preferir NIT)
+                        valor = nit or nrc or ""
                 else:
-                    valor = ""  # Si no hay NIT/NRC, lo dejamos vacío (DUI se manejará aparte)
-            record.nit_o_nrc_anexo_contribuyentes = valor
+                    # Antes de 2022: H obligatorio (preferir NIT, luego NRC); DUI vacío
+                    valor = nit or nrc or ""
+            else:
+                # Jurídicas: usar NIT o NRC; DUI no aplica
+                valor = nit or nrc or ""
+
+            rec.nit_o_nrc_anexo_contribuyentes = valor
 
     @api.depends('partner_id')
     def _compute_get_nrc(self):
