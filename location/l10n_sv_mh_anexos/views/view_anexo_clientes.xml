@@ -1,24 +1,25 @@
 <odoo>
-    <data>
-        <record id="view_anexo_clientes_list" model="ir.ui.view">
-            <field name="name">account.move.anexo.clientes.list</field>
-            <field name="model">account.move</field>
-            <field name="arch" type="xml">
-                <list string="Anexos Clientes">
-                    <field name="invoice_month" string="Mes"/>
-                    <field name="clase_documento_display"/>
+    <record id="view_report_account_move_daily_list" model="ir.ui.view">
+        <field name="name">report.account.move.daily.list</field>
+        <field name="model">report.account.move.daily</field>
+        <field name="arch" type="xml">
+            <list string="Facturas agrupadas por día">
+                <header>
+                    <button name="export_csv_from_action" type="object" string="Descargar CSV" class="oe_highlight" display="always"/>
 
-                    <field name="codigo_tipo_documento_cliente" string="Documento de identificacion"/>
-                    <field name="razon_social" string="Nombre"/>
-                    <field name="invoice_date" string="Fecha de Emisión"/>
+                </header>
+                <field name="invoice_month"/>
+                <field name="invoice_date"/>
+                <field name="cantidad_facturas"/>
+                <field name="monto_total_operacion"/>
+                <field name="monto_total_impuestos"/>
+                <field name="invoice_year"/>
+                <field name="numero_anexo"/>
+                <field name="name"/> <!-- Quitar este campo -->
+            </list>
+        </field>
+    </record>
 
 
-                    <field name="total_operacion" string="Monto de la operacion"/>
-<!--                    <field name="retencion_iva_amount"/>-->
-
-                    <field name="numero_anexo"/>
-                </list>
-            </field>
-        </record>
-    </data>
 </odoo>
+
