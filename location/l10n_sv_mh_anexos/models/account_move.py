@@ -256,13 +256,6 @@ class account_move(models.Model):
         readonly=True,
     )
 
-    tipo_operacion_renta = fields.Monetary(
-        string="Tipo de operacion (renta)",
-        compute='_compute_get_tipo_operacion_renta',
-        readonly=True,
-        store=False,
-    )
-
     tipo_ingreso_renta = fields.Monetary(
         string="Tipo de ingreso (renta)",
         compute='_compute_get_tipo_ingreso_renta',
@@ -588,17 +581,14 @@ class account_move(models.Model):
         for record in self:
             numero = False  # valor por defecto
             if record.journal_id and record.journal_id.name:
-                if record.journal_id.name.startswith("DTE"):
                     numero = "DTE-" + record.journal_id.name
-                elif record.journal_id.name.isdigit():
-                    numero = record.journal_id.name
+
             record.numero_control_interno_del = numero
 
     @api.depends('journal_id')
     def _compute_get_numero_control_documento_interno_del(self):
         for record in self:
-            if record.clase_documento == "4":
-                record.numero_control_interno_del = 0
+            record.numero_control_interno_del = record.hacienda_codigoGeneracion_identificacion
 
     @api.depends('journal_id')
     def _compute_get_numero_control_documento_interno_al(self):
@@ -678,11 +668,6 @@ class account_move(models.Model):
     def _compute_get_ventas_cuenta_terceros(self):
         for record in self:
             record.ventas_cuenta_terceros = 0.00
-
-    @api.depends('journal_id')
-    def _compute_get_tipo_operacion_renta(self):
-        for record in self:
-            record.tipo_operacion_renta = record.tipo_operacion_renta
 
     @api.depends('journal_id')
     def _compute_get_tipo_ingreso_renta(self):

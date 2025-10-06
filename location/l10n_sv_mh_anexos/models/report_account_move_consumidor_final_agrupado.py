@@ -2,6 +2,7 @@
 from odoo import fields, models, api
 import logging
 import base64
+from datetime import date
 
 _logger = logging.getLogger(__name__)
 
@@ -14,6 +15,14 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.Model):
     invoice_date = fields.Date("Fecha", readonly=True)
 
     hacienda_codigoGeneracion_identificacion = fields.Char("Codigo generación", readonly=True)
+    total_gravado = fields.Monetary("Total gravado", readonly=True)
+
+    exportaciones_de_servicio = fields.Monetary(
+        string="Exportaciones de servicio",
+        compute="_compute_get_exportaciones_de_servicio",
+        store=False,
+        readonly=True,
+    )
 
     # nuevo: incluir journal_id
     journal_id = fields.Many2one(
@@ -65,8 +74,6 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.Model):
         store=False,
     )
 
-
-
     numero_control_interno_del = fields.Char(
         string="Numero de control interno DEL",
         readonly=True,
@@ -104,6 +111,124 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.Model):
         store=False,
     )
 
+    exportaciones_dentro_centroamerica = fields.Monetary(
+        string="Exportaciones dentro del area de centroamerica",
+        compute='_compute_get_exportaciones_dentro_centroamerica',
+        readonly=True,
+        store=False,
+    )
+
+    exportaciones_fuera_centroamerica = fields.Monetary(
+        string="Exportaciones fuera del area de centroamerica",
+        compute='_compute_get_exportaciones_fuera_centroamerica',
+        readonly=True,
+        store=False,
+    )
+
+    ventas_tasa_cero = fields.Monetary(
+        string="Ventas a zonas francas y DPA (tasa cero)",
+        compute='_compute_get_ventas_tasa_cero',
+        readonly=True,
+        store=False,
+    )
+
+    ventas_exentas_no_sujetas = fields.Monetary(
+        string="Ventas internas exentas no sujetas a proporcionalidad",
+        compute='_compute_get_ventas_exentas_no_sujetas',
+        readonly=True,
+        store=False,
+    )
+
+    numero_anexo = fields.Char(
+        string="Número del anexo",
+        compute='_compute_get_numero_anexo',
+        readonly=True,
+    )
+
+    tipo_ingreso_id = fields.Many2one(
+        comodel_name="account.tipo.ingreso",
+        string="Tipo de Ingreso"
+    )
+
+    tipo_ingreso_display = fields.Char(
+        string="Tipo de Ingreso",
+        compute="_compute_tipo_ingreso_display",
+        store=False
+    )
+
+    tipo_ingreso_codigo = fields.Char(
+        string="Tipo ingreso codigo",
+        compute='_compute_get_tipo_ingreso_codigo',
+        readonly=True,
+        store=False,
+    )
+
+    tipo_operacion = fields.Many2one(
+        comodel_name="account.tipo.operacion",
+        string="Tipo Operacion"
+    )
+
+    tipo_operacion_codigo = fields.Char(
+        string="Tipo operacion codigo",
+        compute='_compute_get_tipo_operacion_codigo',
+        readonly=True,
+        store=False,
+    )
+
+    tipo_operacion_display = fields.Char(
+        string="Tipo de Operación",
+        compute="_compute_tipo_operacion_display",
+        store=False
+    )
+
+    # tipo_operacion_renta = fields.Monetary(
+    #     string="Tipo de operacion (renta)",
+    #     compute='_compute_get_tipo_operacion_renta',
+    #     readonly=True,
+    #     store=False,
+    # )
+
+    @api.depends('invoice_date', 'journal_id', 'codigo_tipo_documento')
+    def _compute_get_tipo_ingreso_codigo(self):
+        Move = self.env['account.move']
+        limite = date(2025, 1, 1)
+        for rec in self:
+            rec.tipo_ingreso_codigo = "0"  # fallback
+            if not (rec.invoice_date and rec.journal_id and rec.codigo_tipo_documento):
+                continue
+
+            mv = Move.search([
+                ('invoice_date', '=', rec.invoice_date),
+                ('journal_id', '=', rec.journal_id.id),
+                ('codigo_tipo_documento', '=', rec.codigo_tipo_documento),
+                ('state', '=', 'posted'),
+            ], order='name ASC', limit=1)
+
+            if rec.invoice_date >= limite and mv and mv.tipo_ingreso_id:
+                cod = getattr(mv.tipo_ingreso_id, 'codigo', None)
+                rec.tipo_ingreso_codigo = str(cod) if cod is not None else "0"
+
+    @api.depends('invoice_date', 'journal_id', 'codigo_tipo_documento')
+    def _compute_tipo_ingreso_display(self):
+        Move = self.env['account.move']
+        limite = date(2025, 1, 1)
+        for rec in self:
+            rec.tipo_ingreso_display = "0"  # fallback
+            if not (rec.invoice_date and rec.journal_id and rec.codigo_tipo_documento):
+                continue
+
+            mv = Move.search([
+                ('invoice_date', '=', rec.invoice_date),
+                ('journal_id', '=', rec.journal_id.id),
+                ('codigo_tipo_documento', '=', rec.codigo_tipo_documento),
+                ('state', '=', 'posted'),
+            ], order='name ASC', limit=1)
+
+            if rec.invoice_date >= limite and mv and mv.tipo_ingreso_id:
+                codigo = getattr(mv.tipo_ingreso_id, 'codigo', None) or ''
+                valor = getattr(mv.tipo_ingreso_id, 'valor', None) or ''
+                rec.tipo_ingreso_display = (f"{codigo}. {valor}".strip('. ').strip()) if (codigo or valor) else "0"
+
     @api.depends('name', 'invoice_date')
     def _compute_hacienda_selloRecibido(self):
         for record in self:
@@ -113,16 +238,26 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.Model):
             ], order='invoice_date ASC', limit=1)
             record.hacienda_selloRecibido = move.hacienda_selloRecibido or ''
 
+    total_gravado_local = fields.Monetary(
+        string="Ventas gravadas locales",
+        compute="_compute_total_gravado_local",
+        store=False,
+    )
+
     cantidad_facturas = fields.Integer("Cantidad de facturas", readonly=True)
 
     monto_total_operacion = fields.Monetary("Monto total operación", readonly=True)
     monto_total_impuestos = fields.Monetary("IVA operación", readonly=True)
     total_exento = fields.Monetary("Ventas exentas", readonly=True)
     total_no_sujeto = fields.Monetary("Ventas no sujetas", readonly=True)
-    total_gravado = fields.Monetary("Ventas gravadas", readonly=True)
     total_operacion = fields.Monetary("Total de ventas", readonly=True)
 
     currency_id = fields.Many2one("res.currency", string="Moneda", readonly=True)
+
+    # partner_id = fields.Many2one(
+    #     'res.partner',
+    #     string='Cliente'
+    # )
 
     @api.depends('name')
     def _compute_get_clase_documento(self):
@@ -131,6 +266,143 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.Model):
                 record.clase_documento = '4'
             else:
                 record.clase_documento = '1'
+
+    @api.depends('invoice_date', 'journal_id', 'codigo_tipo_documento')
+    def _compute_total_gravado_local(self):
+        Move = self.env['account.move']
+        for rec in self:
+            if not rec.invoice_date or not rec.journal_id:
+                rec.total_gravado_local = 0.0
+                continue
+            moves = Move.search([
+                ('invoice_date', '=', rec.invoice_date),
+                ('journal_id', '=', rec.journal_id.id),
+                ('partner_id.country_id.code', '=', 'SV'),
+            ])
+            rec.total_gravado_local = sum(m.total_gravado or 0.0 for m in moves)
+
+    @api.depends('invoice_date', 'journal_id', 'codigo_tipo_documento')
+    def _compute_get_exportaciones_dentro_centroamerica(self):
+        Move = self.env['account.move']
+        CA = ['GT', 'HN', 'NI', 'CR', 'PA']
+        for rec in self:
+            if rec.codigo_tipo_documento != '11' or not rec.invoice_date or not rec.journal_id:
+                rec.exportaciones_dentro_centroamerica = 0.0
+                continue
+            moves = Move.search([
+                ('invoice_date', '=', rec.invoice_date),
+                ('journal_id', '=', rec.journal_id.id),
+                ('codigo_tipo_documento', '=', '11'),
+                ('partner_id.country_id.code', 'in', CA),
+            ])
+            rec.exportaciones_dentro_centroamerica = sum(m.total_gravado or 0.0 for m in moves)
+
+    @api.depends('invoice_date', 'journal_id', 'codigo_tipo_documento')
+    def _compute_get_exportaciones_fuera_centroamerica(self):
+        Move = self.env['account.move']
+        NOT_CA = ['SV', 'GT', 'HN', 'NI', 'CR', 'PA']
+        for rec in self:
+            if rec.codigo_tipo_documento != '11' or not rec.invoice_date or not rec.journal_id:
+                rec.exportaciones_fuera_centroamerica = 0.0
+                continue
+            moves = Move.search([
+                ('invoice_date', '=', rec.invoice_date),
+                ('journal_id', '=', rec.journal_id.id),
+                ('codigo_tipo_documento', '=', '11'),
+                ('partner_id.country_id.code', 'not in', NOT_CA),
+            ])
+            rec.exportaciones_fuera_centroamerica = sum(m.total_gravado or 0.0 for m in moves)
+
+    @api.depends('invoice_date', 'journal_id', 'codigo_tipo_documento')
+    def _compute_get_exportaciones_de_servicio(self):
+        Move = self.env['account.move']
+        Line = self.env['account.move.line']
+        has_detailed = 'detailed_type' in self.env['product.product']._fields
+
+        for rec in self:
+            if rec.codigo_tipo_documento != '11' or not rec.invoice_date or not rec.journal_id:
+                rec.exportaciones_de_servicio = 0.0
+                continue
+
+            move_ids = Move.search([
+                ('invoice_date', '=', rec.invoice_date),
+                ('journal_id', '=', rec.journal_id.id),
+                ('codigo_tipo_documento', '=', '11'),
+            ]).ids
+            if not move_ids:
+                rec.exportaciones_de_servicio = 0.0
+                continue
+
+            # Dominio base
+            dom = [
+                ('move_id', 'in', move_ids),
+                ('product_id', '!=', False),
+            ]
+            # Filtro por servicio según versión
+            if has_detailed:
+                dom.append(('product_id.detailed_type', '=', 'service'))
+            else:
+                dom.append(('product_id.product_tmpl_id.type', '=', 'service'))
+
+            data = Line.read_group(dom, ['price_subtotal:sum'], [])
+            rec.exportaciones_de_servicio = (data and data[0].get('price_subtotal_sum') or 0.0)
+
+    @api.depends('journal_id')
+    def _compute_get_ventas_tasa_cero(self):
+        for record in self:
+            record.ventas_tasa_cero = 0.00
+
+    @api.depends('invoice_date', 'journal_id', 'codigo_tipo_documento')
+    def _compute_tipo_operacion_display(self):
+        Move = self.env['account.move']
+        limite = date(2025, 1, 1)
+        for rec in self:
+            rec.tipo_operacion_display = "0"  # fallback
+            if not (rec.invoice_date and rec.journal_id and rec.codigo_tipo_documento):
+                continue
+
+            mv = Move.search([
+                ('invoice_date', '=', rec.invoice_date),
+                ('journal_id', '=', rec.journal_id.id),
+                ('codigo_tipo_documento', '=', rec.codigo_tipo_documento),
+                ('state', '=', 'posted'),
+            ], order='name ASC', limit=1)
+
+            if rec.invoice_date >= limite and mv and mv.tipo_operacion:
+                codigo = getattr(mv.tipo_operacion, 'codigo', None) or ''
+                valor = getattr(mv.tipo_operacion, 'valor', None) or ''
+                rec.tipo_operacion_display = (f"{codigo}. {valor}".strip('. ').strip()) if (codigo or valor) else "0"
+
+    @api.depends('invoice_date', 'journal_id', 'codigo_tipo_documento')
+    def _compute_get_tipo_operacion_codigo(self):
+        Move = self.env['account.move']
+        limite = date(2025, 1, 1)
+        for rec in self:
+            rec.tipo_operacion_codigo = "0"  # fallback
+            if not (rec.invoice_date and rec.journal_id and rec.codigo_tipo_documento):
+                continue
+
+            mv = Move.search([
+                ('invoice_date', '=', rec.invoice_date),
+                ('journal_id', '=', rec.journal_id.id),
+                ('codigo_tipo_documento', '=', rec.codigo_tipo_documento),
+                ('state', '=', 'posted'),
+            ], order='name ASC', limit=1)
+
+            if rec.invoice_date >= limite and mv and mv.tipo_operacion:
+                cod = getattr(mv.tipo_operacion, 'codigo', None)
+                rec.tipo_operacion_codigo = str(cod) if cod is not None else "0"
+
+    # @api.depends('journal_id')
+    # def _compute_get_tipo_operacion_renta(self):
+    #     for record in self:
+    #         move = self.env['account.move'].search([
+    #             ('invoice_date', '=', record.invoice_date)
+    #         ], order='invoice_date ASC', limit=1)
+    #
+    #         _logger.info("TIPO OPERACION %s", move.tipo_operacion)
+    #
+    #         record.tipo_operacion = move.tipo_operacion
 
     @api.depends('clase_documento')
     def _compute_get_clase_documento_display(self):
@@ -201,6 +473,18 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.Model):
             _logger.info("⬅️ AL grupo [%s - %s - %s] → %s",
                          record.invoice_date, record.journal_id.display_name, record.codigo_tipo_documento,
                          move_al.name)
+
+    @api.depends('journal_id')
+    def _compute_get_numero_anexo(self):
+        for record in self:
+            ctx = self.env.context
+            if ctx.get('numero_anexo'):
+                record.numero_anexo = str(ctx['numero_anexo'])
+
+    @api.depends('journal_id')
+    def _compute_get_ventas_exentas_no_sujetas(self):
+        for record in self:
+            record.ventas_exentas_no_sujetas = 0.00
 
     def init(self):
         self.env.cr.execute("""

@@ -17,19 +17,31 @@
                     <field name="clase_documento_display"/>
                     <field name="codigo_tipo_documento_display"/>
                     <field name="numero_resolucion_consumidor_final"/>
-<!--                    <field name="hacienda_selloRecibido" string="Serie del documento"/>-->
-                    <field name="numero_control_interno_del" />
-                    <field name="numero_control_interno_al" />
-                    <field name="numero_documento_del" />
-                    <field name="numero_documento_al" />
+                    <!--                    <field name="hacienda_selloRecibido" string="Serie del documento"/>-->
+                    <field name="numero_control_interno_del"/>
+                    <field name="numero_control_interno_al"/>
+                    <field name="numero_documento_del"/>
+                    <field name="numero_documento_al"/>
+                    <field name="total_exento"/>
+                    <field name="ventas_exentas_no_sujetas"/>
+                    <field name="total_no_sujeto"/>
+                    <field name="total_gravado_local"/>
+                    <field name="exportaciones_dentro_centroamerica"/>
+                    <field name="exportaciones_fuera_centroamerica"/>
+                    <field name="exportaciones_de_servicio"/>
+                    <field name="ventas_tasa_cero"/>
 
-                    <field name="cantidad_facturas"/>
                     <field name="monto_total_operacion"/>
                     <field name="monto_total_impuestos"/>
-                    <field name="total_exento"/>
-                    <field name="total_no_sujeto"/>
-                    <field name="total_gravado"/>
+
                     <field name="total_operacion"/>
+                    <field name="tipo_operacion_display"/>
+                    <field name="tipo_ingreso_display"/>
+                    <field name="numero_anexo"/>
+
+                    <field name="name"/>
+                    <field name="cantidad_facturas"/>
+
                 </list>
             </field>
         </record>
