@@ -42,6 +42,9 @@
         'views/product_template_view.xml',
         'views/account_move_view.xml',
         'views/account_tax.xml',
+        'views/retencion_recibida1_view.xml',
+        'views/menu_retencion_recibida_1.xml',
+
         'data/journal_data.xml',
         'data/mail_template_data.xml',
         'report/report_invoice_anu.xml',
