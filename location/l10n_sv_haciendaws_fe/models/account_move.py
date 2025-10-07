@@ -2230,26 +2230,27 @@ class AccountMove(models.Model):
         if self.journal_id and self.journal_id.sit_tipo_documento and self.journal_id.sit_tipo_documento.codigo:
             doc_electronico = True
 
-        # Verificar si ya se completaron las validaciones esenciales para continuar
-        if not self.invoice_date:
-            _logger.warning("SIT | Fecha del documento no seleccionada.")
-            raise ValidationError("Debe seleccionar la fecha del documento.")
+        if not self.env.context.get('skip_dte_validations', False):
+            # Verificar si ya se completaron las validaciones esenciales para continuar
+            if not self.invoice_date:
+                _logger.warning("SIT | Fecha del documento no seleccionada.")
+                raise ValidationError("Debe seleccionar la fecha del documento.")
 
-        if doc_electronico and not self.condiciones_pago:
-            _logger.warning("SIT | No se ha seleccionado una Condición de la Operación.")
-            raise ValidationError("Debe seleccionar una Condicion de la Operación.")
+            if doc_electronico and not self.condiciones_pago:
+                _logger.warning("SIT | No se ha seleccionado una Condición de la Operación.")
+                raise ValidationError("Debe seleccionar una Condicion de la Operación.")
 
-        if doc_electronico and not self.forma_pago:
-            _logger.warning("SIT | No se ha seleccionado una Forma de Pago.")
-            raise ValidationError("Seleccione una Forma de Pago.")
+            if doc_electronico and not self.forma_pago:
+                _logger.warning("SIT | No se ha seleccionado una Forma de Pago.")
+                raise ValidationError("Seleccione una Forma de Pago.")
 
-        if doc_electronico and self.journal_id and not self.journal_id.report_xml:
-            _logger.warning("SIT | El diario no tiene un reporte PDF configurado.")
-            raise ValidationError("El diario debe tener un reporte PDF configurado.")
+            if doc_electronico and self.journal_id and not self.journal_id.report_xml:
+                _logger.warning("SIT | El diario no tiene un reporte PDF configurado.")
+                raise ValidationError("El diario debe tener un reporte PDF configurado.")
 
-        if not ambiente_test and self.journal_id.sit_tipo_documento and self.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_NC and self.inv_refund_id and not self.inv_refund_id.hacienda_selloRecibido:
-            _logger.warning("SIT | El documento relacionado aún no tiene el sello de Hacienda.")
-            raise ValidationError("El documento relacionado aún no cuenta con el sello de Hacienda.")
+            if not ambiente_test and self.journal_id.sit_tipo_documento and self.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_NC and self.inv_refund_id and not self.inv_refund_id.hacienda_selloRecibido:
+                _logger.warning("SIT | El documento relacionado aún no tiene el sello de Hacienda.")
+                raise ValidationError("El documento relacionado aún no cuenta con el sello de Hacienda.")
 
         # Verificar si el DTE ha sido recibido y procesado correctamente
         _logger.info("SIT Estado registro: %s", self.state)
@@ -2266,7 +2267,7 @@ class AccountMove(models.Model):
                     'sticky': False,
                 },
             }
-        elif ambiente_test and self.hacienda_estado.lower() == 'procesado':
+        elif ambiente_test and self.hacienda_estado and self.hacienda_estado.lower() == 'procesado':
             _logger.info("SIT El documento electrónico ha sido procesado correctamente %s", self.name)
             return {
                 'type': 'ir.actions.client',

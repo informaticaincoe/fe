@@ -3,6 +3,9 @@
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError, ValidationError
 
+import logging
+_logger = logging.getLogger(__name__)
+
 class AccountPayment(models.Model):
     _inherit = 'account.payment'
 
@@ -44,4 +47,6 @@ class AccountPayment(models.Model):
                         sequence_code = 'account.payment.supplier.refund' if rec.payment_type == 'inbound' else 'account.payment.supplier.invoice'
                 rec.name = self.env['ir.sequence'].next_by_code(sequence_code, sequence_date=rec.date)
 
-        return super(AccountPayment, self).action_post()
+        # return super(AccountPayment, self).action_post()
+        # Llamar al super con contexto para saltar validaciones FE en invoice
+        return super(AccountPayment, self.with_context(skip_dte_validations=True)).action_post()
