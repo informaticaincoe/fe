@@ -53,7 +53,7 @@
                                 <field name="company_id" invisible="0"/>
                                 <field name="fechaHoraTransmision" invisible="0"/>
                                 <field name="sit_fInicio_hInicio" invisible="0"/>
-                                <field name="sit_fFin_hFin" invisible="0"/>
+                                <field name="sit_fFin_hFin" widget="datetime" options="{'timepicker': {'step': 1}}" invisible="0"/>
                             </group>
                             <group id="header_right_group">
                                 <field name="sit_tipo_contingencia" invisible="0"/>

@@ -1,0 +1,2 @@
+id,company_id:id,pwd,value_type,value_text,description,active,clave
+config_url_inv,base.main_company,,text,https://api.dtes.mh.gob.sv/fesv/anulardte,URL de invalidación,True,url_invalidacion

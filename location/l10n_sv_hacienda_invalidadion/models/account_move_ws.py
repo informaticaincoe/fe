@@ -129,7 +129,6 @@ class AccountMove(models.Model):
         _logger.info("SIT Identificación json: %s", invoice_info)
         return invoice_info
 
-
     def sit_invalidacion_base_map_invoice_info_emisor(self):
         _logger.info("SIT [INICIO] Emisor: self.id=%s", self.id)
 
@@ -266,6 +265,14 @@ class AccountMove(models.Model):
                 dui = self.partner_id.dui
             else:
                 dui = self.partner_id.vat
+
+        if not dui:
+            if self.company_id:
+                if self.company_id.partner_id.dui:
+                    dui = self.company_id.partner_id.dui
+                else:
+                    dui = self.company_id.partner_id.vat
+        _logger.info("SIT Dui responsable de invalidacion: %s", dui)
 
         if not dui:
             raise UserError(

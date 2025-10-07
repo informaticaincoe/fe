@@ -6,7 +6,7 @@ dc_sv_nre,"04","Nota de remisión",3
 dc_sv_nce,"05","Nota de crédito",3
 dc_sv_nde,"06","Nota de débito",3
 dc_sv_cre,"07","Comprobante de retención",1
-dc_sv_cle,"08","Comprobante de liquidacién",1
+dc_sv_cle,"08","Comprobante de liquidación",1
 dc_sv_dcle,"09","Documento contable de liquidación",1
 dc_sv_fexe,"11","Facturas de exportación",1
 dc_sv_fsee,"14","Factura de sujeto excluido",1

@@ -1,0 +1,49 @@
+<odoo>
+    <data>
+        <record id="view_report_account_move_consumidor_final_agrupado_list" model="ir.ui.view">
+            <field name="name">report.account.move.consumidor.final.agrupado.list</field>
+            <field name="model">report.account.move.consumidor.final.agrupado</field>
+            <field name="arch" type="xml">
+                <list string="Anexo consumidor final agrupado">
+                    <header>
+                        <button name="export_csv_from_action"
+                                type="object"
+                                string="Descargar CSV"
+                                class="oe_highlight"
+                                context="{'active_view_id': context.get('active_view_id') or context.get('view_id')}"
+                                display="always"/>
+                    </header>
+                    <field name="invoice_date"/>
+                    <field name="clase_documento_display"/>
+                    <field name="codigo_tipo_documento_display"/>
+                    <field name="numero_resolucion_consumidor_final"/>
+                    <!--                    <field name="hacienda_selloRecibido" string="Serie del documento"/>-->
+                    <field name="numero_control_interno_del"/>
+                    <field name="numero_control_interno_al"/>
+                    <field name="numero_documento_del"/>
+                    <field name="numero_documento_al"/>
+                    <field name="total_exento"/>
+                    <field name="ventas_exentas_no_sujetas"/>
+                    <field name="total_no_sujeto"/>
+                    <field name="total_gravado_local"/>
+                    <field name="exportaciones_dentro_centroamerica"/>
+                    <field name="exportaciones_fuera_centroamerica"/>
+                    <field name="exportaciones_de_servicio"/>
+                    <field name="ventas_tasa_cero"/>
+
+                    <field name="monto_total_operacion"/>
+                    <field name="monto_total_impuestos"/>
+
+                    <field name="total_operacion"/>
+                    <field name="tipo_operacion_display"/>
+                    <field name="tipo_ingreso_display"/>
+                    <field name="numero_anexo"/>
+
+                    <field name="name"/>
+                    <field name="cantidad_facturas"/>
+
+                </list>
+            </field>
+        </record>
+    </data>
+</odoo>

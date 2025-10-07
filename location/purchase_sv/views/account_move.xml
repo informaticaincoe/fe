@@ -12,24 +12,7 @@
                 <!-- Agregar sit_tipo_documento_id después de journal_id -->
                 <xpath expr="//field[@name='partner_id']" position="after">
                     <group>
-                        <field name="sit_tipo_documento_id" string="Tipo de Documento" invisible="move_type != 'in_invoice'" readonly="False"/>
-                    </group>
-                </xpath>
-<!--                <xpath expr="//field[@name='partner_id']" position="after">-->
-<!--                    <group>-->
-<!--                        <field name="hacienda_codigoGeneracion_identificacion" string="Número de Resolución" style="width: 100%;"-->
-<!--                               invisible="codigo_tipo_documento" readonly="False"/>-->
-<!--                    </group>-->
-<!--                </xpath>-->
-                <xpath expr="//field[@name='partner_id']" position="after">
-                    <group>
-                        <field name="hacienda_codigoGeneracion_identificacion"
-                               string="Número de Resolución"
-                               readonly="False"
-                               class="oe_inline"
-                               placeholder="Ingrese número de resolución"
-                               style="max-width: 300px;"
-                               invisible="codigo_tipo_documento"/>
+                        <field name="sit_tipo_documento_id" string="Tipo de Documento" invisible="codigo_tipo_documento" readonly="False"/>
                     </group>
                 </xpath>
             </field>
@@ -43,6 +26,58 @@
             <field name="arch" type="xml">
                 <xpath expr="//field[@name='name']" position="attributes">
                     <attribute name="readonly">0</attribute>
+                </xpath>
+            </field>
+        </record>
+
+        <record id="view_move_form_inherit_identificacion_dte" model="ir.ui.view">
+            <field name="name">account.move.form.inherit.dentificacion.dte</field>
+            <field name="model">account.move</field>
+            <field name="inherit_id" ref="account.view_move_form"/>
+            <field name="arch" type="xml">
+                <xpath expr="//sheet//group[1]" position="before">
+                    <group class="o_group o_group_col2" invisible="codigo_tipo_documento">
+                        <field name="hacienda_selloRecibido"
+                               readonly="False"
+                               placeholder="Ingrese el sello de recepción"
+                               style="max-width: 300px;"/>
+                        <field name="hacienda_codigoGeneracion_identificacion"
+                               string="Código de generación"
+                               readonly="False"
+                               placeholder="Ingrese el código de generación"
+                               style="max-width: 300px;"/>
+                        <field name="sit_invalidar"
+                               string="Documento anulado?"
+                               readonly="False"/>
+                    </group>
+                </xpath>
+            </field>
+        </record>
+
+        <!-- Insertar nuevos campos para fechas de compras después de invoice_date, mismo group -->
+        <record id="view_move_form_inherit_fechas" model="ir.ui.view">
+            <field name="name">account.move.form.inherit.fechas</field>
+            <field name="model">account.move</field>
+            <field name="inherit_id" ref="account.view_move_form"/>
+            <field name="arch" type="xml">
+                <xpath expr="//field[@name='invoice_date']" position="after">
+                    <group string="Fechas adicionales" invisible="codigo_tipo_documento">
+                        <field name="fecha_aplicacion" invisible="codigo_tipo_documento"/>
+                        <field name="fecha_iva" invisible="codigo_tipo_documento"/>
+                    </group>
+                </xpath>
+            </field>
+        </record>
+
+        <record id="view_move_form_inherit_clase_documento" model="ir.ui.view">
+            <field name="name">account.move.form.inherit.clase_documento</field>
+            <field name="model">account.move</field>
+            <field name="inherit_id" ref="account.view_move_form"/>
+            <field name="arch" type="xml">
+                <xpath expr="//field[@name='partner_id']" position="after">
+                    <group invisible="move_type != 'in_invoice' and not codigo_tipo_documento == '14'">
+                        <field name="clase_documento_id"/>
+                    </group>
                 </xpath>
             </field>
         </record>

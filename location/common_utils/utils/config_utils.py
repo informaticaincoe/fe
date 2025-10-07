@@ -57,11 +57,12 @@ def _compute_validation_type_2(env, company):
     """
     Busca el tipo de entorno (production o pruebas) dependiendo del valor en res.company.
     """
-    _logger.info("SIT Entrando a compute_validation_type_2 desde res.company")
+    _logger.info("SIT Entrando a compute_validation_type_2 desde res.company: company: %s", company)
     entorno_pruebas = False
 
     #config_settings = env["res.config.settings"].sudo().search([('company_id', '=', company.id)], order='id desc', limit=1)
     config_settings_entorno = env["res.company"].sudo().search([('id', '=', company.id)], order='id desc', limit=1)
+    _logger.info("SIT Empresa: %s, entorno: %s", config_settings_entorno.id, config_settings_entorno.sit_entorno_test)
     if config_settings_entorno:
         parameter_env_type = config_settings_entorno.sit_entorno_test
         # if not parameter_env_type:

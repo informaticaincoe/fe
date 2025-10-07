@@ -6,26 +6,28 @@
             <field name="arch" type="xml">
                 <list string="Detalle de Anexos contribuyentes">
                     <header>
-                        <button name="action_download_csv_anexo" type="object" string="Descargar CSV" class="oe_highlight" display="always"/>
+                        <button name="action_download_csv_anexo"
+                                type="object"
+                                string="Descargar CSV"
+                                class="oe_highlight"
+                                display="always"
+                        />
                     </header>
                     <field name="invoice_date" string="Fecha de Emisión"/>
                     <field name="clase_documento"/>
                     <field name="codigo_tipo_documento"/>
-                    <field name="name" string="Número de resolución"/>
+                    <field name="hacienda_codigoGeneracion_identificacion" string="Número de resolución"/>
                     <field name="hacienda_selloRecibido" string="Serie del documento"/>
-                    <field name="hacienda_codigoGeneracion_identificacion" string="Número de documento"/>
-                    <field name="numero_control_interno_al" string="Número de control interno"/>
+                    <field name="name" string="Número de documento"/>
+                    <field name="numero_control_interno_del" string="Número de control interno"/>
                     <field name="nit_o_nrc_anexo_contribuyentes" string="NIT o NRC del cliente"/>
                     <field name="razon_social"/>
                     <field name="total_exento"/>
-                    <field name="ventas_exentas_no_sujetas"/>
                     <field name="total_no_sujeto" string="Ventas no sujetas"/>
                     <field name="total_gravado" string="Ventas grabadas locales"/>
-
-                    <field name="debito_fiscal_contribuyentes" />
-                    <field name="ventas_cuenta_terceros" />
-                    <field name="debito_fiscal_cuenta_terceros" />
-
+                    <field name="debito_fiscal_contribuyentes"/>
+                    <field name="ventas_cuenta_terceros"/>
+                    <field name="debito_fiscal_cuenta_terceros"/>
                     <field name="total_operacion" string="Total ventas"/>
                     <field name="dui_cliente" string="DUI cliente"/>
                     <field name="tipo_operacion_display"/>

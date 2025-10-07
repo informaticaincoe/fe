@@ -13,3 +13,6 @@ config_cuenta_cont_salarial,base.main_company,,text,230100,Cuenta contable para 
 config_cuenta_cont_salarial_debito,base.main_company,,text,630000,Cuenta contable de débito: Gastos de sueldo,True,cuenta_salarial_debito
 config_cuenta_cont_empleador_credito,base.main_company,,text,230200,Cuenta contable de crédito: Aporte del empleador,True,cuenta_empleador_credito
 config_porcentaje_he,base.main_company,,int,50,Recargo por horas extra en día de descanso,True,porcentaje_horas_extras
+config_autenticacion_prod,base.main_company,,text,https://api.dtes.mh.gob.sv/seguridad/auth,URL para autenticación en producción,True,autenticar_prod
+config_autenticacion_test,base.main_company,,text,https://apitest.dtes.mh.gob.sv/seguridad/auth,URL para autenticación en pruebas,True,autenticar_test
+config_consulta_dte,base.main_company,,text,https://admin.factura.gob.sv,URL para consultar dte,True,consulta_dte

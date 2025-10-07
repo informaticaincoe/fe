@@ -12,7 +12,6 @@
                     <field name="invoice_date" string="Fecha de Emisión"
                            widget="date"/>
 
-
                 </search>
             </field>
         </record>

@@ -5,6 +5,14 @@
             <field name="model">account.move</field>
             <field name="arch" type="xml">
                 <list string="Anexo Percepciones (Casilla 162)">
+                    <header>
+                        <button name="action_download_csv_anexo"
+                                type="object"
+                                string="Descargar CSV"
+                                class="oe_highlight"
+                                display="always"
+                        />
+                    </header>
                     <field name="nit_company"/>
                     <field name="invoice_date"/>
                     <field name="codigo_tipo_documento"/>

@@ -32,6 +32,7 @@
         "views/account_move_views.xml",
         "security/ir.model.access.csv",
         "data/invoice_sending_invalidacion.xml",
+        "data/res.configuration.csv",
     ],
     # only loaded in demonstration mode
     "demo": [],
