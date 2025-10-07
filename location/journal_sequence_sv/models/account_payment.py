@@ -32,8 +32,8 @@ class AccountPayment(models.Model):
 
         # FE ON → si realmente necesitas personalización, hazla aquí
         for rec in self:
-            if rec.state != 'draft':
-                raise UserError(_("Only a draft payment can be posted."))
+            # if rec.state != 'draft':
+            #     raise UserError(_("Only a draft payment can be posted."))
             if any(inv.state != 'posted' for inv in rec.reconciled_invoice_ids):
                 raise ValidationError(_("The payment cannot be processed because the invoice is not open!"))
 
