@@ -39,14 +39,10 @@
 
         <record id="action_anexo_casilla162" model="ir.actions.act_window">
             <field name="name">Anexo Casilla 162 (Percepciones efectuadas)</field>
-            <field name="res_model">account.move</field>
+            <field name="res_model">sv.dte.retencion.recibida1</field>
             <field name="view_mode">list</field>
             <field name="view_id" ref="view_anexo_casilla162_list"/>
-            <field name="search_view_id" ref="view_anexos_fechas_search"/>
-            <field name="domain">
-                [('codigo_tipo_documento', '=', '14'), ('retencion_iva_amount', '!=', False), ('hacienda_estado', '=',
-                'PROCESADO')]
-            </field>
+
             <field name="context">{'numero_anexo': 7, 'anexo_action_id': 'ANX_C162'}</field>
 
         </record>
@@ -142,7 +138,7 @@
             <field name="domain">[('codigo_tipo_documento','in',['01','11','03','05'])]</field>
             <field name="context">{'numero_anexo': 2, 'anexo_action_id': 'ANX_CF_AGRUPADO'}</field>
 
-<!--            <field name="context">{'group_by': ['invoice_date']}</field>-->
+            <!--            <field name="context">{'group_by': ['invoice_date']}</field>-->
         </record>
 
         <menuitem id="menu_report_account_move_consumidor_final_agrupado"

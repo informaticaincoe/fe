@@ -301,3 +301,6 @@ class AccountMove(models.Model):
 
         # Devuelve el resultado original para que Odoo siga funcionando
         return result
+
+
+    exp_duca_id = fields.One2many('exp_duca', 'move_id', string='DUCAs')
