@@ -1,0 +1,17 @@
+<odoo>
+    <record id="view_account_move_reversal_form_inherit" model="ir.ui.view">
+        <field name="name">account.move.reversal.form.inherit</field>
+        <field name="model">account.move.reversal</field>
+        <field name="inherit_id" ref="account.view_account_move_reversal"/>
+        <field name="arch" type="xml">
+            <!-- Insertar journal_type invisible -->
+            <xpath expr="//field[@name='journal_id']" position="before">
+                <field name="journal_type" invisible="1"/>
+            </xpath>
+            <!-- Hacer editable journal_id -->
+            <xpath expr="//field[@name='journal_id']" position="attributes">
+                <attribute name="readonly">0</attribute>
+            </xpath>
+        </field>
+    </record>
+</odoo>

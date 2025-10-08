@@ -4,6 +4,14 @@ import logging
 
 _logger = logging.getLogger(__name__)
 
+try:
+    from odoo.addons.common_utils.utils import constants
+    from odoo.addons.common_utils.utils import config_utils
+    _logger.info("SIT Modulo config_utils [Reverse] Nota de credito")
+except ImportError as e:
+    _logger.error(f"Error al importar 'config_utils': {e}")
+    config_utils = None
+    constants = None
 
 class AccountDebitNote(models.TransientModel):
     _inherit = 'account.debit.note'
@@ -23,21 +31,24 @@ class AccountDebitNote(models.TransientModel):
             raise UserError(_("No se encontró el tipo de documento (06) Nota de Débito."))
 
         # Obtener el código del tipo de documento desde el diario
-        doc_code = (
-                getattr(self.journal_id.sit_tipo_documento, "codigo", False)
-                or getattr(self.journal_id.sit_tipo_documento, "code", False)
-        )
-        if not doc_code:
-            raise UserError(_("El diario no tiene código de tipo de documento configurado."))
+        # doc_code = (
+        #         getattr(self.journal_id.sit_tipo_documento, "codigo", False)
+        #         or getattr(self.journal_id.sit_tipo_documento, "code", False)
+        # )
+        # if not doc_code:
+        #     raise UserError(_("El diario no tiene código de tipo de documento configurado."))
+        doc_code = constants.COD_DTE_ND
 
         DocType = self.env["l10n_latam.document.type"]
         doc_type = DocType.search([
             ("code", "=", doc_code),
         ], limit=1)
 
-        if not doc_type:
-            # Intento sin filtro de país como fallback
-            doc_type = DocType.search([("code", "=", doc_code)], limit=1)
+        # if not doc_type:
+        #     # Intento sin filtro de país como fallback
+        #     doc_type = DocType.search([
+        #         ("code", "=", doc_code)
+        #     ], limit=1)
 
         if not doc_type:
             _logger.error("SIT: No se encontró l10n_latam.document.type con code=%s", doc_code)
@@ -58,11 +69,24 @@ class AccountDebitNote(models.TransientModel):
 
         for move in moves:
             _logger.info("SIT: Procesando factura original ID=%s | name=%s", move.id, move.name)
-            _logger.info("SIT: doc_type =%s", doc_type)
+            _logger.info("SIT: doc_type =%s, move_type: %s", doc_type, move.move_type)
+
+            move_type = None
+            tipo_documento_compra = None
+
+            if move.move_type == 'out_invoice': # Credito fiscal en el modulo de ventas
+                move_type = 'out_invoice' # Nota de debito
+            elif move.move_type == 'in_invoice': # Credito fiscal en el modulo de compras
+                move_type = 'in_invoice' # Nota de debito
+                tipo_documento_compra = self.env['account.journal.tipo_documento.field'].search([
+                    ('codigo', '=', constants.COD_DTE_ND)
+                ], limit=1)
+                _logger.info("SIT tipo_documento_compra asignado para in_refund: %s", tipo_documento_compra.valores if tipo_documento_compra else "No encontrado")
+
 
             default_vals = {
                 'journal_id': self.journal_id.id,
-                'move_type': 'out_invoice',
+                'move_type': move_type,
                 'partner_id': move.partner_id.id,
                 'l10n_latam_document_type_id':doc_type.id,
                 'debit_origin_id': move.id,
@@ -70,6 +94,7 @@ class AccountDebitNote(models.TransientModel):
                 'invoice_origin': move.name,
                 'currency_id': move.currency_id.id,
                 'invoice_date': fields.Date.context_today(self),
+                'sit_tipo_documento_id': tipo_documento_compra.id if tipo_documento_compra else False,
 
                 # Copiar descuentos desde el crédito fiscal
                 'descuento_gravado_pct': move.descuento_gravado_pct,
@@ -140,9 +165,19 @@ class AccountDebitNote(models.TransientModel):
             default_vals['invoice_line_ids'] = invoice_lines_vals
 
             # Generar nombre anticipado
-            temp_move_final = self.env['account.move'].new(default_vals)
-            temp_move_final.journal_id = self.journal_id
-            nombre_generado = temp_move_final._generate_dte_name()
+            nombre_generado = None
+            if (not move.name or move.name == '/') and move.codigo_tipo_documento:
+                temp_move_final = self.env['account.move'].new(default_vals)
+                temp_move_final.journal_id = self.journal_id
+                nombre_generado = temp_move_final.with_context(_dte_auto_generated=True)._generate_dte_name()
+            else:
+                # Permitir que Odoo use la secuencia estándar del diario
+                if move.journal_id.sequence_id:
+                    nombre_generado = move.journal_id.sequence_id.next_by_id()
+                    _logger.info("SIT Secuencia estándar asignada: %s", nombre_generado)
+                else:
+                    nombre_generado = '/'
+
             if not nombre_generado:
                 raise UserError(_("No se pudo generar un número de control para el documento."))
 
