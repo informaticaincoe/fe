@@ -3,6 +3,14 @@ from odoo import api, fields, models, _
 import logging
 _logger = logging.getLogger(__name__)
 
+try:
+    from odoo.addons.common_utils.utils import config_utils
+    from odoo.addons.common_utils.utils import constants
+    _logger.info("SIT Modulo config_utils [hacienda ws-account_move]")
+except ImportError as e:
+    _logger.error(f"Error al importar 'config_utils': {e}")
+    config_utils = None
+
 class AccountMoveLine(models.Model):
     _inherit = 'account.move.line'
 
