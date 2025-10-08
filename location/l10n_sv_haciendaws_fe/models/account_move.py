@@ -257,86 +257,110 @@ class AccountMove(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
+
+        # import traceback
+        #
+        # if not vals_list:
+        #     # Solo log para depuración, no interrumpimos
+        #     _logger.warning(
+        #         "⚠️ Se llamó account.move.create() con vals_list vacío.\nStack:\n%s",
+        #         "".join(traceback.format_stack(limit=8))
+        #     )
+        #     # Llamamos al create del super con lista vacía: devuelve browse vacío
+        #     return self.browse()
+
+        _logger.info("Company ID: %s", self.env.company.id)
         _logger.info("SIT vals list: %s", vals_list)
 
         for vals in vals_list:
-            _logger.info("[CREATE-DEBUG] (antes de crear) move_type=%s, name=%s", vals.get('move_type'), vals.get('name'))
+            _logger.info("[CREATE-DEBUG] (antes de crear) move_type=%s, name=%s", vals.get('move_type'),
+                         vals.get('name'))
 
-            company_id = vals.get("company_id") or self.env.company.id
-            company = self.env["res.company"].browse(company_id)
+            # --- Evitar interferir con pagos (account.payment genera moves tipo 'entry') ---
+            context = self._context or {}
+            skip_dte = context.get('active_model') == 'account.payment' or vals.get('origin_payment_id')
+            if skip_dte:
+                _logger.info("SIT | Creación desde pago detectada → se omite personalización DTE.")
 
-            if not (company and company.sit_facturacion):
-                _logger.info("Empresa '%s' NO aplica a DTE → se usará flujo estándar.", company.name)
-                continue  # no tocamos nada, se creará normal
+            if not skip_dte:
+                # --- Empresa ---
+                company_id = vals.get("company_id") or self.env.company.id
+                company = self.env["res.company"].browse(company_id)
 
-            move_type = vals.get('move_type')
-            _logger.info("SIT modulo detectado: %s", move_type)
-
-            # --- Extraer partner_id ---
-            partner_id = vals.get('partner_id')
-            if not partner_id:
-                for cmd in vals.get('line_ids', []):
-                    if isinstance(cmd, tuple) and len(cmd) == 3:
-                        lvals = cmd[2]
-                        partner_id = lvals.get('partner_id') or partner_id
-                        if partner_id:
-                            break
-            if partner_id:
-                vals['partner_id'] = partner_id
-            _logger.info("SIT Partner detectado: %s", partner_id)
-
-            # --- Diario ---
-            journal_id = vals.get('journal_id') or self._context.get('default_journal_id')
-            journal = self.env['account.journal'].browse(journal_id) if journal_id else None
-
-            # --- Solo diarios de venta (y compras): generar nombre desde secuencia (_generate_dte_name) ---
-            if (journal and journal.type == 'sale') or move_type == 'in_invoice':
-                name = vals.get('name')
-                # Respetar si ya viene un nombre válido (cualquiera), solo generarlo si no hay o es '/'
-                if not name or name == '/':  # and name.startswith('DTE-')):
-                    # usar un record virtual para métodos que requieren ensure_one()
-                    virtual_move = self.env['account.move'].new(vals)
-                    # virtual_move._onchange_journal()  # por si depende del diario
-                    # Marcamos en el contexto que el DTE se genera automáticamente
-                    # generated_name = virtual_move._generate_dte_name()
-                    generated_name = virtual_move.with_context(_dte_auto_generated=True)._generate_dte_name()
-
-                    if generated_name:
-                        vals['name'] = generated_name
-                        _logger.info("SIT Nombre generado dinámicamente (venta/compra): %s", vals['name'])
+                if not (company and company.sit_facturacion):
+                    _logger.info("Empresa '%s' NO aplica a DTE → se usará flujo estándar.", company.name)
                 else:
-                    _logger.info("SIT Nombre provisto por el usuario/config: %s", name)
+                    move_type = vals.get('move_type')
+                    _logger.info("SIT modulo detectado: %s", move_type)
 
-                # partner obligatorio para DTE
-                if not vals.get('partner_id'):
-                    raise UserError(_("No se pudo obtener el partner."))
+                    # --- Extraer partner_id ---
+                    partner_id = vals.get('partner_id')
+                    if not partner_id:
+                        for cmd in vals.get('line_ids', []):
+                            if isinstance(cmd, tuple) and len(cmd) == 3:
+                                lvals = cmd[2]
+                                partner_id = lvals.get('partner_id') or partner_id
+                                if partner_id:
+                                    break
+                    if partner_id:
+                        vals['partner_id'] = partner_id
+                    _logger.info("SIT Partner detectado: %s", partner_id)
 
-                # códigoGeneracion_identificación
-                if not vals.get('hacienda_codigoGeneracion_identificacion'):
-                    vals['hacienda_codigoGeneracion_identificacion'] = self.sit_generar_uuid()
-                    _logger.info("Codigo de generacion asignado: %s", vals['hacienda_codigoGeneracion_identificacion'])
-            else:
-                _logger.info("Diario '%s' no es venta (o move_type no es in_invoice), omito generación DTE", journal and journal.name)
+                    # --- Diario ---
+                    journal_id = vals.get('journal_id') or context._context.get('default_journal_id')
+                    journal = self.env['account.journal'].browse(journal_id) if journal_id else None
 
-            # ——— Para asientos contables (entry) ———
-            if move_type == 'entry':
-                # Si no viene nombre o viene como '/', asignarlo desde la secuencia del diario
-                if not vals.get('name') or vals['name'] == '/':
-                    j = journal or (
-                        self.env['account.journal'].browse(vals.get('journal_id')) if vals.get('journal_id') else None)
-                    if j and j.sequence_id:
-                        # Reservar siguiente número de la secuencia del diario
-                        vals['name'] = j.sequence_id.next_by_id()
+                    # --- Solo diarios de venta (y compras): generar nombre desde secuencia (_generate_dte_name) ---
+                    if (journal and journal.type == 'sale') or move_type == 'in_invoice':
+                        name = vals.get('name')
+                        # Respetar si ya viene un nombre válido (cualquiera), solo generarlo si no hay o es '/'
+                        if not name or name == '/':  # and name.startswith('DTE-')):
+                            # usar un record virtual para métodos que requieren ensure_one()
+                            virtual_move = self.env['account.move'].new(vals)
+                            # virtual_move._onchange_journal()  # por si depende del diario
+                            # Marcamos en el contexto que el DTE se genera automáticamente
+                            # generated_name = virtual_move._generate_dte_name()
+                            generated_name = virtual_move.with_context(_dte_auto_generated=True)._generate_dte_name()
+
+                            if generated_name:
+                                vals['name'] = generated_name
+                                _logger.info("SIT Nombre generado dinámicamente (venta/compra): %s", vals['name'])
+                        else:
+                            _logger.info("SIT Nombre provisto por el usuario/config: %s", name)
+
+                        # partner obligatorio para DTE
+                        if not vals.get('partner_id'):
+                            raise UserError(_("No se pudo obtener el partner."))
+
+                        # códigoGeneracion_identificación
+                        if not vals.get('hacienda_codigoGeneracion_identificacion'):
+                            vals['hacienda_codigoGeneracion_identificacion'] = self.sit_generar_uuid()
+                            _logger.info("Codigo de generacion asignado: %s",
+                                         vals['hacienda_codigoGeneracion_identificacion'])
                     else:
-                        # Fallback genérico si el diario no tiene secuencia
-                        vals['name'] = self.env['ir.sequence'].next_by_code('account.move') or '/'
-                    _logger.info("SIT Asignado nombre de entry desde secuencia: %s", vals['name'])
+                        _logger.info("Diario '%s' no es venta (o move_type no es in_invoice), omito generación DTE",
+                                     journal and journal.name)
 
-            # Validación de duplicados antes de la creación
-            existing_move = self.env['account.move'].search([('name', '=', vals.get('name'))], limit=1)
-            if existing_move:
-                _logger.warning("Documento duplicado detectado con el nombre: %s", vals.get('name'))
-                continue  # No crear el duplicado, pasa al siguiente
+                    # ——— Para asientos contables (entry) ———
+                    if move_type == 'entry':
+                        # Si no viene nombre o viene como '/', asignarlo desde la secuencia del diario
+                        if not vals.get('name') or vals['name'] == '/':
+                            j = journal or (
+                                self.env['account.journal'].browse(vals.get('journal_id')) if vals.get(
+                                    'journal_id') else None)
+                            if j and j.sequence_id:
+                                # Reservar siguiente número de la secuencia del diario
+                                vals['name'] = j.sequence_id.next_by_id()
+                            else:
+                                # Fallback genérico si el diario no tiene secuencia
+                                vals['name'] = self.env['ir.sequence'].next_by_code('account.move') or '/'
+                            _logger.info("SIT Asignado nombre de entry desde secuencia: %s", vals['name'])
+
+                    # Validación de duplicados antes de la creación
+                    existing_move = self.env['account.move'].search([('name', '=', vals.get('name'))], limit=1)
+                    if existing_move:
+                        _logger.warning("Documento duplicado detectado con el nombre: %s", vals.get('name'))
+                        continue  # No crear el duplicado, pasa al siguiente
 
         _logger.info("Valores finales antes de super().create: %s", vals_list)
         # no forzar name
@@ -2221,6 +2245,10 @@ class AccountMove(models.Model):
             _logger.info("SIT No aplica facturación electrónica para alguna factura. Se omite notificación de contingencia.")
             return super().action_post()
 
+        if self.move_type not in ('out_invoice', 'in_invoice', 'out_refund', 'in_refund'):
+            _logger.info("SIT Action post omitido (no es factura ni nota): %s", self.move_type)
+            return super().action_post()
+
         ambiente_test = False
         if config_utils:
             ambiente_test = config_utils._compute_validation_type_2(self.env, self.company_id)
@@ -2230,26 +2258,27 @@ class AccountMove(models.Model):
         if self.journal_id and self.journal_id.sit_tipo_documento and self.journal_id.sit_tipo_documento.codigo:
             doc_electronico = True
 
-        # Verificar si ya se completaron las validaciones esenciales para continuar
-        if not self.invoice_date:
-            _logger.warning("SIT | Fecha del documento no seleccionada.")
-            raise ValidationError("Debe seleccionar la fecha del documento.")
+        if not self.env.context.get('skip_dte_validations', False):
+            # Verificar si ya se completaron las validaciones esenciales para continuar
+            if not self.invoice_date:
+                _logger.warning("SIT | Fecha del documento no seleccionada.")
+                raise ValidationError("Debe seleccionar la fecha del documento.")
 
-        if doc_electronico and not self.condiciones_pago:
-            _logger.warning("SIT | No se ha seleccionado una Condición de la Operación.")
-            raise ValidationError("Debe seleccionar una Condicion de la Operación.")
+            if doc_electronico and not self.condiciones_pago:
+                _logger.warning("SIT | No se ha seleccionado una Condición de la Operación.")
+                raise ValidationError("Debe seleccionar una Condicion de la Operación.")
 
-        if doc_electronico and not self.forma_pago:
-            _logger.warning("SIT | No se ha seleccionado una Forma de Pago.")
-            raise ValidationError("Seleccione una Forma de Pago.")
+            if doc_electronico and not self.forma_pago:
+                _logger.warning("SIT | No se ha seleccionado una Forma de Pago.")
+                raise ValidationError("Seleccione una Forma de Pago.")
 
-        if doc_electronico and self.journal_id and not self.journal_id.report_xml:
-            _logger.warning("SIT | El diario no tiene un reporte PDF configurado.")
-            raise ValidationError("El diario debe tener un reporte PDF configurado.")
+            if doc_electronico and self.journal_id and not self.journal_id.report_xml:
+                _logger.warning("SIT | El diario no tiene un reporte PDF configurado.")
+                raise ValidationError("El diario debe tener un reporte PDF configurado.")
 
-        if not ambiente_test and self.journal_id.sit_tipo_documento and self.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_NC and self.inv_refund_id and not self.inv_refund_id.hacienda_selloRecibido:
-            _logger.warning("SIT | El documento relacionado aún no tiene el sello de Hacienda.")
-            raise ValidationError("El documento relacionado aún no cuenta con el sello de Hacienda.")
+            if not ambiente_test and self.journal_id.sit_tipo_documento and self.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_NC and self.inv_refund_id and not self.inv_refund_id.hacienda_selloRecibido:
+                _logger.warning("SIT | El documento relacionado aún no tiene el sello de Hacienda.")
+                raise ValidationError("El documento relacionado aún no cuenta con el sello de Hacienda.")
 
         # Verificar si el DTE ha sido recibido y procesado correctamente
         _logger.info("SIT Estado registro: %s", self.state)
@@ -2266,7 +2295,7 @@ class AccountMove(models.Model):
                     'sticky': False,
                 },
             }
-        elif ambiente_test and self.hacienda_estado.lower() == 'procesado':
+        elif ambiente_test and self.hacienda_estado and self.hacienda_estado.lower() == 'procesado':
             _logger.info("SIT El documento electrónico ha sido procesado correctamente %s", self.name)
             return {
                 'type': 'ir.actions.client',
