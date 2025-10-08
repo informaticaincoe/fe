@@ -3,3 +3,4 @@ access_manager_arancel,access_manager_arancel,model_posicion_arancel,account.gro
 access_invoice_arancel,access_invoice_arancel,model_posicion_arancel,account.group_account_user,1,1,0,0
 access_user_arancel,access_user_arancel,model_posicion_arancel,account.group_account_invoice,1,0,0,0
 access_account_move_send_user,access_account_move_send_user,l10n_invoice_sv.model_account_move_send,account.group_account_user,1,0,1,0
+access_sv_dte_retencion_recibida1,access_sv_dte_retencion_recibida1,model_sv_dte_retencion_recibida1,account.group_account_user,1,1,1,1

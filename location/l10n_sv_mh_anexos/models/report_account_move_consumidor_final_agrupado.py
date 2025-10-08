@@ -188,6 +188,30 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.Model):
     #     store=False,
     # )
 
+    numero_maquina_registradora = fields.Char(
+        string="Numero de maquina registradora",
+        compute='_compute_get_numero_maquina_registradora',
+        readonly=True,
+        store=False,
+    )
+
+    ventas_cuenta_terceros = fields.Char(
+        string="ventas a cuenta de terceros no domiciliados",
+        compute='_compute_get_ventas_cuenta_terceros',
+        readonly=True,
+        store=False,
+    )
+
+    @api.depends('journal_id')
+    def _compute_get_numero_maquina_registradora(self):
+        for record in self:
+            record.numero_maquina_registradora = ''
+
+    @api.depends('journal_id')
+    def _compute_get_ventas_cuenta_terceros(self):
+        for record in self:
+            record.ventas_cuenta_terceros = 0.00
+
     @api.depends('invoice_date', 'journal_id', 'codigo_tipo_documento')
     def _compute_get_tipo_ingreso_codigo(self):
         Move = self.env['account.move']
