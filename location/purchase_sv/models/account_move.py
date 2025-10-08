@@ -17,7 +17,7 @@ class AccountMove(models.Model):
     sit_tipo_documento_id = fields.Many2one(
         'account.journal.tipo_documento.field',
         string='Tipo de Documento',
-        related='journal_id.sit_tipo_documento',
+        # related='journal_id.sit_tipo_documento',
         store=True,
         default=lambda self: self._get_default_tipo_documento(),
         domain=lambda self: self._get_tipo_documento_domain(),
@@ -76,14 +76,19 @@ class AccountMove(models.Model):
 
     def _get_tipo_documento_domain(self):
         # Lógica para establecer el dominio del campo para siempre mostrar los documentos con los códigos especificados
-        _logger.info("Tipos de documento")
         # Mostrar los tipos de documentos con los códigos '03', '05', '06', '11' en todos los casos
-        return [('codigo', 'in', ['03', '05', '06', '11'])]
+        # Las compras de tipo nota de credito(05) y nota de debito(06) se generan desde la funcionalidad de odoo
+        if self.move_type == 'in_refund' and self.sit_tipo_documento_id.codigo == constants.COD_DTE_NC: # Nota de credito en compras
+            return [('codigo', 'in', ['05'])]
+        elif self.move_type == 'in_invoice' and self.sit_tipo_documento_id.codigo == constants.COD_DTE_ND: # Notas de debito en compras
+            return [('codigo', 'in', ['06'])]
+        else:
+            return [('codigo', 'in', ['01', '03', '11'])]
 
-    show_sit_tipo_documento = fields.Boolean(
-        compute='_compute_show_sit_tipo_documento',
-        # store=True
-    )
+    # show_sit_tipo_documento = fields.Boolean(
+    #     compute='_compute_show_sit_tipo_documento',
+    #     # store=True
+    # )
 
     # Campo name editable
     name = fields.Char(
@@ -96,11 +101,11 @@ class AccountMove(models.Model):
 
     _original_name = fields.Char(compute='_compute_original_name', store=False)
 
-    @api.depends('move_type')
-    def _compute_show_sit_tipo_documento(self):
-        for move in self:
-            move.show_sit_tipo_documento = move.move_type in ('in_invoice', 'in_refund')
-            _logger.info("Compute show_sit_tipo_documento: move id=%s, move_type=%s, show=%s", move.id, move.move_type, move.show_sit_tipo_documento)
+    # @api.depends('move_type')
+    # def _compute_show_sit_tipo_documento(self):
+    #     for move in self:
+    #         move.show_sit_tipo_documento = move.move_type in ('in_invoice', 'in_refund')
+    #         _logger.info("Compute show_sit_tipo_documento: move id=%s, move_type=%s, show=%s", move.id, move.move_type, move.show_sit_tipo_documento)
 
     @api.onchange('name', 'hacienda_codigoGeneracion_identificacion', 'hacienda_selloRecibido')
     def _onchange_remove_hyphen_and_spaces(self):
@@ -133,6 +138,7 @@ class AccountMove(models.Model):
                     self.id, old_val, self.hacienda_selloRecibido)
 
     def write(self, vals):
+        _logger.info("Vals write: %s", vals)
         if 'name' in vals:
             for move in self:
                 # if move.move_type not in ('out_invoice', 'out_refund'):
@@ -147,10 +153,11 @@ class AccountMove(models.Model):
 
                 _logger.info(
                     "[WRITE-VALIDATION] move_id=%s, state=%s, old_name=%s, new_name=%s, "
-                    "auto_generated=%s, manual_update=%s",
+                    "auto_generated=%s, manual_update=%s, allow_name_reset=%s",
                     move.id, move.state, old_name, new_name,
                     self.env.context.get("_dte_auto_generated"),
-                    self.env.context.get("_dte_manual_update")
+                    self.env.context.get("_dte_manual_update"),
+                    self.env.context.get("allow_name_reset")
                 )
 
                 # Si el valor no cambia, dejamos pasar
@@ -172,6 +179,10 @@ class AccountMove(models.Model):
                     bloquear = False
                 # Permitir actualización manual explícita
                 elif self.env.context.get("_dte_manual_update"):
+                    bloquear = False
+                    # Permitir limpiar el name si se está recreando (nuevo_name vacío)
+                elif not new_name and old_name:
+                    _logger.info("Se permite limpiar el campo name temporalmente (old_name=%s, new_name vacío, move_id=%s)", old_name, move.id)
                     bloquear = False
 
                 _logger.info(
@@ -203,10 +214,10 @@ class AccountMove(models.Model):
         for move in self:
 
             _logger.info("SIT-Compra move type: %s, tipo documento %s: ", move.move_type, move.codigo_tipo_documento)
-            if move.move_type != 'in_invoice':
+            if move.move_type not in('in_invoice', 'in_refund'):
                 _logger.info("SIT Action post no aplica a modulos distintos a compra.")
                 continue
-            elif move.move_type == 'in_invoice' and move.codigo_tipo_documento:
+            if move.move_type == 'in_invoice' and move.codigo_tipo_documento:
                 _logger.info("SIT Action post no aplica para compras electronicas(como suejto excluido).")
                 continue
 
@@ -246,6 +257,21 @@ class AccountMove(models.Model):
                             date_invoice
                         )
                     )
+            if not move.sit_tipo_documento_id:
+                _logger.info("SIT | Tipo de documento no seleccionado.")
+                raise ValidationError("Debe seleccionar el Tipo de documento de compra.")
+
+            if not move.clase_documento_id:
+                _logger.info("SIT | Clase de documento no seleccionada.")
+                raise ValidationError("Debe seleccionar la Clase de documento.")
+
+            if not move.hacienda_selloRecibido:
+                _logger.info("SIT | Sello Recepcion no agregado.")
+                raise ValidationError("Debe agregar el Sello de recepción.")
+
+            if not move.hacienda_codigoGeneracion_identificacion:
+                _logger.info("SIT | Codigo de generacion no agregado.")
+                raise ValidationError("Debe agregar el Codigo de generación.")
 
         return super(AccountMove, self).action_post()
 

@@ -116,7 +116,7 @@ class AccountMove(models.Model):
                 self.partner_id.id,
                 self.partner_id.gran_contribuyente
             )
-            if self.partner_id.gran_contribuyente:
+            if self.partner_id.gran_contribuyente and self.company_id and self.company_id.sit_facturacion:
                 self.apply_retencion_iva = True
                 _logger.info("[ONCHANGE] Se activó apply_retencion_iva=True porque es gran contribuyente.")
             else:
@@ -1037,7 +1037,7 @@ class AccountMove(models.Model):
         _logger = logging.getLogger(__name__)
 
         # Log previo al write
-        _logger.warning("[WRITE-ORDER(invoice_sv)] Entró primero: invoice_sv")
+        _logger.info("[WRITE-ORDER(invoice_sv)] Entró primero: invoice_sv")
         _logger.warning("Account_move_invocie_sv [WRITE-PRE] move_ids=%s, vals=%s", self.ids, vals)
         tb_str = ''.join(traceback.format_stack())
         _logger.debug("Account_moveinvoice_sv [WRITE-PRE-STACK] Stack:\n%s", tb_str)
@@ -1057,6 +1057,8 @@ class AccountMove(models.Model):
         return res
 
     def create(self, vals):
+        _logger.info("SIT: Datos antes de la creación: %s", vals)
+
         # Llamar al método de creación del movimiento
         move = super().create(vals)
 

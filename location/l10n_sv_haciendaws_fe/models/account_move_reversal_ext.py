@@ -60,18 +60,36 @@ class AccountMoveReversal(models.TransientModel):
         default_vals = []
 
         for move in moves:
+            move_type = None
+            tipo_documento_compra = None
+
+            if move.move_type == 'out_invoice':
+                move_type = 'out_refund'
+            elif move.move_type == 'in_invoice':
+                move_type = 'in_refund'
+                tipo_documento_compra = self.env['account.journal.tipo_documento.field'].search([
+                    ('codigo', '=', constants.COD_DTE_NC)
+                ], limit=1)
+                _logger.info("SIT tipo_documento_compra asignado para in_refund: %s", tipo_documento_compra.valores if tipo_documento_compra else "No encontrado")
+
             default_vals = self._prepare_default_reversal(move)
             default_vals['journal_id'] = self.journal_id.id
-            default_vals['move_type'] = 'out_refund'
+            default_vals['move_type'] = move_type # 'out_refund'
             default_vals['partner_id'] = move.partner_id.id
             default_vals['l10n_latam_document_type_id'] = self.l10n_latam_document_type_id.id
+            default_vals['sit_tipo_documento_id'] = tipo_documento_compra.id if tipo_documento_compra else False
+            default_vals['clase_documento_id'] = move.clase_documento_id.id
+            default_vals['tipo_ingreso_id'] = move.tipo_ingreso_id.id
+            default_vals['tipo_costo_gasto_id'] = move.tipo_costo_gasto_id.id
+            default_vals['tipo_operacion'] = move.tipo_operacion.id
+            default_vals['clasificacion_facturacion'] = move.clasificacion_facturacion.id
+            default_vals['sector'] = move.sector.id
 
             default_vals['inv_refund_id'] = move.id
             default_vals['reversed_entry_id'] = move.id
 
             _logger.info("SIT descuentos globales desc gravado=%s, desc exento=%s, desc no sujeto=%s, desc global=%s",
-                         move.descuento_gravado_pct, move.descuento_exento_pct, move.descuento_no_sujeto_pct,
-                         move.descuento_global_monto)
+                         move.descuento_gravado_pct, move.descuento_exento_pct, move.descuento_no_sujeto_pct, move.descuento_global_monto)
             # Copiar descuentos globales, si existen
             if hasattr(move, 'descuento_gravado_pct'):  # Si account.move tiene un campo descuento_gravado_pct
                 default_vals['descuento_gravado_pct'] = move.descuento_gravado_pct
@@ -93,6 +111,7 @@ class AccountMoveReversal(models.TransientModel):
 
             for line in move.invoice_line_ids:
                 _logger.info("SIT display type: %s", line.display_type)
+                nombre_generado = None
                 if line.display_type not in [False, 'product'] or line.custom_discount_line:
                     continue
 
@@ -110,11 +129,13 @@ class AccountMoveReversal(models.TransientModel):
             default_vals['invoice_line_ids'] = invoice_lines_vals
             _logger.info("SIT listado de productos=%s", default_vals['invoice_line_ids'])
 
+            _logger.info("SIT Verificar name=%s", move.name)
             prefix = (config_utils.get_config_value(self.env, 'dte_prefix', self.company_id.id) or "DTE-").lower()
-            if not move.name or move.name == '/' or not move.name.startswith(prefix):
+            # if not move.name or move.name == '/' or not move.name.startswith(prefix):
+            if (not move.name or move.name == '/' or not move.name.startswith(prefix)) and move.codigo_tipo_documento:
                 move_temp = self.env['account.move'].new(default_vals)
                 move_temp.journal_id = self.journal_id
-                nombre_generado = move_temp._generate_dte_name()
+                nombre_generado = move_temp.with_context(_dte_auto_generated=True, allow_name_reset=True)._generate_dte_name()
 
                 if not nombre_generado:
                     raise UserError(_("No se pudo generar un número de control para el documento."))
@@ -123,6 +144,13 @@ class AccountMoveReversal(models.TransientModel):
                 _logger.info("SIT Nombre generado para NC: %s", nombre_generado)
             else:
                 _logger.info("SIT Usando nombre original: %s", move.name)
+                # Permitir que Odoo use la secuencia estándar del diario
+                if move.journal_id.sequence_id:
+                    default_vals['name'] = move.journal_id.sequence_id.next_by_id()
+                    _logger.info("SIT Secuencia estándar asignada: %s", default_vals['name'])
+                else:
+                    default_vals['name'] = '/'
+
 
             default_values_list.append(default_vals)
 
@@ -150,6 +178,7 @@ class AccountMoveReversal(models.TransientModel):
             }
 
         # Si no existe un movimiento, creamos los nuevos registros
+        _logger.info("SIT default_values_list antes de crear: %s", default_values_list)
         new_moves = self.env['account.move'].with_context(ctx).create(default_values_list)
         _logger.info("SIT nuevo account.move creado: %s ", new_moves)
 
@@ -206,7 +235,7 @@ class AccountMoveReversal(models.TransientModel):
                 'res_id': new_moves.id if len(new_moves) == 1 else False,
                 'domain': [('id', 'in', new_moves.ids)],
                 'context': {
-                    'default_move_type': new_moves.move_type if len(new_moves) == 1 else 'out_refund',
+                    'default_move_type': new_moves.move_type if len(new_moves) == 1 else move_type, # 'out_refund',
                 },
             }
         else:
@@ -220,8 +249,9 @@ class AccountMoveReversal(models.TransientModel):
         _logger.info("SIT refund_or_debit_custom iniciado para account.move.reversal con ID=%s", self.id)
 
         if not (self.company_id and self.company_id.sit_facturacion):
-            _logger.info("SIT: La empresa %s no aplica a facturación electrónica, saltando lógica personalizada de refund/debit.", self.company_id.name)
-            return super().refund_or_debit()
+            _logger.info("La empresa %s no usa facturación electrónica, se usará la lógica estándar de Odoo.", self.company_id.name)
+            # Simplemente devolvemos None para que el botón siga el flujo estándar
+            return
 
         doc_type = self.l10n_latam_document_type_id.code
         _logger.info("SIT Tipo de documento detectado: %s", doc_type)

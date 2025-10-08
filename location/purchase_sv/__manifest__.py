@@ -12,12 +12,15 @@
         "account",
         "l10n_sv",
         "l10n_sv_hacienda_contingencia",
+        "l10n_invoice_sv",
     ],
     "demo": [
     ],
     "data": [
         'views/purchase.xml',
         'views/account_move.xml',
+        'views/account_move_reversal.xml',
+        'views/account_move_line_view.xml',
     ],
     "installable": True,
     "auto_install": False,

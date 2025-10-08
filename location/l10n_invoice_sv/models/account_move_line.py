@@ -3,6 +3,14 @@ import logging
 from decimal import Decimal, ROUND_HALF_UP
 _logger = logging.getLogger(__name__)
 
+try:
+    from odoo.addons.common_utils.utils import config_utils
+    from odoo.addons.common_utils.utils import constants
+    _logger.info("SIT Modulo config_utils [hacienda ws-account_move]")
+except ImportError as e:
+    _logger.error(f"Error al importar 'config_utils': {e}")
+    config_utils = None
+
 class AccountMoveLine(models.Model):
     _inherit = 'account.move.line'
 
@@ -46,10 +54,14 @@ class AccountMoveLine(models.Model):
             vat_amount = 0.0
             if line.tax_ids:
                 # Solo considerar impuestos tipo IVA
+                _logger.info("Tax_ids: %s", line.tax_ids.mapped('name'))
                 for tax in line.tax_ids:
+                    _logger.info("Revisando impuesto: %s, tipo: %s, amount: %s, price_include_override: %s", tax.name, tax.amount_type, tax.amount, tax.price_include_override)
                     if 'IVA' in tax.name and tax.amount_type == 'percent':
                         vat_amount += (line.price_subtotal * tax.amount) / 100.0
             line.total_iva = vat_amount
+            _logger.info("Total IVA final para la línea: %s", line.total_iva)
+            _logger.info("=====================================")
 
     @api.depends('product_id', 'quantity', 'price_unit', 'discount', 'tax_ids', 'move_id.journal_id')
     def _compute_iva_unitario(self):
@@ -57,10 +69,14 @@ class AccountMoveLine(models.Model):
             vat_amount = 0.0
             if line.tax_ids:
                 # Solo considerar impuestos tipo IVA
+                _logger.info("Tax_ids: %s", line.tax_ids.mapped('name'))
                 for tax in line.tax_ids:
+                    _logger.info("Revisando impuesto: %s, tipo: %s, amount: %s", tax.name, tax.amount_type, tax.amount)
                     if 'IVA' in tax.name and tax.amount_type == 'percent':
                         vat_amount += ((line.price_subtotal * tax.amount) / 100.0) / line.quantity
             line.iva_unitario = vat_amount
+            _logger.info("IVA unitario final para la línea: %s", line.iva_unitario)
+            _logger.info("=====================================")
 
     @api.depends('move_id.journal_id.sit_tipo_documento.codigo')
     def _compute_codigo_tipo_documento(self):
@@ -97,25 +113,27 @@ class AccountMoveLine(models.Model):
             subtotal_linea_con_descuento = base_price_unit * cantidad * (1 - descuento / 100.0)
             precio_total = currency.round(subtotal_linea_con_descuento)
 
-            if line.journal_id.code == 'FCF':
-                if line.tax_ids.price_include_override == 'tax_excluded':
-                    line.precio_unitario = line.price_unit + (line.iva_unitario)
-                    _logger.info("line.precio_unitario  FCF con iva incluido %s", line.precio_unitario)
-                else:
-                    line.precio_unitario = line.price_unit
-            else:
-                line.precio_unitario = line.price_unit
-                _logger.info("line.precio_unitario sin incluir iva %s", line.precio_unitario)
-
-            # Asignar según tipo_venta
-            if tipo_venta == 'gravado':
+            if line.move_id.move_type in ('out_invoice', 'out_refund'):
                 if line.journal_id.code == 'FCF':
                     if line.tax_ids.price_include_override == 'tax_excluded':
-                        line.precio_gravado = precio_total + line.total_iva
+                        line.precio_unitario = line.price_unit + (line.iva_unitario)
+                        _logger.info("line.precio_unitario  FCF con iva incluido %s", line.precio_unitario)
+                    else:
+                        line.precio_unitario = line.price_unit
+                else:
+                    line.precio_unitario = line.price_unit
+                    _logger.info("line.precio_unitario sin incluir iva %s", line.precio_unitario)
+
+                # Asignar según tipo_venta
+                if tipo_venta == 'gravado':
+                    if line.journal_id.code == 'FCF':
+                        if line.tax_ids.price_include_override == 'tax_excluded':
+                            line.precio_gravado = precio_total + line.total_iva
+                        else:
+                            line.precio_gravado = precio_total
                     else:
                         line.precio_gravado = precio_total
-                else:
-                    line.precio_gravado = precio_total
+
             elif tipo_venta == 'exento':
                 line.precio_exento = precio_total
             elif tipo_venta == 'no_sujeto':
