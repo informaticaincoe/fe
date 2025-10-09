@@ -44,6 +44,7 @@
         'views/account_tax.xml',
         'views/retencion_recibida1_view.xml',
         'views/menu_retencion_recibida_1.xml',
+        'views/res_partner_configuracion_pagos_default.xml',
 
         'data/journal_data.xml',
         'data/mail_template_data.xml',
