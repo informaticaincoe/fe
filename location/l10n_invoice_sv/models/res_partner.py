@@ -11,7 +11,6 @@ class ResPartner(models.Model):
 
     gran_contribuyente = fields.Boolean(string="Gran Contribuyente", help="Marque esta opción si el cliente es un gran contribuyente.", default=False)
 
-
     condicion_pago_venta_id = fields.Selection(
         COND_PAGO,
         string="Condición de pago"
