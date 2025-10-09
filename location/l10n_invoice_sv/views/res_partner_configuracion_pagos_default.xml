@@ -1,0 +1,17 @@
+<odoo>
+    <data>
+        <record id="res_partner_form_after_pricelist_v2" model="ir.ui.view">
+            <field name="name">res.partner.form.after.pricelist.v2</field>
+            <field name="model">res.partner</field>
+            <field name="inherit_id" ref="product.view_partner_property_form"/>
+            <field name="arch" type="xml">
+                <xpath expr="//group[@name='sale']/field[@name='property_product_pricelist']" position="after">
+                    <field name="condicion_pago_venta_id"/>
+                    <field name="terminos_pago_venta_id"/>
+                    <field name="formas_pago_venta_id"/>
+                </xpath>
+            </field>
+        </record>
+
+    </data>
+</odoo>

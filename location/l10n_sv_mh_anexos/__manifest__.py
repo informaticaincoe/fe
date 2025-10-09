@@ -14,7 +14,7 @@
                 'account',
                 'phone_validation',
                 'l10n_latam_base',
-                'l10n_sv_haciendaws_fe',
+                'l10n_sv_haciendaws_fe'
                 ],
     'data': [
         "security/ir.model.access.csv",

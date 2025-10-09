@@ -16,7 +16,6 @@
                                    domain="[('move_type','=','out_invoice'),('codigo_tipo_documento','=','03')]"
                                    options="{'no_create': True, 'no_create_edit': True}"/>
 
-
                         </group>
                     </sheet>
                 </form>
