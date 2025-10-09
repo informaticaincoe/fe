@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <data>
+        <!-- Heredar la vista principal tipo list -->
+        <record id="view_move_form_inherit_percepcion" model="ir.ui.view">
+            <field name="name">account.move.form.inherit.percepcion</field>
+            <field name="model">account.move</field>
+            <field name="inherit_id" ref="account.view_move_form"/> <!-- Vista del formulario -->
+            <field name="arch" type="xml">
+                <xpath expr="//field[@name='invoice_line_ids']/list" position="inside">
+                    <field name="apply_percepcion"/>
+<!--                    <field name="percepcion_amount" widget="monetary" options="{'currency_field': 'currency_id'}"/>-->
+                </xpath>
+            </field>
+        </record>
+    </data>
+</odoo>

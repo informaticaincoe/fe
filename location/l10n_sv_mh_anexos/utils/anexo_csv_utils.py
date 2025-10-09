@@ -20,29 +20,30 @@ class AnexoCSVUtils(models.AbstractModel):
         mapping = {
             # --- claves propias ---
             "ANX_CF_AGRUPADO": [
-                'invoice_date',
-                'clase_documento',
-                'codigo_tipo_documento',
-                'name',
-                'hacienda_selloRecibido',
-                'numero_control_interno_del',
-                'numero_control_interno_al',
-                'numero_documento_del_al',
-                'numero_documento_del_al',
-                'numero_maquina_registradora',
-                'total_exento',
-                'ventas_exentas_no_sujetas',
-                'total_no_sujeto',
-                'total_gravado_local',
-                'exportaciones_dentro_centroamerica',
-                'exportaciones_fuera_centroamerica',
-                'exportaciones_de_servicio',
-                'ventas_tasa_cero',
-                'ventas_cuenta_terceros',
-                'total_operacion',
-                'tipo_operacion_codigo',
-                'tipo_ingreso_codigo',
-                'numero_anexo',
+                "invoice_date",
+                "clase_documento_display",
+                "codigo_tipo_documento_display",
+                "numero_resolucion_consumidor_final",
+                "hacienda_selloRecibido",
+                "numero_control_interno_del",
+                "numero_control_interno_al",
+                "numero_documento_del",
+                "numero_documento_al",
+                "numero_maquina_registradora",
+                "total_exento",
+                "ventas_exentas_no_sujetas",
+                "total_no_sujeto",
+                "total_gravado_local",
+                "exportaciones_dentro_centroamerica",
+                "exportaciones_fuera_centroamerica",
+                "exportaciones_de_servicio",
+                "ventas_tasa_cero",
+                "ventas_cuenta_terceros",
+                "monto_total_operacion",
+                "total_operacion",
+                "tipo_operacion_display",
+                "tipo_ingreso_display",
+                "numero_anexo",
             ],
             "ANX_CONTRIBUYENTE": [
                 'invoice_date',
@@ -122,49 +123,72 @@ class AnexoCSVUtils(models.AbstractModel):
 
     def generate_csv(self, records, numero_anexo=None, view_id=None, include_header=False):
         from lxml import etree
+        import logging
+        _logger = logging.getLogger(__name__)
 
         ctx = self.env.context
         csv_content = io.StringIO()
-        csv_fields = []
 
-        # PRIORIDAD 1: clave del contexto
+        # 1) Resolver lista "deseada" desde el mapping por clave
         key = ctx.get('anexo_action_id')
-        if key:
-            csv_fields = self._get_fields_by_action_key(key)
+        desired_fields = self._get_fields_by_action_key(key) or []
+        model_fields = set(records._fields.keys())
 
-        _logger.info("CSV → campos usados: %s", csv_fields)
-        _logger.info("key LIMPIEZA %s", key)
+        # 2) Filtrar a los que SÍ existen en el modelo para evitar SQL errors
+        existing_fields = [f for f in desired_fields if f in model_fields]
+        missing_fields = [f for f in desired_fields if f not in model_fields]
+        if missing_fields:
+            _logger.warning("CSV(%s): campos faltantes en el modelo %s → %s",
+                            key, records._name, missing_fields)
 
+        # 3) Cabecera (solo con los que existen)
+        header = existing_fields
         if include_header:
-            csv_content.write(";".join(csv_fields) + "\n")
+            csv_content.write(";".join(header) + "\n")
 
-        for rec in records:
-            row = []
-            for fname in csv_fields:
-                try:
-                    value = getattr(rec, fname, "")
-                except Exception:
-                    value = ""
+        # 4) Leer en bloque (una sola query)
+        rows_data = records.read(existing_fields)
 
-                clean = "" if value is None else str(value)
+        # 5) Renderizar filas
+        for row_vals in rows_data:
+            row_out = []
+            for fname in existing_fields:
+                val = row_vals.get(fname, "")
 
-                if fname == "invoice_date" and getattr(rec, "invoice_date", False):
-                    clean = rec.invoice_date.strftime("%d/%m/%Y")
+                # --- Formatos / Limpiezas ---
+                if fname == "invoice_date" and val:
+                    # viene como 'YYYY-MM-DD' (date), formatear DD/MM/AAAA
+                    try:
+                        clean = fields.Date.to_date(val).strftime("%d/%m/%Y")
+                    except Exception:
+                        clean = str(val)
+                else:
+                    clean = "" if val is None else str(val)
 
-                if fname in ("hacienda_codigoGeneracion_identificacion",
-                             "hacienda_selloRecibido", "name",
-                             "dui_cliente", "nit_o_nrc_anexo_contribuyentes"):
+                if fname in (
+                        "hacienda_codigoGeneracion_identificacion",
+                        "hacienda_selloRecibido", "name",
+                        "dui_cliente", "nit_o_nrc_anexo_contribuyentes",
+                ):
                     clean = clean.replace("-", "")
 
-                # Solo estos 2 → "0" si vienen vacíos
+                # “0” por defecto para estos códigos si están vacíos
                 if fname in ("tipo_operacion_codigo", "tipo_ingreso_codigo") and not clean:
                     clean = "0"
 
-                if fname in ("invoice_date") and key in ("ANX_CLIENTES_MENORES", "ANX_CLIENTES_MAYORES"):
-                    clean = rec.invoice_date.strftime("%d%m%Y")
+                # Formato compacto ddmmaa para ciertos anexos menores/mayores
+                if fname == "invoice_date" and key in ("ANX_CLIENTES_MENORES", "ANX_CLIENTES_MAYORES"):
+                    try:
+                        clean = fields.Date.to_date(val).strftime("%d%m%Y")
+                    except Exception:
+                        pass
+
+                # Sanitizar comillas/saltos
                 clean = clean.replace('"', '').replace("'", '').replace("\n", " ").replace("\r", " ")
-                row.append(clean)
-            csv_content.write(";".join(row) + "\n")
+
+                row_out.append(clean)
+
+            csv_content.write(";".join(row_out) + "\n")
 
         return csv_content.getvalue().encode("utf-8-sig")
 

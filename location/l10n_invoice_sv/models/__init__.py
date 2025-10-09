@@ -8,3 +8,4 @@ from . import account_tax
 from . import account_move_line
 from . import sale_order
 from . import res_partner
+from . import sv_dte_retencion_recibida_1
