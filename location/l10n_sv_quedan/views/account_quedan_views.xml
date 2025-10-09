@@ -1,0 +1,94 @@
+<odoo>
+    <!-- Vista lista -->
+    <record id="view_account_quedan_tree" model="ir.ui.view">
+        <field name="name">account.quedan.tree</field>
+        <field name="model">account.quedan</field>
+        <field name="arch" type="xml">
+            <list string="Quedanes">
+                <field name="name"/>
+                <field name="partner_id"/>
+                <field name="fecha_programada"/>
+                <field name="monto_total"/>
+                <field name="state"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Vista formulario -->
+    <record id="view_account_quedan_form" model="ir.ui.view">
+        <field name="name">account.quedan.form</field>
+        <field name="model">account.quedan</field>
+        <field name="arch" type="xml">
+            <form string="Quedán de Proveedor">
+                <header>
+                    <button name="download_quedan"
+                            string="Descargar documento"
+                            type="object"
+                            class="btn-primary"/>
+                    <!-- Botón Confirmar -->
+                    <button name="action_confirm"
+                            string="Confirmar"
+                            type="object"
+                            class="btn-primary"
+                            invisible="state != 'draft'"/>
+
+                    <!-- Botón Marcar como Pagado -->
+                    <button name="action_paid"
+                            string="Marcar como Pagado"
+                            type="object"
+                            class="btn-success"
+                            invisible="state != 'confirmed'"/>
+
+                    <!-- Botón Volver a Borrador -->
+                    <button name="action_reset"
+                            string="Volver a borrador"
+                            type="object"
+                            class="btn-secondary"
+                            invisible="not state in ('confirmed', 'paid')"/>
+<!--                            invisible="not state in ('confirmed', 'paid')"-->
+
+
+                    <!-- Barra de estado -->
+                    <field name="state" widget="statusbar" statusbar_visible="draft,confirmed,paid"/>
+                </header>
+
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name" readonly="1"/>
+                            <field name="partner_id"/>
+                            <field name="fecha_programada"/>
+                            <field name="currency_id" invisible="1"/>
+                        </group>
+                        <group>
+                            <field name="monto_total" readonly="1"/>
+                            <field name="observaciones"/>
+                        </group>
+                    </group>
+
+                    <notebook>
+                        <page string="Facturas">
+                            <field name="factura_ids" widget="many2many_tags"/>
+                        </page>
+                        <page string="Pagos relacionados">
+                            <field name="payment_ids" readonly="1"/>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Acción y menú -->
+    <record id="action_account_quedan" model="ir.actions.act_window">
+        <field name="name">Quedanes</field>
+        <field name="res_model">account.quedan</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <menuitem id="menu_account_quedan_root"
+              name="Quedanes"
+              parent="account.menu_finance_payables"
+              action="action_account_quedan"
+              sequence="30"/>
+</odoo>
