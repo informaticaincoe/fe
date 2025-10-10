@@ -6,10 +6,12 @@
     'category': 'Accounting',
     'depends': ['account'],
     'data': [
-    'security/ir.model.access.csv',
-    'data/account_quedan_sequence.xml',
-    'views/account_quedan_views.xml',
-],
+        'security/ir.model.access.csv',
+        'report/report_quedan_documento.xml',
+        'data/account_quedan_sequence.xml',
+        'views/account_quedan_views.xml',
+
+    ],
 
     'installable': True,
     'application': False,

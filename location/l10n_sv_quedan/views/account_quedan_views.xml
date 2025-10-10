@@ -21,22 +21,25 @@
         <field name="arch" type="xml">
             <form string="Quedán de Proveedor">
                 <header>
-                    <button name="download_quedan"
-                            string="Descargar documento"
-                            type="object"
-                            class="btn-primary"/>
+                    <!-- Botón Descargar -->
+<!--                    <button name="download_quedan"-->
+<!--                            icon="fa-download"-->
+<!--                            string="Descargar documento"-->
+<!--                            type="object"-->
+<!--                            class="btn-primary"/>-->
+
                     <!-- Botón Confirmar -->
                     <button name="action_confirm"
                             string="Confirmar"
                             type="object"
-                            class="btn-primary"
+                            class="btn-success"
                             invisible="state != 'draft'"/>
 
                     <!-- Botón Marcar como Pagado -->
                     <button name="action_paid"
                             string="Marcar como Pagado"
                             type="object"
-                            class="btn-success"
+                            class="btn-primary"
                             invisible="state != 'confirmed'"/>
 
                     <!-- Botón Volver a Borrador -->
@@ -44,9 +47,7 @@
                             string="Volver a borrador"
                             type="object"
                             class="btn-secondary"
-                            invisible="not state in ('confirmed', 'paid')"/>
-<!--                            invisible="not state in ('confirmed', 'paid')"-->
-
+                            invisible="state not in ('confirmed','paid')"/>
 
                     <!-- Barra de estado -->
                     <field name="state" widget="statusbar" statusbar_visible="draft,confirmed,paid"/>
@@ -55,7 +56,7 @@
                 <sheet>
                     <group>
                         <group>
-                            <field name="name" readonly="1"/>
+                            <field name="name"/>
                             <field name="partner_id"/>
                             <field name="fecha_programada"/>
                             <field name="currency_id" invisible="1"/>
@@ -68,11 +69,17 @@
 
                     <notebook>
                         <page string="Facturas">
-                            <field name="factura_ids" widget="many2many_tags"/>
+                            <field name="factura_ids" readonly="state != 'draft'">
+                                <list>
+                                    <field name="name" string="Número"/>
+                                    <field name="invoice_date" string="Fecha"/>
+                                    <field name="partner_id" string="Proveedor"/>
+                                    <field name="amount_total_in_currency_signed" string="Total"/>
+                                    <field name="payment_state" string="Estado de Pago"/>
+                                </list>
+                            </field>
                         </page>
-                        <page string="Pagos relacionados">
-                            <field name="payment_ids" readonly="1"/>
-                        </page>
+
                     </notebook>
                 </sheet>
             </form>

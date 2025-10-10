@@ -1,5 +1,7 @@
 <odoo>
     <data>
+
+        <!-- CAMPOS DE VENTA -->
         <record id="res_partner_form_after_pricelist_v2" model="ir.ui.view">
             <field name="name">res.partner.form.after.pricelist.v2</field>
             <field name="model">res.partner</field>
@@ -13,5 +15,18 @@
             </field>
         </record>
 
+        <!-- CAMPOS DE COMPRA (debajo del recordatorio de entrega) -->
+        <record id="res_partner_form_after_receipt_reminder" model="ir.ui.view">
+            <field name="name">res.partner.form.after.receipt.reminder</field>
+            <field name="model">res.partner</field>
+            <field name="inherit_id" ref="purchase.view_partner_property_form"/>
+            <field name="arch" type="xml">
+                <xpath expr="//group[@name='purchase']//div[@name='receipt_reminder']" position="after">
+                    <field name="condicion_pago_compras_id"/>
+                    <field name="terminos_pago_compras_id"/>
+                    <field name="formas_pago_compras_id"/>
+                </xpath>
+            </field>
+        </record>
     </data>
 </odoo>

@@ -1,43 +1,48 @@
 <odoo>
-  <report
-    id="report_quedan_documento"
-    model="account.batch.payment"
-    string="Quedán"
-    report_type="qweb-pdf"
-    name="tu_modulo.report_quedan_documento_template"
-    file="tu_modulo.report_quedan_documento_template"
-  />
+    <report
+        id="report_quedan_documento"
+        model="account.quedan"
+        string="Quedán"
+        report_type="qweb-pdf"
+        name="l10n_sv_quedan.report_quedan_documento_template"
+        file="l10n_sv_quedan.report_quedan_documento"
+    />
 
-  <template id="report_quedan_documento_template">
-    <t t-call="web.html_container">
-      <t t-foreach="docs" t-as="doc">
-        <div class="page">
-          <h2 style="text-align:center;">Quedán de Pago</h2>
-          <p><strong>Proveedor:</strong> <t t-esc="doc.partner_id.name"/></p>
-          <p><strong>Fecha programada:</strong> <t t-esc="doc.fecha_programada"/></p>
-          <p><strong>Observaciones:</strong> <t t-esc="doc.observaciones_quedan"/></p>
-          <br/>
-          <h4>Facturas incluidas</h4>
-          <table class="table table-sm table-bordered">
-            <thead>
-              <tr>
-                <th>Número</th>
-                <th>Fecha</th>
-                <th>Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              <t t-foreach="doc.payment_ids.mapped('move_id')" t-as="invoice">
-                <tr>
-                  <td><t t-esc="invoice.name"/></td>
-                  <td><t t-esc="invoice.invoice_date"/></td>
-                  <td class="text-end"><t t-esc="invoice.amount_total"/></td>
-                </tr>
-              </t>
-            </tbody>
-          </table>
-        </div>
-      </t>
-    </t>
-  </template>
+    <template id="report_quedan_documento_template">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="doc">
+                <div class="page">
+                    <h2 style="text-align:center;">Quedán de Pago</h2>
+                    <p><strong>Número:</strong> <t t-esc="doc.name"/></p>
+                    <p><strong>Proveedor:</strong> <t t-esc="doc.partner_id.name"/></p>
+                    <p><strong>Fecha programada:</strong> <t t-esc="doc.fecha_programada"/></p>
+                    <p><strong>Observaciones:</strong> <t t-esc="doc.observaciones"/></p>
+                    <br/>
+                    <h4>Facturas incluidas</h4>
+                    <table class="table table-sm table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Número</th>
+                                <th>Fecha</th>
+                                <th>Total</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <t t-foreach="doc.factura_ids" t-as="invoice">
+                                <tr>
+                                    <td><t t-esc="invoice.name"/></td>
+                                    <td><t t-esc="invoice.invoice_date"/></td>
+                                    <td class="text-end"><t t-esc="invoice.amount_total"/></td>
+                                    <td><t t-esc="invoice.payment_state"/></td>
+                                </tr>
+                            </t>
+                        </tbody>
+                    </table>
+                    <br/>
+                    <p><strong>Monto total:</strong> <t t-esc="doc.monto_total"/></p>
+                </div>
+            </t>
+        </t>
+    </template>
 </odoo>
