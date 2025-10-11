@@ -1,0 +1,2 @@
+id,name,model_id:id,group_id:id,perm_read,perm_create,perm_write,perm_unlink
+access_exp_duca_user,access.exp.duca,model_exp_duca,base.group_user,1,1,1,1

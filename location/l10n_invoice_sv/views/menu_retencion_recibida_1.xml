@@ -4,7 +4,7 @@
             <field name="name">Comprobante de retencion 1%</field>
             <field name="res_model">sv.dte.retencion.recibida1</field>
             <field name="view_mode">list,form</field>
-<!--            <field name="view_id" ref="view_retencion_recibida1" />-->
+            <field name="view_id" ref="view_retencion_recibida1_list" />
             <field name="context">{}</field>
         </record>
 
