@@ -9,7 +9,8 @@
                 <xpath expr="//field[@name='invoice_vendor_bill_id']" position="after">
                     <group invisible="journal_code == 'SLR'">
                         <field name="sit_referencia" invisible="journal_code == 'SLR'"/>
-                        <field name="sit_observaciones" invisible="0"/>
+                        <field name="sit_observaciones" invisible="move_type == 'in_invoice' and not codigo_tipo_documento"/>
+                        <field name="sit_observaciones" string="Descripción" invisible="move_type != 'in_invoice' or codigo_tipo_documento"/>
                         <field name="sit_regimen" string="Régimen de Exportación" invisible="journal_code != 'EXP'"/>
                     </group>
                 </xpath>
