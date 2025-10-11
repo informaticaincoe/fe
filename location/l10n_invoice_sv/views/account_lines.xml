@@ -4,12 +4,11 @@
         <field name="model">account.move</field>
         <field name="inherit_id" ref="account.view_move_form"/>
         <field name="arch" type="xml">
-            <xpath expr="//field[@name='invoice_line_ids']/list" position="inside">
+            <xpath expr="//field[@name='invoice_line_ids']/list" position="inside" invisible="codigo_tipo_documento == '11' or not codigo_tipo_documento">
                 <field name="codigo_tipo_documento" invisible="1"/>
-
-                <field name="precio_no_sujeto" invisible="codigo_tipo_documento == '11'"/>
-                <field name="precio_exento" invisible="codigo_tipo_documento == '11'"/>
-                <field name="precio_gravado"/>
+                <field name="precio_no_sujeto" invisible="codigo_tipo_documento == '11' or not codigo_tipo_documento"/>
+                <field name="precio_exento" invisible="codigo_tipo_documento == '11' or not codigo_tipo_documento"/>
+                <field name="precio_gravado" invisible="not codigo_tipo_documento"/>
             </xpath>
         </field>
     </record>
