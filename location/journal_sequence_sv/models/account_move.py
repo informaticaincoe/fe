@@ -6,6 +6,13 @@ from odoo.exceptions import RedirectWarning, UserError, ValidationError, AccessE
 import logging
 _logger = logging.getLogger(__name__)
 
+try:
+    from odoo.addons.common_utils.utils import constants
+    _logger.info("SIT Modulo constants [journal_sequence account_move]")
+except ImportError as e:
+    _logger.error(f"Error al importar 'constants': {e}")
+    constants = None
+
 class AccountMove(models.Model):
     _inherit = "account.move"
 
@@ -15,7 +22,10 @@ class AccountMove(models.Model):
     def _get_sequence(self):
         """Resuelve la secuencia a usar respetando el core si FE está OFF."""
         self.ensure_one()
-        if not self.env.company.sit_facturacion:
+        if (not self.env.company.sit_facturacion
+                or (self.move_type in (constants.IN_INVOICE, constants.IN_REFUND)
+                    and (not self.journal_id.sit_tipo_documento or self.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE))
+        ):
             return super()._get_sequence()
 
         journal = self.journal_id
@@ -32,7 +42,9 @@ class AccountMove(models.Model):
     def _get_standard_sequence(self):
         """Devuelve la secuencia estándar (no-DTE) para el diario."""
         self.ensure_one()
-        if not self.env.company.sit_facturacion:
+        if (not self.env.company.sit_facturacion
+                or (self.move_type in (constants.IN_INVOICE, constants.IN_REFUND)
+                    and (not self.journal_id.sit_tipo_documento or self.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)) ):
             # respetar core; si no existe en tu versión, puedes retornar self.journal_id.sequence_id
             try:
                 return super()._get_standard_sequence()
@@ -47,7 +59,10 @@ class AccountMove(models.Model):
 
     def _post(self, soft=True):
 
-        if not self.env.company.sit_facturacion:
+        if (not self.env.company.sit_facturacion
+                or (self.move_type in (constants.IN_INVOICE, constants.IN_REFUND)
+                    and (
+                            not self.journal_id.sit_tipo_documento or self.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE))):
             return super()._post(soft=soft)
 
         # 1) Solo asigno la secuencia estándar para diarios NO sale
@@ -92,13 +107,19 @@ class AccountMove(models.Model):
         except AttributeError:
             _logger.warning("SIT-ONCHANGE: super().onchange_journal_id no existe en esta versión")
 
-        if self.name != '/' and self.env.company.sit_facturacion:
+        if self.name != '/' and self.env.company.sit_facturacion and (
+                self.move_type not in (constants.IN_INVOICE, constants.IN_REFUND) or
+                (self.move_type == constants.IN_INVOICE and self.journal_id.sit_tipo_documento and self.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FSE)
+        ):
             raise UserError(_(
                 "No puede cambiar el diario porque este documento ya tiene un número asignado: %s."
             ) % self.name)
 
         # Si quieres forzar reset del nombre cuando FE ON:
-        if self.env.company.sit_facturacion and self.name == '/':
+        if self.env.company.sit_facturacion and self.name == '/' and (
+                self.move_type not in (constants.IN_INVOICE, constants.IN_REFUND) or
+                (self.move_type == constants.IN_INVOICE and self.journal_id.sit_tipo_documento and self.journal_id.sit_tipo_documento.codigo == constantsCOD_DTE_FSE)
+        ):
             _logger.info("SIT-ONCHANGE: FE activado, reseteando name a '/' (antes name=%s)", self.name)
             # self.name = '/'
             try:
@@ -119,9 +140,9 @@ class AccountMove(models.Model):
 
     def write(self, vals):
         # Verificamos si son facturas de compra (in_invoice o in_refund). Si lo son, no ejecutamos la lógica personalizada.
-        if all(inv.move_type in ('in_invoice', 'in_refund') for inv in self):
-            _logger.info(
-                "SIT-journal_sequence_sv: Factura de compra detectada, se salta la lógica personalizada para 'name'.")
+        if all(inv.move_type in (constants.IN_INVOICE, constants.IN_REFUND)
+               and (not inv.journal_id.sit_tipo_documento or inv.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE) for inv in self):
+            _logger.info("SIT-journal_sequence_sv: Factura de compra detectada, se salta la lógica personalizada para 'name'.")
 
             # Verificamos si ya se ha procesado un reembolso antes de ejecutar cualquier lógica adicional
             if 'is_refund_processed' in vals and vals['is_refund_processed']:

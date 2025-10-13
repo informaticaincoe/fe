@@ -8,23 +8,42 @@
             <field name="inherit_id" ref="account.view_move_form"/>
             <field name="arch" type="xml">
                 <xpath expr="//field[@name='partner_shipping_id']" position="after">
-                    <field name="document_number"/>
+                    <div class="mt-2 mb-2">
+                        <label for="document_number"/>
+                        <field name="document_number"/>
+                    </div>
                 </xpath>
                 <xpath expr="//field[@name='partner_id']" position="after">
-                    <label for="sit_tipo_documento_id" invisible="codigo_tipo_documento"/>
-                    <field name="sit_tipo_documento_id" readonly="False" invisible="codigo_tipo_documento"/>
+                    <div class="mt-2 mb-2">
+                        <label for="sit_tipo_documento_id" invisible="codigo_tipo_documento"/>
+                        <field name="sit_tipo_documento_id"
+                               readonly="False"
+                               invisible="codigo_tipo_documento"/>
+                    </div>
                 </xpath>
             </field>
         </record>
 
         <!-- Hacer editable el campo name -->
-        <record id="view_move_form_edit_name" model="ir.ui.view">
-            <field name="name">account.move.form.edit.name</field>
+<!--        <record id="view_move_form_edit_name" model="ir.ui.view">-->
+<!--            <field name="name">account.move.form.edit.name</field>-->
+<!--            <field name="model">account.move</field>-->
+<!--            <field name="inherit_id" ref="account.view_move_form"/>-->
+<!--            <field name="arch" type="xml">-->
+<!--                <xpath expr="//field[@name='name']" position="attributes">-->
+<!--                    <attribute name="readonly">0</attribute>-->
+<!--                </xpath>-->
+<!--            </field>-->
+<!--        </record>-->
+        <record id="sit_account_move_header_name_readonly" model="ir.ui.view">
+            <field name="name">sit_account_move_header_name_readonly</field>
             <field name="model">account.move</field>
             <field name="inherit_id" ref="account.view_move_form"/>
             <field name="arch" type="xml">
                 <xpath expr="//field[@name='name']" position="attributes">
-                    <attribute name="readonly">0</attribute>
+                    <attribute name="readonly">
+                        (move_type != 'in_invoice' and move_type != 'in_refund') or codigo_tipo_documento == '14'
+                    </attribute>
                 </xpath>
             </field>
         </record>
@@ -60,10 +79,11 @@
             <field name="model">account.move</field>
             <field name="inherit_id" ref="account.view_move_form"/>
             <field name="arch" type="xml">
-                <xpath expr="//field[@name='invoice_date']" position="after">
-                    <group string="Fechas Adicionales" invisible="codigo_tipo_documento">
-                        <field name="fecha_aplicacion" invisible="codigo_tipo_documento"/>
-                        <field name="fecha_iva" invisible="codigo_tipo_documento"/>
+                <!-- Insertar un subgrupo de fechas justo después de invoice_date -->
+                <xpath expr="//field[@name='invoice_date']/.." position="inside">
+                    <group col="2" colspan="2" invisible="codigo_tipo_documento">
+                        <field name="fecha_aplicacion" string="Fecha Aplicación"/>
+                        <field name="fecha_iva" string="Fecha IVA"/>
                     </group>
                 </xpath>
             </field>
@@ -76,11 +96,13 @@
             <field name="inherit_id" ref="account.view_move_form"/>
             <field name="arch" type="xml">
                 <xpath expr="//field[@name='partner_id']" position="after">
-                    <label for="clase_documento_id" invisible="move_type != 'in_invoice' or codigo_tipo_documento == '14'"/>
-                    <field name="clase_documento_id"
-                           readonly="0"
-                           options='{"no_open": true, "no_create": true}'
-                           invisible="move_type != 'in_invoice' or codigo_tipo_documento == '14'"/>
+                    <div class="mt-2 mb-2">
+                        <label for="clase_documento_id" invisible="move_type not in ('in_invoice', 'in_refund') or codigo_tipo_documento == '14'"/>
+                        <field name="clase_documento_id"
+                               readonly="0"
+                               options='{"no_open": true, "no_create": true}'
+                               invisible="move_type not in ('in_invoice', 'in_refund') or codigo_tipo_documento == '14'"/>
+                    </div>
                 </xpath>
             </field>
         </record>

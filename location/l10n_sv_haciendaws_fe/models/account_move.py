@@ -2321,8 +2321,8 @@ class AccountMove(models.Model):
                     'sticky': False,
                 },
             }
-        elif ambiente_test and self.hacienda_estado and self.hacienda_estado.lower() == 'procesado':
-            _logger.info("SIT El documento electrónico ha sido procesado correctamente %s", self.name)
+        elif ambiente_test and self.hacienda_estado and self.hacienda_estado.lower() == 'procesado' and self.state != 'draft':
+            _logger.info("SIT El documento electrónico ha sido procesado correctamente %s, estado: %s", self.name, self._origin.state)
             return {
                 'type': 'ir.actions.client',
                 'tag': 'display_notification',
