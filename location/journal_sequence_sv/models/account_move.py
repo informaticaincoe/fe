@@ -118,7 +118,20 @@ class AccountMove(models.Model):
         return
 
     def write(self, vals):
+        # Verificamos si son facturas de compra (in_invoice o in_refund). Si lo son, no ejecutamos la lógica personalizada.
+        if all(inv.move_type in ('in_invoice', 'in_refund') for inv in self):
+            _logger.info(
+                "SIT-journal_sequence_sv: Factura de compra detectada, se salta la lógica personalizada para 'name'.")
+
+            # Verificamos si ya se ha procesado un reembolso antes de ejecutar cualquier lógica adicional
+            if 'is_refund_processed' in vals and vals['is_refund_processed']:
+                _logger.info("SIT-journal_sequence_sv: Reembolso ya procesado, evitando cambios adicionales.")
+                return super().write(vals)
+
+            return super().write(vals)
+
         _logger.info("SIT-Write(journal_sequence_sv): Asigna / en name si es false: %s", vals)
+
         # para evitar que pongan name = False
         if 'name' in vals and vals['name'] is False:
             _logger.info("SIT-Write(journal_sequence_sv): Name sin modificacion: %s", vals['name'])

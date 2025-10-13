@@ -75,9 +75,9 @@ class AccountDebitNote(models.TransientModel):
             tipo_documento_compra = None
 
             if move.move_type == 'out_invoice': # Credito fiscal en el modulo de ventas
-                move_type = 'out_invoice' # Nota de debito
+                move_type = 'out_invoice' # Nota de debito (out_debit)
             elif move.move_type == 'in_invoice': # Credito fiscal en el modulo de compras
-                move_type = 'in_invoice' # Nota de debito
+                move_type = 'in_invoice' # Nota de debito (in_debit) #in_invoice
                 tipo_documento_compra = self.env['account.journal.tipo_documento.field'].search([
                     ('codigo', '=', constants.COD_DTE_ND)
                 ], limit=1)
@@ -166,7 +166,9 @@ class AccountDebitNote(models.TransientModel):
 
             # Generar nombre anticipado
             nombre_generado = None
-            if (not move.name or move.name == '/') and move.codigo_tipo_documento:
+            name = default_vals.get('name', None)
+            _logger.info("SIT Move name: %s, Nuevio name: %s", move.name, name)
+            if (not name or name == '/') and move.codigo_tipo_documento:
                 temp_move_final = self.env['account.move'].new(default_vals)
                 temp_move_final.journal_id = self.journal_id
                 nombre_generado = temp_move_final.with_context(_dte_auto_generated=True)._generate_dte_name()

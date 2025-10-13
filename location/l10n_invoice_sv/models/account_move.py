@@ -129,6 +129,12 @@ class AccountMove(models.Model):
     @api.depends('invoice_line_ids')
     def _compute_show_global_discount(self):
         for move in self:
+            # Validación para excluir compras
+            if move.move_type in ('in_invoice', 'in_refund'):
+                _logger.info("Compra detectada -> move_type: %s, no se calcula descuento global", move.move_type)
+                move.show_global_discount = False
+                return  # No realizar el cálculo del descuento global para compras
+
             # Contar solo líneas con producto
             num_productos = sum(1 for line in move.invoice_line_ids if line.product_id)
             _logger.info("SIT | move %s tiene %d líneas con producto", move.name, num_productos)
@@ -160,6 +166,14 @@ class AccountMove(models.Model):
     @api.depends('apply_retencion_renta', 'apply_retencion_iva', 'amount_total')
     def _compute_retencion(self):
         for move in self:
+            # Si es una compra, no se realiza el cálculo de retenciones
+            if move.move_type in ('in_invoice', 'in_refund'):
+                _logger.info("Compra detectada -> move_type: %s, no se realiza cálculo de retenciones", move.move_type)
+                move.retencion_renta_amount = 0.0
+                move.retencion_iva_amount = 0.0
+                move.iva_percibido_amount = 0.0
+                continue  # No realizamos cálculos para compras, pasamos a la siguiente factura
+
             base_total = move.sub_total_ventas - move.descuento_global
             move.retencion_renta_amount = 0.0
             move.retencion_iva_amount = 0.0
@@ -640,6 +654,16 @@ class AccountMove(models.Model):
 
     def _calcular_totales_sv(self):
         for move in self:
+            # Si es una compra, no hacemos cálculos adicionales
+            if move.move_type in ('in_invoice', 'in_refund'):
+                _logger.info("Compra detectada -> move_type: %s, no se realiza cálculo de totales", move.move_type)
+                # Puedes asignar valores predeterminados si es necesario
+                move.total_gravado = 0.0
+                move.total_exento = 0.0
+                move.total_no_sujeto = 0.0
+                move.sub_total_ventas = 0.0
+                continue  # No realizamos cálculos para compras, pasamos a la siguiente factura
+
             gravado = exento = no_sujeto = compra = 0.0
             for line in move.invoice_line_ids:
                 tipo = line.product_id.tipo_venta
@@ -690,6 +714,14 @@ class AccountMove(models.Model):
                  'invoice_line_ids.product_id.tipo_venta')
     def _compute_descuentos(self):
         for move in self:
+            # Validación para excluir compras
+            if move.move_type in ('in_invoice', 'in_refund'):
+                _logger.info("Compra detectada -> move_type: %s, no se realiza cálculo de descuentos", move.move_type)
+                move.descuento_gravado = 0.0
+                move.descuento_exento = 0.0
+                move.descuento_no_sujeto = 0.0
+                continue  # No realizar cálculos de descuentos para compras, pasar al siguiente movimiento
+
             gravado = exento = no_sujeto = 0.0
 
             _logger.info(f"Total gravados: {move.total_gravado}, exentos: {move.total_exento}, no sujetos: {move.total_no_sujeto}")
@@ -703,6 +735,15 @@ class AccountMove(models.Model):
                  'apply_iva_percibido', 'seguro', 'flete')
     def _compute_total_con_descuento(self):
         for move in self:
+            # Validación para excluir compras
+            if move.move_type in ('in_invoice', 'in_refund'):
+                _logger.info("Compra detectada -> move_type: %s, no se realiza cálculo de totales con descuento", move.move_type)
+                move.amount_total_con_descuento = 0.0
+                move.sub_total = 0.0
+                move.total_operacion = 0.0
+                move.total_pagar = 0.0
+                continue  # No realizar cálculos para compras, pasar al siguiente movimiento
+
             # 1. Obtener montos
             subtotal_base = move.sub_total_ventas
             descuento_global = move.descuento_global
@@ -1036,11 +1077,17 @@ class AccountMove(models.Model):
         import logging, traceback
         _logger = logging.getLogger(__name__)
 
+        # Primero, verificamos si es una factura de compra. Si lo es, no ejecutamos la lógica personalizada.
+        if all(inv.move_type in ('in_invoice', 'in_refund') for inv in self):
+            # Si todos los registros son de compra, no ejecutamos el código personalizado.
+            _logger.info("SIT-invoice_sv: Factura de compra detectada, se salta la lógica personalizada.")
+            return super().write(vals)
+
         # Log previo al write
         _logger.info("[WRITE-ORDER(invoice_sv)] Entró primero: invoice_sv")
-        _logger.warning("Account_move_invocie_sv [WRITE-PRE] move_ids=%s, vals=%s", self.ids, vals)
+        _logger.warning("Account_move_invoice_sv [WRITE-PRE] move_ids=%s, vals=%s", self.ids, vals)
         tb_str = ''.join(traceback.format_stack())
-        _logger.debug("Account_moveinvoice_sv [WRITE-PRE-STACK] Stack:\n%s", tb_str)
+        _logger.debug("Account_move_invoice_sv [WRITE-PRE-STACK] Stack:\n%s", tb_str)
 
         # Ejecutar write original
         res = super().write(vals)
@@ -1056,35 +1103,67 @@ class AccountMove(models.Model):
 
         return res
 
-    def create(self, vals):
-        _logger.info("SIT: Datos antes de la creación: %s", vals)
+    def create(self, vals_list_invoice):
+        # Crear una lista para almacenar los movimientos creados
+        moves = []
 
-        # Llamar al método de creación del movimiento
-        move = super().create(vals)
+        for vals in vals_list_invoice:
+            # Obtener el tipo de movimiento
+            move_type = vals.get('move_type')
+            journal_id = vals.get('journal_id')
+            journal = self.env["account.journal"].browse(journal_id) if journal_id else None
 
-        # Log después de la creación para verificar el nombre
-        _logger.info("SIT: Movimiento creado con ID=%s y nombre: %s", move.id, move.name)
+            # Verificar si es una compra o un sujeto excluido
+            if move_type in ['in_invoice', 'in_refund']:
+                if not (journal and getattr(journal, "sit_tipo_documento", False)):
+                    _logger.info(
+                        "SIT-invoice_sv | Documento de compra detectado (tipo=%s, diario=%s) sin tipo DTE, se omite lógica DTE.",
+                        move_type, journal and journal.name)
 
-        # Actualizar apply_retencion_iva según gran_contribuyente del partner
-        if move.partner_id:
-            if move.partner_id.gran_contribuyente:
-                move.apply_retencion_iva = True
-                _logger.info(
-                    "SIT: apply_retencion_iva activado (cliente gran contribuyente) para move ID=%s", move.id
-                )
-            else:
-                move.apply_retencion_iva = False
-                _logger.info(
-                    "SIT: apply_retencion_iva desactivado (cliente NO gran contribuyente) para move ID=%s", move.id
-                )
+                    # Validar si el campo 'name' está presente en vals y si está vacío
+                    if 'name' not in vals or not vals['name']:
+                        _logger.warning(
+                            "[WRITE-VALIDATION] El campo 'name' está vacío o no existe. Asignando valor por defecto.")
+                        vals['name'] = '/'  # Asignar un valor por defecto
 
-        # Agregar líneas de seguro/flete
-        move.agregar_lineas_seguro_flete()
+                    moves.append(super(AccountMove, self).create([vals]))  # Se usa vals como lista
+                    continue
 
-        # Log final para verificar si el nombre cambió después de agregar líneas
-        _logger.info("SIT: Después de agregar líneas de seguro/flete, nombre: %s", move.name)
+                # Para las compras normales, se omite la lógica de DTE personalizada
+                _logger.info("SIT: Documento de compra normal detectado (tipo=%s). Se omite lógica personalizada.", move_type)
+                moves.append(super().create([vals]))  # Se usa vals como lista
+                continue
 
-        return move
+            _logger.info("SIT: Datos antes de la creación: %s", vals_list_invoice)
+            # Llamar al método de creación del movimiento
+            move = super().create([vals])  # Se usa vals como lista
+
+            # Log después de la creación para verificar el nombre
+            _logger.info("SIT: Movimiento creado con ID=%s y nombre: %s", move.id, move.name)
+
+            # Actualizar apply_retencion_iva según gran_contribuyente del partner
+            if move.partner_id:
+                if move.partner_id.gran_contribuyente:
+                    move.apply_retencion_iva = True
+                    _logger.info(
+                        "SIT: apply_retencion_iva activado (cliente gran contribuyente) para move ID=%s", move.id
+                    )
+                else:
+                    move.apply_retencion_iva = False
+                    _logger.info(
+                        "SIT: apply_retencion_iva desactivado (cliente NO gran contribuyente) para move ID=%s", move.id
+                    )
+
+            # Agregar líneas de seguro/flete
+            move.agregar_lineas_seguro_flete()
+
+            # Log final para verificar si el nombre cambió después de agregar líneas
+            _logger.info("SIT: Después de agregar líneas de seguro/flete, nombre: %s", move.name)
+
+            # Agregar el movimiento creado a la lista
+            moves.append(move)
+
+        return moves
 
 class AccountMoveSend(models.AbstractModel):
     _inherit = 'account.move.send'
