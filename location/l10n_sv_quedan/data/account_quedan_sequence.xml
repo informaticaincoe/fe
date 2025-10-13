@@ -1,0 +1,8 @@
+<odoo>
+    <record id="seq_account_quedan" model="ir.sequence">
+        <field name="name">Quedán de Proveedor</field>
+        <field name="code">account.quedan</field>
+        <field name="prefix">QUEDAN/</field>
+        <field name="padding">5</field>
+    </record>
+</odoo>

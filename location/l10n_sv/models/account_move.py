@@ -176,8 +176,44 @@ class sit_account_move(models.Model):
             if not move.forma_pago and p.formas_pago_venta_id:
                 move.forma_pago = p.formas_pago_venta_id
 
+    @api.onchange('partner_id', 'company_id', 'move_type')
+    def _onchange_partner_defaults_compras(self):
+        # primero el onchange estándar de Odoo
+        super(sit_account_move, self)._onchange_partner_id()
+
+        for move in self:
+            if not move.partner_id or not move.is_purchase_document(include_receipts=True):
+                continue
+            p = move.partner_id.with_company(move.company_id)
+
+            # 1) Términos de pago (compra)
+            if not move.invoice_payment_term_id and p.terminos_pago_compras_id:
+                move.invoice_payment_term_id = p.terminos_pago_compras_id
+
+            # 2) Condición de pago (Hacienda)
+            if not move.condiciones_pago and p.condicion_pago_compras_id:
+                move.condiciones_pago = p.condicion_pago_compras_id
+
+            # 3) Forma de pago
+            if not move.forma_pago and p.formas_pago_compras_id:
+                move.forma_pago = p.formas_pago_compras_id
+
+    def _apply_partner_defaults_compras_if_needed(self):
+        """Cubre creaciones sin UI (import/API), donde no corre el onchange."""
+        for move in self:
+            if not move.partner_id or not move.is_purchase_document(include_receipts=True):
+                continue
+            p = move.partner_id.with_company(move.company_id)
+            if not move.invoice_payment_term_id and p.terminos_pago_compras_id:
+                move.invoice_payment_term_id = p.terminos_pago_compras_id
+            if not move.condiciones_pago and p.condicion_pago_compras_id:
+                move.condiciones_pago = p.condicion_pago_compras_id
+            if not move.forma_pago and p.formas_pago_compras_id:
+                move.forma_pago = p.formas_pago_compras_id
+
     @api.model
     def create(self, vals):
         moves = super().create(vals)
         moves._apply_partner_defaults_ventas_if_needed()
+        moves._apply_partner_defaults_compras_if_needed()
         return moves

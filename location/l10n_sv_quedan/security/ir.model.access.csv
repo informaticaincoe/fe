@@ -1,0 +1,3 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_account_payment_user,access.account.payment.user,account.model_account_payment,base.group_user,1,1,1,1
+access_account_quedan_user,access.account.quedan.user,model_account_quedan,base.group_user,1,1,1,1

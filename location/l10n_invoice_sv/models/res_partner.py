@@ -11,6 +11,21 @@ class ResPartner(models.Model):
 
     gran_contribuyente = fields.Boolean(string="Gran Contribuyente", help="Marque esta opción si el cliente es un gran contribuyente.", default=False)
 
+    condicion_pago_compras_id = fields.Selection(
+        COND_PAGO,
+        string="Condición de pago"
+    )
+
+    terminos_pago_compras_id = fields.Many2one(
+        'account.payment.term',
+        string="Terminos de pago"
+    )
+
+    formas_pago_compras_id = fields.Many2one(
+        'account.move.forma_pago.field',
+        string="Formas de pago"
+    )
+
     condicion_pago_venta_id = fields.Selection(
         COND_PAGO,
         string="Condición de pago"
