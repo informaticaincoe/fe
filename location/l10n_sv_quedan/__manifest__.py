@@ -9,8 +9,8 @@
         'security/ir.model.access.csv',
         'report/report_quedan_documento.xml',
         'data/account_quedan_sequence.xml',
+        'data/mail_template_quedan.xml',
         'views/account_quedan_views.xml',
-
     ],
 
     'installable': True,

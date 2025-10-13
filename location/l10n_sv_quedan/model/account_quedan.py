@@ -1,6 +1,7 @@
 from odoo import models, fields, api
 from odoo.exceptions import UserError
 import logging
+import base64
 
 _logger = logging.getLogger(__name__)
 
@@ -9,6 +10,7 @@ class AccountQuedan(models.Model):
     _name = "account.quedan"
     _description = "Quedán de Proveedor"
     _order = "id desc"
+    _inherit = ['mail.thread', 'mail.activity.mixin']
 
     name = fields.Char(
         string="Número de Quedán",
@@ -62,6 +64,14 @@ class AccountQuedan(models.Model):
         'res.currency',
         string="Moneda",
         default=lambda self: self.env.company.currency_id
+    )
+
+    company_id = fields.Many2one(
+        'res.company',
+        string="Empresa",
+        required=True,
+        default=lambda self: self.env.company,
+        index=True
     )
 
     # === Cálculo del total ===
@@ -126,9 +136,63 @@ class AccountQuedan(models.Model):
             rec.state = 'paid'
 
     def download_quedan(self):
-        """Genera y devuelve el PDF del Quedán."""
         self.ensure_one()
         _logger.info(f"Generando reporte PDF para el Quedán {self.name}")
-
-        # Ejecutar el reporte definido en XML
         return self.env.ref("l10n_sv_quedan.report_quedan_documento").report_action(self)
+
+    def action_send_email(self):
+        self.ensure_one()
+
+        # === 1) Seleccionar idioma válido ===
+        active_langs = set(self.env['res.lang'].search([('active', '=', True)]).mapped('code'))
+        candidates = [
+            self.env.user.lang,
+            self.env.context.get('lang'),
+            'es_419',  # español latino
+            'en_US',  # fallback
+        ]
+        lang_ctx = next((c for c in candidates if c and c in active_langs), 'en_US')
+
+        # === 2) Obtener plantilla de correo ===
+        template = self.env.ref('l10n_sv_quedan.email_template_quedan', raise_if_not_found=False)
+        if not template:
+            raise UserError("No se encontró la plantilla de correo 'email_template_quedan'.")
+        if not self.partner_id.email:
+            raise UserError("El proveedor no tiene un correo configurado.")
+
+        template_ctx = template.with_context(lang=lang_ctx)
+
+        # === 3) Obtener acción de reporte ===
+        report_action = self.env.ref('l10n_sv_quedan.report_quedan_documento', raise_if_not_found=False)
+        if not report_action:
+            raise UserError("No se encontró el reporte configurado para el Quedán.")
+        if report_action.model != 'account.quedan':
+            raise UserError("El reporte configurado no corresponde al modelo account.quedan.")
+
+        # === 4) Renderizar el PDF ===
+        pdf_content, _ = self.env['ir.actions.report'].with_context(lang=lang_ctx)._render_qweb_pdf(
+            report_action.report_name, [self.id]
+        )
+
+        # === 5) Crear adjunto ===
+        filename = f"Quedan_{self.name.replace('/', '_')}.pdf"
+        attachment = self.env['ir.attachment'].create({
+            'name': filename,
+            'type': 'binary',
+            'datas': base64.b64encode(pdf_content),
+            'res_model': 'account.quedan',
+            'res_id': self.id,
+            'mimetype': 'application/pdf',
+        })
+
+        # === 6) Enviar correo ===
+        try:
+            template_ctx.send_mail(self.id, force_send=True, email_values={
+                'attachment_ids': [(6, 0, [attachment.id])],
+            })
+            _logger.info("Correo enviado a %s con archivo %s", self.partner_id.email, filename)
+            self.message_post(body=f"Correo enviado al proveedor {self.partner_id.name} con el Quedán adjunto.")
+        except Exception as e:
+            raise UserError(f"Error al enviar el correo: {str(e)}")
+
+        return True
