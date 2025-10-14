@@ -32,7 +32,7 @@
 
 ## Estructura del módulo
 
-![Quedán – vista formulario](l10n_sv_quedan/static/description/screenshot.png)
+![Quedán – vista formulario](../static/description/screenshot.png)
 
 
 ### Qué hace cada archivo
