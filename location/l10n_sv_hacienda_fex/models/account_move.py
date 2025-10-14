@@ -43,18 +43,22 @@ class AccountMove(models.Model):
 
     def _compute_sale_order(self):
         for rec in self:
-            sale_orders = rec.invoice_line_ids.mapped('sale_line_ids.order_id')
-            rec.sale_order_id = sale_orders[:1] if sale_orders else False
+            if rec.company_id.sit_facturacion and rec.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND):
+                sale_orders = rec.invoice_line_ids.mapped('sale_line_ids.order_id')
+                rec.sale_order_id = sale_orders[:1] if sale_orders else False
 
     def action_post(self):
         # Si FE está desactivada → comportamiento estándar de Odoo
         if not self.env.company.sit_facturacion:
             return super().action_post()
 
-        # FE activa → aplica tus validaciones extra y luego deja que Odoo postee
+        # FE activa → aplica tus validaciones extra solo en facturacion de ventas y luego deja que Odoo postee
         for rec in self:
-            tipo_dte = rec.journal_id.sit_tipo_documento
-            if tipo_dte and getattr(tipo_dte, 'codigo', tipo_dte) == constants.COD_DTE_FEX:
+            tipo_doc = rec.journal_id.sit_tipo_documento
+            es_venta = rec.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND)
+
+            # Solo ejecutar validaciones si es venta y el código del DTE es 11 (Factura de Exportación)
+            if es_venta and tipo_doc and tipo_doc.codigo == constants.COD_DTE_FEX:
                 if not rec.tipoItemEmisor:
                     raise ValidationError(
                         "El campo 'Tipo de Ítem Emisor' es obligatorio para facturas de exportación (11).")
@@ -327,6 +331,12 @@ class AccountMove(models.Model):
         if not self.env.company.sit_facturacion:
             _logger.info("FE OFF: omitiendo check_parametros_linea_firmado_fex en %s", self._name)
             return None
+
+        if self.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
+            tipo_doc = self.journal_id.sit_tipo_documento
+            if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE or (tipo_doc.codigo == constants.COD_DTE_FSE and not move.company_id.sit_facturacion):
+                _logger.info("Omitiendo validación de línea en %s: tipo=%s, codigo_dte=%s", self._name, move_type, codigo_dte)
+                return None
 
         if not line_temp.get("codigo"):
             raise UserError(_('El CODIGO del producto  %s no está definido.') % line_temp.get("descripcion"))

@@ -309,54 +309,78 @@ class AccountMove(models.Model):
                         # validation_type = False
         return validation_type
 
-    def _autenticar(self,user,pwd):
+    def _autenticar(self, user, pwd):
         _logger.info("SIT self = %s", self)
 
+        # 1 Validar si la empresa tiene activa la facturación electrónica
         if not (self.company_id and self.company_id.sit_facturacion):
             _logger.info("SIT No aplica facturación electrónica. Se omite autenticación.")
             return False
 
+        # 2 Validar si es una compra normal (sin sujeto excluido)
+        if self.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
+            tipo_doc = self.journal_id.sit_tipo_documento
+            if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE:
+                _logger.info("SIT: Documento de compra normal (sin sujeto excluido). Se omite autenticación para DTE.")
+                return False
+
         _logger.info("SIT self = %s, %s", user, pwd)
+
+        # 3 Obtener entorno (homologación o producción)
         enviroment_type = self._get_environment_type()
         _logger.info("SIT Modo = %s", enviroment_type)
 
         url = None
+        # 4 Determinar URL según el entorno
         if enviroment_type == 'homologation':
             url = config_utils.get_config_value(self.env, 'autenticar_test', self.company_id.id) if config_utils else 'https://apitest.dtes.mh.gob.sv/seguridad/auth'
         else:
             url = config_utils.get_config_value(self.env, 'autenticar_prod', self.company_id.id) if config_utils else 'https://api.dtes.mh.gob.sv/seguridad/auth'
         # url = host + '/seguridad/auth'
-        
+
+        # 5 Validar parámetros de Hacienda
         self.check_hacienda_values()
 
+        # 6 Realizar autenticación HTTP
         try:
             payload = "user=" + user + "&pwd=" + pwd
-            #'user=06140902221032&pwd=D%237k9r%402mP1!b'
+            # 'user=06140902221032&pwd=D%237k9r%402mP1!b'
             headers = {
-            'Content-Type': 'application/x-www-form-urlencoded'
+                'Content-Type': 'application/x-www-form-urlencoded'
             }
             response = requests.request("POST", url, headers=headers, data=payload)
+            _logger.info("SIT response = %s", response.text)
 
-            _logger.info("SIT response =%s", response.text)
         except Exception as e:
             error = str(e)
-            _logger.info('SIT error= %s, ', error)       
+            _logger.info('SIT error= %s, ', error)
             if "error" in error or "" in error:
-                MENSAJE_ERROR = str(error['status']) + ", " + str(error['error']) +", " +  str(error['message'])  
+                MENSAJE_ERROR = str(error['status']) + ", " + str(error['error']) + ", " + str(error['message'])
                 raise UserError(_(MENSAJE_ERROR))
             else:
                 raise UserError(_(error))
-        resultado = []    
-        json_response = response.json()
 
+        # 7 Parsear respuesta JSON
+        resultado = []
+        json_response = response.json()
+        _logger.info("SIT Autenticación exitosa. Respuesta JSON: %s", json_response)
+        return json_response
 
     def _generar_qr(self, ambiente, codGen, fechaEmi):
         _logger.info("SIT generando qr___ = %s", self)
 
+        # 1 Validar si aplica facturación electrónica
         if not (self.company_id and self.company_id.sit_facturacion):
             _logger.info("SIT No aplica facturación electrónica. Se omite generación de QR(_generar_qr) en evento de invalidacion.")
             return False
 
+        # 2 Validar si es una compra normal (sin sujeto excluido)
+        if self.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
+            tipo_doc = self.journal_id.sit_tipo_documento
+            if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE:
+                _logger.info("SIT: Documento de compra normal (sin sujeto excluido). Se omite generación de QR.")
+
+        # 3 Obtener URL de consulta según el entorno
         # enviroment_type = self._get_environment_type()
         # enviroment_type = self.env["res.company"]._get_environment_type()
         company = self.company_id
@@ -369,10 +393,13 @@ class AccountMove(models.Model):
         #     host = 'https://admin.factura.gob.sv'
         host = config_utils.get_config_value(self.env, 'consulta_dte', self.company_id.id) if config_utils else 'https://admin.factura.gob.sv'
 
-        # https://admin.factura.gob.sv/consultaPublica?ambiente=00&codGen=00000000-0000-00000000-000000000000&fechaEmi=2022-05-01 
-        fechaEmision =  str(fechaEmi.year) + "-" + str(fechaEmi.month).zfill(2) + "-" + str(fechaEmi.day).zfill(2)
+        # 4 Construir URL del QR
+        # https://admin.factura.gob.sv/consultaPublica?ambiente=00&codGen=00000000-0000-00000000-000000000000&fechaEmi=2022-05-01
+        fechaEmision = str(fechaEmi.year) + "-" + str(fechaEmi.month).zfill(2) + "-" + str(fechaEmi.day).zfill(2)
         texto_codigo_qr = host + "/consultaPublica?ambiente=" + str(ambiente) + "&codGen=" + str(codGen) + "&fechaEmi=" + str(fechaEmision)
         _logger.info("SIT generando qr texto_codigo_qr = %s", texto_codigo_qr)
+
+        # 5 Generar QR
         codigo_qr = qrcode.QRCode(
             version=1,  # Versión del código QR (ajústala según tus necesidades)
             error_correction=qrcode.constants.ERROR_CORRECT_L,  # Nivel de corrección de errores
@@ -393,28 +420,36 @@ class AccountMove(models.Model):
 
         codigo_qr.make(fit=True)
         img = codigo_qr.make_image(fill_color="black", back_color="white")
-        wpercent = (basewidth/float(img.size[0]))
-        hsize = int((float(img.size[1])*float(wpercent)))
-        new_img = img.resize((basewidth,hsize), Image.BICUBIC)
+        wpercent = (basewidth / float(img.size[0]))
+        hsize = int((float(img.size[1]) * float(wpercent)))
+        new_img = img.resize((basewidth, hsize), Image.BICUBIC)
         new_img.save(buffer, format="PNG")
         qrCode = base64.b64encode(buffer.getvalue())
         # self.sit_qr_hacienda = qrCode
         return qrCode
-        
-        
-    def generar_qr(self):
-        _logger.info("SIT generando qr xxx= %s", self)
 
+    def generar_qr(self):
+        _logger.info("SIT generando QR para move_id=%s", self.id)
+
+        # 1 Validar si aplica facturación electrónica
         if not (self.company_id and self.company_id.sit_facturacion):
             _logger.info("SIT No aplica facturación electrónica. Se omite generación de QR(generar_qr) en evento de invalidacion.")
             return False
 
+        # 2 Validar si es una compra normal (sin sujeto excluido)
+        if self.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
+            tipo_doc = self.journal_id.sit_tipo_documento
+            if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE:
+                _logger.info("SIT: Documento de compra normal (sin sujeto excluido). Se omite generación de QR.")
+                return False
+
+        # 3 Obtener entorno y URL
         company = self.company_id
         if not company:
             raise UserError(_("No se encontró la compañía asociada a la factura a reemplazar."))
 
         enviroment_type = company._get_environment_type()
-        if enviroment_type == 'homologation': 
+        if enviroment_type == 'homologation':
             ambiente = "00"
         else:
             ambiente = "01"
@@ -423,6 +458,7 @@ class AccountMove(models.Model):
         texto_codigo_qr = host + "/consultaPublica?ambiente=" + str(ambiente) + "&codGen=" + str(self.hacienda_codigoGeneracion_identificacion) + "&fechaEmi=" + str(self.fecha_facturacion_hacienda)
         _logger.info("SIT generando qr xxx texto_codigo_qr= %s", texto_codigo_qr)
 
+        # 4 Generar QR
         codigo_qr = qrcode.QRCode(
             version=1,  # Versión del código QR (ajústala según tus necesidades)
             error_correction=qrcode.constants.ERROR_CORRECT_L,  # Nivel de corrección de errores
@@ -445,13 +481,13 @@ class AccountMove(models.Model):
         codigo_qr.make(fit=True)
         img = codigo_qr.make_image(fill_color="black", back_color="white")
 
-        wpercent = (basewidth/float(img.size[0]))
-        hsize = int((float(img.size[1])*float(wpercent)))
-        new_img = img.resize((basewidth,hsize), Image.BICUBIC)
+        wpercent = (basewidth / float(img.size[0]))
+        hsize = int((float(img.size[1]) * float(wpercent)))
+        new_img = img.resize((basewidth, hsize), Image.BICUBIC)
         new_img.save(buffer, format="PNG")
         qrCode = base64.b64encode(buffer.getvalue())
         self.sit_qr_hacienda = qrCode
-        return 
+        return
 
     # def check_parametros_invalidacion(self):
     #     if not (self.company_id and self.company_id.sit_facturacion):

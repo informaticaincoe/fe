@@ -4,6 +4,7 @@ from odoo.exceptions import UserError, ValidationError
 from .amount_to_text_sv import to_word
 import base64
 import logging
+import traceback
 
 _logger = logging.getLogger(__name__)
 import base64
@@ -109,28 +110,33 @@ class AccountMove(models.Model):
     @api.onchange('partner_id')
     def _onchange_partner_id(self):
         _logger.info("[ONCHANGE] partner_id cambiado en account.move ID=%s", self.id)
-        if self.partner_id:
-            _logger.info(
-                "[ONCHANGE] Cliente: %s (ID=%s) - gran_contribuyente=%s",
-                self.partner_id.name,
-                self.partner_id.id,
-                self.partner_id.gran_contribuyente
-            )
-            if self.partner_id.gran_contribuyente and self.company_id and self.company_id.sit_facturacion:
-                self.apply_retencion_iva = True
-                _logger.info("[ONCHANGE] Se activó apply_retencion_iva=True porque es gran contribuyente.")
+        if self.company_id.sit_facturacion and (
+                self.move_type not in (constants.IN_INVOICE, constants.IN_REFUND) or
+                (self.move_type == constants.IN_INVOICE and self.journal_id.sit_tipo_documento and self.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FSE)
+        ):
+            if self.partner_id:
+                _logger.info(
+                    "[ONCHANGE] Cliente: %s (ID=%s) - gran_contribuyente=%s",
+                    self.partner_id.name,
+                    self.partner_id.id,
+                    self.partner_id.gran_contribuyente
+                )
+                if self.partner_id.gran_contribuyente and self.company_id and self.company_id.sit_facturacion:
+                    self.apply_retencion_iva = True
+                    _logger.info("[ONCHANGE] Se activó apply_retencion_iva=True porque es gran contribuyente.")
+                else:
+                    self.apply_retencion_iva = False
+                    _logger.info("[ONCHANGE] Se estableció apply_retencion_iva=False porque NO es gran contribuyente.")
             else:
                 self.apply_retencion_iva = False
-                _logger.info("[ONCHANGE] Se estableció apply_retencion_iva=False porque NO es gran contribuyente.")
-        else:
-            self.apply_retencion_iva = False
-            _logger.info("[ONCHANGE] No hay partner seleccionado, apply_retencion_iva=False")
+                _logger.info("[ONCHANGE] No hay partner seleccionado, apply_retencion_iva=False")
 
     @api.depends('invoice_line_ids')
     def _compute_show_global_discount(self):
         for move in self:
             # Validación para excluir compras
-            if move.move_type in ('in_invoice', 'in_refund'):
+            if (move.move_type in (constants.IN_INVOICE, constants.IN_REFUND) and
+                    (not move.journal_id.sit_tipo_documento or move.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)):
                 _logger.info("Compra detectada -> move_type: %s, no se calcula descuento global", move.move_type)
                 move.show_global_discount = False
                 return  # No realizar el cálculo del descuento global para compras
@@ -154,9 +160,13 @@ class AccountMove(models.Model):
 
     def _compute_sale_order_id(self):
         for move in self:
-            sale_orders = move.invoice_line_ids.mapped('sale_line_ids.order_id')
-            move.sale_order_id = sale_orders[:1] if sale_orders else False
-            _logger.info("SIT Cotizacion: %s", move.sale_order_id)
+            if (move.company_id.sit_facturacion and (
+                    move.move_type not in (constants.IN_INVOICE, constants.IN_REFUND) or (
+                    move.move_type == constants.IN_INVOICE and move.journal_id.sit_tipo_documento and move.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FSE))
+            ):
+                sale_orders = move.invoice_line_ids.mapped('sale_line_ids.order_id')
+                move.sale_order_id = sale_orders[:1] if sale_orders else False
+                _logger.info("SIT Cotizacion: %s", move.sale_order_id)
 
     @api.depends('total_pagar')
     def _compute_total_pagar_text(self):
@@ -166,18 +176,23 @@ class AccountMove(models.Model):
     @api.depends('apply_retencion_renta', 'apply_retencion_iva', 'amount_total')
     def _compute_retencion(self):
         for move in self:
-            # Si es una compra, no se realiza el cálculo de retenciones
-            if move.move_type in ('in_invoice', 'in_refund'):
-                _logger.info("Compra detectada -> move_type: %s, no se realiza cálculo de retenciones", move.move_type)
-                move.retencion_renta_amount = 0.0
-                move.retencion_iva_amount = 0.0
-                move.iva_percibido_amount = 0.0
-                continue  # No realizamos cálculos para compras, pasamos a la siguiente factura
-
-            base_total = move.sub_total_ventas - move.descuento_global
+            """Reinicia los montos de retención e IVA percibido a cero."""
             move.retencion_renta_amount = 0.0
             move.retencion_iva_amount = 0.0
             move.iva_percibido_amount = 0.0
+
+            # Ventas → solo si no hay facturación electrónica se resetea
+            if move.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND) and not move.company_id.sit_facturacion:
+                _logger.info("SIT _compute_retencion | Venta detectada sin facturación -> move_id: %s, se omiten cálculos", move.id)
+                continue
+            # Compras → solo si no es sujeto excluido (DTE tipo 14)
+            if move.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
+                tipo_doc = move.journal_id.sit_tipo_documento
+                if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE or (tipo_doc.codigo == constants.COD_DTE_FSE and not move.company_id.sit_facturacion):
+                    _logger.info("SIT _compute_retencion | Compra normal o sujeto excluido sin facturación -> move_id: %s, se omiten cálculos", move.id)
+                    continue
+
+            base_total = move.sub_total_ventas - move.descuento_global
 
             if move.apply_retencion_renta:
                 move.retencion_renta_amount = base_total * 0.10
@@ -220,8 +235,37 @@ class AccountMove(models.Model):
         easily the next step of the workflow
     """
         user_admin = self.env.ref("base.user_admin")
-        if any(not move.is_invoice(include_receipts=True) for move in self):
-            raise UserError(_("Solo se pueden imprimir facturas."))
+        errores = []
+
+        for move in self:
+            if not move.is_invoice(include_receipts=True):
+                errores.append(
+                    f"Solo se pueden imprimir facturas.{move.name or 'Borrador sin nombre'} (no es una factura válida)")
+                continue
+
+            move_type = move.move_type
+            tipo_doc = move.journal_id.sit_tipo_documento
+            codigo_dte = tipo_doc.codigo if tipo_doc else None
+            facturacion = move.company_id.sit_facturacion
+
+            # Factura de venta → válida solo si la empresa tiene facturación
+            if move_type in (constants.OUT_INVOICE, constants.OUT_REFUND):
+                if not facturacion:
+                    errores.append(f"{move.name or 'Borrador sin nombre'} (ventas no permitidas sin facturación electrónica)")
+                continue  # Ya evaluada
+
+            # Factura de compra → solo válida si es sujeto excluido (DTE tipo 14)
+            if move_type in (constants.IN_INVOICE, constants.IN_REFUND):
+                if codigo_dte and codigo_dte != constants.COD_DTE_FSE:
+                    errores.append(f"{move.name or 'Borrador sin nombre'} (solo se imprimen compras sujeto excluido)")
+                elif not facturacion:
+                    errores.append(f"{move.name or 'Borrador sin nombre'} (compra sujeto excluido requiere facturación electrónica)")
+                continue
+
+        # Si hay errores, mostrar todos juntos
+        if errores:
+            raise UserError(_("No se pueden imprimir los siguientes documentos:\n%s") % "\n".join(errores))
+
         self.filtered(lambda inv: not inv.is_move_sent).write({'is_move_sent': True})
 
         report = self.journal_id.type_report
@@ -587,7 +631,7 @@ class AccountMove(models.Model):
             }
         except Exception as e:
             _logger.error("SIT | Error en el proceso de envío de correo: %s", str(e))
-            import traceback
+            # import traceback
             _logger.error("SIT | Traceback: %s", traceback.format_exc())
             raise
 
@@ -654,15 +698,21 @@ class AccountMove(models.Model):
 
     def _calcular_totales_sv(self):
         for move in self:
-            # Si es una compra, no hacemos cálculos adicionales
-            if move.move_type in ('in_invoice', 'in_refund'):
-                _logger.info("Compra detectada -> move_type: %s, no se realiza cálculo de totales", move.move_type)
-                # Puedes asignar valores predeterminados si es necesario
-                move.total_gravado = 0.0
-                move.total_exento = 0.0
-                move.total_no_sujeto = 0.0
-                move.sub_total_ventas = 0.0
-                continue  # No realizamos cálculos para compras, pasamos a la siguiente factura
+            move.total_gravado = 0.0
+            move.total_exento = 0.0
+            move.total_no_sujeto = 0.0
+            move.sub_total_ventas = 0.0
+
+            # Ventas → solo si no hay facturación electrónica se omite
+            if move.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND) and not move.company_id.sit_facturacion:
+                _logger.info("SIT _calcular_totales_sv | Venta detectada sin facturación -> move_id: %s, se resetean montos", move.id)
+                continue
+            # Compras → no hacer cálculos si es compra normal o sujeto excluido sin facturación
+            if move.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
+                tipo_doc = move.journal_id.sit_tipo_documento
+                if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE or (tipo_doc.codigo == constants.COD_DTE_FSE and not move.company_id.sit_facturacion):
+                    _logger.info("SIT _calcular_totales_sv | Compra normal o sujeto excluido sin facturación -> move_id: %s, se omiten cálculos", move.id)
+                    continue
 
             gravado = exento = no_sujeto = compra = 0.0
             for line in move.invoice_line_ids:
@@ -694,6 +744,15 @@ class AccountMove(models.Model):
                  'apply_retencion_renta', 'apply_retencion_iva', 'retencion_renta_amount', 'retencion_iva_amount')
     def _compute_total_descuento(self):
         for move in self:
+            # Validación: solo procesar ventas con facturación y compras de sujeto excluido con facturación
+            if move.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND) and not move.company_id.sit_facturacion:
+                _logger.info("SIT _compute_total_descuento | Venta detectada sin facturación -> move_id: %s, se omite cálculo de descuentos", move.id)
+                continue
+            if move.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
+                tipo_doc = move.journal_id.sit_tipo_documento
+                if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE or (tipo_doc.codigo == constants.COD_DTE_FSE and not move.company_id.sit_facturacion):
+                    _logger.info("SIT _compute_total_descuento | Compra normal o sujeto excluido sin facturación -> move_id: %s, se omite cálculo de descuentos", move.id)
+                    continue
             total_descuentos_globales = float_round(
                 move.descuento_gravado +
                 move.descuento_exento +
@@ -714,13 +773,21 @@ class AccountMove(models.Model):
                  'invoice_line_ids.product_id.tipo_venta')
     def _compute_descuentos(self):
         for move in self:
-            # Validación para excluir compras
-            if move.move_type in ('in_invoice', 'in_refund'):
-                _logger.info("Compra detectada -> move_type: %s, no se realiza cálculo de descuentos", move.move_type)
-                move.descuento_gravado = 0.0
-                move.descuento_exento = 0.0
-                move.descuento_no_sujeto = 0.0
-                continue  # No realizar cálculos de descuentos para compras, pasar al siguiente movimiento
+            move.descuento_gravado = 0.0
+            move.descuento_exento = 0.0
+            move.descuento_no_sujeto = 0.0
+
+            # Validación: solo procesar ventas con facturación y compras de sujeto excluido con facturación
+            if move.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND) and not move.company_id.sit_facturacion:
+                _logger.info("SIT _compute_descuentos | Venta detectada sin facturación -> move_id: %s, se omite cálculo de descuentos", move.id)
+                continue
+
+            if move.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
+                tipo_doc = move.journal_id.sit_tipo_documento
+                if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE or (
+                        tipo_doc.codigo == constants.COD_DTE_FSE and not move.company_id.sit_facturacion):
+                    _logger.info("SIT _compute_descuentos | Compra normal o sujeto excluido sin facturación -> move_id: %s, se omite cálculo de descuentos", move.id)
+                    continue
 
             gravado = exento = no_sujeto = 0.0
 
@@ -735,14 +802,22 @@ class AccountMove(models.Model):
                  'apply_iva_percibido', 'seguro', 'flete')
     def _compute_total_con_descuento(self):
         for move in self:
-            # Validación para excluir compras
-            if move.move_type in ('in_invoice', 'in_refund'):
-                _logger.info("Compra detectada -> move_type: %s, no se realiza cálculo de totales con descuento", move.move_type)
-                move.amount_total_con_descuento = 0.0
-                move.sub_total = 0.0
-                move.total_operacion = 0.0
-                move.total_pagar = 0.0
-                continue  # No realizar cálculos para compras, pasar al siguiente movimiento
+            move.amount_total_con_descuento = 0.0
+            move.sub_total = 0.0
+            move.total_operacion = 0.0
+            move.total_pagar = 0.0
+            tipo_doc = move.journal_id.sit_tipo_documento
+
+            # Validación: omitir compras normales y sujeto excluido sin facturación
+            # Ventas sin facturación → omitir
+            if move.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND) and not move.company_id.sit_facturacion:
+                _logger.info("SIT _compute_total_con_descuento | Venta detectada sin facturación -> move_id: %s, se omite cálculo de totales con descuento", move.id)
+                continue
+
+            if move.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
+                if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE or (tipo_doc.codigo == constants.COD_DTE_FSE and not move.company_id.sit_facturacion):
+                    _logger.info("SIT _compute_total_con_descuento | Compra normal o sujeto excluido sin facturación -> move_id: %s, se omite cálculo de totales con descuento", move.id)
+                    continue
 
             # 1. Obtener montos
             subtotal_base = move.sub_total_ventas
@@ -759,7 +834,7 @@ class AccountMove(models.Model):
             descuentos_detalle = float_round(move.descuento_no_sujeto + move.descuento_exento + move.descuento_gravado, precision_rounding=move.currency_id.rounding)  # round( (move.descuento_no_sujeto + move.descuento_exento + move.descuento_gravado), 2)
 
             # 4. Calcular sub_total final restando otros descuentos
-            if move.journal_id.sit_tipo_documento.codigo in ["14"]:
+            if move.journal_id.sit_tipo_documento.codigo in [constants.COD_DTE_FSE]:
                 move.sub_total = float_round(max(move.total_gravado - move.descuento_gravado, 0.0), precision_rounding=move.currency_id.rounding)  # round(max(move.total_gravado - move.descuento_gravado, 0.0), 2)
             else:
                 move.sub_total = float_round(max(subtotal_con_descuento_global - descuentos_detalle, 0.0), precision_rounding=move.currency_id.rounding)  # round(max(subtotal_con_descuento_global - descuentos_detalle, 0.0), 2)
@@ -769,18 +844,18 @@ class AccountMove(models.Model):
                          f"sub_total final: {move.sub_total}")
 
             # 5. Calcular total_operacion y total_pagar
-            if move.journal_id.sit_tipo_documento.codigo not in ["01", "11"]:
+            if move.journal_id.sit_tipo_documento.codigo not in [constants.COD_DTE_FE, constants.COD_DTE_FEX]:
                 move.total_operacion = float_round(move.sub_total + move.amount_tax, precision_rounding=move.currency_id.rounding)  # round(move.sub_total + move.amount_tax, 2)
                 _logger.info(f"[{move.name}] Documento no es tipo 01, total_operacion: {move.total_operacion}")
-            elif move.journal_id.sit_tipo_documento.codigo == "11":
+            elif move.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FEX:
                 move.total_operacion = float_round((move.total_gravado - move.descuento_gravado - descuento_global) + move.amount_tax + move.seguro + move.flete, precision_rounding=move.currency_id.rounding)  # round((move.total_gravado - move.descuento_gravado - descuento_global) + move.amount_tax + move.seguro + move.flete, 2)
             else:
                 move.total_operacion = move.sub_total
                 _logger.info(f"[{move.name}] Documento tipo 01, total_operacion: {move.total_operacion}")
 
-            if move.journal_id.sit_tipo_documento.codigo == "11":
+            if move.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FEX:
                 move.total_pagar = float_round(move.total_operacion - move.retencion_renta_amount, precision_rounding=move.currency_id.rounding)  # round( (move.total_operacion - move.retencion_renta_amount), 2)
-            elif move.journal_id.sit_tipo_documento.codigo == "14":
+            elif move.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FSE:
                 move.total_pagar = float_round(move.sub_total - move.retencion_iva_amount - move.retencion_renta_amount, precision_rounding=move.currency_id.rounding)  # round((move.sub_total - move.retencion_iva_amount - move.retencion_renta_amount), 2)
             else:
                 move.total_pagar = float_round(move.total_operacion - (move.retencion_renta_amount + move.retencion_iva_amount + move.iva_percibido_amount), precision_rounding=move.currency_id.rounding)  # round((move.total_operacion - (move.retencion_renta_amount + move.retencion_iva_amount + move.iva_percibido_amount)), 2)
@@ -797,7 +872,21 @@ class AccountMove(models.Model):
     @api.depends('descuento_global_monto', 'sub_total_ventas')
     def _compute_descuento_global(self):
         for move in self:
-            if move.journal_id.sit_tipo_documento.codigo in ["11"]:
+            move.descuento_global = 0.0
+            tipo_doc = move.journal_id.sit_tipo_documento
+
+            # Ventas sin facturación → omitir
+            if move.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND) and not move.company_id.sit_facturacion:
+                _logger.info("SIT _compute_descuento_global | Venta sin facturación -> move_id: %s, no se calcula descuento_global", move.id)
+                continue
+            # Validación: omitir compras normales o sujeto excluido sin facturación
+            if move.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
+                if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE or (
+                        tipo_doc.codigo == constants.COD_DTE_FSE and not move.company_id.sit_facturacion):
+                    _logger.info("SIT _compute_descuento_global | Compra normal o sujeto excluido sin facturación -> move_id: %s, no se calcula descuento_global", move.id)
+                    continue
+
+            if move.journal_id.sit_tipo_documento.codigo in [constants.COD_DTE_FEX]:
                 move.descuento_global = float_round((move.total_gravado or 0.0) * (move.descuento_global_monto or 0.0) / 100, precision_rounding=move.currency_id.rounding)  # round(((move.total_gravado or 0.0) * (move.descuento_global_monto or 0.0) / 100), 2)
             else:
                 # move.descuento_global = round( ((move.sub_total_ventas or 0.0) * ( move.descuento_global_monto or 0.0) / 100), 2)
@@ -806,6 +895,20 @@ class AccountMove(models.Model):
 
     def _inverse_descuento_global(self):
         for move in self:
+            move.descuento_global_monto = 0.0
+            tipo_doc = move.journal_id.sit_tipo_documento
+
+            # Omitir ventas sin facturación
+            if move.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND) and not move.company_id.sit_facturacion:
+                _logger.info("SIT _inverse_descuento_global | Venta sin facturación -> move_id: %s, no se calcula descuento_global_monto", move.id)
+                continue
+            # Omitir compras normales o sujeto excluido sin facturación
+            if move.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
+                if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE or (
+                        tipo_doc.codigo == constants.COD_DTE_FSE and not move.company_id.sit_facturacion):
+                    _logger.info("SIT _inverse_descuento_global | Compra normal o sujeto excluido sin facturación -> move_id: %s, no se calcula descuento_global_monto", move.id)
+                    continue
+
             if move.sub_total_ventas:
                 move.descuento_global_monto = float_round((move.descuento_global / move.sub_total_ventas) * 100, precision_rounding=move.currency_id.rounding)  # round( ((move.descuento_global / move.sub_total_ventas) * 100), 2)
             else:
@@ -819,6 +922,18 @@ class AccountMove(models.Model):
         'amount_tax')
     def _recalcular_resumen_documento(self):
         for move in self:
+            tipo_doc = move.journal_id.sit_tipo_documento
+
+            if move.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND) and not move.company_id.sit_facturacion:
+                _logger.info("SIT _recalcular_resumen_documento | Venta sin facturación -> move_id: %s, no se recalculan totales", move.id)
+                continue
+            # Validar si se debe procesar la factura
+            if move.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
+                # Omitir compras normales o sujeto excluido sin facturación
+                if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE or (tipo_doc.codigo == constants.COD_DTE_FSE and not move.company_id.sit_facturacion):
+                    _logger.info("SIT _recalcular_resumen_documento | Compra normal o sujeto excluido sin facturación -> move_id: %s, no se recalculan totales", move.id)
+                    continue
+
         # --- recalcular totales y descuentos ---
             move._calcular_totales_sv()
             move._compute_descuentos()
@@ -833,6 +948,17 @@ class AccountMove(models.Model):
         for move in self:
             if move.state != 'draft':
                 continue
+
+            # Validación: omitir compras normales o sujeto excluido sin facturación, y ventas sin facturación
+            tipo_doc = move.journal_id.sit_tipo_documento
+            if move.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND) and not move.company_id.sit_facturacion:
+                _logger.info("SIT agregar_lineas_retencion | Venta sin facturación -> move_id: %s, no se agregan líneas de retención", move.id)
+                continue
+            if move.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
+                if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE or (
+                        tipo_doc.codigo == constants.COD_DTE_FSE and not move.company_id.sit_facturacion):
+                    _logger.info("SIT agregar_lineas_retencion | Compra normal o sujeto excluido sin facturación -> move_id: %s, no se agregan líneas de retención", move.id)
+                    continue
 
             lineas = []
 
@@ -920,6 +1046,17 @@ class AccountMove(models.Model):
                 _logger.info(
                     f"[action_post] La factura ID {move.id} no quedó en 'draft' (estado: {move.state}), saltando.")
                 continue
+
+            # Validación: omitir compras normales o sujeto excluido sin facturación, y ventas sin facturación
+            tipo_doc = move.journal_id.sit_tipo_documento
+            if move.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND) and not move.company_id.sit_facturacion:
+                _logger.info("SIT action_post | Venta sin facturación -> move_id: %s, no se agregan líneas de retención", move.id)
+                continue
+            if move.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
+                if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE or (
+                        tipo_doc.codigo == constants.COD_DTE_FSE and not move.company_id.sit_facturacion):
+                    _logger.info("SIT action_post | Compra normal o sujeto excluido sin facturación -> move_id: %s, no se agregan líneas de retención", move.id)
+                    continue
 
             # Solo llamar a agregar_lineas_descuento_a_borrador si hay descuento global
             if (move.descuento_gravado_pct and move.descuento_gravado_pct > 0) \
@@ -1024,10 +1161,10 @@ class AccountMove(models.Model):
     def agregar_lineas_seguro_flete(self):
         for move in self:
             # Solo procesar si es factura de exportación
-            if move.codigo_tipo_documento != '11':  # Ajusta según tu código real de exportación
+            if move.codigo_tipo_documento != constants.COD_DTE_FEX:  # Ajusta según tu código real de exportación
                 continue
 
-            if move.move_type != 'out_invoice':
+            if move.move_type != constants.OUT_INVOICE:
                 raise UserError("Este método solo soporta facturas de cliente (out_invoice)")
 
             cuenta_exportacion = move.company_id.account_exportacion_id
@@ -1074,11 +1211,9 @@ class AccountMove(models.Model):
                 move.write({'line_ids': nuevas_lineas})
 
     def write(self, vals):
-        import logging, traceback
-        _logger = logging.getLogger(__name__)
-
         # Primero, verificamos si es una factura de compra. Si lo es, no ejecutamos la lógica personalizada.
-        if all(inv.move_type in ('in_invoice', 'in_refund') for inv in self):
+        if all(inv.move_type in (constants.IN_INVOICE, constants.IN_REFUND)
+               and (not inv.journal_id.sit_tipo_documento or inv.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE) for inv in self):
             # Si todos los registros son de compra, no ejecutamos el código personalizado.
             _logger.info("SIT-invoice_sv: Factura de compra detectada, se salta la lógica personalizada.")
             return super().write(vals)
@@ -1114,8 +1249,8 @@ class AccountMove(models.Model):
             journal = self.env["account.journal"].browse(journal_id) if journal_id else None
 
             # Verificar si es una compra o un sujeto excluido
-            if move_type in ['in_invoice', 'in_refund']:
-                if not (journal and getattr(journal, "sit_tipo_documento", False)):
+            if move_type in [constants.IN_INVOICE, constants.IN_REFUND]:
+                if not journal or not getattr(journal, "sit_tipo_documento", False) or journal.sit_tipo_documento.codigo != constants.COD_DTE_FSE:
                     _logger.info(
                         "SIT-invoice_sv | Documento de compra detectado (tipo=%s, diario=%s) sin tipo DTE, se omite lógica DTE.",
                         move_type, journal and journal.name)

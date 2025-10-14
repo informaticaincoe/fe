@@ -42,14 +42,25 @@ class AccountMove(models.Model):
 #---------------------------------------------------------------------------------------------
 
     def sit_debug_mostrar_json_fse(self):
-        """Solo muestra el JSON generado de la factura FSE sin enviarlo."""
+        """Solo muestra el JSON generado de la factura FSE (código 14) sin enviarlo."""
+        # 1 Si la facturación electrónica está desactivada, no hacemos nada
         if not self.env.company.sit_facturacion:
             _logger.info("FE OFF: omitiendo sit_debug_mostrar_json_fse")
             return True  # no bloquea la UI
 
+        # 2 Validar que solo haya una factura seleccionada
         if len(self) != 1:
             raise UserError("Selecciona una sola factura para depurar el JSON.")
 
+        # 3 Verificar que sea COMPRA (in_invoice) y tipo de documento FSE (código 14)
+        tipo_doc = self.journal_id.sit_tipo_documento
+        if self.move_type != 'in_invoice' or (tipo_doc and tipo_doc.codigo != constants.COD_DTE_FSE):
+            _logger.info("SIT: omitiendo generación de JSON — aplica solo para compras FSE (in_invoice, código 14). Tipo actual: %s, Código: %s",
+                self.move_type, tipo_doc.codigo if tipo_doc else None
+            )
+            return True
+
+        # 4 Generar y mostrar el JSON FSE
         invoice_json = self.sit__fse_base_map_invoice_info_dtejson()
 
         import json

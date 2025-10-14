@@ -197,18 +197,24 @@ class sit_account_contingencia(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
+        _logger.info("SIT | Entrando a create() de contingencia con %s registros a procesar", len(vals_list))
+
         # Crear el registro de contingencia
         registros_a_procesar = []
         for vals in vals_list:
+            _logger.debug("SIT | Procesando vals: %s", vals)
             # Si viene el name o algún indicador de que es del módulo de Hacienda, no hacer lógica de contingencia
             if vals.get('name'):
+                _logger.info("SIT | Se detectó 'name' en vals (%s), omitiendo lógica de contingencia.", vals['name'])
                 return super().create(vals_list)
             registros_a_procesar.append(vals)
 
         # Crear los registros base
+        _logger.info("SIT | Total de registros a crear en contingencia: %s", len(registros_a_procesar))
         records = super().create(registros_a_procesar)
 
         for record in records:
+            _logger.info("SIT | Procesando contingencia creada con ID=%s", record.id)
             # Buscar todas las facturas que están en contingencia y no están asignadas a ninguna contingencia aún
             facturas_en_contingencia = self.env['account.move'].search([
                 ('sit_es_configencia', '=', True),
@@ -219,6 +225,7 @@ class sit_account_contingencia(models.Model):
             # Asignar las facturas al registro actual
             if facturas_en_contingencia:
                 facturas_en_contingencia_count = len(facturas_en_contingencia)
+                _logger.info("SIT | Facturas encontradas en contingencia: %s", facturas_en_contingencia_count)
 
                 # Verificar si las facturas no superan los 400 lotes de 100 facturas por lote
                 max_lotes = 400  # 400
