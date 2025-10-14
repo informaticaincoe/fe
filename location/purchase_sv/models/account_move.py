@@ -6,6 +6,8 @@ from odoo.tools import float_round
 from odoo.exceptions import UserError
 from odoo.exceptions import ValidationError
 
+from odoo.addons.common_utils.utils import constants
+
 import logging
 _logger = logging.getLogger(__name__)
 

@@ -1,3 +1,4 @@
+
 <odoo>
     <record id="seq_account_quedan" model="ir.sequence">
         <field name="name">Quedán de Proveedor</field>

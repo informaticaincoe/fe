@@ -1,5 +1,5 @@
 <odoo>
-    <!-- 🔹 Formato del papel -->
+    <!-- Bloque: definición de formato de papel para el reporte del Quedán -->
     <record id="paperformat_quedan" model="report.paperformat">
         <field name="name">Quedán - A4</field>
         <field name="format">A4</field>
@@ -13,6 +13,7 @@
         <field name="dpi">90</field>
     </record>
 
+    <!-- Acción de reporte (QWeb PDF) para account.quedan -->
     <record id="report_quedan_documento" model="ir.actions.report">
         <field name="name">Quedán de Proveedor</field>
         <field name="model">account.quedan</field>
@@ -20,15 +21,19 @@
         <field name="report_name">l10n_sv_quedan.report_quedan_documento_template</field>
         <field name="report_file">l10n_sv_quedan.report_quedan_documento_template</field>
         <field name="paperformat_id" ref="l10n_sv_quedan.paperformat_quedan"/>
-        <field name="print_report_name">'Quedan - %s' % (object.name or 'Quedan').replace('/', '')</field>
+        <!-- Evitar slash en nombre de archivo generado -->
+        <field name="print_report_name">
+            'Quedan - %s' % (object.name or 'Quedan').replace('/', '')
+        </field>
     </record>
 
-    <!--  Plantilla QWeb -->
+    <!-- Plantilla QWeb del Quedán -->
     <template id="report_quedan_documento_template">
         <t t-name="l10n_sv_quedan.report_quedan_documento_template">
             <t t-call="web.html_container">
                 <t t-foreach="docs" t-as="doc">
                     <div class="page">
+                        <!-- Encabezado: empresa y número del Quedán -->
                         <h1 style="text-align:center; font-size: 16px; font-weight: 700;">
                             <t t-esc="doc.company_id.name"/>
                         </h1>
@@ -36,53 +41,57 @@
                             <t t-esc="doc.name"/>
                         </p>
 
-                        <div style="width: 100%; display:grid;">
-                            <article style="display: flex; gap: 1%; justify-content: center; height: 15px;">
-                                <p>Telefono:</p>
-                                <t t-esc="doc.company_id.phone"/>
+                        <!-- Datos de contacto de la empresa (opcionales) -->
+                        <div style="width:100%; display:grid;">
+                            <article style="display:flex; gap: 1%; justify-content:center; height: 15px;">
+                                <p>Teléfono:</p>
+                                <t t-esc="doc.company_id.phone or ''"/>
                             </article>
-                            <article style="display: flex; gap: 1%; justify-content: center;;">
+                            <article style="display:flex; gap: 1%; justify-content:center;">
                                 <p>Correo:</p>
-                                <t t-esc="doc.company_id.email"/>
+                                <t t-esc="doc.company_id.email or ''"/>
                             </article>
                         </div>
 
-
+                        <!-- Datos del Quedán -->
                         <p>
                             <strong>A favor de:</strong>
                             <t t-esc="doc.partner_id.name"/>
                         </p>
                         <p>
                             <strong>Fecha de pago:</strong>
-                            <t t-esc="doc.fecha_programada"/>
+                            <!-- Formato local de fecha -->
+                            <t t-esc="format_date(doc.fecha_programada)"/>
                         </p>
                         <p>
                             <strong>Observaciones:</strong>
-                            <t t-esc="doc.observaciones"/>
+                            <t t-esc="doc.observaciones or ''"/>
                         </p>
 
                         <br/>
 
-                        <h2 style="font-size: 16px; font-weight: 700;">Facturas incluidas</h2>
+                        <!-- Tabla de facturas incluidas -->
+                        <h2 style="font-size:16px; font-weight:700;">Facturas incluidas</h2>
                         <table style="width:100%; border-collapse:collapse;" border="1">
                             <thead>
                                 <tr>
-                                    <th style="border: solid black 1px; padding: 1% 1%;">Referencia</th>
-                                    <th style="border: solid black 1px; padding: 1% 1%;">Fecha de emisión</th>
-                                    <th style="border: solid black 1px; padding: 1% 1%;">Total</th>
+                                    <th style="border:1px solid #000; padding:6px 8px;">Referencia</th>
+                                    <th style="border:1px solid #000; padding:6px 8px;">Fecha de emisión</th>
+                                    <th style="border:1px solid #000; padding:6px 8px;">Total</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <t t-foreach="doc.factura_ids" t-as="invoice">
                                     <tr>
-                                        <td style="border: solid black 1px; padding: 1% 1%;">
+                                        <td style="border:1px solid #000; padding:6px 8px;">
                                             <t t-esc="invoice.name"/>
                                         </td>
-                                        <td style="border: solid black 1px; padding: 1% 1%;">
-                                            <t t-esc="invoice.invoice_date"/>
+                                        <td style="border:1px solid #000; padding:6px 8px;">
+                                            <t t-esc="format_date(invoice.invoice_date)"/>
                                         </td>
-                                        <td style="border: solid black 1px; padding: 1% 1%;">
-                                            <t t-esc="invoice.amount_total"/>
+                                        <td style="border:1px solid #000; padding:6px 8px; text-align:right;">
+                                            <!-- Formateo monetario usando la moneda del Quedán -->
+                                            <t t-esc="format_amount(invoice.amount_total, doc.currency_id)"/>
                                         </td>
                                     </tr>
                                 </t>
@@ -90,9 +99,11 @@
                         </table>
 
                         <br/>
-                        <p>
-                            <strong>Monto total:</strong>
-                            <t t-esc="doc.monto_total"/>
+
+                        <!-- Total del Quedán -->
+                        <p style="text-align:right;">
+                            <strong>Monto total: </strong>
+                            <t t-esc="format_amount(doc.monto_total, doc.currency_id)"/>
                         </p>
                     </div>
                 </t>
