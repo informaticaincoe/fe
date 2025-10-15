@@ -379,6 +379,7 @@ class AccountMove(models.Model):
             tipo_doc = self.journal_id.sit_tipo_documento
             if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE:
                 _logger.info("SIT: Documento de compra normal (sin sujeto excluido). Se omite generación de QR.")
+                return False
 
         # 3 Obtener URL de consulta según el entorno
         # enviroment_type = self._get_environment_type()

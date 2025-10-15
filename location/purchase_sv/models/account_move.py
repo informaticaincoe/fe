@@ -9,6 +9,13 @@ from odoo.exceptions import ValidationError
 import logging
 _logger = logging.getLogger(__name__)
 
+try:
+    from odoo.addons.common_utils.utils import constants
+    _logger.info("SIT Modulo constants [purchase-account_move]")
+except ImportError as e:
+    _logger.error(f"Error al importar 'constants': {e}")
+    constants = None
+
 class AccountMove(models.Model):
     _inherit = 'account.move'
 
@@ -107,19 +114,17 @@ class AccountMove(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        _logger.info("SIT | Creando AccountMove(s)")
+        _logger.info("SIT Purchase | Creando AccountMove(s)")
 
         # Primero creamos los registros normalmente
         moves = super().create(vals_list)
 
         # Luego forzamos None en compras y notas de crédito de compra
         for move in moves:
-            if move.move_type in ('in_invoice', 'in_refund'):
-                _logger.info(
-                    f"SIT | move_type={move.move_type} → Forzando None a hacienda_codigoGeneracion_identificacion para move_id={move.id}"
-                )
+            if (move.move_type in (constants.IN_INVOICE, constants.IN_REFUND) and
+                    (not move.journal_id.sit_tipo_documento or move.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)):
+                _logger.info(f"SIT | move_type={move.move_type} → Forzando None a hacienda_codigoGeneracion_identificacion para move_id={move.id}")
                 move.hacienda_codigoGeneracion_identificacion = None
-
         return moves
 
     def _get_default_tipo_documento(self):
@@ -140,7 +145,8 @@ class AccountMove(models.Model):
 
     @api.onchange('name', 'hacienda_codigoGeneracion_identificacion', 'hacienda_selloRecibido')
     def _onchange_remove_hyphen_and_spaces(self):
-        if self.move_type != 'in_invoice':
+        if (self.move_type not in(constants.IN_INVOICE, constants.IN_REFUND) or
+                (self.move_type == constants.IN_INVOICE and self.journal_id.sit_tipo_documento and self.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FSE)):
             return
 
         # name
@@ -171,7 +177,8 @@ class AccountMove(models.Model):
     @api.depends('invoice_line_ids.price_unit', 'invoice_line_ids.quantity', 'invoice_line_ids.discount', 'invoice_line_ids.tax_ids', 'currency_id', 'move_type', 'partner_id',)
     def _compute_sit_amount_tax_system(self):
         for move in self:
-            if move.move_type in ('in_invoice', 'in_refund'):
+            if (move.move_type in (constants.IN_INVOICE, constants.IN_REFUND) and
+                    (not move.journal_id.sit_tipo_documento or move.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)):
                 total_tax = 0.0
                 _logger.info("SIT | Calculando impuestos para move: %s", move.name)
 
@@ -220,7 +227,8 @@ class AccountMove(models.Model):
 
         if 'name' in vals:
             for move in self:
-                if move.move_type not in ('out_invoice', 'out_refund'):
+                if (move.move_type in (constants.IN_INVOICE, constants.IN_REFUND) and
+                        (not move.journal_id.sit_tipo_documento or move.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)):
                     continue
 
                 _logger.info("Tipo de documento(dte): %s", move.codigo_tipo_documento)
@@ -295,14 +303,14 @@ class AccountMove(models.Model):
         for move in self:
 
             _logger.info("SIT-Compra move type: %s, tipo documento %s: ", move.move_type, move.codigo_tipo_documento)
-            if move.move_type not in('in_invoice', 'in_refund'):
+            if move.move_type not in(constants.IN_INVOICE, constants.IN_REFUND):
                 _logger.info("SIT Action post no aplica a modulos distintos a compra.")
                 continue
-            if move.move_type == 'in_invoice' and move.codigo_tipo_documento:
+            if move.move_type == constants.IN_INVOICE and move.journal_id.sit_tipo_documento:
                 _logger.info("SIT Action post no aplica para compras electronicas(como suejto excluido).")
                 continue
 
-            if move.move_type == 'in_invoice' and move.codigo_tipo_documento and move.hacienda_codigoGeneracion_identificacion:
+            if move.move_type == constants.IN_INVOICE and move.journal_id.sit_tipo_documento and move.hacienda_codigoGeneracion_identificacion:
                 existing = self.search([
                     ('id', '!=', move.id),
                     ('hacienda_codigoGeneracion_identificacion', '=', move.hacienda_codigoGeneracion_identificacion)
@@ -364,6 +372,14 @@ class AccountMove(models.Model):
         result = super(AccountMove, self)._post(soft=soft)
 
         for move in self:
+            if move.move_type not in (constants.IN_INVOICE, constants.IN_REFUND):
+                _logger.info("SIT Post no aplica a modulos distintos a compra.")
+                continue
+
+            if move.move_type == constants.IN_INVOICE and move.journal_id.sit_tipo_documento:
+                _logger.info("SIT Post no aplica para compras electronicas(como suejto excluido).")
+                continue
+
             _logger.info("SIT-Purchase Move id: %s", move.id)
 
             _logger.info("SIT-Purchase Compra anulada: %s", move.sit_invalidar)
@@ -385,7 +401,6 @@ class AccountMove(models.Model):
         # Devuelve el resultado original para que Odoo siga funcionando
         return result
 
-
     exp_duca_id = fields.One2many('exp_duca', 'move_id', string='DUCAs')
     def generar_asientos_retencion_compras(self):
         """
@@ -403,7 +418,8 @@ class AccountMove(models.Model):
         for move in self:
             _logger.info(f"SIT | [Move {move.id}] Inicio de generación de asientos ret./perc./renta")
 
-            if move.move_type not in ('in_invoice', 'in_refund'):
+            if (move.move_type not in (constants.IN_INVOICE, constants.IN_REFUND) or
+                    (move.move_type == constants.IN_INVOICE and move.journal_id.sit_tipo_documento)):
                 _logger.info(f"SIT | [Move {move.id}] No aplica: solo compras o notas de crédito de compra.")
                 continue
 

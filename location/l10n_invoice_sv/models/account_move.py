@@ -12,6 +12,13 @@ import json
 from decimal import Decimal, ROUND_HALF_UP
 from odoo.tools import float_round
 
+try:
+    from odoo.addons.common_utils.utils import constants
+    _logger.info("SIT Modulo constants [invoice_sv-account_move]")
+except ImportError as e:
+    _logger.error(f"Error al importar 'constants': {e}")
+    constants = None
+
 class AccountMove(models.Model):
     _inherit = 'account.move'
 

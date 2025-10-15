@@ -9,8 +9,8 @@
             <field name="arch" type="xml">
                 <xpath expr="//field[@name='partner_shipping_id']" position="after">
                     <div class="mt-2 mb-2">
-                        <label for="document_number"/>
-                        <field name="document_number"/>
+                        <label for="document_number" invisible="codigo_tipo_documento"/>
+                        <field name="document_number" invisible="codigo_tipo_documento"/>
                     </div>
                 </xpath>
                 <xpath expr="//field[@name='partner_id']" position="after">

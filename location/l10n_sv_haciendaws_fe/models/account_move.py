@@ -13,6 +13,8 @@ import os
 from PIL import Image
 import io
 
+from location.common_utils.utils.constants import CONST_CODIGOS_DEDUCCIONES_EMPLEADO
+
 base64.encodestring = base64.encodebytes
 import json
 import requests
@@ -219,11 +221,42 @@ class AccountMove(models.Model):
 
     @api.onchange("partner_id")
     def _onchange_partner_id_set_journal(self):
-        """Al seleccionar el cliente, sugerir el diario definido en el cliente."""
-        if self.partner_id and self.partner_id.journal_id:
-            # Solo asigna si no hay diario aún o si quieres sobreescribir
-            if not self.journal_id:
-                self.journal_id = self.partner_id.journal_id
+        """
+        Al seleccionar un cliente o proveedor, sugiere el diario definido en el partner.
+        Reglas:
+            1. Solo se asigna el diario si aún no hay un diario en el movimiento.
+            2. No se asigna si hay incompatibilidad entre el tipo de diario y el tipo de movimiento:
+                - Si el diario es de VENTA (sale) y el movimiento es de COMPRA ('in_invoice', 'in_refund'), no asigna.
+                - Si el diario es de COMPRA (purchase) y el movimiento es de VENTA ('out_invoice', 'out_refund'), no asigna.
+        Logs: Se registran mensajes informativos para rastrear la asignación o la omisión del diario.
+
+        Campos utilizados:
+            - partner_id.journal_id: diario sugerido del partner
+            - journal_id: diario del movimiento actual
+            - move_type: tipo de movimiento (venta/compra)
+        """
+        for record in self:
+            # Validar que el partner tenga un diario definido
+            if record.partner_id and record.partner_id.journal_id:
+                partner_journal = record.partner_id.journal_id
+                _logger.info("SIT: Partner %s tiene diario sugerido %s (%s)", record.partner_id.name, partner_journal.name, partner_journal.type)
+
+                # Evitar asignar diario de venta a movimientos de compra
+                if partner_journal.type == constants.TYPE_VENTA and record.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
+                    _logger.info("SIT: Diario %s es de VENTA pero el movimiento es COMPRA, no se asigna.", partner_journal.name)
+                    continue
+
+                # Evitar asignar diario de compra a movimientos de venta
+                if partner_journal.type == constants.TYPE_COMPRA and record.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND):
+                    _logger.info("SIT: Diario %s es de COMPRA pero el movimiento es VENTA, no se asigna.", partner_journal.name)
+                    continue
+
+                # Asignar el diario solo si no hay uno ya definido
+                if not record.journal_id:
+                    record.journal_id = partner_journal
+                    _logger.info("SIT: Diario asignado desde partner -> %s", partner_journal.name)
+                else:
+                    _logger.info("SIT: Diario ya definido (%s), no se sobreescribe.", record.journal_id.name)
 
     @api.depends('invoice_date')
     def _compute_invoice_time(self):
@@ -231,7 +264,7 @@ class AccountMove(models.Model):
         salvador_tz = pytz.timezone('America/El_Salvador')
         for move in self:
             # Validación para excluir compras
-            if move.move_type in ('in_invoice', 'in_refund'):
+            if move.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
                 _logger.info("Compra detectada -> move_type: %s, no se calcula invoice_time", move.move_type)
                 move.invoice_time = False
                 return  # No calcular invoice_time para compras
@@ -247,18 +280,19 @@ class AccountMove(models.Model):
     @api.onchange('move_type')
     def _onchange_move_type(self):
         # Si el tipo de movimiento es una reversión (out_refund), no se debe permitir modificar el nombre (número de control)
-        if self.move_type == 'out_refund' and self.name:
+        if self.move_type == constants.OUT_REFUND and self.name:
             self._fields['name'].readonly = True
         else:
             self._fields['name'].readonly = False
 
     @api.onchange('journal_id', 'l10n_latam_document_type_id')
     def _onchange_journal_id(self):
-        _logger.info("Cambiando el tipo de documento o el diario. Self: %s Journal: %s", self.id, self.journal_id.name)
-        # Verifica que el campo 'name' (número de control) no se modifique después de haber sido asignado
-        if self.name and self.name.startswith("DTE-"):
-            _logger.info("El número de control ya ha sido asignado y no debe modificarse.")
-            return  # No permite la modificación si ya tiene un número de control asignado
+        if self.move_type not in(constants.IN_INVOICE, constants.IN_REFUND):
+            _logger.info("Cambiando el tipo de documento o el diario. Self: %s Journal: %s", self.id, self.journal_id.name)
+            # Verifica que el campo 'name' (número de control) no se modifique después de haber sido asignado
+            if self.name and self.name.startswith("DTE-"):
+                _logger.info("El número de control ya ha sido asignado y no debe modificarse.")
+                return  # No permite la modificación si ya tiene un número de control asignado
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -273,11 +307,13 @@ class AccountMove(models.Model):
             journal = self.env["account.journal"].browse(journal_id) if journal_id else None
 
             # --- Saltar lógica DTE excepto para compras con diario 'sujeto excluido'
-            if move_type in ("in_invoice", "in_refund"):
+            if move_type in (constants.IN_INVOICE, constants.IN_REFUND) and (not journal.sit_tipo_documento or journal.sit_tipo_documento.codigo != constants.COD_DTE_FSE):
                 # if not (journal and getattr(journal, "sit_tipo_documento", False)):
-                _logger.info(
-                    "SIT-haciendaws_fe | Documento de compra detectado (tipo=%s, diario=%s) sin tipo DTE, se omite lógica DTE.",
-                    move_type, journal and journal.name)
+                if journal:
+                    _logger.info("SIT-haciendaws_fe | Documento de compra detectado (tipo=%s, diario=%s) sin tipo DTE, se omite lógica DTE.", journal.name, journal.name)
+                else:
+                    _logger.info("SIT-haciendaws_fe | Documento de compra detectado (tipo=%s, diario=No asignado) sin tipo DTE, se omite lógica DTE.", "Compra", "No asignado")
+
                 # return super(AccountMove, self).create(vals_list)
                 new_vals_list.append(vals)
                 continue
@@ -400,22 +436,29 @@ class AccountMove(models.Model):
 
     def _inverse_name(self):
         for rec in self:
-            _logger.warning("[INVERSE-NAME] Evaluando name para move_id=%s: %s", rec.id, rec.name)
-            if not rec.name:
-                _logger.warning("[INVERSE-NAME] name vacío → se asigna '/' para move_id=%s", rec.id)
-                rec.name = '/'
+            # Solo aplicar si es movimiento de venta
+            if rec.company_id.sit_facturacion and rec.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND):
+                _logger.warning("[INVERSE-NAME] Evaluando name para move_id=%s: %s", rec.id, rec.name)
+                if not rec.name:
+                    _logger.warning("[INVERSE-NAME] name vacío → se asigna '/' para move_id=%s", rec.id)
+                    rec.name = '/'
+            else:
+                _logger.info("[INVERSE-NAME] Move_id=%s no es venta (move_type=%s). No se modifica name.", rec.id, rec.move_type)
 
     @api.depends("move_type")
     def _compute_name(self):
         for rec in self:
-            # Si es una reversión (out_refund) y ya tiene un número de control, no permitas que sea modificado.
-            if rec.move_type == 'out_refund' and rec.name:
-                rec._fields['name'].readonly = True
+            if rec.company_id.sit_facturacion:
+                # Si es una reversión (out_refund) y ya tiene un número de control, no permitas que sea modificado.
+                if rec.move_type == 'out_refund' and rec.name:
+                    rec._fields['name'].readonly = True
 
     def cron_asynchronous_post(self):
         queue_limit = self.env['ir.config_parameter'].sudo().get_param('l10n_sv_haciendaws_fe.queue_limit', 20)
         queue = self.search([
-            ('asynchronous_post', '=', True), '|',
+            ('asynchronous_post', '=', True),
+            ('move_type', 'in', ['out_invoice', 'out_refund']),
+            '|',
             ('afip_result', '=', False),
             ('afip_result', '=', ''),
         ], limit=queue_limit)
@@ -428,26 +471,39 @@ class AccountMove(models.Model):
             rec.validation_type = False
 
             if rec.company_id and rec.company_id.sit_facturacion:
-                if not rec.afip_auth_code:
-                    validation_type = self.env["res.company"]._get_environment_type()
-                    # if we are on homologation env and we dont have certificates
-                    # we validate only locally
-                    _logger.info("SIT validation_type =%s", validation_type)
-                    if validation_type == "homologation":
-                        try:
-                            rec.company_id.get_key_and_certificate(validation_type)
-                        except Exception:
-                            validation_type = False
-                    rec.validation_type = validation_type
-                else:
-                    rec.validation_type = False
-                _logger.info("SIT validtion_type =%s", rec.validation_type)
+                if (rec.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND) or
+                        (rec.move_type == constants.IN_INVOICE and rec.journal_id and rec.journal_id.sit_tipo_documento and rec.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FSE)):
+                    if not rec.afip_auth_code:
+                        validation_type = self.env["res.company"]._get_environment_type()
+                        # if we are on homologation env and we dont have certificates
+                        # we validate only locally
+                        _logger.info("SIT validation_type =%s", validation_type)
+                        if validation_type == "homologation":
+                            try:
+                                rec.company_id.get_key_and_certificate(validation_type)
+                            except Exception:
+                                validation_type = False
+                        rec.validation_type = validation_type
+                    else:
+                        rec.validation_type = False
+                    _logger.info("SIT validtion_type =%s", rec.validation_type)
 
     @api.depends("afip_auth_code")
     def _compute_qr_code(self):
         for rec in self:
-            # Si la empresa no tiene facturación electrónica activa -> no generar QR
+            # Validación 1: la empresa debe tener facturación electrónica activa
             if not (rec.company_id and rec.company_id.sit_facturacion):
+                _logger.info("SIT _compute_qr_code: empresa %s no tiene facturación electrónica activa. Se omite QR.", rec.company_id.name if rec.company_id else None)
+                rec.afip_qr_code = False
+                continue
+
+            # Validación 2: solo para ventas o compras de sujeto excluido
+            if (rec.move_type in [constants.IN_INVOICE, constants.IN_REFUND] and (
+                    not rec.journal_id.sit_tipo_documento or rec.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)):
+                _logger.info(
+                    "SIT _compute_qr_code: move_id %s no es venta ni sujeto excluido. Se omite QR.",
+                    rec.id,
+                )
                 rec.afip_qr_code = False
                 continue
 
@@ -491,8 +547,21 @@ class AccountMove(models.Model):
     def get_related_invoices_data(self):
         """
         List related invoice information to fill CbtesAsoc.
+        Solo aplica si la empresa tiene facturación electrónica activa
+        y si el movimiento es venta o sujeto excluido.
         """
         self.ensure_one()
+
+        # Validación: empresa con facturación electrónica activa
+        if not (self.company_id and self.company_id.sit_facturacion):
+            _logger.info("SIT get_related_invoices_data: move_id %s no aplica a facturación electrónica. Se devuelve browse() vacío.", self.id)
+            return self.browse()
+
+        # Validación: solo ventas o sujeto excluido
+        if (self.move_type in [constants.IN_INVOICE, constants.IN_REFUND] and
+                (not self.journal_id.sit_tipo_documento or self.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)):
+            _logger.info("SIT get_related_invoices_data: move_id %s no es venta ni sujeto excluido. Se devuelve browse() vacío.", self.id)
+            return self.browse()
 
         _logger.info("Iniciando get_related_invoices_data para move_id=%s", self.id)
         _logger.info("Tipo de documento: %s", self.l10n_latam_document_type_id.internal_type)
@@ -523,13 +592,16 @@ class AccountMove(models.Model):
         _logger.info("SIT diario: %s, tipo. %s, | es dte? %s | Actualizar secuencia? %s", journal, journal.type,
                      doc_electronico, actualizar_secuencia)
 
-        if self.company_id and self.company_id.sit_facturacion and doc_electronico:
+        if (self.company_id and self.company_id.sit_facturacion and doc_electronico and
+                (self.move_type in(constants.OUT_INVOICE, constants.OUT_REFUND) or
+                 (self.move_type == constants.IN_INVOICE and self.journal_id.sit_tipo_documento and self.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FSE))
+        ):
             nuevo_numero = 0
 
             if journal.type not in ('sale', 'purchase'):
                 return False
 
-            if doc_electronico and (not journal.sit_tipo_documento or not journal.sit_tipo_documento.codigo):
+            if not journal.sit_tipo_documento or not journal.sit_tipo_documento.codigo:
                 raise UserError(_("Configure Tipo de DTE en diario '%s'.") % journal.name)
             if doc_electronico and not journal.sit_codestable:
                 raise UserError(_("Configure Código de Establecimiento en diario '%s'.") % journal.name)
@@ -888,6 +960,11 @@ class AccountMove(models.Model):
             _logger.info("SIT No aplica actualización de secuencia (empresa sin facturación electrónica).")
             return
 
+        if (self.move_type in(constants.IN_INVOICE, constants.OUT_INVOICE) and
+                (not self.journal_id.sit_tipo_documento or self.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)):
+            _logger.info("SIT No aplica actualización de secuencia para el modulo de compras.")
+            return
+
         # Validar diario y configuración
         if not self.journal_id or not self.journal_id.sit_tipo_documento or not self.journal_id.sit_codestable:
             _logger.info("SIT No aplica actualización de secuencia (diario sin configuración).")
@@ -959,9 +1036,8 @@ class AccountMove(models.Model):
             # -------------------------------------------------------------------------
             aplica_dte = (
                     invoice.company_id.sit_facturacion and (
-                    invoice.move_type in ('out_invoice', 'out_refund')
-                    or (invoice.move_type in ('in_invoice', 'in_refund') and getattr(invoice.journal_id,
-                                                                                     'sit_tipo_documento', False))
+                    invoice.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND)
+                    or (invoice.move_type in (constants.IN_INVOICE, constants.IN_REFUND) and invoice.journal_id.sit_tipo_documento and invoice.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FSE)
             )
             )
 
@@ -1362,6 +1438,10 @@ class AccountMove(models.Model):
             _logger.info("SIT La empresa no aplica facturación electrónica. Omite firma de documento.")
             return [{"status": "SKIPPED", "mensaje": "Empresa no aplica facturación electrónica"}]
 
+        if self.move_type in(constants.IN_INVOICE, constants.IN_REFUND) and (not self.journal_id.sit_tipo_documento or self.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE):
+            _logger.info("SIT Las compras no aplican. Omite firma de documento.")
+            return [{"status": "SKIPPED", "mensaje": "Compra no aplica facturación electrónica"}]
+
         resultado = []
         dte_json = None  # para logging en except
 
@@ -1491,6 +1571,12 @@ class AccountMove(models.Model):
             _logger.info("SIT No aplica facturación electrónica. Se omite payload.")
             return False
 
+        # Validación: si es compra y tipo de documento 14, no aplica
+        if (self.move_type in (constants.IN_INVOICE, constants.IN_REFUND) and
+                (not self.journal_id.sit_tipo_documento or self.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)):
+            _logger.info("SIT Es una compra Payload no aplica.")
+            return False
+
         invoice_info = None
 
         if sit_tipo_documento in (constants.COD_DTE_FE, "13"):
@@ -1530,6 +1616,12 @@ class AccountMove(models.Model):
         # ——— Validar si aplica facturación electrónica ———
         if not (self.company_id and self.company_id.sit_facturacion):
             _logger.info("SIT No aplica facturación electrónica. Se omite generación de DTE.")
+            return False
+
+        # ——— Validación específica de compras y tipo de documento ———
+        if (self.move_type in (constants.IN_INVOICE, constants.IN_REFUND) and
+                (not self.journal_id.sit_tipo_documento or self.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)):
+            _logger.info("SIT No se genera DTE: compra normal o sujeto excluido sin tipo FSE | move_id=%s, journal_id=%s", self.id, self.journal_id.id if self.journal_id else None)
             return False
 
         _logger.info("SIT Generando Dte account_move | payload: %s", payload_original)
@@ -1829,11 +1921,20 @@ class AccountMove(models.Model):
     def _autenticar(self, user, pwd):
         _logger.info("SIT self = %s", self)
 
+        # Validación de facturación electrónica
         if not (self.company_id and self.company_id.sit_facturacion):
-            _logger.info("SIT No aplica facturación electrónica. Se omite autenticación.")
+            _logger.info("SIT No aplica facturación electrónica para la empresa %s. Se omite autenticación.", self.company_id.name if self.company_id else None)
             return False
 
-        _logger.info("SIT self = %s, %s", user, pwd)
+        # Validación según tipo de movimiento
+        if self.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
+            tipo_doc = self.journal_id.sit_tipo_documento if self.journal_id else None
+            # Si no hay tipo de documento o es un documento que no se factura electrónicamente (ej. sujeto excluido)
+            if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FE:
+                _logger.info("SIT Movimiento de compra sin facturación electrónica requerida (tipo_doc=%s). Se omite autenticación.", tipo_doc.codigo if tipo_doc else None)
+                return False
+
+        _logger.info("SIT Usuario y password recibidos = %s, %s", user, pwd)
         enviroment_type = self._get_environment_type()
         _logger.info("SIT Modo = %s", enviroment_type)
         url = None
@@ -1868,6 +1969,13 @@ class AccountMove(models.Model):
         if not (self.company_id and self.company_id.sit_facturacion):
             _logger.info("SIT No aplica facturación electrónica. Se omite generación de QR(_generar_qr).")
             return False
+
+        # Validación según tipo de movimiento
+        if self.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
+            tipo_doc = self.journal_id.sit_tipo_documento if self.journal_id else None
+            if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FE:
+                _logger.info("SIT Movimiento de compra sin facturación electrónica requerida (tipo_doc=%s). Se omite generación de QR.", tipo_doc.codigo if tipo_doc else None)
+                return False
 
         #enviroment_type = 'homologation'
         enviroment_type = self._get_environment_type()
@@ -1904,9 +2012,17 @@ class AccountMove(models.Model):
     def generar_qr(self):
         _logger.info("SIT generando qr = %s", self)
 
+        # ——— Validación facturación electrónica ———
         if not (self.company_id and self.company_id.sit_facturacion):
-            _logger.info("SIT No aplica facturación electrónica. Se omite generación de QR(generar_qr).")
+            _logger.info("SIT No aplica facturación electrónica. Se omite generación de QR (generar_qr) para move_id=%s", self.id)
             return False
+
+        # ——— Validación por tipo de movimiento ———
+        if self.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
+            tipo_doc = self.journal_id.sit_tipo_documento if self.journal_id else None
+            if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FE:
+                _logger.info("SIT Movimiento de compra sin facturación electrónica requerida (tipo_doc=%s). Se omite generación de QR.", tipo_doc.codigo if tipo_doc else None)
+                return False
 
         enviroment_type = 'homologation'
         if enviroment_type == 'homologation':
@@ -1924,8 +2040,8 @@ class AccountMove(models.Model):
         codigo_qr.add_data(texto_codigo_qr)
         os.chdir(EXTRA_ADDONS)
         directory = os.getcwd()
+        _logger.info("SIT directory = %s", directory)
 
-        _logger.info("SIT directory =%s", directory)
         basewidth = 100
         buffer = io.BytesIO()
 
@@ -1938,13 +2054,23 @@ class AccountMove(models.Model):
         new_img.save(buffer, format="PNG")
         qrCode = base64.b64encode(buffer.getvalue())
         self.sit_qr_hacienda = qrCode
-        return
+        _logger.info("SIT QR generado exitosamente para move_id=%s", self.id)
+        return qrCode
 
     def check_parametros_firmado(self):
-        _logger.info("SIT-Hacienda_fe Validaciones parametros doc firmado")
+        _logger.info("SIT-Hacienda_fe Validaciones parametros doc firmado | move_id=%s", self.id)
+
+        # ——— Validación facturación electrónica ———
         if not (self.company_id and self.company_id.sit_facturacion):
-            _logger.info("SIT No aplica facturación electrónica. Se omite validación de parámetros de firmado.")
+            _logger.info("SIT No aplica facturación electrónica. Se omite validación de parámetros de firmado para move_id=%s", self.id)
             return False
+
+        # ——— Validación por tipo de movimiento ———
+        if self.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
+            tipo_doc = self.journal_id.sit_tipo_documento if self.journal_id else None
+            if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE:  # Sujeto excluido
+                _logger.info("SIT Movimiento de compra con tipo de documento (%s). Se omiten validaciones.", tipo_doc.codigo if tipo_doc else None)
+                return False
 
         if not self.journal_id.sit_tipo_documento.codigo:
             raise UserError(_('El Tipo de DTE no definido.'))
@@ -1983,6 +2109,8 @@ class AccountMove(models.Model):
         if not self.invoice_line_ids:
             raise UserError(_('La factura no tiene LINEAS DE PRODUCTOS asociada.'))
 
+        _logger.info("SIT Validaciones completadas correctamente para move_id=%s", self.id)
+
     def check_parametros_linea_firmado(self, line_temp):
         if not line_temp["codigo"]:
             ERROR = 'El CODIGO del producto  ' + line_temp["descripcion"] + ' no está definido.'
@@ -1998,11 +2126,21 @@ class AccountMove(models.Model):
             raise UserError(_(ERROR))
 
     def check_parametros_dte(self, generacion_dte, ambiente_test):
-        _logger.info("SIT-Hacienda_fe Validaciones check_parametros_dte")
+        _logger.info("SIT-Hacienda_fe Validaciones check_parametros_dte | move_id=%s", self.id)
+
+        # ——— Validar facturación electrónica ———
         if not (self.company_id and self.company_id.sit_facturacion):
-            _logger.info("SIT No aplica facturación electrónica. Se omite validación de parámetros DTE.")
+            _logger.info("SIT No aplica facturación electrónica. Se omite validación de parámetros DTE para move_id=%s", self.id)
             return False
 
+        # ——— Validar tipo de movimiento (compra excluida) ———
+        if self.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
+            tipo_doc = self.journal_id.sit_tipo_documento if self.journal_id else None
+            if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE:  # Sujeto excluido
+                _logger.info("SIT Movimiento de compra con tipo de documento (%s). Se omiten validaciones de DTE.", tipo_doc.codigo if tipo_doc else None)
+                return False
+
+        # Validaciones obligatorias del DTE
         if not generacion_dte["ambiente"]:
             raise UserError(_('El ambiente  no está definido.'))
         if not generacion_dte["idEnvio"]:
@@ -2022,9 +2160,17 @@ class AccountMove(models.Model):
         return True
 
     def _evaluar_error_contingencia(self, status_code, origen="desconocido"):
+        # ——— Validar facturación electrónica ———
         if not (self.company_id and self.company_id.sit_facturacion):
-            _logger.info("SIT No aplica facturación electrónica. Se omite evaluación de error de contingencia.")
+            _logger.info("SIT No aplica facturación electrónica. Se omite evaluación de error de contingencia para move_id=%s", self.id)
             return None, False, ""
+
+        # ——— Validar tipo de movimiento: ignorar compras sujetas a exclusión ———
+        if self.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
+            tipo_doc = self.journal_id.sit_tipo_documento if self.journal_id else None
+            if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE:  # Sujeto excluido
+                _logger.info("SIT Movimiento de compra con tipo de documento (%s) se omite evaluación de contingencia.", tipo_doc.codigo if tipo_doc else None)
+                return None, False, ""
 
         motivo_otro = False
         mensaje = ""
@@ -2045,13 +2191,22 @@ class AccountMove(models.Model):
 
     def _crear_contingencia(self, resp, data, mensaje):
         # ___Actualizar dte en contingencia
+        # ——— Validar facturación electrónica y tipo de movimiento ———
         if not (self.company_id and self.company_id.sit_facturacion):
             _logger.info("SIT No aplica facturación electrónica. Se omite creación de contingencia.")
             return
 
+        # Validar tipo de movimiento y documento
+        if self.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
+            tipo_doc = self.journal_id.sit_tipo_documento if self.journal_id else None
+            if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE:  # Sujeto excluido
+                _logger.info("Factura de tipo compra. Se omite creación de contingencia.")
+                return
+
         # Solo crear si no tiene sello y no está ya en contingencia
         if self.hacienda_selloRecibido or self.sit_factura_de_contingencia:
-            _logger.info("Factura %s no entra a contingencia: sello=%s, contingencia=%s", self.name, self.hacienda_selloRecibido, self.sit_factura_de_contingencia)
+            _logger.info("Factura %s no entra a contingencia: sello=%s, contingencia=%s", self.name,
+                         self.hacienda_selloRecibido, self.sit_factura_de_contingencia)
             return
 
         journal_contingencia = self.env['account.journal'].search([
@@ -2088,7 +2243,8 @@ class AccountMove(models.Model):
             'sit_es_configencia': True,
             'sit_tipo_contingencia': tipo_contingencia.id if tipo_contingencia else False,
         })
-        _logger.info("Guardando DTE en contingencia (%s): %s", tipo_contingencia.codigo if tipo_contingencia else "", self.name)
+        _logger.info("Guardando DTE en contingencia (%s): %s", tipo_contingencia.codigo if tipo_contingencia else "",
+                     self.name)
 
         _logger.info("Buscando contingencia activa para empresa: %s", self.company_id.name)
         Contingencia = self.env['account.contingencia1']
@@ -2120,7 +2276,8 @@ class AccountMove(models.Model):
                 _logger.info("Facturas en contingencia %s: %d", contingencia_activa.name, num_facturas_contingencia)
 
                 if num_facturas_contingencia >= 5000:
-                    _logger.warning("Contingencia %s alcanzó el máximo de 5000 facturas. Se creará nueva contingencia.", contingencia_activa.name)
+                    _logger.warning("Contingencia %s alcanzó el máximo de 5000 facturas. Se creará nueva contingencia.",
+                                    contingencia_activa.name)
                     contingencia_activa.write({'contingencia_activa': False})
                     contingencia_activa = None
 
@@ -2162,14 +2319,17 @@ class AccountMove(models.Model):
                             ('company_id', '=', self.company_id.id),
                         ])
                         if lotes_vacios:
-                            _logger.warning("Se eliminarán lotes vacíos sin nombre antes de crear uno nuevo: %s", lotes_vacios.ids)
+                            _logger.warning("Se eliminarán lotes vacíos sin nombre antes de crear uno nuevo: %s",
+                                            lotes_vacios.ids)
                             lotes_vacios.unlink()
 
                         num_lotes = Lote.search_count([('sit_contingencia', '=', contingencia_activa.id)])
-                        _logger.info("Cantidad lotes existentes en contingencia %s: %d", contingencia_activa.name, num_lotes)
+                        _logger.info("Cantidad lotes existentes en contingencia %s: %d", contingencia_activa.name,
+                                     num_lotes)
 
                         if num_lotes < 400:
-                            nuevo_nombre_lote = self.env['account.lote'].generar_nombre_lote(journal=journal_lote, actualizar_secuencia=True)
+                            nuevo_nombre_lote = self.env['account.lote'].generar_nombre_lote(journal=journal_lote,
+                                                                                             actualizar_secuencia=True)
                             if not nuevo_nombre_lote or not nuevo_nombre_lote.strip():
                                 raise UserError(_("El nombre generado para el lote es inválido, no puede ser vacío."))
                             lote_asignado = Lote.create({
@@ -2186,13 +2346,15 @@ class AccountMove(models.Model):
                             contingencia_activa = None  # Forzar nueva contingencia
 
                     elif not lote_asignado and self.sit_lote_contingencia:
-                        _logger.info("Factura ya tenía un lote asignado, no se crea nuevo lote: %s", self.sit_lote_contingencia.name)
+                        _logger.info("Factura ya tenía un lote asignado, no se crea nuevo lote: %s",
+                                     self.sit_lote_contingencia.name)
         else:
             _logger.info("No se encontró contingencia activa. Creando nueva.")
 
         # Si no hay contingencia activa o válida, crear una nueva
         if not contingencia_activa:
-            nuevo_name = Contingencia._generate_contingencia_name(journal=journal_contingencia, actualizar_secuencia=True)
+            nuevo_name = Contingencia._generate_contingencia_name(journal=journal_contingencia,
+                                                                  actualizar_secuencia=True)
             contingencia_activa = Contingencia.create({
                 'name': nuevo_name,
                 'company_id': self.company_id.id,
@@ -2232,7 +2394,8 @@ class AccountMove(models.Model):
 
             _logger.info("Creada nueva contingencia %s", contingencia_activa.name)
 
-        _logger.info("Factura %s asignada a contingencia %s y lote %s", self.name, contingencia_activa.name, lote_asignado.name if lote_asignado else "N/A")
+        _logger.info("Factura %s asignada a contingencia %s y lote %s", self.name, contingencia_activa.name,
+                     lote_asignado.name if lote_asignado else "N/A")
         return {
             'notificar': True,
             'title': 'El DTE se guardó en contingencia',
@@ -2242,6 +2405,19 @@ class AccountMove(models.Model):
 
     def _asignar_a_bloque(self, contingencia_activa):
         # Buscar bloque con menos de 100 facturas
+        # ——— Validar facturación electrónica ———
+        if not (self.company_id and self.company_id.sit_facturacion):
+            _logger.info("SIT No aplica facturación electrónica. Se omite asignación a bloque.")
+            return
+
+        # ——— Validar tipo de movimiento y documento ———
+        if self.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
+            tipo_doc = self.journal_id.sit_tipo_documento if self.journal_id else None
+            if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE:
+                _logger.info("Factura de tipo compra se omite asignación a bloque.")
+                return
+
+        # ——— Buscar bloque con menos de 100 facturas ———
         bloque = self.env['account.contingencia.bloque'].search([
             ('contingencia_id', '=', contingencia_activa.id),
             ('cantidad', '<', 100),
@@ -2266,109 +2442,127 @@ class AccountMove(models.Model):
     def action_post(self):
         _logger.info("SIT Action post dte. %s", self)
 
-        # Verificar si la facturación electrónica aplica para todas las facturas
-        if not all(inv.company_id and inv.company_id.sit_facturacion for inv in self):
-            _logger.info("SIT No aplica facturación electrónica para alguna factura. Se omite notificación de contingencia.")
-            return super().action_post()
+        # Recorremos todas las facturas para validaciones iniciales
+        for inv in self:
+            # Verificar si la facturación electrónica aplica para todas las facturas
 
-        if self.move_type not in ('out_invoice', 'in_invoice', 'out_refund', 'in_refund'):
-            _logger.info("SIT Action post omitido (no es factura ni nota): %s", self.move_type)
-            return super().action_post()
+            if not inv.company_id and inv.company_id.sit_facturacion:
+                _logger.info(
+                    "SIT No aplica facturación electrónica para la factura %s. Se omiten validaciones iniciales.",
+                    inv.name)
+                # return super().action_post()
+                continue
 
-        ambiente_test = False
-        if config_utils:
-            ambiente_test = config_utils._compute_validation_type_2(self.env, self.company_id)
-            _logger.info("SIT Validaciones[Ambiente]: %s", ambiente_test)
+            # Validación de compras FSE (sujeto excluido)
+            if inv.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
+                tipo_doc = inv.journal_id.sit_tipo_documento if inv.journal_id else None
+                if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE:  # Sujeto excluido
+                    _logger.info("Factura de tipo compra con documento FSE. Se omiten validaciones de DTE para %s.",
+                                 inv.name)
+                    continue
 
-        doc_electronico = False
-        if self.journal_id and self.journal_id.sit_tipo_documento and self.journal_id.sit_tipo_documento.codigo:
-            doc_electronico = True
+            ambiente_test = False
+            if config_utils:
+                ambiente_test = config_utils._compute_validation_type_2(inv.env, inv.company_id)
+                _logger.info("SIT Validaciones[Ambiente] para %s: %s", inv.name, ambiente_test)
 
-        if not self.env.context.get('skip_dte_validations', False):
-            # Verificar si ya se completaron las validaciones esenciales para continuar
-            if not self.invoice_date:
-                _logger.warning("SIT | Fecha del documento no seleccionada.")
-                raise ValidationError("Debe seleccionar la fecha del documento.")
+            doc_electronico = inv.journal_id.sit_tipo_documento.codigo if inv.journal_id and inv.journal_id.sit_tipo_documento else None
+            if not inv.env.context.get('skip_dte_validations', False):
+                # Verificar si ya se completaron las validaciones esenciales para continuar
+                if not inv.invoice_date:
+                    _logger.warning("SIT | Fecha del documento no seleccionada.")
+                    raise ValidationError("Debe seleccionar la fecha del documento.")
 
-            if doc_electronico and not self.condiciones_pago:
-                _logger.warning("SIT | No se ha seleccionado una Condición de la Operación.")
-                raise ValidationError("Debe seleccionar una Condicion de la Operación.")
+                if doc_electronico and not inv.condiciones_pago:
+                    _logger.warning("SIT | No se ha seleccionado una Condición de la Operación.")
+                    raise ValidationError("Debe seleccionar una Condicion de la Operación.")
 
-            if doc_electronico and not self.forma_pago:
-                _logger.warning("SIT | No se ha seleccionado una Forma de Pago.")
-                raise ValidationError("Seleccione una Forma de Pago.")
+                if doc_electronico and not inv.forma_pago:
+                    _logger.warning("SIT | No se ha seleccionado una Forma de Pago.")
+                    raise ValidationError("Seleccione una Forma de Pago.")
 
-            if doc_electronico and self.journal_id and not self.journal_id.report_xml:
-                _logger.warning("SIT | El diario no tiene un reporte PDF configurado.")
-                raise ValidationError("El diario debe tener un reporte PDF configurado.")
+                if doc_electronico and inv.journal_id and not inv.journal_id.report_xml:
+                    _logger.warning("SIT | El diario no tiene un reporte PDF configurado.")
+                    raise ValidationError("El diario debe tener un reporte PDF configurado.")
 
-            if not ambiente_test and self.journal_id.sit_tipo_documento and self.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_NC and self.inv_refund_id and not self.inv_refund_id.hacienda_selloRecibido:
-                _logger.warning("SIT | El documento relacionado aún no tiene el sello de Hacienda.")
-                raise ValidationError("El documento relacionado aún no cuenta con el sello de Hacienda.")
+                if not ambiente_test and inv.journal_id.sit_tipo_documento and inv.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_NC and inv.inv_refund_id and not inv.inv_refund_id.hacienda_selloRecibido:
+                    _logger.warning("SIT | El documento relacionado aún no tiene el sello de Hacienda.")
+                    raise ValidationError("El documento relacionado aún no cuenta con el sello de Hacienda.")
+
+                if doc_electronico and not inv.tipo_operacion and journal_id.sit_tipo_documento.codigo in(constants.COD_DTE_FE, constants.COD_DTE_FEX, constants.COD_DTE_CCF, constants.COD_DTE_NC, constants.COD_DTE_ND):
+                    _logger.warning("SIT | No se ha seleccionado una Forma de Pago.")
+                    raise ValidationError("Seleccione una Forma de Pago.")
+
+                if doc_electronico and not inv.tipo_ingreso_id and journal_id.sit_tipo_documento.codigo in(constants.COD_DTE_FE, constants.COD_DTE_FEX, constants.COD_DTE_CCF, constants.COD_DTE_NC, constants.COD_DTE_ND):
+                    _logger.warning("SIT | No se ha seleccionado una Forma de Pago.")
+                    raise ValidationError("Seleccione una Forma de Pago.")
 
         # Verificar si el DTE ha sido recibido y procesado correctamente
-        _logger.info("SIT Estado registro: %s", self.state)
+        for inv in self:
+            _logger.info("SIT Estado registro: %s", inv.state)
+            if not ambiente_test and inv.hacienda_selloRecibido and inv.state == 'posted':
+                _logger.info("SIT El DTE ha sido recibido y procesado por Hacienda para el documento %s", inv.name)
+                return {
+                    'type': 'ir.actions.client',
+                    'tag': 'display_notification',
+                    'params': {
+                        'title': "Éxito",
+                        'message': f"El documento electrónico {inv.name} ha sido enviado y procesado correctamente por Hacienda.",
+                        'type': 'success',
+                        'sticky': False,
+                    },
+                }
+            elif ambiente_test and inv.hacienda_estado and inv.hacienda_estado.lower() == 'procesado' and inv.state != 'draft':
+                _logger.info("SIT El documento electrónico ha sido procesado correctamente %s, estado: %s", inv.name,
+                             inv.state)
+                return {
+                    'type': 'ir.actions.client',
+                    'tag': 'display_notification',
+                    'params': {
+                        'title': "Éxito",
+                        'message': f"El documento electrónico {inv.name} ha sido procesado correctamente.",
+                        'type': 'success',
+                        'sticky': False,
+                    },
+                }
 
-        if not ambiente_test and self.hacienda_selloRecibido and self.state == 'posted':
-            _logger.info("SIT El DTE ha sido recibido y procesado por Hacienda para el documento %s", self.name)
-            return {
-                'type': 'ir.actions.client',
-                'tag': 'display_notification',
-                'params': {
-                    'title': "Éxito",
-                    'message': f"El documento electrónico {self.name} ha sido enviado y procesado correctamente por Hacienda.",
-                    'type': 'success',
-                    'sticky': False,
-                },
-            }
-        elif ambiente_test and self.hacienda_estado and self.hacienda_estado.lower() == 'procesado' and self.state != 'draft':
-            _logger.info("SIT El documento electrónico ha sido procesado correctamente %s, estado: %s", self.name, self._origin.state)
-            return {
-                'type': 'ir.actions.client',
-                'tag': 'display_notification',
-                'params': {
-                    'title': "Éxito",
-                    'message': f"El documento electrónico {self.name} ha sido procesado correctamente.",
-                    'type': 'success',
-                    'sticky': False,
-                },
-            }
-
-        # Verificar si el correo fue enviado
-        _logger.info("SIT Enviar correo context: %s", self.env.context.get('correo_enviado', False))
-        if not ambiente_test and not self.env.context.get('correo_enviado', False) and self.state == 'posted' and not self.correo_enviado:
-            return {
-                'type': 'ir.actions.client',
-                'tag': 'display_notification',
-                'params': {
-                    'title': "Aviso",
-                    'message': "El correo con el DTE no fue enviado.",
-                    'type': 'warning',
-                    'sticky': False,
-                },
-            }
-        elif not ambiente_test and not self.env.context.get('correo_enviado', False) and self.state == 'posted' and self.correo_enviado:
-            return {
-                'type': 'ir.actions.client',
-                'tag': 'display_notification',
-                'params': {
-                    'title': "Aviso",
-                    'message': "El correo con el DTE no fue enviado.",
-                    'type': 'warning',
-                    'sticky': False,
-                },
-            }
-        elif self.env.context.get('correo_enviado') and self.state == 'posted':
-            return {
-                'type': 'ir.actions.client',
-                'tag': 'display_notification',
-                'params': {
-                    'title': "Aviso",
-                    'message': "El correo fue enviado.",
-                    'type': 'success',
-                    'sticky': False,
-                },
-            }
+            # Verificar si el correo fue enviado
+            _logger.info("SIT Enviar correo context: %s", inv.env.context.get('correo_enviado', False))
+            if not ambiente_test and not inv.env.context.get('correo_enviado',
+                                                             False) and inv.state == 'posted' and not inv.correo_enviado:
+                return {
+                    'type': 'ir.actions.client',
+                    'tag': 'display_notification',
+                    'params': {
+                        'title': "Aviso",
+                        'message': "El correo con el DTE no fue enviado.",
+                        'type': 'warning',
+                        'sticky': False,
+                    },
+                }
+            elif not ambiente_test and not inv.env.context.get('correo_enviado',
+                                                               False) and inv.state == 'posted' and inv.correo_enviado:
+                return {
+                    'type': 'ir.actions.client',
+                    'tag': 'display_notification',
+                    'params': {
+                        'title': "Aviso",
+                        'message': "El correo con el DTE no fue enviado.",
+                        'type': 'warning',
+                        'sticky': False,
+                    },
+                }
+            elif inv.env.context.get('correo_enviado') and inv.state == 'posted':
+                return {
+                    'type': 'ir.actions.client',
+                    'tag': 'display_notification',
+                    'params': {
+                        'title': "Aviso",
+                        'message': "El correo fue enviado.",
+                        'type': 'success',
+                        'sticky': False,
+                    },
+                }
 
         res = super().action_post()
 
@@ -2485,7 +2679,9 @@ class AccountMove(models.Model):
 
     def write(self, vals):
         # Primero, verificamos si es una factura de compra, si lo es, no ejecutamos el código personalizado.
-        if all(inv.move_type in ('in_invoice', 'in_refund') for inv in self):
+        if all(inv.move_type in (constants.IN_INVOICE, constants.IN_REFUND)
+               and (not inv.journal_id.sit_tipo_documento or inv.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)
+               for inv in self):
             # Si todos los registros son de compra, no ejecutamos el código personalizado.
             _logger.info("SIT-haciendaws_fe: Factura de compra detectada, se salta la lógica personalizada.")
             return super().write(vals)
@@ -2518,9 +2714,17 @@ class AccountMove(models.Model):
         for move in self:
             # Validar si la empresa aplica a facturación electrónica
             if not (move.company_id and move.company_id.sit_facturacion):
-                _logger.info("SIT | La empresa %s no aplica a facturación electrónica. Se omite retenciones para %s", move.company_id.name, move.name)
+                _logger.info("SIT | La empresa %s no aplica a facturación electrónica. Se omite retenciones para %s", move.company_id.name if move.company_id else None, move.name)
                 continue
 
+            # Validar si es una compra y si su tipo de documento es FSE (sujeto excluido)
+            if move.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
+                tipo_doc = move.journal_id.sit_tipo_documento if move.journal_id else None
+                if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE:
+                    _logger.info("SIT | Factura de compra se omite copia de retenciones para %s.", move.name)
+                    continue
+
+            # Determinar documento origen según el tipo de DTE
             origen = None
             if move.codigo_tipo_documento == constants.COD_DTE_NC and move.reversed_entry_id:
                 origen = move.reversed_entry_id
@@ -2528,8 +2732,10 @@ class AccountMove(models.Model):
                 origen = move.debit_origin_id
 
             if not origen:
+                _logger.info("SIT | No se encontró documento origen para copiar retenciones en %s.", move.name)
                 continue
 
+            # Copiar retenciones desde el documento origen
             move.apply_retencion_renta = origen.apply_retencion_renta
             move.retencion_renta_amount = origen.retencion_renta_amount
 
@@ -2539,14 +2745,24 @@ class AccountMove(models.Model):
             move.apply_iva_percibido = origen.apply_iva_percibido
             move.iva_percibido_amount = origen.iva_percibido_amount
 
+            _logger.info("SIT | Retenciones copiadas desde el documento %s hacia %s.", origen.name, move.name)
+
     def _products_missing_required_iva(self):
         """Devuelve product.product de líneas que NO tienen aplicado el IVA 13% en tax_ids."""
         self.ensure_one()
 
         # --- Validación: solo aplicar si la empresa aplica a facturación electrónica ---
         if not (self.company_id and self.company_id.sit_facturacion):
-            _logger.info("Empresa %s no aplica a facturación electrónica, se omite validación.", self.company_id.display_name)
-            return
+            _logger.info("SIT | La empresa %s no aplica a facturación electrónica. Se omite validación de IVA 13%%.", self.company_id.display_name)
+            return self.env["product.product"]
+            # return
+
+        # --- Validación para compras FSE (sujeto excluido) ---
+        if self.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
+            tipo_doc = self.journal_id.sit_tipo_documento if self.journal_id else None
+            if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE:  # Sujeto Excluido
+                _logger.info("SIT | Factura de compra con documento se omite validación de IVA 13%% para %s.", self.name)
+                return self.env["product.product"]
 
         _logger.info("IVA13CHK ▶ start move_id=%s name=%s company=%s", self.id, self.name or '/', self.company_id.display_name)
 
@@ -2619,10 +2835,18 @@ class AccountMove(models.Model):
         """
         self.ensure_one()
 
-        # Validar si la empresa aplica a facturación electrónica
+        # --- Validación: solo aplicar si la empresa aplica a facturación electrónica ---
         if not (self.company_id and self.company_id.sit_facturacion):
             _logger.info("La empresa %s no aplica a facturación electrónica. Validación omitida.", self.company_id.name)
-            return
+            # return
+            return self.env["product.product"]
+
+        # --- Validación para compras FSE (sujeto excluido) ---
+        if self.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
+            tipo_doc = self.journal_id.sit_tipo_documento if self.journal_id else None
+            if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE:  # Sujeto Excluido
+                _logger.info("Factura de compra. Se omite validación de tributo de Hacienda para %s.", self.name)
+                return self.env["product.product"]
 
         missing_products = self.env["product.product"]
 
@@ -2633,4 +2857,5 @@ class AccountMove(models.Model):
             if not line.product_id.tributos_hacienda_cuerpo:
                 missing_products |= line.product_id
 
+        _logger.info("Productos sin tributo de Hacienda para el Cuerpo: %s",", ".join(missing_products.mapped("display_name")) or "NINGUNO")
         return missing_products
