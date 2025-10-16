@@ -21,12 +21,20 @@
         <field name="arch" type="xml">
             <form string="Quedán de Proveedor">
                 <header>
+                    <!-- Botón Enviar por correo -->
+                    <button name="action_send_email"
+                            string="Enviar por correo"
+                            type="object"
+                            class="btn-secondary"
+                            icon="fa-envelope"
+                            invisible="state != 'confirmed'"/>
+
                     <!-- Botón Descargar -->
-<!--                    <button name="download_quedan"-->
-<!--                            icon="fa-download"-->
-<!--                            string="Descargar documento"-->
-<!--                            type="object"-->
-<!--                            class="btn-primary"/>-->
+                    <button name="download_quedan"
+                            icon="fa-download"
+                            string="Descargar documento"
+                            type="object"
+                            class="btn-primary"/>
 
                     <!-- Botón Confirmar -->
                     <button name="action_confirm"

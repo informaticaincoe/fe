@@ -1,0 +1,62 @@
+<odoo>
+    <record id="email_template_quedan" model="mail.template">
+        <field name="name">Enviar Quedán a Proveedor</field>
+        <field name="model_id" ref="model_account_quedan"/>
+        <field name="subject">[Quedán] {{object.name or ''}} - {{object.company_id.name}}</field>
+        <field name="email_from">facturacion@grupoincoe.com</field>
+        <field name="email_to">{{object.partner_id.email}}</field>
+        <field name="body_html" type="html">
+            <div>
+                <p style="margin: 0 0 16px 0;">
+                    Estimado/a
+                    <t t-if="object.partner_id.name">
+                        <t t-out="object.partner_id.name"/>
+                    </t>
+                    ,
+                </p>
+
+                <p style="margin: 0 0 16px 0;">
+                    Adjunto encontrará el documento
+                    <strong>Quedán
+                        <t t-if="object.name">
+                            <t t-out="object.name"/>
+                        </t>
+                    </strong>
+                    correspondiente a las siguientes facturas:
+                </p>
+
+                <ul style="margin: 0 0 16px 20px;">
+                    <t t-foreach="object.factura_ids" t-as="inv">
+                        <li>
+                            <strong>
+                                <t t-out="inv.name"/>
+                            </strong>
+                            —
+                            <t t-out="inv.amount_total"/>
+                            USD
+                        </li>
+                    </t>
+                </ul>
+
+                <p style="margin: 0 0 16px 0;">
+                    Fecha programada de pago:
+                    <strong>
+                        <t t-if="object.fecha_programada">
+                            <t t-out="object.fecha_programada"/>
+                        </t>
+                    </strong>
+                </p>
+
+                <p style="margin: 0 0 16px 0;">
+                    Saludos cordiales,
+                    <br/>
+                    <t t-if="object.company_id.name">
+                        <t t-out="object.company_id.name"/>
+                    </t>
+                </p>
+            </div>
+        </field>
+
+        <field name="auto_delete" eval="False"/>
+    </record>
+</odoo>
