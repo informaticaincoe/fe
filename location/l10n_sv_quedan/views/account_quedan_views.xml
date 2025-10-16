@@ -57,7 +57,6 @@
                     <field name="state" widget="statusbar" statusbar_visible="draft,confirmed,overdue,paid"/>
                 </header>
 
-
                 <sheet>
                     <group>
                         <group>
@@ -78,7 +77,7 @@
                         <!-- Pestaña de facturas incluidas en el Quedán -->
                         <page string="Facturas">
                             <!-- Editable solo en borrador -->
-                            <field name="factura_ids" readonly="state != 'draft'">
+                            <field name="factura_ids" required="1" >
                                 <list>
                                     <field name="name" string="Número"/>
                                     <field name="invoice_date" string="Fecha"/>

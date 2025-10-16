@@ -5,10 +5,6 @@
 #   y fija una fecha objetivo para pagarlas. El estado del Quedán se
 #   deriva del estado real de pago de esas facturas.
 #
-# Principios de diseño:
-#   - El estado del Quedán (draft/confirmed/paid) se calcula mirando
-#     payment_state de las facturas adjuntas al quedan
-#
 # Requisitos:
 #   - Secuencia 'account.quedan' (ir.sequence).
 #   - Reporte QWeb 'l10n_sv_quedan.report_quedan_documento'.
@@ -16,8 +12,7 @@
 # ------------------------------------------------------------
 
 from odoo import models, fields, api, _
-from odoo.exceptions import ValidationError
-from odoo.exceptions import UserError
+from odoo.exceptions import ValidationError, UserError
 import logging
 import base64
 
@@ -36,7 +31,6 @@ class AccountQuedan(models.Model):
         string="Número de Quedán",
         required=True,
         copy=False,
-        # Se toma de la secuencia técnica 'account.quedan'
         default=lambda self: self.env['ir.sequence'].next_by_code('account.quedan'),
         help="Identificador del Quedán; proviene de la secuencia 'account.quedan'.",
     )
@@ -52,11 +46,11 @@ class AccountQuedan(models.Model):
         'res.currency',
         string="Moneda",
         required=True,
-        default=lambda self: self.env.company.currency_id.id,  # usar .id evita recordsets
+        default=lambda self: self.env.company.currency_id.id,
         help="Moneda en que se presentan los importes del Quedán.",
     )
 
-    # ========= Datos funcionales del Quedán =========
+    # ========= Datos funcionales =========
     partner_id = fields.Many2one(
         'res.partner',
         string="Proveedor",
@@ -74,26 +68,45 @@ class AccountQuedan(models.Model):
         help="Notas internas o condiciones del Quedán.",
     )
 
-    # Facturas a cubrir (solo facturas de proveedor)
+    # --- Facturas ya tomadas por otros Quedanes (para excluirlas del selector)
+    taken_invoice_ids = fields.Many2many(
+        'account.move',
+        compute='_compute_taken_invoice_ids',
+        compute_sudo=True,
+        string='Facturas ya usadas',
+        help='Facturas que ya pertenecen a otro Quedán.',
+    )
+
+    # Facturas a cubrir (solo bills publicadas con saldo y que NO estén en otro quedán)
     factura_ids = fields.Many2many(
         'account.move',
         string="Facturas vinculadas",
-        domain="[('move_type','=','in_invoice')]",
-        help="Facturas de proveedor incluidas en este Quedán.",
+        domain="""
+            [
+                ('move_type', '=', 'in_invoice'),
+                ('state', '=', 'posted'),
+                ('company_id', '=', company_id),
+                ('partner_id', '=', partner_id),
+                ('payment_state', 'in', ('not_paid','partial')),
+                ('amount_residual', '>', 0),
+                ('id', 'not in', taken_invoice_ids)
+            ]
+        """,
+        help="Facturas de proveedor con saldo pendiente para incluir en este Quedán."
     )
 
-    # Estado del ciclo de vida (simple)
+    # Estado del ciclo de vida
     state = fields.Selection(
         [
-            ('draft', 'Borrador'),  # editable
-            ('confirmed', 'Confirmado'),  # listo para pagar
-            ('overdue', 'Vencido'),  # no todas pagadas y fecha programada ya pasó
-            ('paid', 'Pagado'),  # todas pagadas
+            ('draft', 'Borrador'),     # editable
+            ('confirmed', 'Confirmado'),
+            ('overdue', 'Vencido'),    # no todas pagadas y fecha programada ya pasó
+            ('paid', 'Pagado'),        # todas pagadas
         ],
         string="Estado",
         default="draft",
         tracking=True,
-        help="Estatus del Quedán según las facturas, fecha programada y pagos.",
+        help="Estado del Quedán según las facturas, fecha programada y pagos.",
     )
 
     # Total de facturas (monetario con currency_id)
@@ -101,21 +114,16 @@ class AccountQuedan(models.Model):
         string="Monto total",
         compute="_compute_monto_total",
         currency_field="currency_id",
-        store=True,  # útil para filtrar/ordenar sin recalcular
-        help="Suma de los totales de las facturas vinculadas. "
-             "Si quieres el saldo comprometido, usa amount_residual en el compute.",
+        store=True,
+        help="Suma de los totales de las facturas vinculadas.",
     )
 
     @api.depends('factura_ids.amount_total')
     def _compute_monto_total(self):
-        """Suma amount_total de las facturas.
-        - Si mezclas monedas, aquí puedes convertir a company_id.currency_id
-          antes de sumar para tener un total homogéneo.
-        """
         for rec in self:
             rec.monto_total = sum(rec.factura_ids.mapped('amount_total'))
 
-    # ========= Pagos relacionados (computado, sin acoplar) =========
+    # ========= Pagos relacionados (computado) =========
     payments_ids = fields.Many2many(
         'account.payment',
         string="Pagos relacionados",
@@ -126,12 +134,6 @@ class AccountQuedan(models.Model):
     )
 
     def _compute_payments(self):
-        """Deriva pagos por conciliación:
-        1) Tomar los apuntes contables de las facturas (line_ids).
-        2) Recolectar movimientos contables contrapartida conciliados (matched_*).
-        3) Buscar pagos cuyos asientos (move_id) sean esas contrapartidas.
-        No guarda relación permanente; se calcula a demanda.
-        """
         for rec in self:
             payments = self.env['account.payment']
             if rec.factura_ids:
@@ -146,14 +148,9 @@ class AccountQuedan(models.Model):
                     ])
             rec.payments_ids = payments
 
-    # ========= Acciones de ciclo de vida =========
+    # ========= Acciones =========
     def action_confirm(self):
-        """Confirma el Quedán.
-        Reglas:
-          - Debe tener al menos una factura.
-          - Rechaza si hay facturas ya pagadas (no tendría sentido prometer pagarlas).
-        Después de confirmar, revisa el estado por si ya existen pagos conciliados.
-        """
+        """Confirma el Quedán (debe tener facturas y ninguna en 'paid')."""
         for rec in self:
             if not rec.factura_ids:
                 raise UserError(_("Agrega al menos una factura al Quedán antes de confirmar."))
@@ -163,27 +160,18 @@ class AccountQuedan(models.Model):
             rec._check_facturas_pagadas()
 
     def action_reset(self):
-        """Vuelve el documento a 'Borrador'. No altera facturas ni pagos."""
+        """Vuelve el documento a 'Borrador'."""
         for rec in self:
             rec.state = 'draft'
 
     def action_paid(self):
-        """Marca manualmente el Quedán como 'Pagado'.
-        Uso excepcional: normalmente el estado cambia solo cuando
-        todas las facturas vinculadas están en 'paid'.
-        """
+        """Marca manualmente el Quedán como 'Pagado'."""
         for rec in self:
             rec.state = 'paid'
 
-    # ========= Sincronización de estado según facturas =========
+    # ========= Sincronización de estado =========
     def _check_facturas_pagadas(self):
-        """Sincroniza el estado del Quedán con facturas y fecha programada:
-        - Sin facturas → draft
-        - Todas pagadas → paid
-        - Si NO todas pagadas:
-            * con fecha_programada < hoy → overdue
-            * en otro caso → confirmed
-        """
+        """Sincroniza estado con facturas y fecha programada."""
         today = fields.Date.context_today(self)
         for rec in self:
             if not rec.factura_ids:
@@ -207,8 +195,6 @@ class AccountQuedan(models.Model):
                 if rec.state != 'confirmed':
                     rec.state = 'confirmed'
 
-    # Hook de lectura: refresca estado al abrir (mejora UX).
-    # Evita abrir cientos a la vez en bases con MUCHAS conciliaciones (costo).
     def read(self, fields=None, load='_classic_read'):
         """Al abrir el Quedán, actualiza su estado para reflejar pagos recientes."""
         records = super().read(fields=fields, load=load)
@@ -221,7 +207,7 @@ class AccountQuedan(models.Model):
 
     # ========= Reporte y envío por correo =========
     def download_quedan(self):
-        """Devuelve la acción para generar/descargar el PDF del Quedán (QWeb)."""
+        """Acción para generar/descargar el PDF del Quedán (QWeb)."""
         self.ensure_one()
         _logger.info("Generando reporte PDF para el Quedán %s", self.name)
         return self.env.ref("l10n_sv_quedan.report_quedan_documento").report_action(self)
@@ -229,32 +215,83 @@ class AccountQuedan(models.Model):
     def action_send_email(self):
         """Renderiza el PDF del Quedán y lo envía por correo con la plantilla configurada."""
         self.ensure_one()
-
-        # Idioma preferido: usuario → contexto → es_419 → en_US
         active_langs = set(self.env['res.lang'].search([('active', '=', True)]).mapped('code'))
         candidates = [self.env.user.lang, self.env.context.get('lang'), 'es_419', 'en_US']
         lang_ctx = next((c for c in candidates if c and c in active_langs), 'en_US')
 
-        # Plantilla de correo
         template = self.env.ref('l10n_sv_quedan.email_template_quedan', raise_if_not_found=False)
         if not template:
             raise UserError(_("No se encontró la plantilla de correo 'email_template_quedan'."))
         if not self.partner_id.email:
             raise UserError(_("El proveedor no tiene un correo configurado."))
 
-    # Validacion para agregar maximo 5 facturas
-    @api.constrains('factura_ids')
-    def _check_max_5_facturas(self):
+        report = self.env.ref('l10n_sv_quedan.report_quedan_documento', raise_if_not_found=False)
+        pdf_content, _ = self.env['ir.actions.report'].with_context(lang=lang_ctx)._render_qweb_pdf(
+            report.report_name, [self.id]
+        )
+        filename = f"Quedan_{self.name.replace('/', '_')}.pdf"
+        attachment = self.env['ir.attachment'].create({
+            'name': filename,
+            'type': 'binary',
+            'datas': base64.b64encode(pdf_content),
+            'res_model': 'account.quedan',
+            'res_id': self.id,
+            'mimetype': 'application/pdf',
+        })
+        template.with_context(lang=lang_ctx).send_mail(self.id, force_send=True, email_values={
+            'attachment_ids': [(6, 0, [attachment.id])],
+        })
+        self.message_post(body=_("Correo enviado al proveedor %s con el Quedán adjunto.") % self.partner_id.name)
+        return True
+
+    # ========= Datos derivados para el domain del M2M =========
+    @api.depends('company_id', 'partner_id')
+    def _compute_taken_invoice_ids(self):
+        """Obtiene las facturas que ya están en otros Quedanes para excluirlas del selector."""
         for rec in self:
-            if len(rec.factura_ids) > 5:
+            if not rec.company_id:
+                rec.taken_invoice_ids = self.env['account.move']
+                continue
+            dom = [('id', '!=', rec.id), ('company_id', '=', rec.company_id.id)]
+            if rec.partner_id:
+                dom.append(('partner_id', '=', rec.partner_id.id))
+            others = self.env['account.quedan'].search(dom)
+            rec.taken_invoice_ids = others.mapped('factura_ids')
+
+    # ========= Validaciones =========
+    @api.constrains('factura_ids', 'company_id', 'partner_id')
+    def _check_invoices_not_in_other_quedan(self):
+        """Servidor: evita guardar un quedán con facturas que ya están en otro quedán."""
+        for rec in self:
+            if not rec.factura_ids:
+                continue
+            others = self.env['account.quedan'].search([
+                ('id', '!=', rec.id),
+                ('company_id', '=', rec.company_id.id),
+                ('factura_ids', 'in', rec.factura_ids.ids),
+            ])
+            if others:
+                used_ids = set(others.mapped('factura_ids').ids) & set(rec.factura_ids.ids)
+                used = self.env['account.move'].browse(list(used_ids))
+                raise ValidationError(_(
+                    "Las siguientes facturas ya están asociadas a otro Quedán:\n- %s"
+                ) % ("\n- ".join(used.mapped('name'))))
+
+    @api.constrains('factura_ids')
+    def _check_factura_count(self):
+        """Servidor: mínimo 1 factura y máximo 5."""
+        for rec in self:
+            count = len(rec.factura_ids)
+            if count == 0:
+                raise ValidationError(_("Un Quedán debe tener al menos 1 factura."))
+            if count > 5:
                 raise ValidationError(_("Un Quedán no puede tener más de 5 facturas."))
 
-    # Mensaje de error maximo 5 facturas
     @api.onchange('factura_ids')
     def _onchange_factura_ids_limit(self):
+        """UX: recorta a 5 en la edición y muestra aviso (no molesta al entrar)."""
         for rec in self:
             if len(rec.factura_ids) > 5:
-                # Corta al top-5 (evita guardar el 6º visualmente)
                 rec.factura_ids = rec.factura_ids[:5]
                 return {
                     'warning': {

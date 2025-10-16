@@ -14,6 +14,8 @@ _logger = logging.getLogger(__name__)
 class AccountMove(models.Model):
     _inherit = 'account.move'
 
+    exp_duca_id = fields.One2many('exp_duca', 'move_id', string='DUCAs')
+
     document_number = fields.Char("Número de documento de proveedor")
 
     # Campo real: Many2one que se guarda en la BD
@@ -25,6 +27,14 @@ class AccountMove(models.Model):
         default=lambda self: self._get_default_tipo_documento(),
         # domain=lambda self: self._get_tipo_documento_domain(),
     )
+
+    codigo_tipo_documento_id = fields.Char(
+        string="Código tipo documento",
+        related='sit_tipo_documento_id.codigo',
+        store=False,      # pon True si quieres poder buscar/filtrar por este campo
+        readonly=True,
+    )
+
 
     fecha_aplicacion = fields.Date(string="Fecha de Aplicación")
 
@@ -126,7 +136,7 @@ class AccountMove(models.Model):
 
     def _get_default_tipo_documento(self):
         # Lógica para obtener el valor predeterminado según el contexto o condiciones
-        return self.env['account.journal.tipo_documento.field'].search([('codigo', '=', '01')], limit=1)
+        return self.env['account.journal.tipo_documento.field'].search([('codigo', '=', '11')], limit=1)
 
     @api.onchange('move_type')
     def _get_tipo_documento_domain(self):
@@ -225,8 +235,8 @@ class AccountMove(models.Model):
                 if move.move_type not in ('out_invoice', 'out_refund'):
                     continue
 
-                _logger.info("Tipo de documento(dte): %s", move.codigo_tipo_documento)
-                if not move.codigo_tipo_documento:
+                _logger.info("Tipo de documento(dte): %s", move.vcodigo_tipo_documento_id_id)
+                if not move.codigo_tipo_documento_id:
                     continue
 
                 old_name = move.name or ''
@@ -296,15 +306,15 @@ class AccountMove(models.Model):
         _logger.info("SIT Action post purchase: %s", self)
         for move in self:
 
-            _logger.info("SIT-Compra move type: %s, tipo documento %s: ", move.move_type, move.codigo_tipo_documento)
+            _logger.info("SIT-Compra move type: %s, tipo documento %s: ", move.move_type, move.codigo_tipo_documento_id)
             if move.move_type not in('in_invoice', 'in_refund'):
                 _logger.info("SIT Action post no aplica a modulos distintos a compra.")
                 continue
-            if move.move_type == 'in_invoice' and move.codigo_tipo_documento:
+            if move.move_type == 'in_invoice' and move.codigo_tipo_documento_id:
                 _logger.info("SIT Action post no aplica para compras electronicas(como suejto excluido).")
                 continue
 
-            if move.move_type == 'in_invoice' and move.codigo_tipo_documento and move.hacienda_codigoGeneracion_identificacion:
+            if move.move_type == 'in_invoice' and move.codigo_tipo_documento_id and move.hacienda_codigoGeneracion_identificacion:
                 existing = self.search([
                     ('id', '!=', move.id),
                     ('hacienda_codigoGeneracion_identificacion', '=', move.hacienda_codigoGeneracion_identificacion)
@@ -388,7 +398,6 @@ class AccountMove(models.Model):
         return result
 
 
-    exp_duca_id = fields.One2many('exp_duca', 'move_id', string='DUCAs')
     def generar_asientos_retencion_compras(self):
         """
         Genera automáticamente las líneas contables de **percepción**, **retención** y **renta**

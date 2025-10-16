@@ -6,7 +6,7 @@
             <field name="inherit_id" ref="account.view_move_form"/>
             <field name="arch" type="xml">
                 <xpath expr="//sheet/notebook" position="inside">
-                    <page string="DUCA" invisible="move_type not in ['in_invoice','in_refund']">
+                    <page string="DUCA" invisible="codigo_tipo_documento_id != '11'">
                         <field name="exp_duca_id" context="{'default_move_id': id, 'default_company_id': company_id}"
                                nolabel="1" create="1" delete="1" readonly="0">
                             <list editable="bottom">

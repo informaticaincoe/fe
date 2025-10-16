@@ -4,11 +4,28 @@
         <field name="model">account.move</field>
         <field name="inherit_id" ref="account.view_move_form"/>
         <field name="arch" type="xml">
-            <xpath expr="//field[@name='invoice_line_ids']/list" position="inside" invisible="codigo_tipo_documento == '11' or not codigo_tipo_documento">
-                <field name="codigo_tipo_documento" invisible="1"/>
-                <field name="precio_no_sujeto" invisible="codigo_tipo_documento == '11' or not codigo_tipo_documento"/>
-                <field name="precio_exento" invisible="codigo_tipo_documento == '11' or not codigo_tipo_documento"/>
-                <field name="precio_gravado" invisible="not codigo_tipo_documento"/>
+            <!-- Insertar dentro del tree de invoice_line_ids -->
+            <xpath expr="//field[@name='invoice_line_ids']/list" position="inside">
+
+                <!-- precio_no_sujeto
+                 - Oculto si: (ES compra y NO es sujeto excluido '14')  OR  (ES venta y código == '11' exportación)
+                 - Visible si: compra y código == '14' (sujeto excluido)  ó ventas que no sean exportación
+            -->
+                <field name="precio_no_sujeto"
+                       column_invisible="(parent.is_purchase and parent.codigo_tipo_documento != '14')
+                                     or (not parent.is_purchase and parent.codigo_tipo_documento == '11')"/>
+
+                <!-- precio_exento: mismas reglas que 'no_sujeto' -->
+                <field name="precio_exento"
+                       column_invisible="(parent.is_purchase and parent.codigo_tipo_documento != '14')
+                                     or (not parent.is_purchase and parent.codigo_tipo_documento == '11')"/>
+
+                <!-- precio_gravado
+                     - Oculto si: ES compra y NO es sujeto excluido '14'
+                     - Visible en ventas (incluida exportación), y en compra sujeto excluido
+                -->
+                <field name="precio_gravado"
+                       column_invisible="parent.is_purchase and parent.codigo_tipo_documento != '14'"/>
             </xpath>
         </field>
     </record>
@@ -18,7 +35,6 @@
         <field name="model">account.move</field>
         <field name="inherit_id" ref="account.view_move_form"/>
         <field name="arch" type="xml">
-            <!-- Agrega la columna al final del tree de invoice_line_ids -->
             <xpath expr="//field[@name='invoice_line_ids']/list" position="inside">
                 <field name="iva_unitario" string="IVA unitario" readonly="1" optional="show"/>
                 <field name="total_iva" string="Total IVA" readonly="1" optional="show"/>
