@@ -8,7 +8,7 @@
                 <xpath expr="//sheet/notebook" position="inside">
                     <page string="DUCA" name="exp_duca_page"
                           groups="base.group_user"
-                          invisible="move_type not in ('in_invoice','in_refund')">
+                          invisible="codigo_tipo_documento_id != '11' or move_type not in ['in_invoice','in_refund']">
 
                         <group string="Clasificación de Operaciones" col="2">
                             <field name="duca_number"/>
