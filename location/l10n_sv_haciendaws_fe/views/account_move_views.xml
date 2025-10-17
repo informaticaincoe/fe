@@ -1,5 +1,155 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+    <!-- =========================================================
+            Añadir label a payment_reference en el encabezado
+            - Vista objetivo: account.view_move_form
+            - Prioridad alta (20000) para asegurarnos de aplicar tras la vista base
+            - Efecto: añade etiqueta (label) antes del campo y deja el campo sin etiqueta (nolabel)
+              + Cambia placeholder para mayor claridad
+            ========================================================= -->
+    <record id="add_label_payment_reference_header" model="ir.ui.view">
+        <field name="name">account.move.form.add.label.payment_reference.header</field>
+        <field name="model">account.move</field>
+        <field name="inherit_id" ref="account.view_move_form"/>
+        <field name="priority">20000</field>
+        <field name="arch" type="xml">
+            <!-- 1) Encabezado (grupo de la derecha): insertar un label justo antes del campo -->
+            <xpath expr="//group[@id='header_right_group']/field[@name='payment_reference']" position="before">
+                <label for="payment_reference" string="Referencia de pago de la factura"/>
+            </xpath>
+
+            <!-- 1.1) Modificar atributos del campo: sin etiqueta visual y con placeholder -->
+            <xpath expr="//group[@id='header_right_group']/field[@name='payment_reference']"
+                   position="attributes">
+                <attribute name="nolabel">1</attribute>
+                <!-- opcional: cambia o quita el placeholder -->
+                <attribute name="placeholder">Referencia de factura</attribute>
+            </xpath>
+
+            <!-- 2) Pestaña Other Info (sale_info_group): mismo patrón label+campo sin etiqueta -->
+            <xpath expr="//page[@id='other_tab']//group[@name='sale_info_group']//field[@name='payment_reference']"
+                   position="before">
+                <label for="payment_reference" string="Referencia de pago de la factura"/>
+            </xpath>
+            <xpath expr="//page[@id='other_tab']//group[@name='sale_info_group']//field[@name='payment_reference']"
+                   position="attributes">
+                <attribute name="nolabel">1</attribute>
+                <attribute name="placeholder">Digite la referencia de pago</attribute>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- =========================================================
+         Agregar label para cuenta bancaria del proveedor
+         - Vista objetivo: account.view_move_form
+         - Inserta label antes de partner_bank_id y deja el campo sin etiqueta
+         - Control de visibilidad: sólo en compras (in_invoice, in_refund, in_receipt)
+         ========================================================= -->
+    <record id="add_label_partner_bank_header" model="ir.ui.view">
+        <field name="name">account.move.form.add.label.partner_bank.header</field>
+        <field name="model">account.move</field>
+        <field name="inherit_id" ref="account.view_move_form"/>
+        <field name="priority">20000</field>
+        <field name="arch" type="xml">
+            <!-- Inserta la etiqueta justo antes del campo del header -->
+            <xpath expr="//group[@id='header_right_group']/field[@name='partner_bank_id']" position="before">
+                <label for="partner_bank_id"
+                       string="Cuenta bancaria del proveedor"
+                       invisible="move_type not in ('in_invoice','in_refund','in_receipt')"/>
+            </xpath>
+
+            <!-- Ajusta el campo: sin etiqueta y con placeholder -->
+            <xpath expr="//group[@id='header_right_group']/field[@name='partner_bank_id']" position="attributes">
+                <attribute name="nolabel">1</attribute>
+                <attribute name="placeholder">Selecciona la cuenta bancaria</attribute>
+            </xpath>
+        </field>
+    </record>
+
+
+    <!-- =========================================================
+         Añadir label para payment_reference con visibilidad filtrada
+         - Vista objetivo: account.view_move_form
+         ========================================================= -->
+    <record id="add_label_payment_reference_header_filtered" model="ir.ui.view">
+        <field name="name">account.move.form.add.label.payment_reference.header</field>
+        <field name="model">account.move</field>
+        <field name="inherit_id" ref="account.view_move_form"/>
+        <field name="priority">20000</field>
+        <field name="arch" type="xml">
+            <xpath expr="//group[@id='header_right_group']/field[@name='payment_reference']" position="before">
+                <!-- Solo visible cuando el campo lo está (NO en ventas) -->
+                <label for="payment_reference"
+                       string="Referencia de pago de la factura"
+                       invisible="move_type not in ('in_invoice','in_refund','out_receipt','in_receipt')"/>
+            </xpath>
+            <xpath expr="//group[@id='header_right_group']/field[@name='payment_reference']" position="attributes">
+                <attribute name="nolabel">1</attribute>
+                <attribute name="placeholder">Referencia de factura</attribute>
+            </xpath>
+        </field>
+    </record>
+    <!-- =========================================================
+         Bloque 4: Reflow de periodo AFIP (from/to) en grupo Hacienda
+         - Vista objetivo: l10n_invoice_sv.view_invoice_form_sv
+         - Reemplaza contenedor inline por un <group col="2"> con label+campo por fila
+         - Mejora legibilidad: campos uno debajo del otro con su etiqueta
+         ========================================================= -->
+    <record id="reflow_afip_period_labels" model="ir.ui.view">
+        <field name="name">account.move.reflow.afip.period.labels</field>
+        <field name="model">account.move</field>
+        <field name="inherit_id" ref="l10n_invoice_sv.view_invoice_form_sv"/>
+        <field name="priority">24061</field>
+        <field name="arch" type="xml">
+            <!-- Localiza el div inline que contiene los dos campos y lo reemplaza por un group -->
+            <xpath expr="//group[@name='sale_hacienda_info_group']/div[.//field[@name='afip_associated_period_from']]"
+                   position="replace">
+                <group col="2">
+                    <!-- Fila 1: label + campo From -->
+                    <label for="afip_associated_period_from" string="AFIP Period from"/>
+                    <field name="afip_associated_period_from" nolabel="1"/>
+                    <!-- Fila 2: label + campo To -->
+                    <label for="afip_associated_period_to" string="AFIP Period to"/>
+                    <field name="afip_associated_period_to" nolabel="1"/>
+                </group>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- =========================================================
+         Bloque 5: Simplificación de "Fecha de vencimiento" en header
+         - Vista objetivo: account.view_move_form
+         - Sustituye:
+             (a) la fila de labels por un único label "Fecha de vencimiento"
+             (b) el bloque de inputs por sólo el campo invoice_date_due
+         - Mantiene invisibilidad coherente con tipos de movimiento
+         ========================================================= -->
+    <record id="remove_payment_terms_header" model="ir.ui.view">
+        <field name="name">account.move.remove.payment_terms.header</field>
+        <field name="model">account.move</field>
+        <field name="inherit_id" ref="account.view_move_form"/>
+        <field name="priority">24050</field>
+        <field name="arch" type="xml">
+
+            <!-- (a) Reemplaza el bloque de labels (justo antes de due_date) y deja solo el de fecha -->
+            <xpath expr="//group[@id='header_right_group']//div[@name='due_date']/preceding-sibling::div[@class='o_td_label'][1]"
+                   position="replace">
+                <div class="o_td_label"
+                     invisible="move_type not in ('out_invoice','out_refund','in_invoice','in_refund','out_receipt','in_receipt')">
+                    <label for="invoice_date_due" string="Fecha de vencimiento"/>
+                </div>
+            </xpath>
+
+            <!-- (b) Reemplaza el bloque de inputs (due_date) para quitar términos y el 'or' -->
+            <xpath expr="//group[@id='header_right_group']//div[@name='due_date']" position="replace">
+                <div name="due_date" class="d-flex"
+                     invisible="move_type not in ('out_invoice','out_refund','in_invoice','in_refund','out_receipt','in_receipt')">
+                    <field name="invoice_date_due" force_save="1" placeholder="Fecha"/>
+                </div>
+            </xpath>
+        </field>
+    </record>
+
     <record id="view_move_form" model="ir.ui.view">
         <field name="model">account.move</field>
         <field name="name">account.move.afip.form</field>
@@ -7,23 +157,31 @@
         <field name="arch" type="xml">
             <!-- we change button labels for better usability -->
             <button name="action_post" position="attributes">
-                <attribute name="invisible">['|', ('state', '!=', 'draft'), ('validation_type', '!=', False)]</attribute>
+                <attribute name="invisible">['|', ('state', '!=', 'draft'), ('validation_type', '!=', False)]
+                </attribute>
             </button>
             <button name="action_post" position="replace">
-               <button name="action_post" type="object" string="Validar en PROD HACIENDA" class="oe_highlight" groups="account.group_account_invoice"/>
-                <button name="action_post" type="object" string="Validar en TEST" class="oe_highlight" groups="account.group_account_invoice" invisible="sit_facturacion"/>
-                <button name="generar_qr" string="Generar QR" type="object" class="oe_highlight" invisible="move_type in('entry', 'in_invoice', 'in_refund')"/>
+                <button name="action_post" type="object" string="Validar en PROD HACIENDA" class="oe_highlight"
+                        groups="account.group_account_invoice"/>
+                <button name="action_post" type="object" string="Validar en TEST" class="oe_highlight"
+                        groups="account.group_account_invoice" invisible="sit_facturacion"/>
+                <button name="generar_qr" string="Generar QR" type="object" class="oe_highlight"
+                        invisible="move_type in('entry', 'in_invoice', 'in_refund')"/>
             </button>
             <!-- <field name="l10n_ar_afip_concept" position="after"> -->
             <group name="sale_info_group" position="after">
-                <group string="Factura Hacienda" name="sale_hacienda_info_group" invisible="journal_code == 'SLR' or not codigo_tipo_documento">
+                <group string="Factura Hacienda" name="sale_hacienda_info_group"
+                       invisible="journal_code == 'SLR' or not codigo_tipo_documento">
                     <field name="afip_fce_es_anulacion"/>
-                    <label for="afip_auth_code" string="HACIENDA associated period" options="{'invisible': [('move_type', 'not in', ['out_refund'])]}"/>
-                    <field name="afip_auth_code" invisible="1" class="oe_inline" options="{'required': [('afip_auth_mode', '!=', False)]}" placeholder="Code"/>
+                    <label for="afip_auth_code" string="HACIENDA associated period"
+                           options="{'invisible': [('move_type', 'not in', ['out_refund'])]}"/>
+                    <field name="afip_auth_code" invisible="1" class="oe_inline"
+                           options="{'required': [('afip_auth_mode', '!=', False)]}" placeholder="Code"/>
                     <field name='validation_type' invisible="1"/>
                     <field name="afip_auth_mode" invisible="1" class="oe_inline"/>
                     <div class="oe_inline" options="{'invisible': [('move_type', 'not in', ['out_refund'])]}">
-                        <field name="afip_associated_period_from" class="oe_inline" placeholder="Date From"/> -
+                        <field name="afip_associated_period_from" class="oe_inline" placeholder="Date From"/>
+                        -
                         <field name="afip_associated_period_to" class="oe_inline" placeholder="Date to"/>
                     </div>
                 </group>
@@ -49,11 +207,13 @@
                 <field name='hacienda_observaciones'/>
             </xpath>
             <group name="sale_info_group" position="after">
-                <group string="Factura Hacienda" name="sale_hacienda_info_group" >
+                <group string="Factura Hacienda" name="sale_hacienda_info_group">
                     <field name="afip_fce_es_anulacion"/>
-                    <label for="afip_auth_code" string="HACIENDA associated period" options="{'invisible': [('move_type', 'not in', ['out_refund'])]}"/>
+                    <label for="afip_auth_code" string="HACIENDA associated period"
+                           options="{'invisible': [('move_type', 'not in', ['out_refund'])]}"/>
                     <div class="oe_inline" options="{'invisible': [('move_type', 'not in', ['out_refund'])]}">
-                        <field name="afip_associated_period_from" class="oe_inline" placeholder="Date From"/> -
+                        <field name="afip_associated_period_from" class="oe_inline" placeholder="Date From"/>
+                        -
                         <field name="afip_associated_period_to" class="oe_inline" placeholder="Date to"/>
                     </div>
                 </group>
@@ -68,11 +228,12 @@
         <field name="arch" type="xml">
             <!-- Reemplazamos el botón 'action_invoice_sent' por el nuevo botón -->
             <xpath expr="//button[@name='action_invoice_sent']" position="replace">
-<!--                options="{'invisible': ['|', ('state', '!=', 'posted'), ('move_type', '=', 'entry')]}"-->
+                <!--                options="{'invisible': ['|', ('state', '!=', 'posted'), ('move_type', '=', 'entry')]}"-->
                 <button name="sit_enviar_correo_dte_automatico" type="object"
                         invisible="state != 'posted' or move_type in('entry', 'in_invoice', 'in_refund')"
                         string="Enviar email"
-                        context="{'from_email_button': True}" class="oe_highlight" groups="account.group_account_invoice"/>
+                        context="{'from_email_button': True}" class="oe_highlight"
+                        groups="account.group_account_invoice"/>
             </xpath>
         </field>
     </record>
