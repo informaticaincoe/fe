@@ -1,5 +1,5 @@
 <odoo>
-    <!-- Vista lista -->
+    <!-- VISTA LISTA -->
     <record id="view_account_quedan_tree" model="ir.ui.view">
         <field name="name">account.quedan.tree</field>
         <field name="model">account.quedan</field>
@@ -8,57 +8,53 @@
                 <field name="name"/>
                 <field name="partner_id"/>
                 <field name="fecha_programada"/>
-                <field name="monto_total"/>
+                <field name="monto_total" widget="monetary"
+                       options="{'currency_field': 'currency_id'}"/>
                 <field name="state"/>
             </list>
         </field>
     </record>
 
-    <!-- Vista formulario -->
+    <!-- VISTA FORMULARIO Quedán -->
     <record id="view_account_quedan_form" model="ir.ui.view">
         <field name="name">account.quedan.form</field>
         <field name="model">account.quedan</field>
         <field name="arch" type="xml">
             <form string="Quedán de Proveedor">
+                <!-- Fragmento del formulario -->
                 <header>
-                    <!-- Botón Enviar por correo -->
                     <button name="action_send_email"
                             string="Enviar por correo"
                             type="object"
                             class="btn-secondary"
                             icon="fa-envelope"
-                            invisible="state != 'confirmed'"/>
+                            invisible="state not in ['confirmed','overdue']"/>
 
-                    <!-- Botón Descargar -->
                     <button name="download_quedan"
-                            icon="fa-download"
                             string="Descargar documento"
                             type="object"
-                            class="btn-primary"/>
+                            class="btn-primary"
+                            icon="fa-download"/>
 
-                    <!-- Botón Confirmar -->
                     <button name="action_confirm"
                             string="Confirmar"
                             type="object"
                             class="btn-success"
                             invisible="state != 'draft'"/>
 
-                    <!-- Botón Marcar como Pagado -->
                     <button name="action_paid"
                             string="Marcar como Pagado"
                             type="object"
                             class="btn-primary"
-                            invisible="state != 'confirmed'"/>
+                            invisible="state not in ['confirmed','overdue']"/>
 
-                    <!-- Botón Volver a Borrador -->
                     <button name="action_reset"
                             string="Volver a borrador"
                             type="object"
                             class="btn-secondary"
-                            invisible="state not in ('confirmed','paid')"/>
+                            invisible="state not in ['confirmed','overdue','paid']"/>
 
-                    <!-- Barra de estado -->
-                    <field name="state" widget="statusbar" statusbar_visible="draft,confirmed,paid"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,confirmed,overdue,paid"/>
                 </header>
 
                 <sheet>
@@ -70,35 +66,39 @@
                             <field name="currency_id" invisible="1"/>
                         </group>
                         <group>
-                            <field name="monto_total" readonly="1"/>
+                            <!-- Total en formato monetario -->
+                            <field name="monto_total" readonly="1" widget="monetary"
+                                   options="{'currency_field': 'currency_id'}"/>
                             <field name="observaciones"/>
                         </group>
                     </group>
 
                     <notebook>
+                        <!-- Pestaña de facturas incluidas en el Quedán -->
                         <page string="Facturas">
-                            <field name="factura_ids" readonly="state != 'draft'">
+                            <!-- Editable solo en borrador -->
+                            <field name="factura_ids" required="1" >
                                 <list>
                                     <field name="name" string="Número"/>
                                     <field name="invoice_date" string="Fecha"/>
                                     <field name="partner_id" string="Proveedor"/>
-                                    <field name="amount_total_in_currency_signed" string="Total"/>
+                                    <field name="amount_total" string="Total"/>
                                     <field name="payment_state" string="Estado de Pago"/>
                                 </list>
                             </field>
                         </page>
-
                     </notebook>
                 </sheet>
             </form>
         </field>
     </record>
 
-    <!-- Acción y menú -->
+    <!-- ACCIÓN y MENÚ -->
     <record id="action_account_quedan" model="ir.actions.act_window">
         <field name="name">Quedanes</field>
         <field name="res_model">account.quedan</field>
         <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_group_by_state': 0}</field>
     </record>
 
     <menuitem id="menu_account_quedan_root"
