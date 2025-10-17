@@ -122,3 +122,11 @@ DEVOLUCION_RENTA_CODE = 'DEV_RENTA'
 
 TYPE_REPORT_CCF = "ccf"
 TYPE_REPORT_NDC = "ndc"
+
+# Tipos de movimiento
+IN_INVOICE = "in_invoice"
+IN_REFUND = "in_refund"
+OUT_INVOICE = "out_invoice"
+OUT_REFUND = "out_refund"
+TYPE_VENTA = "sale"
+TYPE_COMPRA = "purchase"

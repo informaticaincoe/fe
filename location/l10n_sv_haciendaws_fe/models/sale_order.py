@@ -44,7 +44,7 @@ class SaleOrder(models.Model):
             tipo_doc_journal = order.journal_id.sit_tipo_documento
             tipo_doc_partner = order.partner_id.l10n_latam_identification_type_id
 
-            if tipo_doc_journal and tipo_doc_journal.codigo in (constants.COD_DTE_CCF, constants.COD_DTE_FEX):
+            if tipo_doc_journal and tipo_doc_journal.codigo in (constants.COD_DTE_CCF, constants.COD_DTE_FEX, constants.COD_DTE_NC, constants.COD_DTE_ND):
                 if tipo_doc_partner and tipo_doc_partner.codigo == constants.COD_TIPO_DOCU_DUI:
                     raise ValidationError(_(
                         "El cliente tiene el tipo de documento '%s' que no es válido para el tipo de documento del diario."

@@ -4,3 +4,5 @@ config_version_lote,base.main_company,,int,2,Versión vigente para el evento de 
 config_url_contingencia_hacienda,base.main_company,,text,https://api.dtes.mh.gob.sv/fesv/contingencia,URL de conexión al entorno de producción de Hacienda para el de eventos de contingencia,True,url_prod_contingencia
 config_url_lotes_hacienda,base.main_company,,text,https://api.dtes.mh.gob.sv/fesv/recepcionlote/,URL de conexión al entorno de producción de Hacienda para el envío de lotes en eventos de contingencia,True,url_prod_lotes
 config_url_auth_hacienda,base.main_company,,text,https://api.dtes.mh.gob.sv/seguridad/auth,URL de acceso al servicio de autenticación de Hacienda en entorno de producción,True,url_auth_prod_hacienda
+config_cantidad_lotes,base.main_company,,int,400,Cantidad de lotes por evento de contingencia,True,cantidad_lote
+config_cantidad_facturas,base.main_company,,int,100,Cantidad de facturas por lote en el evento de contingencia,True,cantidad_factura

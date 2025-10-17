@@ -7,7 +7,7 @@ _logger = logging.getLogger(__name__)
 try:
     from odoo.addons.common_utils.utils import config_utils
     from odoo.addons.common_utils.utils import constants
-    _logger.info("SIT Modulo config_utils [hacienda ws-account_move]")
+    _logger.info("SIT Modulo config_utils [l10n_sv account_move]")
 except ImportError as e:
     _logger.error(f"Error al importar 'config_utils': {e}")
     config_utils = None
@@ -195,8 +195,9 @@ class sit_account_move(models.Model):
                 move.condiciones_pago = p.condicion_pago_compras_id
 
             # 3) Forma de pago
-            if not move.forma_pago and p.formas_pago_compras_id:
-                move.forma_pago = p.formas_pago_compras_id
+            if move.journal_id.sit_tipo_documento and move.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FSE:
+                if not move.forma_pago and p.formas_pago_compras_id:
+                    mov.forma_pago = p.formas_pago_compras_id
 
     def _apply_partner_defaults_compras_if_needed(self):
         """Cubre creaciones sin UI (import/API), donde no corre el onchange."""
@@ -208,12 +209,15 @@ class sit_account_move(models.Model):
                 move.invoice_payment_term_id = p.terminos_pago_compras_id
             if not move.condiciones_pago and p.condicion_pago_compras_id:
                 move.condiciones_pago = p.condicion_pago_compras_id
-            if not move.forma_pago and p.formas_pago_compras_id:
-                move.forma_pago = p.formas_pago_compras_id
+            if move.journal_id.sit_tipo_documento and move.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FSE:
+                if not move.forma_pago and p.formas_pago_compras_id:
+                    move.forma_pago = p.formas_pago_compras_id
 
-    @api.model
-    def create(self, vals):
-        moves = super().create(vals)
+    @api.model_create_multi
+    def create(self, vals_list):
+        # Crear los registros normalmente
+        moves = super().create(vals_list)
+
         moves._apply_partner_defaults_ventas_if_needed()
         moves._apply_partner_defaults_compras_if_needed()
         return moves

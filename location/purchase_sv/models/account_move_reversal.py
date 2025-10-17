@@ -3,6 +3,13 @@ import logging
 
 _logger = logging.getLogger(__name__)
 
+try:
+    from odoo.addons.common_utils.utils import constants
+    _logger.info("SIT Modulo constants [purchase-account_move_reverse]")
+except ImportError as e:
+    _logger.error(f"Error al importar 'constants': {e}")
+    constants = None
+
 class AccountMoveReversal(models.TransientModel):
     _inherit = 'account.move.reversal'
 
@@ -33,7 +40,8 @@ class AccountMoveReversal(models.TransientModel):
         move = self.env['account.move'].browse(move_ids[0])
         _logger.info("SIT: Move type reverse: %s.", move.move_type)
 
-        if move.move_type not in ('in_invoice', 'in_refund'):
+        if (move.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND) or
+                (move.move_type in(constants.IN_INVOICE, constants.IN_REFUND) and move.journal_id.sit_tipo_documento)):
             return res # Salir si NO es factura de venta
 
         _logger.info("SIT-Purchase: Wizard abierto para reversión de factura ID=%s, tipo=%s, tipo documento= %s", move.id, move.move_type, move.sit_tipo_documento_id)

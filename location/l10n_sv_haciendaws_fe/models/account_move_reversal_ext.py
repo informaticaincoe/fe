@@ -41,7 +41,7 @@ class AccountMoveReversal(models.TransientModel):
             return self.with_context(skip_custom_refund_flow=True).refund_moves()
 
         # --- FLUJO DE VENTAS ---
-        if self.move_type in ('out_invoice', 'out_refund'):
+        if self.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND):
             if self.env.context.get('skip_custom_refund_flow', False):
                 _logger.info("SIT: Ya estamos en el flujo estándar de ventas. Evitando recursión.")
                 return super(AccountMoveReversal, self).refund_moves()
@@ -137,9 +137,9 @@ class AccountMoveReversal(models.TransientModel):
             ctx = dict(self.env.context, skip_refund_recursion=True)
 
             # Forzamos el tipo correcto antes de pasar al flujo estándar
-            if self.move_type != 'in_invoice':
+            if self.move_type != constants.IN_INVOICE:
                 _logger.info("SIT: Ajustando move_type a 'in_refund' para la nota de crédito de compra.")
-                self.move_type = 'in_refund'
+                self.move_type = constants.IN_REFUND
 
             return super(AccountMoveReversal, self.with_context(ctx)).refund_moves()
 

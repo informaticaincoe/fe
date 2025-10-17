@@ -21,8 +21,9 @@
                     <!-- <button name="action_invoice_print" type="object" string="Imprimir" options="{'invisible':['|', '|', ('state', '!=', 'posted'), ('is_move_sent', '=', True), ('move_type', 'not in', ('out_invoice', 'out_refund'))]}" class="oe_highlight"/> -->
                 </xpath>
                 <xpath expr="//button[@name='action_invoice_sent'][2]" position="replace">
+                    options="{'invisible':['|', '|', ('state', '!=', 'posted'), ('is_move_sent', '=', False), ('move_type', 'not in', ('out_invoice', 'out_refund', 'in_invoice', 'in_refund'))]}"/
                     <button name="action_invoice_print" type="object" string="Imprimir"
-                            options="{'invisible':['|', '|', ('state', '!=', 'posted'), ('is_move_sent', '=', False), ('move_type', 'not in', ('out_invoice', 'out_refund', 'in_invoice', 'in_refund'))]}"/>
+                            invisible="state != 'posted' or is_move_sent == False or move_type not in ('out_invoice', 'out_refund', 'in_invoice', 'in_refund')"/>
                     <button name="action_invoice_sent" invisible="1" type="object" string="Send &amp; Print"
                             options="{'invisible':['|', '|', ('state', '!=', 'posted'), ('is_move_sent', '=', False), ('move_type', 'not in', ('out_invoice', 'out_refund', 'in_invoice', 'in_refund'))]}"/>
                 </xpath>
@@ -43,7 +44,7 @@
                         <field name="iva_percibido_amount" invisible="not codigo_tipo_documento in ('03', '05', '06')" readonly="1" widget="monetary" options="{'currency_field': 'currency_id'}"/>
 
                     </group>
-                    <field name="total_pagar_text" string="Total en letras" placeholder="Total en letras" invisible="move_type == 'in_invoice' and not codigo_tipo_documento"/>
+                    <field name="total_pagar_text" string="Total en letras" placeholder="Total en letras" invisible="not codigo_tipo_documento"/>
                     <group string="Totales por tipo de operación" col="2" invisible="move_type != 'out_invoice' and not codigo_tipo_documento">
                          <!-- invisible="1" modifiers="{'invisible': [['hide_no_sujeto_exento','=',True]]}" -->
 <!--                        <field name="total_no_sujeto" widget="monetary" modifiers='{"invisible": [["codigo_dte", "=", "14"]]}' invisible="codigo_tipo_documento in ('11', 14)"/>&lt;!&ndash; invisible="1" modifiers="{'invisible': [['hide_no_sujeto_exento','=',True]]}" &ndash;&gt;-->
@@ -78,9 +79,11 @@
 
                 </xpath>
                 <xpath expr="//field[@name='state']" position="replace">
-                    <field name="state" options="{'invisible':[('state_refund','=','refund')]}" widget="statusbar"
+<!--                    options="{'invisible':[('state_refund','=','refund')]}"-->
+                    <field name="state" invisible="state_refund == 'refund'" widget="statusbar"
                            statusbar_visible="draft,posted"/>
-                    <field name="state_refund" options="{'invisible':[('state_refund','!=','refund')]}"
+<!--                    options="{'invisible':[('state_refund','!=','refund')]}"-->
+                    <field name="state_refund" invisible="state_refund != 'refund'"
                            statusbar_visible="refund" widget="statusbar" nolabel="1"/>
                 </xpath>
                 <!-- <xpath expr="//h1/field[@name='name']" position="after">

@@ -95,6 +95,8 @@ class sit_AccountContingencia(models.Model):
         facturas_no_asignadas = []
         version = None
         mensajes = []
+        cant_lotes = config_utils.get_config_value(self.env, 'cantidad_lote', self.company_id.id) or 400
+        cant_facturas = config_utils.get_config_value(self.env, 'cantidad_factura', self.company_id.id) or 100
         for lote in self.lote_ids:
             ambiente_test = False
 
@@ -262,13 +264,13 @@ class sit_AccountContingencia(models.Model):
                     mensajes.append(f"{lote.name}: {lote.hacienda_estado_lote}")
 
                 # Verificar cuántas facturas se han asignado a este lote y si se excede el límite de lotes
-                if len(facturas_firmadas) >= 400 * 100:
+                if len(facturas_firmadas) >= cant_lotes * cant_facturas:
                     _logger.info(
                         "Se ha alcanzado el límite de 400 lotes. Facturas restantes para próxima contingencia.")
                     break  # Salir del ciclo, ya no se añaden más facturas a la contingencia actual
 
             # Verificar que se hayan creado los lotes y no se hayan excedido
-            if len(facturas_firmadas) > 400 * 100:
+            if len(facturas_firmadas) > cant_lotes * cant_facturas:
                 raise UserError("La cantidad de facturas excede el límite de lotes permitido (400 lotes).")
 
             _logger.info("SIT Fin generar lote")
@@ -589,16 +591,6 @@ class sit_AccountContingencia(models.Model):
 
         # Caso en que no hubo mensajes → retornar None explícitamente
         return None
-
-    # def _compute_validation_type_2(self):
-    #     for rec in self:
-    #         validation_type = self.env["res.company"]._get_environment_type()
-    #         if validation_type == "homologation":
-    #             try:
-    #                 rec.company_id.get_key_and_certificate(validation_type)
-    #             except Exception:
-    #                 validation_type = False
-    #         return validation_type
 
 # FIMAR FIMAR FIRMAR =====================================================================================================    
     def firmar_documento(self, enviroment_type, payload):
