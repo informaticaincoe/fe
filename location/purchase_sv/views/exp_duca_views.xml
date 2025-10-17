@@ -1,58 +1,52 @@
-<?xml version="1.0" encoding="UTF-8"?>
 <odoo>
-  <data>
+    <data>
+        <record id="view_move_form_exp_duca_tab" model="ir.ui.view">
+            <field name="name">account.move.form.exp_duca.tab</field>
+            <field name="model">account.move</field>
+            <field name="inherit_id" ref="account.view_move_form"/>
+            <field name="arch" type="xml">
+                <xpath expr="//sheet/notebook" position="inside">
+                    <page string="DUCA" name="exp_duca_page" invisible="1"
+                          groups="base.group_user">
+                        <field name="exp_duca_id" mode="form" nolabel="1" create="1" delete="1"
+                               options="{'no_create': False, 'no_delete': False, 'no_open': False}"
+                               context="{'default_move_id': id, 'default_company_id': company_id}" readonly="0">
+                            <form string="DUCA">
+                                <sheet>
+                                    <group string="Clasificación de Operaciones" col="2">
+                                        <label for="number"/>
+                                        <field name="number" nolabel="1"/>
+                                        <label for="acceptance_date"/>
+                                        <field name="acceptance_date" nolabel="1"/>
+                                        <label for="regimen"/>
+                                        <field name="regimen" nolabel="1"/>
+                                        <label for="aduana"/>
+                                        <field name="aduana" nolabel="1"/>
+                                        <label for="currency_id"/>
+                                        <field name="currency_id" nolabel="1"/>
+                                    </group>
 
-    <!-- 1) Vista FORM específica para exp_duca (la usaremos embebida) -->
-    <record id="exp_duca_inline_form" model="ir.ui.view">
-      <field name="name">exp.duca.inline.form</field>
-      <field name="model">exp_duca</field>
-      <field name="arch" type="xml">
-        <form string="DUCA">
-          <sheet>
-            <group>
-              <group>
-                <field name="company_id" readonly="1"/>
-                <field name="number"/>
-                <field name="acceptance_date"/>
-                <field name="regimen"/>
-                <field name="aduana"/>
-                <field name="currency_id"/>
-              </group>
-              <group string="Valores">
-                <field name="valor_en_aduana"/>
-                <field name="dai_amount"/>
-                <field name="iva_importacion"/>
-              </group>
-            </group>
-            <group string="Documento">
-              <field name="duca_file" filename="duca_filename"/>
-              <field name="duca_filename"/>
-            </group>
-          </sheet>
-        </form>
-      </field>
-    </record>
+                                    <group string="Valores" col="2">
+                                        <label for="valor_en_aduana"/>
+                                        <field name="valor_en_aduana" nolabel="1"/>
+                                        <label for="dai_amount"/>
+                                        <field name="dai_amount" nolabel="1"/>
+                                        <label for="iva_importacion"/>
+                                        <field name="iva_importacion" nolabel="1"/>
+                                    </group>
 
-    <!-- 2) Pestaña DUCA en account.move, forzando one2many a FORM (sin kanban/list) -->
-    <record id="view_move_form_exp_duca_tab" model="ir.ui.view">
-      <field name="name">account.move.form.exp_duca.tab</field>
-      <field name="model">account.move</field>
-      <field name="inherit_id" ref="account.view_move_form"/>
-      <field name="arch" type="xml">
-        <xpath expr="//sheet/notebook" position="inside">
-          <page name="exp_duca_page"
-                string="DUCA"
-                invisible="codigo_tipo_documento_id != '11' or move_type not in ['in_invoice','in_refund']">
-            <field name="exp_duca_id"
-                   widget="one2many"
-                   nolabel="1"
-                   context="{'default_move_id': id, 'default_company_id': company_id}"
-                   views="{'form': 'purchase_sv.exp_duca_inline_form'}"
-                   options="{'no_open': True, 'no_create_edit': True}"/>
-          </page>
-        </xpath>
-      </field>
-    </record>
-
-  </data>
+                                    <group string="Documento" col="2">
+                                        <label for="duca_file"/>
+                                        <field name="duca_file" nolabel="1" filename="duca_filename"/>
+                                        <label for="duca_filename"/>
+                                        <field name="duca_filename" nolabel="1"/>
+                                    </group>
+                                </sheet>
+                            </form>
+                        </field>
+                    </page>
+                </xpath>
+            </field>
+        </record>
+    </data>
 </odoo>

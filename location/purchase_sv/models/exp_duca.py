@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+# exp_duca.py
 from odoo import models, fields, api
 
 class ExpDuca(models.Model):
@@ -22,6 +22,11 @@ class ExpDuca(models.Model):
     currency_id = fields.Many2one("res.currency", string="Moneda DUCA",
                                   default=lambda s: s.env.company.currency_id.id)
 
+    # NUEVOS
+    valor_transaccion = fields.Monetary(string="Valor transacción", currency_field="currency_id")
+    otros_gastos = fields.Monetary(string="Otros gastos", currency_field="currency_id")
+
+    # Existentes
     valor_en_aduana = fields.Monetary(string="Valor en Aduana", currency_field="currency_id")
     dai_amount = fields.Monetary(string="DAI", currency_field="currency_id")
     iva_importacion = fields.Monetary(string="IVA importación (ref.)", currency_field="currency_id")
@@ -32,7 +37,6 @@ class ExpDuca(models.Model):
     _sql_constraints = [
         ('unique_duca_per_move', 'unique(move_id)', 'Solo puede existir una DUCA por factura.'),
     ]
-
 
     @api.onchange('duca_file')
     def _onchange_duca_file(self):

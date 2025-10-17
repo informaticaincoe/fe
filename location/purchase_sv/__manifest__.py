@@ -18,15 +18,14 @@
     ],
     "data": [
         "security/ir.model.access.csv",
-        "views/purchase.xml",
 
-        "views/account_move.xml",
-        "views/account_move_reversal.xml",
-        "views/account_move_line_view.xml",
+        'views/purchase.xml',
+        'views/account_move.xml',
+        'views/account_move_reversal.xml',
+        'views/account_move_line_view.xml',
         "views/exp_duca_views.xml",
-
+        "views/account_move_views.xml",
     ],
-
     "installable": True,
     "auto_install": False,
 }
