@@ -563,11 +563,20 @@ class AccountMoveInvalidation(models.Model):
 
     # FIMAR FIMAR FIRMAR =====================================================================================================
     def firmar_documento_anu(self, enviroment_type, payload):
-        _logger.info("SIT  Firmando de documento")
+        _logger.info("SIT Firmando documento")
 
-        # Validación de empresa
+        # 1 Validación de facturación electrónica
         if not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion):
-            raise UserError(_("Solo se pueden firmar documentos de empresas con facturación electrónica."))
+            # raise UserError(_("Solo se pueden firmar documentos de empresas con facturación electrónica."))
+            _logger.info("SIT No aplica facturación electrónica. Se omite firma de documento.")
+            return False
+
+        # 2 Validación de compra normal (sin sujeto excluido)
+        if self.sit_factura_a_reemplazar.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
+            tipo_doc = self.sit_factura_a_reemplazar.journal_id.sit_tipo_documento
+            if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE:
+                _logger.info("SIT Documento de compra normal (sin sujeto excluido). No se firma DTE.")
+                return False
 
         _logger.info("SIT Documento a FIRMAR =%s", payload)
         # Firmado de documento
@@ -632,12 +641,19 @@ class AccountMoveInvalidation(models.Model):
         return invoice_info
 
     def generar_dte_invalidacion(self, enviroment_type, payload, payload_original, ambiente_test):
-        _logger.info("SIT  Generando DTE Invalidacion =%s, Sit Ambiente: %s", payload, enviroment_type)
+        _logger.info("SIT Generando DTE Invalidacion =%s, Sit Ambiente: %s", payload, enviroment_type)
 
-        # Validación de empresa
-        if not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion, ambiente_test):
-            _logger.info("SIT La empresa %s no aplica a facturación electrónica, se detiene la generación de DTE.", self.sit_factura_a_reemplazar.company_id.id if self.sit_factura_a_reemplazar.company_id else None)
-            return  # No continuar si la empresa no aplica
+        # 1 Validación de facturación electrónica
+        if not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion):
+            _logger.info("SIT La empresa %s no aplica a facturación electrónica, se detiene la generación de DTE.", self.sit_factura_a_reemplazar.company_id.id if self.sit_factura_a_reemplazar.company_id else None,)
+            return False
+
+        # 2 Validación de compra normal (sin sujeto excluido)
+        if self.sit_factura_a_reemplazar.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
+            tipo_doc = self.sit_factura_a_reemplazar.journal_id.sit_tipo_documento
+            if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE:
+                _logger.info("SIT Documento de compra normal (sin sujeto excluido). Se omite generación de DTE.")
+                return False
 
         host = None
         url = None
@@ -687,7 +703,7 @@ class AccountMoveInvalidation(models.Model):
         # status = json_response.get('status')
 
         if response.status_code in [400, 401]:
-            #MENSAJE_ERROR = "ERROR de conexión : " + str(response.text) + " ((( " + str(json.dumps(payload_original)) + " )))"
+            # MENSAJE_ERROR = "ERROR de conexión : " + str(response.text) + " ((( " + str(json.dumps(payload_original)) + " )))"
             MENSAJE_ERROR = (
                 f"ERROR de conexión (HTTP {response.status_code}):\n"
                 f"Respuesta: {response.text}\n\n"
@@ -729,17 +745,28 @@ class AccountMoveInvalidation(models.Model):
         else:
             raise UserError(_("Respuesta inesperada al invalidar DTE: %s") % json_response)
 
-    def _autenticar(self,user,pwd,):
+    def _autenticar(self, user, pwd, ):
         _logger.info("SIT self = %s", self)
 
+        # 1 Validación de facturación electrónica
         if not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion):
             _logger.info("SIT No aplica facturación electrónica. Se omite autenticación.")
             return False
 
+        # 2 Validación de compra normal (sin sujeto excluido)
+        if self.sit_factura_a_reemplazar.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
+            tipo_doc = self.sit_factura_a_reemplazar.journal_id.sit_tipo_documento
+            if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE:
+                _logger.info("SIT Documento de compra normal (sin sujeto excluido). Se omite autenticación para DTE.")
+                return False
+
         _logger.info("SIT self = %s, %s", user, pwd)
+
+        # 3 Obtener entorno (homologación o producción)
         enviroment_type = self._get_environment_type()
         _logger.info("SIT Modo = %s", enviroment_type)
 
+        # 4️ Determinar URL según el entorno
         url = None
         if enviroment_type == 'homologation':
             url = config_utils.get_config_value(self.env, 'autenticar_test', self.company_id.id) if config_utils else 'https://apitest.dtes.mh.gob.sv/seguridad/auth'
@@ -747,8 +774,10 @@ class AccountMoveInvalidation(models.Model):
             url = config_utils.get_config_value(self.env, 'autenticar_prod', self.company_id.id) if config_utils else 'https://api.dtes.mh.gob.sv/seguridad/auth'
         # url = host + '/seguridad/auth'
 
+        # 5 Validar parámetros de Hacienda
         self.check_hacienda_values()
 
+        # 6 Realizar autenticación HTTP
         try:
             payload = "user=" + user + "&pwd=" + pwd
             # 'user=06140902221032&pwd=D%237k9r%402mP1!b'
@@ -766,22 +795,34 @@ class AccountMoveInvalidation(models.Model):
                 raise UserError(_(MENSAJE_ERROR))
             else:
                 raise UserError(_(error))
+
+        # 7 Parsear respuesta JSON
         resultado = []
         json_response = response.json()
+        return json_response
 
     def _generar_qr(self, ambiente, codGen, fechaEmi):
         _logger.info("SIT generando qr___ = %s", self)
 
+        # 1 Validación de facturación electrónica
         if not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion):
             _logger.info("SIT No aplica facturación electrónica. Se omite generación de QR(_generar_qr) en evento de invalidacion.")
             return False
 
+        # 2 Validación de compra normal (sin sujeto excluido)
+        if self.sit_factura_a_reemplazar.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
+            tipo_doc = self.sit_factura_a_reemplazar.journal_id.sit_tipo_documento
+            if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE:
+                _logger.info("SIT Documento de compra normal (sin sujeto excluido). Se omite generación de QR para DTE.")
+                return False
+
         # enviroment_type = self._get_environment_type()
+        # 3 Continuar con la generación de QR
         company = self.sit_factura_a_reemplazar.company_id
         if not company:
             raise UserError(_("No se encontró la compañía asociada a la factura a reemplazar."))
         enviroment_type = company._get_environment_type()
-        #enviroment_type = 'homologation'
+        # enviroment_type = 'homologation'
         host = config_utils.get_config_value(self.env, 'consulta_dte', self.company_id.id) if config_utils else 'https://admin.factura.gob.sv'
 
         # https://admin.factura.gob.sv/consultaPublica?ambiente=00&codGen=00000000-0000-00000000-000000000000&fechaEmi=2022-05-01
@@ -821,10 +862,21 @@ class AccountMoveInvalidation(models.Model):
     def generar_qr(self):
         _logger.info("SIT generando qr xxx= %s", self)
 
+        # 1 Validación: empresa y facturación electrónica activa
         if not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion):
-            _logger.info("SIT No aplica facturación electrónica. Se omite generación de QR(generar_qr) en evento de invalidacion.")
+            _logger.info("SIT No aplica facturación electrónica. Se omite generación de QR(generar_qr) en evento de invalidación.")
             return False
 
+        # 2 Validación: compras normales sin sujeto excluido
+        if self.sit_factura_a_reemplazar.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
+            tipo_doc = self.sit_factura_a_reemplazar.journal_id.sit_tipo_documento
+            if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE:
+                _logger.info(
+                    "SIT Documento de compra normal (sin sujeto excluido). Se omite generación de QR en evento de invalidación."
+                )
+                return False
+
+        # 3 Continuación normal del flujo
         company = self.sit_factura_a_reemplazar.company_id
         if not company:
             raise UserError(_("No se encontró la compañía asociada a la factura a reemplazar."))
@@ -840,6 +892,7 @@ class AccountMoveInvalidation(models.Model):
             self.hacienda_codigoGeneracion_identificacion) + "&fechaEmi=" + str(self.hacienda_fhProcesamiento_anulacion)
         _logger.info("SIT generando qr xxx texto_codigo_qr= %s", texto_codigo_qr)
 
+        # 4 Generación del código QR
         codigo_qr = qrcode.QRCode(
             version=1,  # Versión del código QR (ajústala según tus necesidades)
             error_correction=qrcode.constants.ERROR_CORRECT_L,  # Nivel de corrección de errores
@@ -854,6 +907,7 @@ class AccountMoveInvalidation(models.Model):
         else:  # Linux/Unix
             os.chdir('/mnt/extra-addons/src')
         directory = os.getcwd()
+        _logger.info("SIT directory = %s", directory)
 
         _logger.info("SIT directory =%s", directory)
         basewidth = 100
@@ -868,36 +922,61 @@ class AccountMoveInvalidation(models.Model):
         new_img.save(buffer, format="PNG")
         qrCode = base64.b64encode(buffer.getvalue())
         self.sit_qr_hacienda = qrCode
+        _logger.info("SIT QR generado correctamente")
         return
 
     def check_parametros_invalidacion(self):
+        _logger.info("SIT Iniciando validación de parámetros de invalidación para %s", self)
+
+        # Validar si aplica facturación electrónica
         if not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion):
-            _logger.info("SIT No aplica facturación electrónica. Se omite generación de check_parametros_invalidacion en evento de invalidacion.")
+            _logger.info("SIT No aplica facturación electrónica. Se omite check_parametros_invalidacion en evento de invalidación.")
             return False
 
+        # Validar si es compra normal sin sujeto excluido
+        if self.sit_factura_a_reemplazar.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
+            tipo_doc = self.sit_factura_a_reemplazar.journal_id.sit_tipo_documento
+            if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE:
+                _logger.info("SIT Es una compra normal (sin sujeto excluido). Se omite check_parametros_invalidacion.")
+                return False
+
+        # Validaciones obligatorias
         if not self.sit_factura_a_reemplazar.name:
-            raise UserError(_('El Número de control no definido'))
+            raise UserError(_('El Número de control no está definido.'))
         if not self.sit_factura_a_reemplazar.company_id.tipoEstablecimiento.codigo:
-            raise UserError(_('El tipoEstablecimiento no definido'))
+            raise UserError(_('El tipoEstablecimiento no está definido.'))
 
         if not self.sit_tipoAnulacion or self.sit_tipoAnulacion == False:
-            raise UserError(_('El tipoAnulacion no definido'))
+            raise UserError(_('El tipoAnulacion no está definido.'))
+
+        _logger.info("SIT Validaciones de parámetros de invalidación completadas correctamente.")
         return True
 
     def check_parametros_firmado_anu(self):
+        _logger.info("SIT Iniciando validación de parámetros de firmado en invalidación para %s", self)
+
+        # Validar si aplica facturación electrónica
         if not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion):
-            _logger.info("SIT No aplica facturación electrónica. Se omite validación de parámetros de firmado en invalidacion.")
+            _logger.info("SIT No aplica facturación electrónica. Se omite validación de parámetros de firmado en invalidación.")
             return False
 
+        # Validar si es compra normal sin sujeto excluido
+        if self.sit_factura_a_reemplazar.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
+            tipo_doc = self.sit_factura_a_reemplazar.journal_id.sit_tipo_documento
+            if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE:
+                _logger.info("SIT Es una compra normal (sin sujeto excluido). Se omite check_parametros_firmado_anu.")
+                return False
+
+        # Validaciones básicas del documento
         if self.sit_factura_a_reemplazar.move_type != 'in_invoice' and not self.sit_factura_a_reemplazar.journal_id.sit_tipo_documento.codigo:
-            raise UserError(_('El Tipo de  DTE no definido.'))
+            raise UserError(_('El Tipo de DTE no está definido.'))
         if not self.sit_factura_a_reemplazar.name:
-            raise UserError(_('El Número de control no definido'))
+            raise UserError(_('El Número de control no está definido.'))
         if not self.sit_factura_a_reemplazar.company_id.sit_passwordPri:
-            raise UserError(_('El valor passwordPri no definido'))
+            raise UserError(_('El valor passwordPri no está definido.'))
         _logger.info("SIT nit empresa: %s | uuid empresa: %s.", self.sit_factura_a_reemplazar.company_id.vat, self.sit_factura_a_reemplazar.company_id.sit_uuid)
         if not self.sit_factura_a_reemplazar.company_id.sit_uuid and not self.sit_factura_a_reemplazar.company_id.vat:
-            raise UserError(_('El valor uuid no definido'))
+            raise UserError(_('El valor uuid no está definido.'))
         if not self.sit_factura_a_reemplazar.company_id.vat:
             raise UserError(_('El emisor no tiene NIT configurado.'))
         if not self.sit_factura_a_reemplazar.company_id.company_registry:
@@ -905,7 +984,7 @@ class AccountMoveInvalidation(models.Model):
         if not self.sit_factura_a_reemplazar.company_id.name:
             raise UserError(_('El emisor no tiene NOMBRE configurado.'))
         if not self.sit_factura_a_reemplazar.company_id.codActividad:
-            raise UserError(_('El emisor no tiene CODIGO DE ACTIVIDAD configurado.'))
+            raise UserError(_('El emisor no tiene CÓDIGO DE ACTIVIDAD configurado.'))
         if not self.sit_factura_a_reemplazar.company_id.tipoEstablecimiento:
             raise UserError(_('El emisor no tiene TIPO DE ESTABLECIMIENTO configurado.'))
         if not self.sit_factura_a_reemplazar.company_id.state_id:
@@ -927,16 +1006,16 @@ class AccountMoveInvalidation(models.Model):
         elif tipo_dte == constants.COD_DTE_CCF:
             # Validaciones completas para DTE tipo 03
             if not self.sit_factura_a_reemplazar.partner_id.vat and self.sit_factura_a_reemplazar.partner_id.is_company:
-                _logger.info("SIT, es compañia se requiere NIT")
+                _logger.info("SIT, es compañía se requiere NIT")
                 _logger.info("SIT, partner campos requeridos Invalidation=%s", self.partner_id)
                 raise UserError(_('El receptor no tiene NIT configurado.'))
             if not self.sit_factura_a_reemplazar.partner_id.nrc and self.sit_factura_a_reemplazar.partner_id.is_company:
-                _logger.info("SIT, es compañia se requiere NRC")
+                _logger.info("SIT, es compañía se requiere NRC")
                 raise UserError(_('El receptor no tiene NRC configurado.'))
             if not self.sit_factura_a_reemplazar.partner_id.name:
                 raise UserError(_('El receptor no tiene NOMBRE configurado.'))
             if not self.sit_factura_a_reemplazar.partner_id.codActividad:
-                raise UserError(_('El receptor no tiene CODIGO DE ACTIVIDAD configurado.'))
+                raise UserError(_('El receptor no tiene CÓDIGO DE ACTIVIDAD configurado.'))
             if not self.sit_factura_a_reemplazar.partner_id.state_id:
                 raise UserError(_('El receptor no tiene DEPARTAMENTO configurado.'))
             if not self.sit_factura_a_reemplazar.partner_id.munic_id:
@@ -950,20 +1029,32 @@ class AccountMoveInvalidation(models.Model):
         return True  # ✅ Indicamos explícitamente que pasó la validación
 
     def check_parametros_dte_invalidacion(self, generacion_dte, ambiente_test):
+        _logger.info("SIT Iniciando validación de parámetros DTE de invalidación para %s", self)
+
         # Validación de empresa
         if not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion):
             _logger.info("SIT check_parametros_dte_invalidacion: empresa %s no aplica a facturación electrónica, se detiene la validación.", self.sit_factura_a_reemplazar.company_id.id if self.sit_factura_a_reemplazar.company_id else None)
-            return
+            return False
 
+        # Validar si es compra normal sin sujeto excluido
+        if self.sit_factura_a_reemplazar.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
+            tipo_doc = self.sit_factura_a_reemplazar.journal_id.sit_tipo_documento
+            if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE:
+                _logger.info("SIT Es una compra normal (sin sujeto excluido). Se omite check_parametros_dte_invalidacion.")
+                return False
+
+        # Validaciones del objeto generacion_dte
         if not generacion_dte["ambiente"]:
-            ERROR = 'El ambiente  no está definido.'
+            ERROR = 'El ambiente no está definido.'
             raise UserError(_(ERROR))
         if not generacion_dte["idEnvio"]:
-            ERROR = 'El IDENVIO  no está definido.'
+            ERROR = 'El IDENVIO no está definido.'
             raise UserError(_(ERROR))
         if not ambiente_test and not generacion_dte["documento"]:
-            ERROR = 'El DOCUMENTO  no está presente.'
+            ERROR = 'El DOCUMENTO no está presente.'
             raise UserError(_(ERROR))
         if not generacion_dte["version"]:
             ERROR = 'La version dte no está definida.'
             raise UserError(_(ERROR))
+        _logger.info("SIT Validación de parámetros DTE de invalidación completada correctamente.")
+        return True

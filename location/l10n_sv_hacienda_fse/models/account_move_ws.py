@@ -18,6 +18,7 @@ tz_el_salvador = pytz.timezone('America/El_Salvador')
 
 import logging
 import json
+import uuid
 
 _logger = logging.getLogger(__name__)
 
@@ -368,7 +369,9 @@ class AccountMove(models.Model):
 
     @only_fe
     def sit_generar_uuid(self):
-        import uuid
+        if not self.env.company.sit_facturacion:
+            _logger.info("FE OFF: omitiendo sit_generar_uuid")
+            return None
         # Genera un UUID versión 4 (basado en números aleatorios)
         uuid_aleatorio = uuid.uuid4()
         uuid_cadena = str(uuid_aleatorio)
@@ -377,12 +380,27 @@ class AccountMove(models.Model):
     @only_fe
     def sit_debug_mostrar_json_fse(self):
         """Solo muestra el JSON generado de la factura FSE sin enviarlo."""
+        # 1 Si la facturación electrónica está desactivada, no hacemos nada
+        if not self.env.company.sit_facturacion:
+            _logger.info("FE OFF: omitiendo sit_debug_mostrar_json_fse")
+            return True  # no bloquea la UI
+
+        # 2 Validar que solo haya una factura seleccionada
         if len(self) != 1:
             raise UserError("Selecciona una sola factura para depurar el JSON.")
 
-        invoice_json = self.sit__fse_base_map_invoice_info_dtejson()
+        # 3 Validar que aplique solo para compras (in_invoice) con tipo de documento código 14 (FSE)
+        tipo_doc = self.journal_id.sit_tipo_documento
+        if self.move_type != constants.IN_INVOICE or (tipo_doc and tipo_doc.codigo != constants.COD_DTE_FSE):
+            _logger.info(
+                "SIT: omitiendo generación de JSON — aplica solo para compras FSE (in_invoice, código 14). "
+                "Tipo actual: %s, Código: %s",
+                self.move_type, tipo_doc.codigo if tipo_doc else None
+            )
+            return True
 
-        import json
+        # 4 Generar y mostrar el JSON FSE
+        invoice_json = self.sit__fse_base_map_invoice_info_dtejson()
         pretty_json = json.dumps(invoice_json, indent=4, ensure_ascii=False)
         _logger.info("📄 JSON DTE FSE generado:\n%s", pretty_json)
         print("📄 JSON DTE FSE generado:\n", pretty_json)

@@ -56,13 +56,20 @@ class AccountMoveLine(models.Model):
     def _compute_total_iva(self):
         for line in self:
             vat_amount = 0.0
+            line.total_iva = 0.0
+            tipo_doc = line.move_id.journal_id.sit_tipo_documento if line.move_id.journal_id else None
+
+            # Ventas → solo si hay facturación electrónica
+            if line.move_id.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND) and not line.move_id.company_id.sit_facturacion:
+                _logger.info("SIT _compute_total_iva | Venta detectada sin facturación -> move_id: %s, se omite cálculo de IVA", line.move_id.id)
+                continue
 
             # Verificamos si es una factura de compra
-            if line.move_id.move_type in ('in_invoice', 'in_refund'):
-                # Si es una compra, no calculamos IVA
-                _logger.info("Compra detectada -> move_type: %s, no se realiza cálculo de IVA", line.move_id.move_type)
-                line.total_iva = 0.0
-                continue  # Salimos del ciclo para esta línea de compra
+            if line.move_id.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
+                if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE or (
+                        tipo_doc.codigo == constants.COD_DTE_FSE and not line.move_id.company_id.sit_facturacion):
+                    _logger.info("SIT _compute_total_iva | Compra normal o sujeto excluido sin facturación -> move_id: %s, se omite cálculo de IVA", line.move_id.id)
+                    continue
 
             # Si no es una compra, procedemos con el cálculo del IVA
             if line.tax_ids:
@@ -81,13 +88,21 @@ class AccountMoveLine(models.Model):
     def _compute_iva_unitario(self):
         for line in self:
             vat_amount = 0.0
+            line.iva_unitario = 0.0
+            tipo_doc = line.move_id.journal_id.sit_tipo_documento if line.move_id.journal_id else None
 
-            # Verificamos si es una factura de compra
-            if line.move_id.move_type in ('in_invoice', 'in_refund'):
-                # Si es una compra, no calculamos IVA unitario
-                _logger.info("Compra detectada -> move_type: %s, no se realiza cálculo de IVA unitario", line.move_id.move_type)
-                line.iva_unitario = 0.0
-                continue  # Salimos del ciclo para esta línea de compra
+            # Ventas → solo si hay facturación electrónica
+            if line.move_id.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND) and not line.move_id.company_id.sit_facturacion:
+                _logger.info("SIT _compute_iva_unitario | Venta detectada sin facturación -> move_id: %s, no se calcula IVA unitario", line.move_id.id)
+                continue
+
+            # Compras → solo si es sujeto excluido con facturación o compras normales DTE tipo FSE
+            if line.move_id.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
+                if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE or (
+                        tipo_doc.codigo == constants.COD_DTE_FSE and not line.move_id.company_id.sit_facturacion):
+                    _logger.info("SIT _compute_iva_unitario | Compra normal o sujeto excluido sin facturación -> move_id: %s, no se calcula IVA unitario", line.move_id.id)
+                    line.iva_unitario = 0.0
+                    continue
 
             if line.tax_ids:
                 # Solo considerar impuestos tipo IVA
@@ -109,11 +124,22 @@ class AccountMoveLine(models.Model):
     @api.depends('product_id', 'quantity', 'price_unit', 'discount', 'tax_ids', 'move_id.journal_id')
     def _compute_precios_tipo_venta(self):
         for line in self:
-            # Verificamos si es una factura de compra
-            if line.move_id.move_type in ('in_invoice', 'in_refund'):
-                # Si es compra, no aplicar lógica de ajuste para precios
-                _logger.info("Compra detectada -> move_type: %s, no se realiza ajuste de precio", line.move_id.move_type)
+            line.precio_gravado = 0.0
+            line.precio_exento = 0.0
+            line.precio_no_sujeto = 0.0
+            tipo_doc = line.move_id.journal_id.sit_tipo_documento if line.move_id.journal_id else None
+
+            # Ventas → solo si hay facturación electrónica
+            if line.move_id.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND) and not line.move_id.company_id.sit_facturacion:
+                _logger.info("SIT _compute_precios_tipo_venta | Venta sin facturación -> move_id: %s, no se calcula precio por tipo de venta", line.move_id.id)
                 continue
+
+            # Compras → solo si es sujeto excluido con facturación o compras normales DTE tipo FSE
+            if line.move_id.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
+                if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE or (
+                        tipo_doc.codigo == constants.COD_DTE_FSE and not line.move_id.company_id.sit_facturacion):
+                    _logger.info("SIT _compute_precios_tipo_venta | Compra normal o sujeto excluido sin facturación -> move_id: %s, no se calcula precio por tipo de venta", line.move_id.id)
+                    continue
 
             _logger.info("==== INICIO LINEA ID: %s ====", line.id)
             _logger.info("Producto: %s (%s)", line.product_id.display_name, line.product_id.id)
@@ -135,18 +161,13 @@ class AccountMoveLine(models.Model):
             _logger.info("Valores base -> price_unit: %s, quantity: %s, discount: %s", base_price_unit, cantidad,
                          descuento)
 
-            # Reset precios
-            line.precio_gravado = 0.0
-            line.precio_exento = 0.0
-            line.precio_no_sujeto = 0.0
-
             subtotal_linea_con_descuento = base_price_unit * cantidad * (1 - descuento / 100.0)
             precio_total = currency.round(subtotal_linea_con_descuento)
             _logger.info("Subtotal con descuento: %s, precio_total redondeado: %s", subtotal_linea_con_descuento,
                          precio_total)
 
             # Ajuste para ventas
-            if line.move_id.move_type in ('out_invoice', 'out_refund'):
+            if line.move_id.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND):
                 _logger.info("Ventas detectadas -> move_type: %s, journal_code: %s", line.move_id.move_type,
                              line.journal_id.code)
                 if line.journal_id.code == 'FCF' and line.tax_ids.price_include_override == 'tax_excluded':
@@ -157,17 +178,17 @@ class AccountMoveLine(models.Model):
                     _logger.info("Precio unitario estándar: %s", line.precio_unitario)
 
                 # Asignar según tipo_venta
-                if tipo_venta == 'gravado':
+                if tipo_venta == constants.TIPO_VENTA_PROD_GRAV:
                     if line.journal_id.code == 'FCF' and line.tax_ids.price_include_override == 'tax_excluded':
                         line.precio_gravado = precio_total + line.total_iva
                     else:
                         line.precio_gravado = precio_total
                     _logger.info("Precio gravado asignado: %s", line.precio_gravado)
 
-            elif tipo_venta == 'exento':
+            elif tipo_venta == constants.TIPO_VENTA_PROD_EXENTO:
                 line.precio_exento = precio_total
                 _logger.info("Precio exento asignado: %s", line.precio_exento)
-            elif tipo_venta == 'no_sujeto':
+            elif tipo_venta == constants.TIPO_VENTA_PROD_NO_SUJETO:
                 line.precio_no_sujeto = precio_total
                 _logger.info("Precio no sujeto asignado: %s", line.precio_no_sujeto)
 
