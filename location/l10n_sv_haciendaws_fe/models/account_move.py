@@ -309,13 +309,17 @@ class AccountMove(models.Model):
         new_vals_list = []
         for rec in base_records:
             # --- Obtener los vals actuales del record ---
-            vals = rec._convert_to_write(rec._cache)
+            # vals = rec._convert_to_write(rec._cache)
+            # Clonamos los valores del record, evitando comandos SET/CLEAR
+            vals = {k: v for k, v in rec._cache.items() if not isinstance(v, (list, tuple))}
+
             move_type = rec.move_type
             journal = rec.journal_id
-            _logger.info("SIT-haciendaws_fe | Diario seleccionado. Vals: %s, rec: %s", vals.get("journal_id"), rec.journal_id)
+            _logger.info("SIT-haciendaws_fe | Diario seleccionado. Vals: %s, rec: %s", vals.get("journal_id"),
+                         rec.journal_id)
 
             # --- Saltar lógica DTE excepto para compras con diario 'sujeto excluido' ---
-            if move_type in (constants.IN_INVOICE, constants.IN_REFUND) and (
+            if move_type in (constants.IN_INVOICE, constants.IN_REFUND) and journal and (
                     not journal.sit_tipo_documento or journal.sit_tipo_documento.codigo != constants.COD_DTE_FSE):
                 _logger.info(
                     "SIT-haciendaws_fe | Documento de compra detectado (tipo=%s, diario=%s) sin tipo DTE, se omite lógica DTE.",
@@ -339,6 +343,18 @@ class AccountMove(models.Model):
             if not (company and company.sit_facturacion):
                 _logger.info("Empresa '%s' NO aplica a DTE → se usará flujo estándar.", company.name)
                 # new_vals_list.append(vals)
+                # Asignar secuencia estándar si no tiene nombre
+                if not vals.get('name') or vals['name'] == '/':
+                    journal = rec.journal_id or self.env['account.journal'].browse(vals.get('journal_id'))
+                    if journal and journal.sequence_id:
+                        vals['name'] = journal.sequence_id.next_by_id()
+                    else:
+                        vals['name'] = self.env['ir.sequence'].next_by_code('account.move') or '/'
+                    _logger.info("Asignado name desde flujo estándar: %s", vals['name'])
+
+                # new_vals_list.append(vals)  # <-- asegura que Odoo los cree normalmente
+                # Aquí no se debe crear un nuevo registro, solo actualizar el valor del record base
+                rec.write(vals)
                 continue
 
             move_type = rec.move_type
@@ -368,8 +384,11 @@ class AccountMove(models.Model):
                     generated_name = virtual_move.with_context(_dte_auto_generated=True)._generate_dte_name()
 
                     if generated_name:
-                        rec.name = generated_name
-                        _logger.info("SIT Nombre generado dinámicamente (venta/compra): %s", rec.name)
+                        # rec.name = generated_name
+                        vals['name'] = generated_name
+                        _logger.info("SIT Nombre generado dinámicamente (venta/compra): %s", vals['name'])
+                    else:
+                        _logger.warning("SIT No se pudo generar el nombre dinámicamente.")
                 else:
                     _logger.info("SIT Nombre provisto por el usuario/config: %s", name)
 
@@ -378,9 +397,10 @@ class AccountMove(models.Model):
                     raise UserError(_("No se pudo obtener el partner."))
 
                 # códigoGeneracion_identificación
-                if not rec.hacienda_codigoGeneracion_identificacion:
-                    rec.hacienda_codigoGeneracion_identificacion = self.sit_generar_uuid()
-                    _logger.info("Codigo de generacion asignado: %s", rec.hacienda_codigoGeneracion_identificacion)
+                if not vals.get('hacienda_codigoGeneracion_identificacion'):
+                    vals['hacienda_codigoGeneracion_identificacion'] = self.sit_generar_uuid()
+                    _logger.info("Código de generación asignado: %s", vals['hacienda_codigoGeneracion_identificacion'])
+
             else:
                 _logger.info("Diario '%s' no es venta (o move_type no es in_invoice), omito generación DTE",
                              journal.name if journal else "No asignado")
@@ -404,30 +424,49 @@ class AccountMove(models.Model):
             if existing_move:
                 _logger.warning("Documento duplicado detectado con el nombre: %s", vals.get('name'))
                 continue  # No crear el duplicado, pasa al siguiente
-            new_vals_list.append(vals)
+
+            # Actualización del `name` para evitar duplicados en la creación
+            if vals.get('name') != '/':
+                rec.write({'name': vals.get('name')})
+
+            # Actualizar los valores de rec directamente
+            rec.write(vals)
 
         _logger.info("Valores finales antes de super().create: %s", vals_list)
         # no forzar name
-        self._fields['name'].required = False
+        # self._fields['name'].required = False
         # Añadimos `_dte_auto_generated=True` en el contexto para marcar que el campo `name`, fue generado automáticamente por la lógica DTE. Esto es indispensable porque
         # el constraint `_check_name_sales` valida que las facturas de venta no tengan modificaciones manuales en `name`.
         # records = super().create(vals_list)
         # records = super(AccountMove, self).create(new_vals_list)
         # _logger.info("Registros creados: %s", getattr(records, 'ids', records))
 
-        # --- Crear los registros finales con DTE aplicado ---
-        if new_vals_list:
-            records = super().create(new_vals_list)
-            if isinstance(records, list):
-                records = self.browse([r.id for r in records])
-        else:
-            _logger.info("No hay registros nuevos para crear, se retornan los registros base")
-            records = base_records
+        _logger.info("Registros creados: %s", base_records.ids)
 
-        _logger.info("Registros creados: %s", records.ids)
+        # --- Ajustes posteriores: logs, retenciones, seguro/flete ---
+        for move in base_records:
+            _logger.info("SIT: Movimiento creado con ID=%s y nombre: %s", move.id, move.name)
+
+            # Actualizar apply_retencion_iva según gran_contribuyente del partner
+            if move.partner_id:
+                if move.partner_id.gran_contribuyente:
+                    move.apply_retencion_iva = True
+                    _logger.info(
+                        "SIT: apply_retencion_iva activado (cliente gran contribuyente) para move ID=%s", move.id
+                    )
+                else:
+                    move.apply_retencion_iva = False
+                    _logger.info(
+                        "SIT: apply_retencion_iva desactivado (cliente NO gran contribuyente) para move ID=%s", move.id
+                    )
+
+            # Agregar líneas de seguro/flete
+            move.agregar_lineas_seguro_flete()
+
+            _logger.info("SIT: Después de agregar líneas de seguro/flete, nombre: %s", move.name)
 
         # Refuerzo para name si quedó en '/'
-        for vals, rec in zip(new_vals_list, records):
+        for vals, rec in zip(new_vals_list, base_records):
             if vals.get('name') and vals['name'] != '/' and rec.name == '/':
                 _logger.warning("Refuerzo name para rec ID %s: %s", rec.id, vals["name"])
                 rec.name = vals['name']
@@ -436,8 +475,8 @@ class AccountMove(models.Model):
             rec._copiar_retenciones_desde_documento_relacionado()
             # new_vals_list.append(rec)
 
-        _logger.info("SIT FIN create")
-        return records
+        _logger.info("SIT FIN create records: %s", base_records)
+        return base_records
 
     def _inverse_name(self):
         for rec in self:

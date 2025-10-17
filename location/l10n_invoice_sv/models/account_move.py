@@ -1251,67 +1251,83 @@ class AccountMove(models.Model):
 
         return res
 
-    def create(self, vals_list_invoice):
-        # Crear una lista para almacenar los movimientos creados
-        moves = []
+    # def create(self, vals_list_invoice):
+    #     # Crear una lista para almacenar los movimientos creados
+    #     new_vals_list = []
+    #     vals_to_adjust_after = []
+    #
+    #     # --- Preparar todos los vals ---
+    #     for vals in vals_list_invoice:
+    #         # Obtener el tipo de movimiento
+    #         move_type = vals.get('move_type')
+    #         journal_id = vals.get('journal_id')
+    #         journal = self.env["account.journal"].browse(journal_id) if journal_id else None
+    #
+    #         # Verificar si es una compra o un sujeto excluido
+    #         if move_type in [constants.IN_INVOICE, constants.IN_REFUND]:
+    #             if not journal or not getattr(journal, "sit_tipo_documento", False) or journal.sit_tipo_documento.codigo != constants.COD_DTE_FSE:
+    #                 _logger.info(
+    #                     "SIT-invoice_sv | Documento de compra detectado (tipo=%s, diario=%s) sin tipo DTE, se omite lógica DTE.",
+    #                     move_type, journal and journal.name)
+    #
+    #                 # Validar si el campo 'name' está presente en vals y si está vacío
+    #                 if 'name' not in vals or not vals['name']:
+    #                     _logger.warning(
+    #                         "[WRITE-VALIDATION] El campo 'name' está vacío o no existe. Asignando valor por defecto.")
+    #                     vals['name'] = '/'  # Asignar un valor por defecto
+    #                 # moves.append(super(AccountMove, self).create([vals]))  # Se usa vals como lista
+    #                 vals_to_adjust_after.append(vals)
+    #                 new_vals_list.append(vals)
+    #                 continue
+    #
+    #             # Para las compras normales, se omite la lógica de DTE personalizada
+    #             _logger.info("SIT: Documento de compra normal detectado (tipo=%s). Se omite lógica personalizada.",
+    #                          move_type)
+    #             # moves.append(super().create([vals]))  # Se usa vals como lista
+    #             vals_to_adjust_after.append(vals)
+    #             new_vals_list.append(vals)
+    #             continue
+    #
+    #         # --- Validar si el 'name' ya existe y no es '/' ---
+    #         if 'name' in vals and vals['name'] and vals['name'] != '/':
+    #             _logger.info(
+    #                 "SIT-invoice_sv | El 'name' ya fue asignado previamente: %s. No se creará un nuevo registro.",
+    #                 vals['name'])
+    #             vals_to_adjust_after.append(vals)
+    #             new_vals_list.append(vals)
+    #             continue  # No crear un nuevo registro, salimos del loop para este caso
+    #
+    #
+    #
+    #     # --- Crear todos los movimientos ---
+    #     moves = super().create(new_vals_list)
+    #
+    #     # --- Ajustes posteriores: logs, retenciones y seguro/flete ---
+    #     for move in moves:
+    #         _logger.info("SIT: Movimiento creado con ID=%s y nombre: %s", move.id, move.name)
+    #
+    #         # Actualizar apply_retencion_iva según gran_contribuyente del partner
+    #         if move.partner_id:
+    #             if move.partner_id.gran_contribuyente:
+    #                 move.apply_retencion_iva = True
+    #                 _logger.info(
+    #                     "SIT: apply_retencion_iva activado (cliente gran contribuyente) para move ID=%s", move.id
+    #                 )
+    #             else:
+    #                 move.apply_retencion_iva = False
+    #                 _logger.info(
+    #                     "SIT: apply_retencion_iva desactivado (cliente NO gran contribuyente) para move ID=%s", move.id
+    #                 )
+    #
+    #         # Agregar líneas de seguro/flete
+    #         move.agregar_lineas_seguro_flete()
+    #
+    #         _logger.info("SIT: Después de agregar líneas de seguro/flete, nombre: %s", move.name)
+    #
+    #         # Agregar el movimiento creado a la lista
+    #         # moves.append(move)
+    #     return moves
 
-        for vals in vals_list_invoice:
-            # Obtener el tipo de movimiento
-            move_type = vals.get('move_type')
-            journal_id = vals.get('journal_id')
-            journal = self.env["account.journal"].browse(journal_id) if journal_id else None
-
-            # Verificar si es una compra o un sujeto excluido
-            if move_type in [constants.IN_INVOICE, constants.IN_REFUND]:
-                if not journal or not getattr(journal, "sit_tipo_documento", False) or journal.sit_tipo_documento.codigo != constants.COD_DTE_FSE:
-                    _logger.info(
-                        "SIT-invoice_sv | Documento de compra detectado (tipo=%s, diario=%s) sin tipo DTE, se omite lógica DTE.",
-                        move_type, journal and journal.name)
-
-                    # Validar si el campo 'name' está presente en vals y si está vacío
-                    if 'name' not in vals or not vals['name']:
-                        _logger.warning(
-                            "[WRITE-VALIDATION] El campo 'name' está vacío o no existe. Asignando valor por defecto.")
-                        vals['name'] = '/'  # Asignar un valor por defecto
-
-                    moves.append(super(AccountMove, self).create([vals]))  # Se usa vals como lista
-                    continue
-
-                # Para las compras normales, se omite la lógica de DTE personalizada
-                _logger.info("SIT: Documento de compra normal detectado (tipo=%s). Se omite lógica personalizada.", move_type)
-                moves.append(super().create([vals]))  # Se usa vals como lista
-                continue
-
-            _logger.info("SIT: Datos antes de la creación: %s", vals_list_invoice)
-            # Llamar al método de creación del movimiento
-            move = super().create([vals])  # Se usa vals como lista
-
-            # Log después de la creación para verificar el nombre
-            _logger.info("SIT: Movimiento creado con ID=%s y nombre: %s", move.id, move.name)
-
-            # Actualizar apply_retencion_iva según gran_contribuyente del partner
-            if move.partner_id:
-                if move.partner_id.gran_contribuyente:
-                    move.apply_retencion_iva = True
-                    _logger.info(
-                        "SIT: apply_retencion_iva activado (cliente gran contribuyente) para move ID=%s", move.id
-                    )
-                else:
-                    move.apply_retencion_iva = False
-                    _logger.info(
-                        "SIT: apply_retencion_iva desactivado (cliente NO gran contribuyente) para move ID=%s", move.id
-                    )
-
-            # Agregar líneas de seguro/flete
-            move.agregar_lineas_seguro_flete()
-
-            # Log final para verificar si el nombre cambió después de agregar líneas
-            _logger.info("SIT: Después de agregar líneas de seguro/flete, nombre: %s", move.name)
-
-            # Agregar el movimiento creado a la lista
-            moves.append(move)
-
-        return moves
 
 class AccountMoveSend(models.AbstractModel):
     _inherit = 'account.move.send'

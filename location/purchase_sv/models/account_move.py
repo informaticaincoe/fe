@@ -150,17 +150,17 @@ class AccountMove(models.Model):
         # Lógica para obtener el valor predeterminado según el contexto o condiciones
         return self.env['account.journal.tipo_documento.field'].search([('codigo', '=', '01')], limit=1)
 
-    @api.onchange('move_type')
-    def _get_tipo_documento_domain(self):
-        # Lógica para establecer el dominio del campo para siempre mostrar los documentos con los códigos especificados
-        # Mostrar los tipos de documentos con los códigos '03', '05', '06', '11' en todos los casos
-        # Las compras de tipo nota de credito(05) y nota de debito(06) se generan desde la funcionalidad de odoo
-        if self.move_type == 'in_refund' and self.sit_tipo_documento_id.codigo == constants.COD_DTE_NC: # Nota de credito en compras
-            return [('codigo', 'in', ['05'])]
-        elif self.move_type == 'in_invoice' and self.sit_tipo_documento_id.codigo == constants.COD_DTE_ND: # Notas de debito en compras
-            return [('codigo', 'in', ['06'])]
-        else:
-            return [('codigo', 'in', ['01', '03', '11'])]
+    # @api.onchange('move_type')
+    # def _get_tipo_documento_domain(self):
+    #     # Lógica para establecer el dominio del campo para siempre mostrar los documentos con los códigos especificados
+    #     # Mostrar los tipos de documentos con los códigos '03', '05', '06', '11' en todos los casos
+    #     # Las compras de tipo nota de credito(05) y nota de debito(06) se generan desde la funcionalidad de odoo
+    #     if self.move_type == 'in_refund' and self.sit_tipo_documento_id.codigo == constants.COD_DTE_NC: # Nota de credito en compras
+    #         return [('codigo', 'in', ['05'])]
+    #     elif self.move_type == 'in_invoice' and self.sit_tipo_documento_id.codigo == constants.COD_DTE_ND: # Notas de debito en compras
+    #         return [('codigo', 'in', ['06'])]
+    #     else:
+    #         return [('codigo', 'in', ['01', '03', '11'])]
 
     @api.onchange('name', 'hacienda_codigoGeneracion_identificacion', 'hacienda_selloRecibido')
     def _onchange_remove_hyphen_and_spaces(self):
