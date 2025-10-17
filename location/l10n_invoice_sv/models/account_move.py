@@ -1047,6 +1047,12 @@ class AccountMove(models.Model):
     # -------Creacion de apunte contable para los descuent|os
     # Actualizar apuntes contables
     def action_post(self):
+        # Si FE está desactivada → comportamiento estándar de Odoo
+        invoices_sv = self.filtered(lambda inv: inv.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND, constants.IN_INVOICE, constants.IN_REFUND))
+        if not invoices_sv:
+            # Si no hay facturas, llamar al método original sin hacer validaciones DTE
+            return super().action_post()
+
         for move in self:
             _logger.info(f"[action_post] Procesando factura ID {move.id} con número {move.name}")
             if move.state != 'draft':

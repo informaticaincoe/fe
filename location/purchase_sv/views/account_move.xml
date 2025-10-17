@@ -9,16 +9,32 @@
             <field name="arch" type="xml">
                 <xpath expr="//field[@name='partner_shipping_id']" position="after">
                     <div class="mt-2 mb-2">
-                        <label for="document_number" invisible="codigo_tipo_documento"/>
-                        <field name="document_number" invisible="codigo_tipo_documento"/>
+                        <label for="document_number" invisible="move_type == 'entry' or codigo_tipo_documento"/>
+                        <field name="document_number" invisible="move_type == 'entry' or codigo_tipo_documento"/>
                     </div>
                 </xpath>
+                <!-- Tipo de Documento -->
                 <xpath expr="//field[@name='partner_id']" position="after">
                     <div class="mt-2 mb-2">
-                        <label for="sit_tipo_documento_id" invisible="codigo_tipo_documento"/>
+                        <label for="sit_tipo_documento_id" invisible="move_type == 'entry' or codigo_tipo_documento"/>
+                        <!-- Compra normal -->
                         <field name="sit_tipo_documento_id"
                                readonly="False"
-                               invisible="codigo_tipo_documento"/>
+                               invisible="not (move_type == 'in_invoice' and not debit_origin_id) or codigo_tipo_documento"
+                               domain="[('codigo','in',['01','03','11'])]"
+                        />
+                        <!-- Compra Nota de crédito -->
+                        <field name="sit_tipo_documento_id"
+                               readonly="False"
+                               invisible="not (move_type == 'in_refund') or codigo_tipo_documento"
+                               domain="[('codigo','in',['05'])]"
+                        />
+                        <!-- Compra Nota de débito -->
+                        <field name="sit_tipo_documento_id"
+                               readonly="False"
+                               invisible="not (move_type == 'in_invoice' and debit_origin_id) or codigo_tipo_documento"
+                               domain="[('codigo','in',['06'])]"
+                        />
                     </div>
                 </xpath>
             </field>
@@ -57,7 +73,7 @@
                 <xpath expr="//field[@name='name']" position="after">
                     <!-- Este div evita heredar el estilo grande del encabezado -->
                     <div style="font-size: 13px; font-weight: normal;">
-                        <group string="Identificación DTE" colspan="2" invisible="codigo_tipo_documento" readonly="False">
+                        <group string="Identificación DTE" colspan="2" invisible="move_type == 'entry' or codigo_tipo_documento" readonly="False">
                             <field name="hacienda_selloRecibido"
                                    string="Sello recibido por Hacienda"
                                    placeholder="Ingrese el sello recibido"
@@ -81,7 +97,7 @@
             <field name="arch" type="xml">
                 <!-- Insertar un subgrupo de fechas justo después de invoice_date -->
                 <xpath expr="//field[@name='invoice_date']/.." position="inside">
-                    <group col="2" colspan="2" invisible="codigo_tipo_documento">
+                    <group col="2" colspan="2" invisible="move_type == 'entry' or codigo_tipo_documento">
                         <field name="fecha_aplicacion" string="Fecha Aplicación"/>
                         <field name="fecha_iva" string="Fecha IVA"/>
                     </group>
@@ -113,13 +129,29 @@
             <field name="inherit_id" ref="account.view_move_form"/>
             <field name="arch" type="xml">
                 <xpath expr="//header" position="inside">
-                    <button name="generar_asientos_retencion_compras"
-                            string="Actualizar Ret./Perc./Renta"
-                            type="object"
-                            class="btn-primary"
-                            invisible="context.get('default_move_type') not in ('in_invoice','in_refund')"/>
+<!--                    Boton para pruebas de cuentas contables sobre retencion de IVA, percepcion y renta en el modulo de compras-->
+<!--                    <button name="generar_asientos_retencion_compras"-->
+<!--                            string="Actualizar Ret./Perc./Renta"-->
+<!--                            type="object"-->
+<!--                            class="btn-primary"-->
+<!--                            invisible="context.get('default_move_type') not in ('in_invoice','in_refund')"/>-->
                 </xpath>
             </field>
         </record>
+
+<!--        <record id="view_move_form_totales_retencion_percepcion" model="ir.ui.view">-->
+<!--            <field name="name">account.move.form.totales.retencion.percepcion</field>-->
+<!--            <field name="model">account.move</field>-->
+<!--            <field name="inherit_id" ref="account.view_move_form"/>-->
+<!--            <field name="arch" type="xml">-->
+<!--                <xpath expr="//field[@name='narration']" position="before">-->
+<!--                    <group string="Totales de Percepción y Retención" colspan="4" invisible="move_type not in('in_invoice', 'in_refund') or codigo_tipo_documento">-->
+<!--                        <field name="percepcion_amount" string="Percepción 1%" readonly="True"/>-->
+<!--                        <field name="retencion_iva_amount" string="Retención IVA" readonly="True"/>-->
+<!--                        <field name="retencion_renta_amount" string="Renta" readonly="True"/>-->
+<!--                    </group>-->
+<!--                </xpath>-->
+<!--            </field>-->
+<!--        </record>-->
     </data>
 </odoo>

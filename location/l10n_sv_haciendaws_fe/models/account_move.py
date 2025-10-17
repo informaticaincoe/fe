@@ -264,7 +264,8 @@ class AccountMove(models.Model):
         salvador_tz = pytz.timezone('America/El_Salvador')
         for move in self:
             # Validación para excluir compras
-            if move.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
+            if (move.move_type in (constants.IN_INVOICE, constants.IN_REFUND) and
+                    move.journal_id and (not move.journal_id.sit_tipo_documento or move.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)):
                 _logger.info("Compra detectada -> move_type: %s, no se calcula invoice_time", move.move_type)
                 move.invoice_time = False
                 return  # No calcular invoice_time para compras
@@ -299,68 +300,64 @@ class AccountMove(models.Model):
         _logger.info("Company ID: %s", self.env.company.id)
         _logger.info("SIT vals list: %s", vals_list)
 
+        # --- Primero crear los registros base para que el journal esté asignado ---
+        base_records = super().create(vals_list)
+        if isinstance(base_records, list):
+            base_records = self.browse([r.id for r in base_records])
+        _logger.info("Registros base creados: %s", base_records.ids)
+
         new_vals_list = []
-        for vals in vals_list:
-            # --- Filtrar facturas y notas de crédito de compra ---
-            move_type = vals.get("move_type")
-            journal_id = vals.get("journal_id")
-            journal = self.env["account.journal"].browse(journal_id) if journal_id else None
+        for rec in base_records:
+            # --- Obtener los vals actuales del record ---
+            vals = rec._convert_to_write(rec._cache)
+            move_type = rec.move_type
+            journal = rec.journal_id
+            _logger.info("SIT-haciendaws_fe | Diario seleccionado. Vals: %s, rec: %s", vals.get("journal_id"), rec.journal_id)
 
-            # --- Saltar lógica DTE excepto para compras con diario 'sujeto excluido'
-            if move_type in (constants.IN_INVOICE, constants.IN_REFUND) and (not journal.sit_tipo_documento or journal.sit_tipo_documento.codigo != constants.COD_DTE_FSE):
-                # if not (journal and getattr(journal, "sit_tipo_documento", False)):
-                if journal:
-                    _logger.info("SIT-haciendaws_fe | Documento de compra detectado (tipo=%s, diario=%s) sin tipo DTE, se omite lógica DTE.", journal.name, journal.name)
-                else:
-                    _logger.info("SIT-haciendaws_fe | Documento de compra detectado (tipo=%s, diario=No asignado) sin tipo DTE, se omite lógica DTE.", "Compra", "No asignado")
-
+            # --- Saltar lógica DTE excepto para compras con diario 'sujeto excluido' ---
+            if move_type in (constants.IN_INVOICE, constants.IN_REFUND) and (
+                    not journal.sit_tipo_documento or journal.sit_tipo_documento.codigo != constants.COD_DTE_FSE):
+                _logger.info(
+                    "SIT-haciendaws_fe | Documento de compra detectado (tipo=%s, diario=%s) sin tipo DTE, se omite lógica DTE.",
+                    move_type, journal.name if journal else "No asignado")
                 # return super(AccountMove, self).create(vals_list)
-                new_vals_list.append(vals)
+                # new_vals_list.append(vals)
                 continue
 
-            _logger.info("[CREATE-DEBUG] (antes de crear) move_type=%s, name=%s", vals.get('move_type'),
-                         vals.get('name'))
+            _logger.info("[CREATE-DEBUG] (antes de DTE) move_type=%s, name=%s", move_type, rec.name)
 
             # --- Evitar interferir con pagos (account.payment genera moves tipo 'entry') ---
             context = self._context or {}
-            skip_dte = context.get('active_model') == 'account.payment' or vals.get('origin_payment_id')
+            skip_dte = context.get('active_model') == 'account.payment' or rec.origin_payment_id
             if skip_dte:
                 _logger.info("SIT | Creación desde pago detectada → se omite personalización DTE.")
-                new_vals_list.append(vals)
+                # ew_vals_list.append(vals)
                 continue
 
             # --- Empresa ---
-            company_id = vals.get("company_id") or self.env.company.id
-            company = self.env["res.company"].browse(company_id)
-
+            company = rec.company_id
             if not (company and company.sit_facturacion):
                 _logger.info("Empresa '%s' NO aplica a DTE → se usará flujo estándar.", company.name)
-                new_vals_list.append(vals)
+                # new_vals_list.append(vals)
                 continue
 
-            move_type = vals.get('move_type')
+            move_type = rec.move_type
             _logger.info("SIT modulo detectado: %s", move_type)
 
             # --- Extraer partner_id ---
-            partner_id = vals.get('partner_id')
+            partner_id = rec.partner_id.id
             if not partner_id:
-                for cmd in vals.get('line_ids', []):
-                    if isinstance(cmd, tuple) and len(cmd) == 3:
-                        lvals = cmd[2]
-                        partner_id = lvals.get('partner_id') or partner_id
-                        if partner_id:
-                            break
+                for line in rec.line_ids:
+                    if line.partner_id:
+                        partner_id = line.partner_id.id
+                        break
             if partner_id:
-                vals['partner_id'] = partner_id
+                rec.partner_id = partner_id
             _logger.info("SIT Partner detectado: %s", partner_id)
-
-            # --- Diario ---
-            journal_id = vals.get('journal_id') or self.env.context.get('default_journal_id')
-            journal = self.env['account.journal'].browse(journal_id) if journal_id else None
 
             # --- Solo diarios de venta (y compras): generar nombre desde secuencia (_generate_dte_name) ---
             if (journal and journal.type == 'sale') or move_type == 'in_invoice':
-                name = vals.get('name')
+                name = rec.name
                 # Respetar si ya viene un nombre válido (cualquiera), solo generarlo si no hay o es '/'
                 if not name or name == '/':  # and name.startswith('DTE-')):
                     # usar un record virtual para métodos que requieren ensure_one()
@@ -371,22 +368,22 @@ class AccountMove(models.Model):
                     generated_name = virtual_move.with_context(_dte_auto_generated=True)._generate_dte_name()
 
                     if generated_name:
-                        vals['name'] = generated_name
-                        _logger.info("SIT Nombre generado dinámicamente (venta/compra): %s", vals['name'])
+                        rec.name = generated_name
+                        _logger.info("SIT Nombre generado dinámicamente (venta/compra): %s", rec.name)
                 else:
                     _logger.info("SIT Nombre provisto por el usuario/config: %s", name)
 
                 # partner obligatorio para DTE
-                if not vals.get('partner_id'):
+                if not rec.partner_id:
                     raise UserError(_("No se pudo obtener el partner."))
 
                 # códigoGeneracion_identificación
-                if not vals.get('hacienda_codigoGeneracion_identificacion'):
-                    vals['hacienda_codigoGeneracion_identificacion'] = self.sit_generar_uuid()
-                    _logger.info("Codigo de generacion asignado: %s", vals['hacienda_codigoGeneracion_identificacion'])
+                if not rec.hacienda_codigoGeneracion_identificacion:
+                    rec.hacienda_codigoGeneracion_identificacion = self.sit_generar_uuid()
+                    _logger.info("Codigo de generacion asignado: %s", rec.hacienda_codigoGeneracion_identificacion)
             else:
                 _logger.info("Diario '%s' no es venta (o move_type no es in_invoice), omito generación DTE",
-                             journal and journal.name)
+                             journal.name if journal else "No asignado")
 
             # ——— Para asientos contables (entry) ———
             if move_type == 'entry':
@@ -418,9 +415,15 @@ class AccountMove(models.Model):
         # records = super(AccountMove, self).create(new_vals_list)
         # _logger.info("Registros creados: %s", getattr(records, 'ids', records))
 
-        records = super().create(new_vals_list)
-        if isinstance(records, list):
-            records = self.browse([r.id for r in records])
+        # --- Crear los registros finales con DTE aplicado ---
+        if new_vals_list:
+            records = super().create(new_vals_list)
+            if isinstance(records, list):
+                records = self.browse([r.id for r in records])
+        else:
+            _logger.info("No hay registros nuevos para crear, se retornan los registros base")
+            records = base_records
+
         _logger.info("Registros creados: %s", records.ids)
 
         # Refuerzo para name si quedó en '/'
@@ -431,19 +434,21 @@ class AccountMove(models.Model):
                 _logger.info("SIT Refuerzo name=%s", rec.name)
 
             rec._copiar_retenciones_desde_documento_relacionado()
+            # new_vals_list.append(rec)
+
         _logger.info("SIT FIN create")
         return records
 
     def _inverse_name(self):
         for rec in self:
             # Solo aplicar si es movimiento de venta
-            if rec.company_id.sit_facturacion and rec.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND):
-                _logger.warning("[INVERSE-NAME] Evaluando name para move_id=%s: %s", rec.id, rec.name)
-                if not rec.name:
-                    _logger.warning("[INVERSE-NAME] name vacío → se asigna '/' para move_id=%s", rec.id)
-                    rec.name = '/'
-            else:
-                _logger.info("[INVERSE-NAME] Move_id=%s no es venta (move_type=%s). No se modifica name.", rec.id, rec.move_type)
+            # if rec.company_id.sit_facturacion and rec.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND, constants.IN_REFUND):
+            _logger.warning("[INVERSE-NAME] Evaluando name para move_id=%s: %s", rec.id, rec.name)
+            if not rec.name:
+                _logger.warning("[INVERSE-NAME] name vacío → se asigna '/' para move_id=%s", rec.id)
+                rec.name = '/'
+            # else:
+            #     _logger.info("[INVERSE-NAME] Move_id=%s no es venta (move_type=%s). No se modifica name.", rec.id, rec.move_type)
 
     @api.depends("move_type")
     def _compute_name(self):
@@ -2442,9 +2447,17 @@ class AccountMove(models.Model):
     def action_post(self):
         _logger.info("SIT Action post dte. %s", self)
 
+        # Filtrar solo facturas de venta o compra
+        invoices = self.filtered(lambda inv: inv.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND, constants.IN_INVOICE, constants.IN_REFUND))
+        if not invoices:
+            # Si no hay facturas, llamar al método original sin hacer validaciones DTE
+            return super().action_post()
+
         # Recorremos todas las facturas para validaciones iniciales
+        ambiente_test = False
         for inv in self:
             # Verificar si la facturación electrónica aplica para todas las facturas
+            _logger.info("SIT Self hacienda_ws: %s, Tipo de Movimiento: %s", inv.id, inv.move_type)
 
             if not inv.company_id and inv.company_id.sit_facturacion:
                 _logger.info(
@@ -2457,16 +2470,14 @@ class AccountMove(models.Model):
             if inv.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
                 tipo_doc = inv.journal_id.sit_tipo_documento if inv.journal_id else None
                 if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE:  # Sujeto excluido
-                    _logger.info("Factura de tipo compra con documento FSE. Se omiten validaciones de DTE para %s.",
-                                 inv.name)
+                    _logger.info("Factura de tipo compra con documento FSE. Se omiten validaciones de DTE para %s.", inv.name)
                     continue
 
-            ambiente_test = False
             if config_utils:
                 ambiente_test = config_utils._compute_validation_type_2(inv.env, inv.company_id)
                 _logger.info("SIT Validaciones[Ambiente] para %s: %s", inv.name, ambiente_test)
 
-            doc_electronico = inv.journal_id.sit_tipo_documento.codigo if inv.journal_id and inv.journal_id.sit_tipo_documento else None
+            doc_electronico = bool(inv.journal_id and inv.journal_id.sit_tipo_documento)
             if not inv.env.context.get('skip_dte_validations', False):
                 # Verificar si ya se completaron las validaciones esenciales para continuar
                 if not inv.invoice_date:
@@ -2485,17 +2496,30 @@ class AccountMove(models.Model):
                     _logger.warning("SIT | El diario no tiene un reporte PDF configurado.")
                     raise ValidationError("El diario debe tener un reporte PDF configurado.")
 
-                if not ambiente_test and inv.journal_id.sit_tipo_documento and inv.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_NC and inv.inv_refund_id and not inv.inv_refund_id.hacienda_selloRecibido:
+                if not ambiente_test and inv.journal_id and inv.journal_id.sit_tipo_documento and inv.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_NC and inv.inv_refund_id and not inv.inv_refund_id.hacienda_selloRecibido:
                     _logger.warning("SIT | El documento relacionado aún no tiene el sello de Hacienda.")
                     raise ValidationError("El documento relacionado aún no cuenta con el sello de Hacienda.")
 
-                if doc_electronico and not inv.tipo_operacion and journal_id.sit_tipo_documento.codigo in(constants.COD_DTE_FE, constants.COD_DTE_FEX, constants.COD_DTE_CCF, constants.COD_DTE_NC, constants.COD_DTE_ND):
-                    _logger.warning("SIT | No se ha seleccionado una Forma de Pago.")
-                    raise ValidationError("Seleccione una Forma de Pago.")
+                if doc_electronico and not inv.tipo_operacion and inv.journal_id and inv.journal_id.sit_tipo_documento and inv.journal_id.sit_tipo_documento.codigo in(constants.COD_DTE_FE, constants.COD_DTE_FEX, constants.COD_DTE_CCF, constants.COD_DTE_NC, constants.COD_DTE_ND):
+                    _logger.warning("SIT | No se ha seleccionado el tipo de operación para el documento electrónico %s.", inv.name)
+                    raise ValidationError("Debe seleccionar un tipo de operación antes de validar el documento electrónico.")
 
-                if doc_electronico and not inv.tipo_ingreso_id and journal_id.sit_tipo_documento.codigo in(constants.COD_DTE_FE, constants.COD_DTE_FEX, constants.COD_DTE_CCF, constants.COD_DTE_NC, constants.COD_DTE_ND):
-                    _logger.warning("SIT | No se ha seleccionado una Forma de Pago.")
-                    raise ValidationError("Seleccione una Forma de Pago.")
+                if doc_electronico and not inv.tipo_ingreso_id and inv.journal_id and inv.journal_id.sit_tipo_documento and inv.journal_id.sit_tipo_documento.codigo in(constants.COD_DTE_FE, constants.COD_DTE_FEX, constants.COD_DTE_CCF, constants.COD_DTE_NC, constants.COD_DTE_ND):
+                    _logger.warning("SIT | No se ha seleccionado el tipo de ingreso para el documento electrónico %s.",inv.name)
+                    raise ValidationError("Debe seleccionar un tipo de ingreso antes de validar el documento electrónico.")
+
+                if (doc_electronico and
+                        inv.journal_id and inv.journal_id.sit_tipo_documento and
+                        inv.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FSE and
+                        (not inv.tipo_costo_gasto_id or not inv.tipo_operacion or not inv.clasificacion_facturacion or not inv.sector)):
+                    _logger.warning("SIT | Faltan datos requeridos en factura de sujeto excluido (%s).", inv.name)
+                    raise ValidationError(
+                        "Debe completar todos los campos requeridos para facturas de sujeto excluido:\n"
+                        "- Tipo de costo o gasto\n"
+                        "- Tipo de operación\n"
+                        "- Clasificación\n"
+                        "- Sector"
+                    )
 
         # Verificar si el DTE ha sido recibido y procesado correctamente
         for inv in self:

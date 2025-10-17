@@ -49,6 +49,11 @@ class AccountMove(models.Model):
 
     def action_post(self):
         # Si FE está desactivada → comportamiento estándar de Odoo
+        invoices = self.filtered(lambda inv: inv.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND, constants.IN_INVOICE, constants.IN_REFUND))
+        if not invoices:
+            # Si no hay facturas, llamar al método original sin hacer validaciones DTE
+            return super().action_post()
+
         if not self.env.company.sit_facturacion:
             return super().action_post()
 

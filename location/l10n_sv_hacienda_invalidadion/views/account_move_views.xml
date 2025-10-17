@@ -42,7 +42,7 @@
         <field name="inherit_id" ref="account.view_move_form"/>
         <field name="arch" type="xml">
             <xpath expr="//page[@name='other_info']" position="after">
-                <page string="Invalidación" name="hacienda_inv" invisible="journal_code == 'SLR'">
+                <page string="Invalidación" name="hacienda_inv" invisible="journal_code == 'SLR' or move_type == 'entry'">
                     <group>
                         <!-- Usamos el campo Many2one (sit_factura_a_reemplazar) para acceder a los campos de account.move.invalidation -->
                         <field name="sit_factura_a_reemplazar" />

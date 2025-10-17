@@ -12,7 +12,7 @@
             <button name="action_post" position="replace">
                <button name="action_post" type="object" string="Validar en PROD HACIENDA" class="oe_highlight" groups="account.group_account_invoice"/>
                 <button name="action_post" type="object" string="Validar en TEST" class="oe_highlight" groups="account.group_account_invoice" invisible="sit_facturacion"/>
-                <button name="generar_qr" string="Generar QR" type="object" class="oe_highlight" />
+                <button name="generar_qr" string="Generar QR" type="object" class="oe_highlight" invisible="move_type in('entry', 'in_invoice', 'in_refund')"/>
             </button>
             <!-- <field name="l10n_ar_afip_concept" position="after"> -->
             <group name="sale_info_group" position="after">
@@ -68,8 +68,10 @@
         <field name="arch" type="xml">
             <!-- Reemplazamos el botón 'action_invoice_sent' por el nuevo botón -->
             <xpath expr="//button[@name='action_invoice_sent']" position="replace">
+<!--                options="{'invisible': ['|', ('state', '!=', 'posted'), ('move_type', '=', 'entry')]}"-->
                 <button name="sit_enviar_correo_dte_automatico" type="object"
-                        options="{'invisible': [('state', '!=', 'posted') ]}" string="Enviar email"
+                        invisible="state != 'posted' or move_type in('entry', 'in_invoice', 'in_refund')"
+                        string="Enviar email"
                         context="{'from_email_button': True}" class="oe_highlight" groups="account.group_account_invoice"/>
             </xpath>
         </field>

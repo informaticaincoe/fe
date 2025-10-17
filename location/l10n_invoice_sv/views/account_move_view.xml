@@ -21,8 +21,9 @@
                     <!-- <button name="action_invoice_print" type="object" string="Imprimir" options="{'invisible':['|', '|', ('state', '!=', 'posted'), ('is_move_sent', '=', True), ('move_type', 'not in', ('out_invoice', 'out_refund'))]}" class="oe_highlight"/> -->
                 </xpath>
                 <xpath expr="//button[@name='action_invoice_sent'][2]" position="replace">
+                    options="{'invisible':['|', '|', ('state', '!=', 'posted'), ('is_move_sent', '=', False), ('move_type', 'not in', ('out_invoice', 'out_refund', 'in_invoice', 'in_refund'))]}"/
                     <button name="action_invoice_print" type="object" string="Imprimir"
-                            options="{'invisible':['|', '|', ('state', '!=', 'posted'), ('is_move_sent', '=', False), ('move_type', 'not in', ('out_invoice', 'out_refund', 'in_invoice', 'in_refund'))]}"/>
+                            invisible="state != 'posted' or is_move_sent == False or move_type not in ('out_invoice', 'out_refund', 'in_invoice', 'in_refund')"/>
                     <button name="action_invoice_sent" invisible="1" type="object" string="Send &amp; Print"
                             options="{'invisible':['|', '|', ('state', '!=', 'posted'), ('is_move_sent', '=', False), ('move_type', 'not in', ('out_invoice', 'out_refund', 'in_invoice', 'in_refund'))]}"/>
                 </xpath>
@@ -78,9 +79,11 @@
 
                 </xpath>
                 <xpath expr="//field[@name='state']" position="replace">
-                    <field name="state" options="{'invisible':[('state_refund','=','refund')]}" widget="statusbar"
+<!--                    options="{'invisible':[('state_refund','=','refund')]}"-->
+                    <field name="state" invisible="state_refund == 'refund'" widget="statusbar"
                            statusbar_visible="draft,posted"/>
-                    <field name="state_refund" options="{'invisible':[('state_refund','!=','refund')]}"
+<!--                    options="{'invisible':[('state_refund','!=','refund')]}"-->
+                    <field name="state_refund" invisible="state_refund != 'refund'"
                            statusbar_visible="refund" widget="statusbar" nolabel="1"/>
                 </xpath>
                 <!-- <xpath expr="//h1/field[@name='name']" position="after">

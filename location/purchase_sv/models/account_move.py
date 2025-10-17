@@ -25,9 +25,8 @@ class AccountMove(models.Model):
     sit_tipo_documento_id = fields.Many2one(
         'account.journal.tipo_documento.field',
         string='Tipo de Documento',
-        # related='journal_id.sit_tipo_documento',
         store=True,
-        default=lambda self: self._get_default_tipo_documento(),
+        # default=lambda self: self._get_default_tipo_documento(),
         # domain=lambda self: self._get_tipo_documento_domain(),
     )
 
@@ -103,6 +102,13 @@ class AccountMove(models.Model):
         store=False
     )
 
+    percepcion_amount = fields.Monetary(
+        string="Percepción",
+        currency_field='currency_id',
+        readonly=True,
+        store=True,
+        default=0.0)
+
     # @api.depends('move_type')
     # def _compute_invoice_line_view(self):
     #     for move in self:
@@ -114,17 +120,30 @@ class AccountMove(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        _logger.info("SIT Purchase | Creando AccountMove(s)")
+        _logger.info("SIT Purchase | Creando AccountMove(s): %s", vals_list)
 
         # Primero creamos los registros normalmente
+        tipo_documento_obj = self.env['account.journal.tipo_documento.field']  # Ajusta el modelo si usa otro nombre
         moves = super().create(vals_list)
 
-        # Luego forzamos None en compras y notas de crédito de compra
+        # Forzamos None en compras y notas de crédito de compra
         for move in moves:
+            # 1️ Forzar None a hacienda_codigoGeneracion_identificacion en compras/notas de crédito de compra
             if (move.move_type in (constants.IN_INVOICE, constants.IN_REFUND) and
                     (not move.journal_id.sit_tipo_documento or move.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)):
                 _logger.info(f"SIT | move_type={move.move_type} → Forzando None a hacienda_codigoGeneracion_identificacion para move_id={move.id}")
                 move.hacienda_codigoGeneracion_identificacion = None
+
+                # Preseleccionar sit_tipo_documento_id si no está asignado
+                if move.move_type == constants.IN_REFUND:
+                    doc = tipo_documento_obj.search([('codigo', '=', constants.COD_DTE_NC)], limit=1)
+                    move.sit_tipo_documento_id = doc
+                    _logger.info("SIT | Nota de crédito (in_refund): preseleccionando tipo documento 05 para move_id=%s", move.id)
+                elif move.move_type == constants.IN_INVOICE and move.debit_origin_id:
+                    doc = tipo_documento_obj.search([('codigo', '=', constants.COD_DTE_ND)], limit=1)
+                    move.sit_tipo_documento_id = doc
+                    _logger.info("SIT | Nota de débito (in_debit): preseleccionando tipo documento 06 para move_id=%s", move.id)
+
         return moves
 
     def _get_default_tipo_documento(self):
@@ -209,6 +228,40 @@ class AccountMove(models.Model):
                 move.sit_amount_tax_system = move.currency_id.round(total_tax)
                 _logger.info("SIT | move %s sit_amount_tax_system final: %s", move.name, move.sit_amount_tax_system)
 
+    def _compute_totales_retencion_percepcion(self):
+        """Suma automática de percepción, retención IVA y renta desde las líneas."""
+        for move in self:
+            percepcion_total = sum(move.line_ids.mapped('percepcion_amount'))
+            retencion_iva_total = sum(move.line_ids.mapped('retencion_amount'))
+            retencion_renta_total = sum(move.line_ids.mapped('renta_amount'))
+
+            # Asigna los totales a los campos existentes
+            move.percepcion_amount = percepcion_total
+            move.retencion_iva_amount = retencion_iva_total
+            move.retencion_renta_amount = retencion_renta_total
+
+            _logger.info("SIT | Totales move_id=%s => Percepción=%.2f | Retención IVA=%.2f | Retención Renta=%.2f",
+                move.id, percepcion_total, retencion_iva_total, retencion_renta_total)
+
+    def _update_totales_move(self):
+        """
+        Actualiza los totales de retención y percepción desde las líneas.
+        No se usa @api.depends para evitar conflictos con otros computes existentes.
+        """
+        for move in self:
+            total_percepcion = sum(move.line_ids.mapped('percepcion_amount'))
+            total_ret_iva = sum(move.line_ids.mapped('retencion_amount'))
+            total_ret_renta = sum(move.line_ids.mapped('renta_amount'))
+
+            move.percepcion_amount = total_percepcion
+            move.retencion_iva_amount = total_ret_iva
+            move.retencion_renta_amount = total_ret_renta
+
+            _logger.info(
+                "SIT | Totales actualizados move_id=%s => Percepción=%.2f | Ret. IVA=%.2f | Ret. Renta=%.2f",
+                move.id, total_percepcion, total_ret_iva, total_ret_renta
+            )
+
     def write(self, vals):
         _logger.info("SIT | Entrando a write, context=%s", self.env.context)
         _logger.info("SIT | Vals write: %s", vals)
@@ -225,10 +278,12 @@ class AccountMove(models.Model):
                 "[WRITE-VALIDATION] Asignando '/' por defecto al campo 'name' porque estaba vacío o no existe")
             vals['name'] = '/'
 
+        # Validaciones específicas del name
         if 'name' in vals:
             for move in self:
                 if (move.move_type in (constants.IN_INVOICE, constants.IN_REFUND) and
-                        (not move.journal_id.sit_tipo_documento or move.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)):
+                        (
+                                not move.journal_id.sit_tipo_documento or move.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)):
                     continue
 
                 _logger.info("Tipo de documento(dte): %s", move.codigo_tipo_documento)
@@ -296,10 +351,26 @@ class AccountMove(models.Model):
                     "[WRITE-VALIDATION] Cambio de 'name' permitido. Valor anterior: %s → Nuevo valor: %s",
                     old_name, new_name
                 )
+            # --- recalcular totales de percepción/retención/renta antes de guardar ---
+            for move in self:
+                if move.line_ids:
+                    move._compute_totales_retencion_percepcion()
+                    _logger.info(
+                        "SIT | Totales recalculados en write para move_id=%s -> Percepción=%.2f | Retención IVA=%.2f | Renta=%.2f",
+                        move.id, move.percepcion_amount, move.retencion_iva_amount, move.retencion_renta_amount
+                    )
+
+            # --- llamar al super() para que se guarde todo ---
         return super().write(vals)
 
     def action_post(self):
         _logger.info("SIT Action post purchase: %s", self)
+        # Si FE está desactivada → comportamiento estándar de Odoo
+        invoices = self.filtered(lambda inv: inv.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND, constants.IN_INVOICE, constants.IN_REFUND))
+        if not invoices:
+            # Si no hay facturas, llamar al método original sin hacer validaciones DTE
+            return super().action_post()
+
         for move in self:
 
             _logger.info("SIT-Compra move type: %s, tipo documento %s: ", move.move_type, move.codigo_tipo_documento)
