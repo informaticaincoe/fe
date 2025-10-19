@@ -157,26 +157,29 @@ class AccountMoveLine(models.Model):
     #             _logger.info("SIT | _onchange_move_id_update_totales → Recalculando totales para move_id=%s", move.id)
     #             move._update_totales_move()
 
-    def unlink(self):
-        """
-        Sobrescribe la eliminación de líneas (unlink) para recalcular
-        automáticamente los totales en el encabezado del documento.
-
-        Solo aplica para documentos de compra y notas de crédito.
-        Al eliminar líneas con percepción o retención, el total en el
-        account.move se actualiza correctamente (evita valores residuales).
-        """
-        moves_to_update = self.mapped('move_id').filtered(
-            lambda m: m.move_type in (constants.IN_INVOICE, constants.IN_REFUND) and
-                      m.journal_id and (not m.journal_id.sit_tipo_documento or m.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)
-        )
-
-        _logger.info("SIT | unlink → Eliminando líneas %s asociadas a moves %s (solo compras y notas de crédito).", self.ids, moves_to_update.ids)
-
-        res = super().unlink()
-
-        # Recalcular totales del move después de la eliminación
-        for move in moves_to_update:
-            _logger.info("SIT | unlink → Recalculando totales para move_id=%s tras eliminar líneas", move.id)
-            move._update_totales_move()
-        return res
+    # def unlink(self):
+    #     """
+    #     Sobrescribe la eliminación de líneas (unlink) para recalcular
+    #     automáticamente los totales en el encabezado del documento.
+    #     Solo aplica para documentos de compra y notas de crédito.
+    #     """
+    #     moves_to_update = self.mapped('move_id').exists().filtered(
+    #         lambda m: m.move_type in (constants.IN_INVOICE, constants.IN_REFUND)
+    #                   and m.journal_id
+    #                   and (not m.journal_id.sit_tipo_documento
+    #                        or m.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)
+    #     )
+    #
+    #     _logger.info("SIT | unlink → Eliminando líneas %s asociadas a moves %s (solo compras y notas de crédito).",
+    #                  self.ids, moves_to_update.ids)
+    #
+    #     res = super().unlink()
+    #
+    #     # Recalcular totales del move después de la eliminación
+    #     for move in moves_to_update.exists():
+    #         try:
+    #             _logger.info("SIT | unlink → Recalculando totales para move_id=%s tras eliminar líneas", move.id)
+    #             move._update_totales_move()
+    #         except Exception as e:
+    #             _logger.error("SIT | Error al recalcular totales tras unlink en move_id=%s: %s", move.id, e)
+    #     return res

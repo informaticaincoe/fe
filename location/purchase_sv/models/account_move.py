@@ -263,6 +263,11 @@ class AccountMove(models.Model):
             )
 
     def write(self, vals):
+        # --- Validación de empresa: si ninguna factura pertenece a empresa con facturación activa, usar write estándar ---
+        if not any(move.company_id.sit_facturacion for move in self):
+            _logger.info("SIT-write: Ninguna factura pertenece a empresa con facturación activa. Se usa write estándar.")
+            return super().write(vals)
+
         _logger.info("SIT | Entrando a write, context=%s", self.env.context)
         _logger.info("SIT | Vals write: %s", vals)
 
@@ -281,7 +286,7 @@ class AccountMove(models.Model):
         # Validaciones específicas del name
         if 'name' in vals:
             for move in self:
-                if (move.move_type in (constants.IN_INVOICE, constants.IN_REFUND) and
+                if (move.move_type in (constants.IN_INVOICE, constants.IN_REFUND) and move.journal_id and
                         (
                                 not move.journal_id.sit_tipo_documento or move.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)):
                     continue

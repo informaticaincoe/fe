@@ -300,8 +300,23 @@ class AccountMove(models.Model):
         _logger.info("Company ID: %s", self.env.company.id)
         _logger.info("SIT vals list: %s", vals_list)
 
+        # Modificar cada diccionario de vals_list antes de crear los registros
+        for vals in vals_list:
+            if not vals.get('name'):  # Si no se ha asignado un valor a 'name'
+                journal = self.env['account.journal'].browse(vals.get('journal_id'))
+
+                if journal and journal.sequence_id:
+                    _logger.info("Secuencia asociada al diario '%s': %s", journal.name, journal.sequence_id.code)
+                    vals['name'] = journal.sequence_id.next_by_id()  # Usa la secuencia asociada al diario
+                    _logger.info("Se asignó 'name' con la secuencia: %s", vals['name'])
+                else:
+                    _logger.info("No se encontró una secuencia asociada al diario '%s'. Se usará el valor predeterminado.", journal.name)
+                    vals['name'] = self.env['ir.sequence'].next_by_code('your_sequence_code') or _('/')
+                    _logger.info("Se asignó 'name' con valor predeterminado: %s", vals['name'])
+
         # --- Primero crear los registros base para que el journal esté asignado ---
         base_records = super().create(vals_list)
+        _logger.info("Registros base creados con éxito: %s", base_records.ids)
         if isinstance(base_records, list):
             base_records = self.browse([r.id for r in base_records])
         _logger.info("Registros base creados: %s", base_records.ids)
@@ -309,23 +324,16 @@ class AccountMove(models.Model):
         new_vals_list = []
         for rec in base_records:
             # --- Obtener los vals actuales del record ---
-            # vals = rec._convert_to_write(rec._cache)
-            # Clonamos los valores del record, evitando comandos SET/CLEAR
             vals = {k: v for k, v in rec._cache.items() if not isinstance(v, (list, tuple))}
 
             move_type = rec.move_type
             journal = rec.journal_id
-            _logger.info("SIT-haciendaws_fe | Diario seleccionado. Vals: %s, rec: %s", vals.get("journal_id"),
-                         rec.journal_id)
+            _logger.info("SIT-haciendaws_fe | Diario seleccionado. Vals: %s, rec: %s", vals.get("journal_id"), rec.journal_id)
 
             # --- Saltar lógica DTE excepto para compras con diario 'sujeto excluido' ---
             if move_type in (constants.IN_INVOICE, constants.IN_REFUND) and journal and (
                     not journal.sit_tipo_documento or journal.sit_tipo_documento.codigo != constants.COD_DTE_FSE):
-                _logger.info(
-                    "SIT-haciendaws_fe | Documento de compra detectado (tipo=%s, diario=%s) sin tipo DTE, se omite lógica DTE.",
-                    move_type, journal.name if journal else "No asignado")
-                # return super(AccountMove, self).create(vals_list)
-                # new_vals_list.append(vals)
+                _logger.info("SIT-haciendaws_fe | Documento de compra detectado (tipo=%s, diario=%s) sin tipo DTE, se omite lógica DTE.", move_type, journal.name if journal else "No asignado")
                 continue
 
             _logger.info("[CREATE-DEBUG] (antes de DTE) move_type=%s, name=%s", move_type, rec.name)
@@ -2498,10 +2506,8 @@ class AccountMove(models.Model):
             # Verificar si la facturación electrónica aplica para todas las facturas
             _logger.info("SIT Self hacienda_ws: %s, Tipo de Movimiento: %s", inv.id, inv.move_type)
 
-            if not inv.company_id and inv.company_id.sit_facturacion:
-                _logger.info(
-                    "SIT No aplica facturación electrónica para la factura %s. Se omiten validaciones iniciales.",
-                    inv.name)
+            if inv.company_id and not inv.company_id.sit_facturacion:
+                _logger.info("SIT No aplica facturación electrónica para la factura %s. Se omiten validaciones iniciales.", inv.name)
                 # return super().action_post()
                 continue
 
@@ -2741,18 +2747,35 @@ class AccountMove(models.Model):
             return False
 
     def write(self, vals):
+        # --- Validación de empresa: si ninguna tiene facturación activa, usar write estándar ---
+        if not any(inv.company_id.sit_facturacion for inv in self):
+            _logger.info(
+                "SIT-haciendaws_fe: Ninguna factura pertenece a empresa con facturación activa. Se usa write estándar.")
+            return super().write(vals)
+
         # Primero, verificamos si es una factura de compra, si lo es, no ejecutamos el código personalizado.
         if all(inv.move_type in (constants.IN_INVOICE, constants.IN_REFUND)
-               and (not inv.journal_id.sit_tipo_documento or inv.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)
+               and (
+                       not inv.journal_id.sit_tipo_documento or inv.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)
                for inv in self):
             # Si todos los registros son de compra, no ejecutamos el código personalizado.
             _logger.info("SIT-haciendaws_fe: Factura de compra detectada, se salta la lógica personalizada.")
             return super().write(vals)
 
-        # Si es una factura de venta (out_invoice, out_refund), se ejecuta la lógica personalizada
-        _logger.warning("[WRITE-ORDER(haciendaws_fe)] Entró primero: haciendaws_fe: %s", vals)
+        # --- Preparar contexto para permitir que cambios automáticos de 'name' pasen ---
+        ctx = self.env.context.copy()
+        ctx['_dte_auto_generated'] = True  # Esto evita el UserError del módulo de compras
+        ctx['skip_name_validation'] = True
 
-        res = super().write(vals)
+        # --- Asegurar que todas las facturas tengan name válido ---
+        for move in self:
+            if not move.name or move.name == '/':
+                # Esto solo se aplica a facturas de venta automáticas
+                move.with_context(ctx)._ensure_name()
+
+        # --- Escribir valores usando super() con contexto seguro ---
+        res = super(AccountMove, self.with_context(ctx)).write(vals)
+
         if len(self) == 1:
             _logger.warning("[WRITE-POST haciendaws_fe] move_id=%s, name=%s", self.id, self.name)
         else:
@@ -2922,3 +2945,26 @@ class AccountMove(models.Model):
 
         _logger.info("Productos sin tributo de Hacienda para el Cuerpo: %s",", ".join(missing_products.mapped("display_name")) or "NINGUNO")
         return missing_products
+
+    def _ensure_name(self):
+        """Asigna un name automáticamente solo si es factura de venta y no tiene nombre.
+           Contexto '_dte_auto_generated' evita validación del módulo de compras.
+        """
+        for move in self:
+            if move.move_type in ('in_invoice', 'in_refund'):
+                continue
+
+            if move.name and move.name != '/':
+                continue
+
+            seq = move.journal_id.sequence_id
+            if not seq:
+                _logger.warning("SIT | No hay secuencia configurada para journal_id=%s", move.journal_id.id)
+                continue
+
+            ctx = self.env.context.copy()
+            ctx['_dte_auto_generated'] = True
+            new_name = seq.with_context(ctx).next_by_id() or '/'
+            _logger.info("SIT | Asignando name automático: %s -> %s", move.name, new_name)
+            move.with_context(ctx).write({'name': new_name})
+

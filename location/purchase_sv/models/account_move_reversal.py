@@ -17,7 +17,7 @@ class AccountMoveReversal(models.TransientModel):
     journal_type = fields.Selection(
         [('sale', 'Venta'), ('purchase', 'Compra')],
         string='Tipo de Diario',
-        required=True,
+        required=False,
     )
 
     # Diario final
@@ -40,11 +40,6 @@ class AccountMoveReversal(models.TransientModel):
         move = self.env['account.move'].browse(move_ids[0])
         _logger.info("SIT: Move type reverse: %s.", move.move_type)
 
-        if move.move_type in (constants.IN_INVOICE, constants.IN_REFUND): # or
-                # (move.move_type in(constants.IN_INVOICE, constants.IN_REFUND) and move.journal_id.sit_tipo_documento)):
-            return res # Salir si NO es factura de venta
-
-        _logger.info("SIT-Purchase: Wizard abierto para reversión de factura ID=%s, tipo=%s, tipo documento= %s", move.id, move.move_type, move.sit_tipo_documento_id)
         # Asignar tipo de diario según factura
         if move.move_type in ['out_invoice', 'out_refund']:
             res['journal_type'] = 'sale'
@@ -55,6 +50,19 @@ class AccountMoveReversal(models.TransientModel):
             _logger.info("SIT: Tipo de diario por defecto = compra")
         else:
             _logger.warning("SIT: Tipo de factura desconocido, no se asigna tipo de diario")
+
+        # Si la empresa NO aplica facturación electrónica → usar comportamiento estándar
+        if not move.company_id or not move.company_id.sit_facturacion:
+            _logger.info("SIT: Empresa no aplica facturación electrónica, se usa flujo estándar de Odoo.")
+            return res
+
+        # Si es factura de compra → usar comportamiento estándar
+        if move.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
+            _logger.info("SIT: Es factura de compra, se usa flujo estándar de Odoo.")
+            return res
+
+        # --- Solo aplicar lógica personalizada para facturas de venta ---
+        _logger.info("SIT-Purchase: Wizard abierto para reversión de factura ID=%s, tipo=%s, tipo documento=%s", move.id, move.move_type, move.sit_tipo_documento_id)
 
         # Asignar diario por defecto si existe
         # if not res.get('journal_id'):
