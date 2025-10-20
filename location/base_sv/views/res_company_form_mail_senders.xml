@@ -1,0 +1,29 @@
+<odoo>
+  <record id="view_company_form_mail_senders" model="ir.ui.view">
+    <field name="name">res.company.form.mail.senders</field>
+    <field name="model">res.company</field>
+    <field name="inherit_id" ref="base.view_company_form"/>
+    <field name="priority">20</field>
+    <field name="arch" type="xml">
+      <!-- Inserta una nueva pestaña dentro del cuaderno de la ficha de empresa -->
+      <xpath expr="//sheet/notebook" position="inside">
+        <page string="Correos de envío">
+          <group string="Quedán">
+            <field name="email_from_quedan" placeholder="Facturación INCOE &lt;facturacion@grupoincoe.com&gt;"/>
+            <field name="smtp_quedan_id" options="{'no_create': True}"/>
+          </group>
+
+          <group string="Facturas">
+            <field name="email_from_invoice" placeholder="Facturación INCOE &lt;facturacion@grupoincoe.com&gt;"/>
+            <field name="smtp_invoice_id" options="{'no_create': True}"/>
+          </group>
+
+          <group string="Boletas de pago">
+            <field name="email_from_payslip" placeholder="RRHH INCOE &lt;rrhh@grupoincoe.com&gt;"/>
+            <field name="smtp_payslip_id" options="{'no_create': True}"/>
+          </group>
+        </page>
+      </xpath>
+    </field>
+  </record>
+</odoo>

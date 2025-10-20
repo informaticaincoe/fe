@@ -4,6 +4,13 @@ import logging
 import base64
 from lxml import etree
 from datetime import date
+from email.utils import parseaddr, formataddr
+from odoo.tools.misc import ustr
+import base64, re
+try:
+    import unicodedata
+except Exception:
+    unicodedata = None
 
 _logger = logging.getLogger(__name__)
 
@@ -410,46 +417,70 @@ class HrPayslip(models.Model):
     def action_send_payslip_email(self):
         self.ensure_one()
 
-        # 0) Elegir un idioma ACTIVO y seguro (no fallará aunque el usuario tenga es_ES)
-        active_langs = set(self.env['res.lang'].search([('active', '=', True)]).mapped('code'))
-        candidates = [
-            getattr(self.employee_id.user_id, 'lang', None),
-            self.env.user.lang,
-            self.env.context.get('lang'),
-            'es_419',  # tu preferido
-            'en_US',  # último fallback
-        ]
-        lang_ctx = next((c for c in candidates if c and c in active_langs), 'en_US')
+        def _notify(msg, level='success', title='Boleta de pago', sticky=False):
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {'title': title, 'message': msg, 'type': level, 'sticky': sticky},
+            }
 
-        # 1) Obtener y validar plantilla
+        lang_ctx = self.env.user.lang or 'en_US'
+
         template = self.env.ref('rrhh_base.rrhh_email_template_payslip', raise_if_not_found=False)
         if not template:
-            raise UserError(("No se encontró la plantilla de correo para la boleta de pago."))
+            return _notify("No se encontró la plantilla de correo para la boleta de pago.", 'warning', sticky=True)
         if not self.employee_id.work_email:
-            raise UserError(("El empleado no tiene un correo configurado."))
+            return _notify("El empleado no tiene un correo configurado.", 'warning', sticky=True)
 
-        # Usar SIEMPRE el mismo lang en la plantilla
-        template_ctx = template.with_context(lang=lang_ctx)
+        # ===== VALIDAR REMITENTE DE BOLETAS (SIN FALLBACKS) =====
+        cfg_from = (self.company_id.email_from_payslip or '').strip()
+        if not cfg_from:
+            return _notify(
+                "Configura el campo 'Remitente Boletas (From)' en Ajustes → Compañías → Correos de envío.",
+                'warning', sticky=True
+            )
 
-        # (Opcional) Log del body en el idioma elegido
+        raw_from = cfg_from.replace('\r', ' ').replace('\n', ' ')
+        name, addr = parseaddr(raw_from)
+        if not addr or '@' not in addr:
+            return _notify(
+                "Remitente de boletas inválido. Usa 'correo@dominio' o 'Nombre <correo@dominio>'.",
+                'danger', sticky=True
+            )
         try:
-            rendered_body = template_ctx._render_field('body_html', [self.id])[self.id]
-            _logger.debug("CUERPO RENDERIZADO (%s):\n%s", lang_ctx, rendered_body)
-        except Exception as e:
-            _logger.warning("No se pudo pre-renderizar el body_html: %s", e)
+            addr.encode('ascii')
+        except UnicodeEncodeError:
+            return _notify(f"El correo remitente debe ser ASCII simple (sin tildes): {addr}", 'danger', sticky=True)
 
-        # 2) Resolver acción de reporte (usa el ID que tengas definido)
+        def _sanitize(n):
+            n = (n or '').replace('\r', ' ').replace('\n', ' ').strip()
+            n = re.sub(r'\s+', ' ', n)
+            if unicodedata:
+                try:
+                    n = unicodedata.normalize('NFKD', n).encode('ascii', 'ignore').decode('ascii')
+                except Exception:
+                    pass
+            return n
+
+        email_from_norm = formataddr((_sanitize(name), addr)) if name else addr
+
+        # ===== (Opcional) exigir SMTP de boletas =====
+        # Descomenta si NO quieres enviar sin SMTP específico:
+        # if not self.company_id.smtp_payslip_id:
+        #     return _notify(
+        #         "Configura 'SMTP Boletas' en Ajustes → Compañías → Correos de envío.",
+        #         'warning', sticky=True
+        #     )
+
+        # ===== Render PDF =====
         report_action = (self.env.ref('rrhh_base.hr_payslip_report', raise_if_not_found=False)
                          or self.env.ref('rrhh_base.report_payslip', raise_if_not_found=False))
         if not report_action:
-            raise UserError(("No se encontró la acción de reporte de la boleta de pago."))
+            return _notify("No se encontró la acción de reporte de la boleta de pago.", 'warning', sticky=True)
 
-        # 3) Renderizar PDF con el MISMO idioma
         pdf_content, _ = self.env['ir.actions.report'].with_context(lang=lang_ctx)._render_qweb_pdf(
             report_action.report_name, [self.id]
         )
-
-        # 4) Adjuntar PDF a la nómina
         filename = f"Boleta_{self.employee_id.name.replace(' ', '_')}_{self.date_to}.pdf"
         attachment = self.env['ir.attachment'].create({
             'name': filename,
@@ -460,16 +491,26 @@ class HrPayslip(models.Model):
             'mimetype': 'application/pdf',
         })
 
-        # 5) Enviar correo respetando lang_ctx
-        try:
-            template_ctx.send_mail(self.id, force_send=True, email_values={
-                'attachment_ids': [(6, 0, [attachment.id])],
-            })
-            _logger.info("Correo enviado a %s con archivo %s", self.employee_id.work_email, filename)
-        except Exception as e:
-            raise UserError(_("Error al enviar el correo: ") + str(e))
+        # ===== Enviar =====
+        email_values = {
+            'attachment_ids': [(6, 0, [attachment.id])],
+            'email_from': email_from_norm,
+        }
+        if self.company_id.smtp_payslip_id:
+            email_values['mail_server_id'] = self.company_id.smtp_payslip_id.id
 
-        return True
+        try:
+            template.with_context(lang=lang_ctx).send_mail(self.id, force_send=True, email_values=email_values)
+        except Exception as e:
+            # si no quieres dejar adjunto huérfano cuando falla:
+            try:
+                attachment.unlink()
+            except Exception:
+                pass
+            return _notify(f"No se pudo enviar el correo: {ustr(e)}", 'danger', sticky=True)
+
+        self.message_post(body=f"Correo enviado a {self.employee_id.work_email} con el archivo {filename}.")
+        return _notify(f"Correo enviado con éxito a {self.employee_id.work_email}", 'success')
 
     def year_selection(self):
         """Rango de años que se mostrarán en el panel."""
