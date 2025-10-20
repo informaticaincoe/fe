@@ -20,6 +20,10 @@ class AccountMoveLine(models.Model):
     precio_no_sujeto = fields.Float(string='No Sujeto', compute='_compute_precios_tipo_venta', store=True)
     custom_discount_line = fields.Boolean(string='Es línea de descuento', default=False)
 
+    # Puentes desde el move (no se almacenan)
+    move_is_purchase = fields.Boolean(related='move_id.is_purchase', store=False)
+    move_codigo_tipo_documento = fields.Char(related='move_id.codigo_tipo_documento', store=False)
+
     codigo_tipo_documento = fields.Char(
         related='journal_id.sit_tipo_documento.codigo',
         string='Código Tipo Documento',

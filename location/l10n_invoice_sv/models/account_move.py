@@ -22,10 +22,20 @@ except ImportError as e:
 class AccountMove(models.Model):
     _inherit = 'account.move'
 
-    # codigo_tipo_documento = fields.Char(
-    #     related='journal_id.sit_tipo_documento.codigo',
-    #     store=True
-    # )
+    codigo_tipo_documento = fields.Char(
+        string="codigo_tipo_documento"
+    )
+
+    is_purchase = fields.Boolean(
+        string="Is Purchase",
+        compute='_compute_is_purchase',
+        store=False,
+    )
+
+    @api.depends('journal_id.type')
+    def _compute_is_purchase(self):
+        for rec in self:
+            rec.is_purchase = (rec.journal_id.type == 'purchase')
 
     apply_retencion_iva = fields.Boolean(string="Aplicar Retención IVA", default=False)
     retencion_iva_amount = fields.Monetary(string="Monto Retención IVA", currency_field='currency_id',

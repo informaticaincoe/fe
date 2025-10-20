@@ -6,7 +6,10 @@ from odoo.tools import float_round
 from odoo.exceptions import UserError
 from odoo.exceptions import ValidationError
 
+from odoo.addons.common_utils.utils import constants
+
 import logging
+
 _logger = logging.getLogger(__name__)
 
 try:
@@ -16,8 +19,11 @@ except ImportError as e:
     _logger.error(f"Error al importar 'constants': {e}")
     constants = None
 
+
 class AccountMove(models.Model):
     _inherit = 'account.move'
+
+    exp_duca_id = fields.One2many('exp_duca', 'move_id', string='DUCAs')
 
     document_number = fields.Char("Número de documento de proveedor")
 
@@ -25,16 +31,24 @@ class AccountMove(models.Model):
     sit_tipo_documento_id = fields.Many2one(
         'account.journal.tipo_documento.field',
         string='Tipo de Documento',
+        # related='journal_id.sit_tipo_documento',
         store=True,
-        # default=lambda self: self._get_default_tipo_documento(),
+        default=lambda self: self._get_default_tipo_documento(),
         # domain=lambda self: self._get_tipo_documento_domain(),
+    )
+
+    codigo_tipo_documento_id = fields.Char(
+        string="Código tipo documento",
+        related='sit_tipo_documento_id.codigo',
+        store=False,  # pon True si quieres poder buscar/filtrar por este campo
+        readonly=True,
     )
 
     fecha_aplicacion = fields.Date(string="Fecha de Aplicación")
 
     fecha_iva = fields.Date(string="Fecha IVA")
 
-    #CAMPOS NUMERICOS EN DETALLE DE COMPRAS
+    # CAMPOS NUMERICOS EN DETALLE DE COMPRAS
     # comp_exenta_nsuj = fields.Float(
     #     string="Compras Internas Exentas y/o No Sujetas",
     #     digits=(16, 2),  # 16 dígitos totales, 2 decimales
@@ -76,7 +90,6 @@ class AccountMove(models.Model):
     #     digits=(16, 2),  # 16 dígitos totales, 2 decimales
     #     help="Ingrese un valor decimal, por ejemplo 1234.56"
     # )
-
 
     # Campo name editable
     name = fields.Char(
@@ -148,7 +161,8 @@ class AccountMove(models.Model):
 
     def _get_default_tipo_documento(self):
         # Lógica para obtener el valor predeterminado según el contexto o condiciones
-        return self.env['account.journal.tipo_documento.field'].search([('codigo', '=', '01')], limit=1)
+        return self.env['account.journal.tipo_documento.field'].search([('codigo', '=', '11')], limit=1)
+
 
     # @api.onchange('move_type')
     # def _get_tipo_documento_domain(self):
@@ -291,8 +305,8 @@ class AccountMove(models.Model):
                                 not move.journal_id.sit_tipo_documento or move.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)):
                     continue
 
-                _logger.info("Tipo de documento(dte): %s", move.codigo_tipo_documento)
-                if not move.codigo_tipo_documento:
+                _logger.info("Tipo de documento(dte): %s", move.vcodigo_tipo_documento_id_id)
+                if not move.codigo_tipo_documento_id:
                     continue
 
                 old_name = move.name or ''
@@ -578,3 +592,160 @@ class AccountMove(models.Model):
                 _logger.info(f"SIT | [Move {move.id}] Se agregaron {len(lineas)} líneas contables de ret./perc./renta")
             else:
                 _logger.info(f"SIT | [Move {move.id}] No hay montos para agregar (percepción/retención/renta)")
+
+    # --- campo O2M en plural ---
+    exp_duca_ids = fields.One2many('exp_duca', 'move_id', string='DUCAs')
+
+    # --- Helpers DUCA ---
+    def _get_duca(self):
+        self.ensure_one()
+        return self.exp_duca_ids[:1]  # por unique(move_id) habrá 0 o 1
+
+    def _get_or_create_duca(self):
+        duca = self._get_duca()
+        if not duca:
+            duca = self.env['exp_duca'].create({
+                'move_id': self.id,
+                'company_id': self.company_id.id,
+            })
+        return duca
+
+    # --- Proxies (compute + inverse) ---
+    duca_number = fields.Char(string="N° DUCA", compute="_compute_duca_fields",
+                              inverse="_inverse_duca_number", store=False)
+    duca_acceptance_date = fields.Date(string="Fecha aceptación", compute="_compute_duca_fields",
+                                       inverse="_inverse_duca_acceptance_date", store=False)
+    duca_regimen = fields.Char(string="Régimen", compute="_compute_duca_fields",
+                               inverse="_inverse_duca_regimen", store=False)
+    duca_aduana = fields.Char(string="Aduana", compute="_compute_duca_fields",
+                              inverse="_inverse_duca_aduana", store=False)
+
+    duca_currency_id = fields.Many2one("res.currency", string="Moneda DUCA",
+                                       compute="_compute_duca_fields",
+                                       inverse="_inverse_duca_currency", store=False)
+
+    duca_valor_transaccion = fields.Monetary(
+        string="Valor transacción",
+        currency_field="duca_currency_id",
+        compute="_compute_duca_fields",
+        inverse="_inverse_duca_valor_transaccion",
+        store=False,
+    )
+
+    duca_otros_gastos = fields.Monetary(
+        string="Otros gastos",
+        currency_field="duca_currency_id",
+        compute="_compute_duca_fields",
+        inverse="_inverse_duca_otros_gastos",
+        store=False,
+    )
+
+    duca_valor_en_aduana = fields.Monetary(
+        string="Valor en Aduana",
+        currency_field="duca_currency_id",
+        compute="_compute_duca_fields",
+        inverse="_inverse_duca_valor",
+        store=False,
+    )
+    duca_dai_amount = fields.Monetary(
+        string="DAI",
+        currency_field="duca_currency_id",
+        compute="_compute_duca_fields",
+        inverse="_inverse_duca_dai",
+        store=False,
+    )
+    duca_iva_importacion = fields.Monetary(
+        string="IVA importación (ref.)",
+        currency_field="duca_currency_id",
+        compute="_compute_duca_fields",
+        inverse="_inverse_duca_iva",
+        store=False,
+    )
+
+    duca_file = fields.Binary(string="Archivo DUCA",
+                              compute="_compute_duca_fields",
+                              inverse="_inverse_duca_file", store=False)
+    duca_filename = fields.Char(string="Nombre archivo DUCA",
+                                compute="_compute_duca_fields",
+                                inverse="_inverse_duca_filename", store=False)
+
+    def _compute_duca_fields(self):
+        for move in self:
+            duca = move._get_duca()
+            move.duca_number = duca.number if duca else False
+            move.duca_acceptance_date = duca.acceptance_date if duca else False
+            move.duca_regimen = duca.regimen if duca else False
+            move.duca_aduana = duca.aduana if duca else False
+            move.duca_currency_id = duca.currency_id.id if duca else move.company_id.currency_id.id
+
+            move.duca_valor_transaccion = duca.valor_transaccion if duca else 0.0
+            move.duca_otros_gastos = duca.otros_gastos if duca else 0.0
+            move.duca_valor_en_aduana = duca.valor_en_aduana if duca else 0.0
+            move.duca_dai_amount = duca.dai_amount if duca else 0.0
+            move.duca_iva_importacion = duca.iva_importacion if duca else 0.0
+
+            move.duca_file = duca.duca_file if duca else False
+            move.duca_filename = duca.duca_filename if duca else False
+
+    def _inverse_duca_number(self):
+        for move in self:
+            move._get_or_create_duca().number = move.duca_number
+
+    def _inverse_duca_acceptance_date(self):
+        for move in self:
+            move._get_or_create_duca().acceptance_date = move.duca_acceptance_date
+
+    def _inverse_duca_regimen(self):
+        for move in self:
+            move._get_or_create_duca().regimen = move.duca_regimen
+
+    def _inverse_duca_aduana(self):
+        for move in self:
+            move._get_or_create_duca().aduana = move.duca_aduana
+
+    def _inverse_duca_currency(self):
+        for move in self:
+            move._get_or_create_duca().currency_id = move.duca_currency_id.id
+
+    def _inverse_duca_valor_transaccion(self):
+        for move in self:
+            move._get_or_create_duca().valor_transaccion = move.duca_valor_transaccion
+
+    def _inverse_duca_otros_gastos(self):
+        for move in self:
+            move._get_or_create_duca().otros_gastos = move.duca_otros_gastos
+
+    def _inverse_duca_valor(self):
+        for move in self:
+            move._get_or_create_duca().valor_en_aduana = move.duca_valor_en_aduana
+
+    def _inverse_duca_dai(self):
+        for move in self:
+            move._get_or_create_duca().dai_amount = move.duca_dai_amount
+
+    def _inverse_duca_iva(self):
+        for move in self:
+            move._get_or_create_duca().iva_importacion = move.duca_iva_importacion
+
+    def _inverse_duca_file(self):
+        for move in self:
+            duca = move._get_or_create_duca()
+            duca.duca_file = move.duca_file
+            if move.duca_file and not move.duca_filename:
+                duca.duca_filename = (move.duca_number and f"DUCA_{move.duca_number}.pdf") or "DUCA.pdf"
+
+    def _inverse_duca_filename(self):
+        for move in self:
+            move._get_or_create_duca().duca_filename = move.duca_filename
+
+    def action_open_duca(self):
+        self.ensure_one()
+        duca = self._get_or_create_duca()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'DUCA',
+            'res_model': 'exp_duca',
+            'view_mode': 'form',
+            'res_id': duca.id,
+            'target': 'current',
+        }
