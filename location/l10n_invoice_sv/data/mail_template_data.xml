@@ -8,9 +8,12 @@
         <record id="sit_email_template_edi_invoice" model="mail.template">
             <field name="name">Invoice: Sending</field>
             <field name="model_id" ref="account.model_account_move"/>
-            <field name="email_from">{{ (object.invoice_user_id.email_formatted or user.email_formatted) }}</field>
+            <field name="email_from">${object.company_id.email_from_payslip}</field>
             <field name="partner_to">{{ object.partner_id.id }}</field>
-           <field name="subject">{{"Documento invalidado (REF: %s)" % (object.name or 'n/a') if object.sit_evento_invalidacion else "%s Invoice (Ref %s)" % (object.company_id.name or '', object.name or 'n/a')}}</field>
+            <field name="subject">{{"Documento invalidado (REF: %s)" % (object.name or 'n/a') if
+                object.sit_evento_invalidacion else "%s Invoice (Ref %s)" % (object.company_id.name or '', object.name
+                or 'n/a')}}
+            </field>
             <field name="description">Sent to customers with their invoices in attachment</field>
             <field name="body_html" type="html">
                 <div style="margin: 0px; padding: 0px;">

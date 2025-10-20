@@ -48,7 +48,7 @@ class AccountMove(models.Model):
 
     fecha_iva = fields.Date(string="Fecha IVA")
 
-    # CAMPOS NUMERICOS EN DETALLE DE COMPRAS
+    #CAMPOS NUMERICOS EN DETALLE DE COMPRAS
     # comp_exenta_nsuj = fields.Float(
     #     string="Compras Internas Exentas y/o No Sujetas",
     #     digits=(16, 2),  # 16 dígitos totales, 2 decimales
@@ -305,8 +305,8 @@ class AccountMove(models.Model):
                                 not move.journal_id.sit_tipo_documento or move.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)):
                     continue
 
-                _logger.info("Tipo de documento(dte): %s", move.vcodigo_tipo_documento_id_id)
-                if not move.codigo_tipo_documento_id:
+                _logger.info("Tipo de documento(dte): %s", move.codigo_tipo_documento)
+                if not move.codigo_tipo_documento:
                     continue
 
                 old_name = move.name or ''

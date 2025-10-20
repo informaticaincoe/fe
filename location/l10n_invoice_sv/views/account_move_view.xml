@@ -90,7 +90,6 @@
                     <field name="attachment_ids" invisible="0"/>
                 </xpath>
 -->
-
             </field>
         </record>
         <record id="view_invoice_sv_tree" model="ir.ui.view">

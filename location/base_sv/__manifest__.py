@@ -24,6 +24,7 @@
         'data/res_lang.xml',
         'views/view_res_partner.xml',
         'views/view_res_company.xml',
+        "views/res_company_form_mail_senders.xml",
     ],
     'demo': [
         'demo/res_company_demo.xml',
