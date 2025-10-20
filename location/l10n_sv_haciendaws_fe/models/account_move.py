@@ -13,7 +13,7 @@ import os
 from PIL import Image
 import io
 
-from location.common_utils.utils.constants import CONST_CODIGOS_DEDUCCIONES_EMPLEADO
+from odoo.addons.common_utils.utils.constants import CONST_CODIGOS_DEDUCCIONES_EMPLEADO
 
 base64.encodestring = base64.encodebytes
 import json
