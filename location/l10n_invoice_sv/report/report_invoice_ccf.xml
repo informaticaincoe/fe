@@ -189,21 +189,18 @@
                             <!--  Seccion venta a cuenta de terceros -->
                             <div style="margin: 4% 0%;" class="mb-4 w-100">
                                 <p class="section-title text-center mb-1">Venta a cuenta de terceros</p>
-                                <div class="row border border-light-subtle rounded-2 align-items-center">
+                                <div class="row border border-light-subtle rounded-2 align-items-center padding: 1%;">
                                     <div class="col border-end border-light-subtle">
-                                        <p class="">Tipo de documento:
-                                            <span/>
-                                        </p>
+                                        <p class="padding:2%">Tipo de documento:</p>
+                                        <p style="padding: 2% 0%;"/>
                                     </div>
                                     <div class="col">
-                                        <p class="col py-1">Nombre, denomicación o razón social:
-                                            <span/>
-                                        </p>
+                                        <p class="col py-1 padding:2%">Nombre, denomicación o razón social:</p>
+                                        <p style="padding: 2% 0%;"/>
                                     </div>
                                     <div class="col">
-                                        <p class="col">
-                                            <span/>
-                                        </p>
+                                        <p class="col padding:2%"/>
+                                        <p style="padding: 2% 0%;"/>
                                     </div>
                                 </div>
                             </div>
@@ -213,15 +210,15 @@
                                 <p class="section-title text-center mb-1">Documentos relacionados</p>
                                 <div class="row border border-light-subtle rounded-2 align-items-center">
                                     <div class="col border-end border-light-subtle">
-                                        <p style="padding:2%">Tipo de documento:</p>
+                                        <p style="col padding:2%">Tipo de documento:</p>
                                         <p style="padding: 2% 0%;"/>
                                     </div>
                                     <div class="col border-end border-light-subtle">
-                                        <p style="padding:2%">N° documento:</p>
+                                        <p style="col padding:2%">N° documento:</p>
                                         <p style="padding: 2% 0%;"/>
                                     </div>
                                     <div class="col">
-                                        <p style="padding:2%">Fecha de documento:</p>
+                                        <p style="col padding:2%">Fecha de documento:</p>
                                         <p style="padding: 2% 0%;"/>
                                     </div>
                                 </div>
@@ -404,7 +401,7 @@
                                             <div class="row border border-light-subtle rounded-2 align-items-center">
                                                 <table style="width:100%; border-color:#ffffff;">
                                                     <tr>
-                                                        <td style="border:1px solid #ffffff; padding:1%; width:50%;">
+                                                        <td style="border:1px solid #ffffff; padding:2%; width:50%;">
                                                             <strong>Responsable emisor:</strong>
                                                             <t t-if="o.amount_total &gt; 11428.57">
                                                                 <span t-field="company.name"
@@ -420,11 +417,11 @@
                                                         </td>
                                                     </tr>
                                                     <tr>
-                                                        <td style="border:1px solid #ffffff; padding:1%; ;"/>
-                                                        <td style="border:1px solid #ffffff; padding:1%;"/>
+                                                        <td style="border:1px solid #ffffff; padding:2%; ;"/>
+                                                        <td style="border:1px solid #ffffff; padding:2%;"/>
                                                     </tr>
                                                     <tr>
-                                                        <td style="border:1px solid #ffffff; padding:1%;">
+                                                        <td style="border:1px solid #ffffff; padding:2%;">
                                                             <strong>Responsable receptor:</strong>
                                                             <t t-if="o.amount_total &gt; 11428.57">
                                                                 <span t-field="partner.complete_name"
@@ -475,7 +472,7 @@
                                                 <tbody>
                                                     <tr>
                                                         <td style="border:1px solid #e5e7e9; text-align:end; padding: 1% 0%;"
-                                                            class="border-light-subtle">
+                                                            class="border-light-subtle px-1">
                                                             Total operaciones no sujetas:
                                                         </td>
                                                         <td style="border:1px solid #e5e7e9; text-align:end; padding: 1% 0%;"
@@ -579,12 +576,12 @@
 
                                                         <tr>
                                                             <td class="px-1 border border-light-subtle text-end"
-                                                                style="padding: 2% 0%;">
+                                                                style="padding: 1% 0%;">
                                                                 <span t-field="tax_line.tax_line_id"/>
                                                                 <span t-field="tax_line.tax_line_id.tributos_hacienda_resumen_dte"/>
                                                             </td>
                                                             <td class="px-1 border border-light-subtle text-end"
-                                                                style="padding: 2% 0%;">
+                                                                style="padding: 1% 0%;">
                                                                 <span t-esc="abs(tax_line.amount_currency or tax_line.balance)"
                                                                       t-options="{'widget':'monetary','display_currency': o.currency_id}"/>
                                                             </td>
