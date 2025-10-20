@@ -15,6 +15,13 @@ from odoo import models, fields, api, _
 from odoo.exceptions import ValidationError, UserError
 import logging
 import base64
+from email.utils import parseaddr, formataddr
+from odoo.tools.misc import ustr
+import base64, re
+try:
+    import unicodedata
+except Exception:
+    unicodedata = None
 
 _logger = logging.getLogger(__name__)
 
@@ -98,10 +105,10 @@ class AccountQuedan(models.Model):
     # Estado del ciclo de vida
     state = fields.Selection(
         [
-            ('draft', 'Borrador'),     # editable
+            ('draft', 'Borrador'),  # editable
             ('confirmed', 'Confirmado'),
-            ('overdue', 'Vencido'),    # no todas pagadas y fecha programada ya pasó
-            ('paid', 'Pagado'),        # todas pagadas
+            ('overdue', 'Vencido'),  # no todas pagadas y fecha programada ya pasó
+            ('paid', 'Pagado'),  # todas pagadas
         ],
         string="Estado",
         default="draft",
@@ -139,8 +146,8 @@ class AccountQuedan(models.Model):
             if rec.factura_ids:
                 amls = rec.factura_ids.mapped('line_ids')
                 counterpart_moves = (
-                    amls.mapped('matched_debit_ids.debit_move_id.move_id')
-                    | amls.mapped('matched_credit_ids.credit_move_id.move_id')
+                        amls.mapped('matched_debit_ids.debit_move_id.move_id')
+                        | amls.mapped('matched_credit_ids.credit_move_id.move_id')
                 )
                 if counterpart_moves:
                     payments = self.env['account.payment'].search([
@@ -213,7 +220,8 @@ class AccountQuedan(models.Model):
         return self.env.ref("l10n_sv_quedan.report_quedan_documento").report_action(self)
 
     def action_send_email(self):
-        """Renderiza el PDF del Quedán y lo envía por correo con la plantilla configurada."""
+        """Renderiza el PDF del Quedán y lo envía por correo con la plantilla configurada,
+           mostrando mensaje de éxito o error."""
         self.ensure_one()
         active_langs = set(self.env['res.lang'].search([('active', '=', True)]).mapped('code'))
         candidates = [self.env.user.lang, self.env.context.get('lang'), 'es_419', 'en_US']
@@ -225,8 +233,9 @@ class AccountQuedan(models.Model):
         if not self.partner_id.email:
             raise UserError(_("El proveedor no tiene un correo configurado."))
 
+        # ----- Render PDF -----
         report = self.env.ref('l10n_sv_quedan.report_quedan_documento', raise_if_not_found=False)
-        pdf_content, _ = self.env['ir.actions.report'].with_context(lang=lang_ctx)._render_qweb_pdf(
+        pdf_content, out_ext = self.env['ir.actions.report'].with_context(lang=lang_ctx)._render_qweb_pdf(
             report.report_name, [self.id]
         )
         filename = f"Quedan_{self.name.replace('/', '_')}.pdf"
@@ -238,11 +247,63 @@ class AccountQuedan(models.Model):
             'res_id': self.id,
             'mimetype': 'application/pdf',
         })
-        template.with_context(lang=lang_ctx).send_mail(self.id, force_send=True, email_values={
+
+        # ----- Validación y normalización del From -----
+        raw_from = (self.company_id.email_from_quedan
+                    or self.company_id.email_formatted
+                    or self.env.user.email_formatted
+                    or '').replace('\r', ' ').replace('\n', ' ').strip()
+
+        name, addr = parseaddr(raw_from)
+        if not addr or '@' not in addr:
+            raise UserError(_("Remitente Quedán inválido. Configura un correo válido en "
+                              "Ajustes → Compañías → Correos de envío."))
+
+        try:
+            addr.encode('ascii')
+        except UnicodeEncodeError:
+            raise UserError(
+                _("El correo remitente debe ser ASCII simple (sin tildes ni caracteres especiales): %s") % addr)
+
+        def _sanitize_name(n):
+            n = (n or '').replace('\r', ' ').replace('\n', ' ').strip()
+            n = re.sub(r'\s+', ' ', n)
+            if unicodedata:
+                try:
+                    n = unicodedata.normalize('NFKD', n).encode('ascii', 'ignore').decode('ascii')
+                except Exception:
+                    pass
+            return n
+
+        name = _sanitize_name(name)
+        email_from_norm = formataddr((name, addr)) if name else addr
+
+        # ----- Envío del correo -----
+        email_values = {
             'attachment_ids': [(6, 0, [attachment.id])],
-        })
+            'email_from': email_from_norm,
+        }
+        if self.company_id.smtp_quedan_id:
+            email_values['mail_server_id'] = self.company_id.smtp_quedan_id.id
+
+        try:
+            template.with_context(lang=lang_ctx).send_mail(self.id, force_send=True, email_values=email_values)
+        except Exception as e:
+            # Error → mensaje tipo UserError (modal) y rollback
+            raise UserError(_("No se pudo enviar el correo: %s") % ustr(e))
+
+        # Éxito → log al chatter y toast de confirmación (no hace rollback)
         self.message_post(body=_("Correo enviado al proveedor %s con el Quedán adjunto.") % self.partner_id.name)
-        return True
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _("Quedán"),
+                'message': _("Correo enviado con éxito a %s") % (self.partner_id.email or ''),
+                'type': 'success',  # success | warning | danger | info
+                'sticky': False,
+            }
+        }
 
     # ========= Datos derivados para el domain del M2M =========
     @api.depends('company_id', 'partner_id')
