@@ -163,6 +163,7 @@ class AccountMove(models.Model):
         # Lógica para obtener el valor predeterminado según el contexto o condiciones
         return self.env['account.journal.tipo_documento.field'].search([('codigo', '=', '11')], limit=1)
 
+
     # @api.onchange('move_type')
     # def _get_tipo_documento_domain(self):
     #     # Lógica para establecer el dominio del campo para siempre mostrar los documentos con los códigos especificados
