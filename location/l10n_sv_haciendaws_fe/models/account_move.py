@@ -2596,6 +2596,7 @@ class AccountMove(models.Model):
         ctx = self.env.context.copy()
         ctx['_dte_auto_generated'] = True  # Esto evita el UserError del módulo de compras
         ctx['skip_name_validation'] = True
+        ctx['skip_sv_ensure_name'] = True
 
         # --- Asegurar que todas las facturas tengan name válido ---
         for move in self:
@@ -2802,6 +2803,7 @@ class AccountMove(models.Model):
 
             ctx = self.env.context.copy()
             ctx['_dte_auto_generated'] = True
+            ctx['skip_sv_ensure_name'] = True 
             new_name = seq.with_context(ctx).next_by_id() or '/'
             _logger.info("SIT | Asignando name automático: %s -> %s", move.name, new_name)
             move.with_context(ctx).write({'name': new_name})
