@@ -139,6 +139,11 @@ class AccountMove(models.Model):
         return
 
     def write(self, vals):
+        # Si la empresa no tiene habilitada la facturación electrónica, se usa el comportamiento estándar
+        if not all(inv.company_id.sit_facturacion for inv in self):
+            _logger.info("SIT-journal_sequence_sv: Facturación no activa, se usa write estándar.")
+            return super().write(vals)
+
         # Verificamos si son facturas de compra (in_invoice o in_refund). Si lo son, no ejecutamos la lógica personalizada.
         if all(inv.move_type in (constants.IN_INVOICE, constants.IN_REFUND)
                and (not inv.journal_id.sit_tipo_documento or inv.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE) for inv in self):

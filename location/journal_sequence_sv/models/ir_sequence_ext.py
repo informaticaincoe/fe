@@ -17,7 +17,15 @@ class IrSequence(models.Model):
         Si la FE está desactivada, delega al super() para comportamiento estándar.
         """
         # Usa env.company (más claro que self.company_id aquí)
-        if not self.env.company.sit_facturacion:
+        # if not self.env.company.sit_facturacion:
+        #     return super()._get_prefix_suffix(date=date, date_range=date_range)
+
+        # --- Detectar si la secuencia tiene variables DTE ---
+        dte_vars = ['%(dte)s', '%(estable)s', '%(punto_venta)s', '%(tipo_dte)s']
+        use_dte_logic = any(var in (self.prefix or '') + (self.suffix or '') for var in dte_vars)
+
+        if not use_dte_logic:
+            # No es DTE → flujo estándar de Odoo
             return super()._get_prefix_suffix(date=date, date_range=date_range)
 
         def _interpolate(s, d):

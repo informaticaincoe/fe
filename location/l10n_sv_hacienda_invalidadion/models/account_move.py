@@ -155,9 +155,10 @@ class AccountMove(models.Model):
             "resultado_mh": None,
         }
 
-        es_compra = (self.move_type == "in_invoice" and not self.journal_id.sit_tipo_documento)
+        es_compra = (self.move_type in (constants.IN_INVOICE, constants.IN_REFUND) and self.journal_id and
+                     (not self.journal_id.sit_tipo_documento or self.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE))
 
-        if not (es_compra and self.company_id and self.company_id.sit_facturacion):
+        if es_compra:
             raise UserError("Solo se pueden invalidar documentos electrónicos.")
 
         # Si no se ha guardado el evento de invalidación (o si no se ha asignado en el formulario):

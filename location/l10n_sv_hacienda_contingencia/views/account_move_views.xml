@@ -32,11 +32,11 @@
         <field name="arch" type="xml">
             <xpath expr="//field[@name='partner_id']" position="after">
                 <field name="codigo_tipo_documento" invisible="1"/>
-                <label for="sit_factura_de_contingencia" invisible="not codigo_tipo_documento"/>
+                <label for="sit_factura_de_contingencia" invisible="move_type not in('out_invoice', 'out_refund') or not codigo_tipo_documento"/>
                 <field name="sit_factura_de_contingencia"
                        readonly="1"
                        options='{"no_open": true, "no_create": true}'
-                       invisible="not codigo_tipo_documento"/>
+                       invisible="move_type not in('out_invoice', 'out_refund') or not codigo_tipo_documento"/>
             </xpath>
         </field>
     </record>
