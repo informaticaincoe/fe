@@ -163,17 +163,18 @@ class AccountMove(models.Model):
         # Lógica para obtener el valor predeterminado según el contexto o condiciones
         return self.env['account.journal.tipo_documento.field'].search([('codigo', '=', '11')], limit=1)
 
-    @api.onchange('move_type')
-    def _get_tipo_documento_domain(self):
-        # Lógica para establecer el dominio del campo para siempre mostrar los documentos con los códigos especificados
-        # Mostrar los tipos de documentos con los códigos '03', '05', '06', '11' en todos los casos
-        # Las compras de tipo nota de credito(05) y nota de debito(06) se generan desde la funcionalidad de odoo
-        if self.move_type == 'in_refund' and self.sit_tipo_documento_id.codigo == constants.COD_DTE_NC:  # Nota de credito en compras
-            return [('codigo', 'in', ['05'])]
-        elif self.move_type == 'in_invoice' and self.sit_tipo_documento_id.codigo == constants.COD_DTE_ND:  # Notas de debito en compras
-            return [('codigo', 'in', ['06'])]
-        else:
-            return [('codigo', 'in', ['01', '03', '11'])]
+
+    # @api.onchange('move_type')
+    # def _get_tipo_documento_domain(self):
+    #     # Lógica para establecer el dominio del campo para siempre mostrar los documentos con los códigos especificados
+    #     # Mostrar los tipos de documentos con los códigos '03', '05', '06', '11' en todos los casos
+    #     # Las compras de tipo nota de credito(05) y nota de debito(06) se generan desde la funcionalidad de odoo
+    #     if self.move_type == 'in_refund' and self.sit_tipo_documento_id.codigo == constants.COD_DTE_NC: # Nota de credito en compras
+    #         return [('codigo', 'in', ['05'])]
+    #     elif self.move_type == 'in_invoice' and self.sit_tipo_documento_id.codigo == constants.COD_DTE_ND: # Notas de debito en compras
+    #         return [('codigo', 'in', ['06'])]
+    #     else:
+    #         return [('codigo', 'in', ['01', '03', '11'])]
 
     @api.onchange('name', 'hacienda_codigoGeneracion_identificacion', 'hacienda_selloRecibido')
     def _onchange_remove_hyphen_and_spaces(self):
@@ -276,6 +277,11 @@ class AccountMove(models.Model):
             )
 
     def write(self, vals):
+        # --- Validación de empresa: si ninguna factura pertenece a empresa con facturación activa, usar write estándar ---
+        if not any(move.company_id.sit_facturacion for move in self):
+            _logger.info("SIT-write: Ninguna factura pertenece a empresa con facturación activa. Se usa write estándar.")
+            return super().write(vals)
+
         _logger.info("SIT | Entrando a write, context=%s", self.env.context)
         _logger.info("SIT | Vals write: %s", vals)
 
@@ -294,7 +300,7 @@ class AccountMove(models.Model):
         # Validaciones específicas del name
         if 'name' in vals:
             for move in self:
-                if (move.move_type in (constants.IN_INVOICE, constants.IN_REFUND) and
+                if (move.move_type in (constants.IN_INVOICE, constants.IN_REFUND) and move.journal_id and
                         (
                                 not move.journal_id.sit_tipo_documento or move.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)):
                     continue

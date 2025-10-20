@@ -9,14 +9,14 @@
             <field name="arch" type="xml">
                 <xpath expr="//field[@name='partner_shipping_id']" position="after">
                     <div class="mt-2 mb-2">
-                        <label for="document_number" invisible="move_type == 'entry' or codigo_tipo_documento"/>
-                        <field name="document_number" invisible="move_type == 'entry' or codigo_tipo_documento"/>
+                        <label for="document_number" invisible="move_type in('entry', 'out_invoice', 'out_refund') or codigo_tipo_documento"/>
+                        <field name="document_number" invisible="move_type in('entry', 'out_invoice', 'out_refund') or codigo_tipo_documento"/>
                     </div>
                 </xpath>
                 <!-- Tipo de Documento -->
                 <xpath expr="//field[@name='partner_id']" position="after">
                     <div class="mt-2 mb-2">
-                        <label for="sit_tipo_documento_id" invisible="move_type == 'entry' or codigo_tipo_documento"/>
+                        <label for="sit_tipo_documento_id" invisible="move_type in('entry', 'out_invoice', 'out_refund') or codigo_tipo_documento"/>
                         <!-- Compra normal -->
                         <field name="sit_tipo_documento_id"
                                readonly="False"
@@ -73,7 +73,7 @@
                 <xpath expr="//field[@name='name']" position="after">
                     <!-- Este div evita heredar el estilo grande del encabezado -->
                     <div style="font-size: 13px; font-weight: normal;">
-                        <group string="Identificación DTE" colspan="2" invisible="move_type == 'entry' or codigo_tipo_documento" readonly="False">
+                        <group string="Identificación DTE" colspan="2" invisible="move_type in('entry', 'out_invoice', 'out_refund') or codigo_tipo_documento" readonly="False">
                             <field name="hacienda_selloRecibido"
                                    string="Sello recibido por Hacienda"
                                    placeholder="Ingrese el sello recibido"
@@ -97,7 +97,7 @@
             <field name="arch" type="xml">
                 <!-- Insertar un subgrupo de fechas justo después de invoice_date -->
                 <xpath expr="//field[@name='invoice_date']/.." position="inside">
-                    <group col="2" colspan="2" invisible="move_type == 'entry' or codigo_tipo_documento">
+                    <group col="2" colspan="2" invisible="move_type in('entry', 'out_invoice', 'out_refund') or codigo_tipo_documento">
                         <field name="fecha_aplicacion" string="Fecha Aplicación"/>
                         <field name="fecha_iva" string="Fecha IVA"/>
                     </group>

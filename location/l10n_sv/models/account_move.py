@@ -218,6 +218,11 @@ class sit_account_move(models.Model):
         # Crear los registros normalmente
         moves = super().create(vals_list)
 
-        moves._apply_partner_defaults_ventas_if_needed()
-        moves._apply_partner_defaults_compras_if_needed()
+        # Filtramos solo los registros cuya empresa tiene facturación activa
+        moves_facturacion = moves.filtered(lambda m: m.company_id.sit_facturacion)
+
+        # Aplicar defaults solo a esas
+        if moves_facturacion:
+            moves_facturacion._apply_partner_defaults_ventas_if_needed()
+            moves_facturacion._apply_partner_defaults_compras_if_needed()
         return moves
