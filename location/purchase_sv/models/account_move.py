@@ -277,6 +277,20 @@ class AccountMove(models.Model):
             )
 
     def write(self, vals):
+
+        # Bypass total cuando venimos del _ensure_name() del otro modulo
+        # evitar reentrar en validacione sy cortar la recursion
+        if self.env.context.get('skip_sv_ensure_name'):
+            _logger.info("SIT | write bypass por skip_sv_ensure_name en contexto")
+            return super().write(vals)
+        
+        # Si estamos pasando a booorrrrador (button_draft) omitimos validaciones de name
+        # al despostear Odoo puede resetear el name a '/' y esto debe permitirse
+        if vals.get('state') == 'draft':
+            _logger.info("SIT | write bypass por cambio a borrador en contexto")
+            return super().write(vals)
+
+
         # --- Validación de empresa: si ninguna factura pertenece a empresa con facturación activa, usar write estándar ---
         if not any(move.company_id.sit_facturacion for move in self):
             _logger.info("SIT-write: Ninguna factura pertenece a empresa con facturación activa. Se usa write estándar.")
