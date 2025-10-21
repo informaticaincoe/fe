@@ -819,190 +819,12 @@ class AccountMove(models.Model):
                 # Solo previsualización, construimos nombre sin afectar secuencia
                 nuevo_name = f"{prefix_rendered}{str(siguiente_dte).zfill(sequence.padding)}"
 
-            # Verificar duplicado antes de retornar
-            # if self.search_count([('name', '=', nuevo_name), ('journal_id', '=', journal.id)]):
-            #     raise UserError(_("El número DTE generado ya existe en la base de datos: %s") % nuevo_name)
-            # _logger.info("SIT Nombre DTE generado y secuencia consumida: %s", nuevo_name)
-
-            # Actualizar secuencia (ir.sequence o ir.sequence.date_range)
-            # if actualizar_secuencia and sequence:
-            #   next_num = nuevo_numero + 1
-            #  if sequence.use_date_range:
-            #     if date_range and date_range.number_next_actual < next_num:
-            #        #date_range.number_next_actual = next_num
-            #       nuevo_numero = seq.next_by_id(sequence_date=self.invoice_date, context=ctx)
-            #      _logger.info("SIT Secuencia con date_range '%s' actualizada a %s", seq_code, next_num)
-            # else:
-            #   if sequence.number_next_actual < next_num:
-            #      #sequence.number_next_actual = next_num
-            #     nuevo_numero = seq._next_do(sequence_date=self.invoice_date, context=ctx)
-            #    _logger.info("SIT Secuencia '%s' actualizada a %s", seq_code, next_num)
-
             _logger.info("SIT Name generado: %s", nuevo_name)
             return nuevo_name
 
         else:
             return None  # <--- Omitir, que Odoo siga normal
 
-    # ---------------------------------------------------------------------------------------------
-    #     def _post(self, soft=True):
-    #         '''validamos que partner cumple los requisitos basados en el tipo
-    #         de documento de la secuencia del diario seleccionado
-    #         FACTURA ELECTRONICAMENTE
-    #         '''
-    #         invoices_to_post = self
-    #         _logger.info("SIT _post override for invoices: %s", self.ids)
-    #         _logger.info("Iniciando _post para account.move")
-    #         _logger.info("SIT _post llamado con self=%s", self)
-    #         _logger.info("SIT _post llamado con len(self)=%s", len(self))
-    #
-    #         if not self:
-    #
-    #             if self.move_type == 'out_refund' and self.name:
-    #                 _logger.debug("SIT No se puede modificar el número de control después de la reversión.")
-    #                 self._fields['name'].readonly = True
-    #                 _logger.info(f"El número de control {self.name} no puede ser modificado.")
-    #
-    #             _logger.warning("SIT _post llamado sin registros. Posiblemente acción revertir sin contexto válido.")
-    #             move_type = self.env.context.get('default_move_type', 'entry')
-    #             journal_id = self.env.context.get('default_journal_id')
-    #
-    #             if not journal_id:
-    #                 raise UserError(_("No se puede generar número de control porque no hay contexto de diario definido."))
-    #
-    #             if move_type == 'out_refund':
-    #                 # ⚠️ Solo crear movimiento temporal si es una nota de crédito
-    #                 default_vals = {
-    #                     'journal_id': journal_id,
-    #                     'move_type': move_type,
-    #                 }
-    #                 temp_move = self.with_context(default_journal_id=journal_id).create([default_vals])
-    #                 invoices_to_post = temp_move
-    #                 _logger.info("SIT se creó temp_move para out_refund con id=%s y diario=%s", temp_move.id, journal_id)
-    #             else:
-    #                 raise UserError(_("No se puede continuar: _post() llamado sin registros y no es out_refund."))
-    #         else:
-    #             invoices_to_post = self
-    #
-    #         _logger.debug("SIT Invoice: %s", invoices_to_post)
-    #
-    # ############################
-    #         for inv in invoices_to_post:
-    #             journal = inv.journal_id
-    #             _logger.info("SIT Procesando invoice %s (journal=%s)", inv.id, journal.name)
-    #
-    #             # --- solo Venta: DTE name / validaciones ---
-    #             if journal.type == 'sale' and inv.move_type in ('out_invoice', 'out_refund'):
-    #                 # generación / validación de DTE
-    #                 if not (inv.name and inv.name.startswith("DTE-")):
-    #                     nr = inv._generate_dte_name()
-    #                     if not nr:
-    #                         raise UserError(_("No se pudo generar número de control DTE para %s.") % inv.id)
-    #                     inv.write({'name': nr})
-    #                     _logger.info("SIT DTE generado en _post: %s", nr)
-    #                 if not inv.name.startswith("DTE-"):
-    #                     raise UserError(_("Número de control DTE inválido para %s.") % inv.id)
-    #             else:
-    #                 _logger.info("Diario '%s' no es venta, omito DTE en _post", journal.name)
-    #                 # dejo que Odoo asigne su name normal y salto todas las validaciones DTE
-    #                 continue
-    #
-    # #################################
-    #             # Si el tipo de documento requiere validación adicional, hacerlo aquí
-    #             if invoice.journal_id.sit_tipo_documento:
-    #                 type_report = invoice.journal_id.type_report
-    #                 sit_tipo_documento = invoice.journal_id.sit_tipo_documento.codigo
-    #
-    #                 _logger.info("SIT action_post type_report = %s", type_report)
-    #                 _logger.info("SIT action_post sit_tipo_documento = %s", sit_tipo_documento)
-    #                 _logger.info("SIT Receptor = %s, info=%s", invoice.partner_id, invoice.partner_id.parent_id)
-    #                 # Validación del partner y otros parámetros según el tipo de DTE
-    #                 if type_report == 'ccf':
-    #                     # Validaciones específicas para CCF
-    #                     if not invoice.partner_id.parent_id:
-    #                         if not invoice.partner_id.nrc:
-    #                             invoice.msg_error("N.R.C.")
-    #                         if not invoice.partner_id.vat and not invoice.partner_id.dui:
-    #                             invoice.msg_error("N.I.T O D.U.I.")
-    #                         if not invoice.partner_id.codActividad:
-    #                             invoice.msg_error("Giro o Actividad Económica")
-    #                     else:
-    #                         if not invoice.partner_id.parent_id.nrc:
-    #                             invoice.msg_error("N.R.C.")
-    #                         if not invoice.partner_id.parent_id.vat and not invoice.partner_id.parent_id.dui:
-    #                             invoice.msg_error("N.I.T O D.U.I.")
-    #                         if not invoice.partner_id.parent_id.codActividad:
-    #                             invoice.msg_error("Giro o Actividad Económica")
-    #
-    #                 elif type_report == 'ndc':
-    #                     # Asignar el partner_id relacionado con el crédito fiscal si no existe parent_id
-    #                     if not invoice.partner_id.parent_id:
-    #                         if not invoice.partner_id.nrc:
-    #                             _logger.info("SIT nrc partner = %s", invoice.partner_id.parent_id)
-    #                             invoice.msg_error("N.R.C.")
-    #                         if not invoice.partner_id.fax:
-    #                             invoice.msg_error("N.I.T.")
-    #                         if not invoice.partner_id.codActividad:
-    #                             invoice.msg_error("Giro o Actividad Económica")
-    #                     else:
-    #                         if not invoice.partner_id.parent_id.nrc:
-    #                             invoice.msg_error("N.R.C.")
-    #                         if not invoice.partner_id.parent_id.fax:
-    #                             invoice.msg_error("N.I.T.")
-    #                         if not invoice.partner_id.parent_id.codActividad:
-    #                             invoice.msg_error("Giro o Actividad Económica")
-    #
-    #                 ambiente = "00"
-    #                 if self._compute_validation_type_2() == 'production':
-    #                     ambiente = "01"
-    #                     _logger.info("SIT Factura de Producción")
-    #
-    #                 # Firmar el documento y generar el DTE
-    #                 payload = invoice.obtener_payload('production', sit_tipo_documento)
-    #                 documento_firmado = invoice.firmar_documento('production', payload)
-    #
-    #                 if documento_firmado:
-    #                     _logger.info("SIT Firmado de documento")
-    #                     payload_dte = invoice.sit_obtener_payload_dte_info(ambiente, documento_firmado)
-    #                     self.check_parametros_dte(payload_dte)
-    #                     Resultado = invoice.generar_dte('production', payload_dte, payload)
-    #                     if Resultado:
-    #                         # Procesar la respuesta de Hacienda
-    #                         dat_time = Resultado['fhProcesamiento']
-    #                         fhProcesamiento = datetime.strptime(dat_time, '%d/%m/%Y %H:%M:%S')
-    #                         invoice.hacienda_estado = Resultado['estado']
-    #                         invoice.hacienda_codigoGeneracion_identificacion = Resultado['codigoGeneracion']
-    #                         invoice.hacienda_selloRecibido = Resultado['selloRecibido']
-    #                         invoice.fecha_facturacion_hacienda = fhProcesamiento + timedelta(hours=6)
-    #                         invoice.hacienda_clasificaMsg = Resultado['clasificaMsg']
-    #                         invoice.hacienda_codigoMsg = Resultado['codigoMsg']
-    #                         invoice.hacienda_descripcionMsg = Resultado['descripcionMsg']
-    #                         invoice.hacienda_observaciones = str(Resultado['observaciones'])
-    #                         codigo_qr = invoice._generar_qr(ambiente, Resultado['codigoGeneracion'],
-    #                                                         invoice.fecha_facturacion_hacienda)
-    #                         invoice.sit_qr_hacienda = codigo_qr
-    #                         invoice.state = "draft"
-    #
-    #                         dte = payload['dteJson']
-    #                         invoice.sit_json_respuesta = json.dumps(dte, ensure_ascii=False, default=str)
-    #                         json_str = json.dumps(dte, ensure_ascii=False, default=str)
-    #                         json_base64 = base64.b64encode(json_str.encode('utf-8'))
-    #                         file_name = dte["identificacion"]["numeroControl"] + '.json'
-    #                         invoice.env['ir.attachment'].sudo().create({
-    #                             'name': file_name,
-    #                             'datas': json_base64,
-    #                             'res_model': self._name,
-    #                             'res_id': invoice.id,
-    #                             'mimetype': 'application/json'
-    #                         })
-    #                         _logger.info("SIT JSON creado y adjuntado.")
-    #
-    #                 else:
-    #                     _logger.info("SIT Documento no firmado")
-    #                     raise UserError(_('SIT Documento NO Firmado'))
-    #
-    #         _logger.info("SIT Terminando _post sin procesar ningún DTE (self=%s)", self)
-    #         return super(AccountMove, self)._post(soft=soft)
 
     def actualizar_secuencia(self):
         _logger.info("SIT Actualizar secuencia: %s", self.name)
@@ -2747,6 +2569,14 @@ class AccountMove(models.Model):
             return False
 
     def write(self, vals):
+        #evitar recursion si venimos del propio _ensure_name
+        if self.env.context.get('skip_sv_ensure_name'):
+            return super().write(vals)
+        
+        # si estamos pasando a borrador no aseguramos name
+        if vals.get('state') == 'draft':
+            return super().write(vals)
+
         # --- Validación de empresa: si ninguna tiene facturación activa, usar write estándar ---
         if not any(inv.company_id.sit_facturacion for inv in self):
             _logger.info(
@@ -2766,12 +2596,21 @@ class AccountMove(models.Model):
         ctx = self.env.context.copy()
         ctx['_dte_auto_generated'] = True  # Esto evita el UserError del módulo de compras
         ctx['skip_name_validation'] = True
+        ctx['skip_sv_ensure_name'] = True
 
         # --- Asegurar que todas las facturas tengan name válido ---
         for move in self:
             if not move.name or move.name == '/':
                 # Esto solo se aplica a facturas de venta automáticas
                 move.with_context(ctx)._ensure_name()
+
+        # asegurarnos que las facturas de venta sin nombre lo tengan
+        to_name = self.filtered(
+            lambda m:m.move_type not in ('in_invoice', 'in_refund') and (not m.name or m.name == '/')
+        )
+        if to_name:
+            _logger.info("[WRITE-pre haciendaws_fe] Asegurando name para facturas de venta sin nombre: %s", to_name.ids)
+            to_name.with_context(ctx, skip_sv_ensure_name=True)._ensure_name()
 
         # --- Escribir valores usando super() con contexto seguro ---
         res = super(AccountMove, self.with_context(ctx)).write(vals)
@@ -2964,7 +2803,11 @@ class AccountMove(models.Model):
 
             ctx = self.env.context.copy()
             ctx['_dte_auto_generated'] = True
+            ctx['skip_sv_ensure_name'] = True 
             new_name = seq.with_context(ctx).next_by_id() or '/'
             _logger.info("SIT | Asignando name automático: %s -> %s", move.name, new_name)
             move.with_context(ctx).write({'name': new_name})
+
+            # evita recursion al escibir el name
+            move.with_context(ctx, skip_sv_ensure_name=True).write({'name': new_name})
 
