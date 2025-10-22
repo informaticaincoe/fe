@@ -14,6 +14,7 @@ _logger = logging.getLogger(__name__)
 
 try:
     from odoo.addons.common_utils.utils import constants
+
     _logger.info("SIT Modulo constants [purchase-account_move]")
 except ImportError as e:
     _logger.error(f"Error al importar 'constants': {e}")
@@ -21,7 +22,6 @@ except ImportError as e:
 
 
 class AccountMove(models.Model):
-
     _inherit = 'account.move'
 
     exp_duca_id = fields.One2many('exp_duca', 'move_id', string='DUCAs')
@@ -49,7 +49,7 @@ class AccountMove(models.Model):
 
     fecha_iva = fields.Date(string="Fecha IVA")
 
-    #CAMPOS NUMERICOS EN DETALLE DE COMPRAS
+    # CAMPOS NUMERICOS EN DETALLE DE COMPRAS
     # comp_exenta_nsuj = fields.Float(
     #     string="Compras Internas Exentas y/o No Sujetas",
     #     digits=(16, 2),  # 16 dígitos totales, 2 decimales
@@ -98,10 +98,92 @@ class AccountMove(models.Model):
         readonly=False,  # editable siempre
         copy=False,
         default='/',
-        help="Editable siempre por el usuario"
+        help="Editable siempre por el usuario",
+        # compute="_compute_unique_name"
     )
 
+
+    # Verificar que el name (o numero de control) sea unico
+    @api.constrains('name', 'company_id')
+    def _check_unique_name(self):
+        for move in self:
+            name = (move.name or '').strip()
+            # Permitir '/' y vacío (borradores) y saltar si no hay nombre
+            if not name or name == '/':
+                continue
+
+            # Busca duplicado en la misma compañía, excluyendo el propio registro
+            dup = self.search([
+                ('id', '!=', move.id),
+                ('company_id', '=', move.company_id.id),
+                ('name', '=', name),
+            ], limit=1)
+
+            if dup:
+                # Mensaje claro al usuario
+                raise ValidationError(_(
+                    "El número de documento '%(name)s' ya existe",
+                ) % {
+                      'name': name,
+                      'doc': dup.display_name or dup.name,
+                })
+
+    # Verificar que el sello sea unico
+    @api.constrains('hacienda_selloRecibido', 'company_id', 'move_type')
+    def _check_unique_sello(self):
+        for move in self:
+            # Solo aplica a compras
+            if move.move_type not in ('in_invoice', 'in_refund'):
+                continue
+
+            sello = self._norm_sello(move.hacienda_selloRecibido)
+            if not sello:
+                continue
+
+            dup = self.search([
+                ('id', '!=', move.id),
+                ('company_id', '=', move.company_id.id),
+                ('move_type', 'in', ['in_invoice', 'in_refund']),
+                ('hacienda_selloRecibido', '=', sello),
+            ], limit=1)
+
+            if dup:
+                raise ValidationError(_("El Sello de recepción '%(sello)s' ya existe en el documento %(doc)s.") % {
+                    'sello': sello,
+                    'doc': dup.name or dup.display_name,
+                })
+
+    # Verificar que el sello sea unico
+    @api.constrains('hacienda_codigoGeneracion_identificacion', 'company_id', 'move_type')
+    def _check_unique_cod_generacion(self):
+        for move in self:
+            if move.move_type not in ('in_invoice', 'in_refund'):
+                continue
+
+            codigo_generacion = self._norm_sello(move.hacienda_codigoGeneracion_identificacion)
+            if not codigo_generacion:
+                continue
+
+            dup = self.search([
+                ('id', '!=', move.id),
+                ('company_id', '=', move.company_id.id),
+                ('move_type', 'in', ['in_invoice', 'in_refund']),
+                ('hacienda_codigoGeneracion_identificacion', '=', codigo_generacion),
+            ], limit=1)
+
+            if dup:
+                raise ValidationError(_("El codigo de generacion '%(codigo_generacion)s' ya existe en el documento %(doc)s.") % {
+                    'codigo_generacion': codigo_generacion,
+                    'doc': dup.name or dup.display_name,
+                })
+
     _original_name = fields.Char(compute='_compute_original_name', store=False)
+
+    @staticmethod
+    def _norm_sello(v):
+        v = (v or '')
+        return v.replace('-', '').replace(' ', '').upper().strip()
+
 
     sit_amount_tax_system = fields.Monetary(
         string="SIT Amount Tax System",
@@ -136,6 +218,16 @@ class AccountMove(models.Model):
     def create(self, vals_list):
         _logger.info("SIT Purchase | Creando AccountMove(s): %s", vals_list)
 
+        # NORMALIZAR SELLO ANTES DE CREAR
+        for vals in vals_list:
+            if vals.get('hacienda_selloRecibido'):
+                vals['hacienda_selloRecibido'] = self._norm_sello(vals['hacienda_selloRecibido'])
+
+        # NORMALIZAR CODIGO GENERACION SI VIENE EN vals
+        if vals.get('hacienda_codigoGeneracion_identificacion'):
+            vals['hacienda_codigoGeneracion_identificacion'] = self._norm_sello(
+                vals['hacienda_codigoGeneracion_identificacion'])
+
         # Primero creamos los registros normalmente
         tipo_documento_obj = self.env['account.journal.tipo_documento.field']  # Ajusta el modelo si usa otro nombre
         moves = super().create(vals_list)
@@ -144,26 +236,30 @@ class AccountMove(models.Model):
         for move in moves:
             # 1️ Forzar None a hacienda_codigoGeneracion_identificacion en compras/notas de crédito de compra
             if (move.move_type in (constants.IN_INVOICE, constants.IN_REFUND) and
-                    (not move.journal_id.sit_tipo_documento or move.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)):
-                _logger.info(f"SIT | move_type={move.move_type} → Forzando None a hacienda_codigoGeneracion_identificacion para move_id={move.id}")
+                    (
+                            not move.journal_id.sit_tipo_documento or move.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)):
+                _logger.info(
+                    f"SIT | move_type={move.move_type} → Forzando None a hacienda_codigoGeneracion_identificacion para move_id={move.id}")
                 move.hacienda_codigoGeneracion_identificacion = None
 
                 # Preseleccionar sit_tipo_documento_id si no está asignado
                 if move.move_type == constants.IN_REFUND:
                     doc = tipo_documento_obj.search([('codigo', '=', constants.COD_DTE_NC)], limit=1)
                     move.sit_tipo_documento_id = doc
-                    _logger.info("SIT | Nota de crédito (in_refund): preseleccionando tipo documento 05 para move_id=%s", move.id)
+                    _logger.info(
+                        "SIT | Nota de crédito (in_refund): preseleccionando tipo documento 05 para move_id=%s",
+                        move.id)
                 elif move.move_type == constants.IN_INVOICE and move.debit_origin_id:
                     doc = tipo_documento_obj.search([('codigo', '=', constants.COD_DTE_ND)], limit=1)
                     move.sit_tipo_documento_id = doc
-                    _logger.info("SIT | Nota de débito (in_debit): preseleccionando tipo documento 06 para move_id=%s", move.id)
+                    _logger.info("SIT | Nota de débito (in_debit): preseleccionando tipo documento 06 para move_id=%s",
+                                 move.id)
 
         return moves
 
     def _get_default_tipo_documento(self):
         # Lógica para obtener el valor predeterminado según el contexto o condiciones
         return self.env['account.journal.tipo_documento.field'].search([('codigo', '=', '11')], limit=1)
-
 
     # @api.onchange('move_type')
     # def _get_tipo_documento_domain(self):
@@ -179,8 +275,9 @@ class AccountMove(models.Model):
 
     @api.onchange('name', 'hacienda_codigoGeneracion_identificacion', 'hacienda_selloRecibido')
     def _onchange_remove_hyphen_and_spaces(self):
-        if (self.move_type not in(constants.IN_INVOICE, constants.IN_REFUND) or
-                (self.move_type == constants.IN_INVOICE and self.journal_id.sit_tipo_documento and self.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FSE)):
+        if (self.move_type not in (constants.IN_INVOICE, constants.IN_REFUND) or
+                (
+                        self.move_type == constants.IN_INVOICE and self.journal_id.sit_tipo_documento and self.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FSE)):
             return
 
         # name
@@ -208,11 +305,13 @@ class AccountMove(models.Model):
                     "[ONCHANGE] move_id=%s: 'hacienda_selloRecibido' changed from '%s' to '%s'",
                     self.id, old_val, self.hacienda_selloRecibido)
 
-    @api.depends('invoice_line_ids.price_unit', 'invoice_line_ids.quantity', 'invoice_line_ids.discount', 'invoice_line_ids.tax_ids', 'currency_id', 'move_type', 'partner_id',)
+    @api.depends('invoice_line_ids.price_unit', 'invoice_line_ids.quantity', 'invoice_line_ids.discount',
+                 'invoice_line_ids.tax_ids', 'currency_id', 'move_type', 'partner_id', )
     def _compute_sit_amount_tax_system(self):
         for move in self:
             if (move.move_type in (constants.IN_INVOICE, constants.IN_REFUND) and
-                    (not move.journal_id.sit_tipo_documento or move.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)):
+                    (
+                            not move.journal_id.sit_tipo_documento or move.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)):
                 total_tax = 0.0
                 _logger.info("SIT | Calculando impuestos para move: %s", move.name)
 
@@ -256,7 +355,7 @@ class AccountMove(models.Model):
             move.retencion_renta_amount = retencion_renta_total
 
             _logger.info("SIT | Totales move_id=%s => Percepción=%.2f | Retención IVA=%.2f | Retención Renta=%.2f",
-                move.id, percepcion_total, retencion_iva_total, retencion_renta_total)
+                         move.id, percepcion_total, retencion_iva_total, retencion_renta_total)
 
     def _update_totales_move(self):
         """
@@ -278,23 +377,30 @@ class AccountMove(models.Model):
             )
 
     def write(self, vals):
+        # NORMALIZAR SELLO SI VIENE EN vals
+        if vals.get('hacienda_selloRecibido'):
+            vals['hacienda_selloRecibido'] = self._norm_sello(vals['hacienda_selloRecibido'])
+
+        # NORMALIZAR CODIGO GENERACION SI VIENE EN vals
+        if vals.get('hacienda_codigoGeneracion_identificacion'):
+            vals['hacienda_codigoGeneracion_identificacion'] = self._norm_sello(vals['hacienda_codigoGeneracion_identificacion'])
 
         # Bypass total cuando venimos del _ensure_name() del otro modulo
         # evitar reentrar en validacione sy cortar la recursion
         if self.env.context.get('skip_sv_ensure_name'):
             _logger.info("SIT | write bypass por skip_sv_ensure_name en contexto")
             return super().write(vals)
-        
+
         # Si estamos pasando a booorrrrador (button_draft) omitimos validaciones de name
         # al despostear Odoo puede resetear el name a '/' y esto debe permitirse
         if vals.get('state') == 'draft':
             _logger.info("SIT | write bypass por cambio a borrador en contexto")
             return super().write(vals)
 
-
         # --- Validación de empresa: si ninguna factura pertenece a empresa con facturación activa, usar write estándar ---
         if not any(move.company_id.sit_facturacion for move in self):
-            _logger.info("SIT-write: Ninguna factura pertenece a empresa con facturación activa. Se usa write estándar.")
+            _logger.info(
+                "SIT-write: Ninguna factura pertenece a empresa con facturación activa. Se usa write estándar.")
             return super().write(vals)
 
         _logger.info("SIT | Entrando a write, context=%s", self.env.context)
@@ -400,7 +506,9 @@ class AccountMove(models.Model):
     def action_post(self):
         _logger.info("SIT Action post purchase: %s", self)
         # Si FE está desactivada → comportamiento estándar de Odoo
-        invoices = self.filtered(lambda inv: inv.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND, constants.IN_INVOICE, constants.IN_REFUND))
+        invoices = self.filtered(
+            lambda inv: inv.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND, constants.IN_INVOICE,
+                                          constants.IN_REFUND))
         if not invoices:
             # Si no hay facturas, llamar al método original sin hacer validaciones DTE
             return super().action_post()
@@ -408,7 +516,7 @@ class AccountMove(models.Model):
         for move in self:
 
             _logger.info("SIT-Compra move type: %s, tipo documento %s: ", move.move_type, move.codigo_tipo_documento)
-            if move.move_type not in(constants.IN_INVOICE, constants.IN_REFUND):
+            if move.move_type not in (constants.IN_INVOICE, constants.IN_REFUND):
                 _logger.info("SIT Action post no aplica a modulos distintos a compra.")
                 continue
             if move.move_type == constants.IN_INVOICE and move.journal_id.sit_tipo_documento:
@@ -507,6 +615,7 @@ class AccountMove(models.Model):
         return result
 
     exp_duca_id = fields.One2many('exp_duca', 'move_id', string='DUCAs')
+
     def generar_asientos_retencion_compras(self):
         """
         Genera automáticamente las líneas contables de **percepción**, **retención** y **renta**
