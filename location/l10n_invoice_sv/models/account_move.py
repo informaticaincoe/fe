@@ -1194,7 +1194,7 @@ class AccountMove(models.Model):
             if not cuenta_exportacion:
                 _logger.warning(
                     "[agregar_lineas_seguro_flete] No se encontró una cuenta contable configurada para exportación.")
-                raise UserError("No se ha configurado una cuenta de exportación en la empresa.")
+                raise UserError("No se ha configurado una cuenta de Seguro y Flete en la empresa.")
 
             _logger.info(
                 f"[agregar_lineas_seguro_flete] Cuenta encontrada: {cuenta_exportacion.code} - {cuenta_exportacion.name}")
@@ -1233,38 +1233,38 @@ class AccountMove(models.Model):
             if nuevas_lineas:
                 move.write({'line_ids': nuevas_lineas})
 
-    def write(self, vals):
-        # Si la empresa no tiene habilitada la facturación electrónica, usamos el comportamiento estándar
-        if not all(inv.company_id.sit_facturacion for inv in self):
-            _logger.info("SIT-invoice_sv: Facturación no activa, se usa write estándar.")
-            return super().write(vals)
-
-        # Primero, verificamos si es una factura de compra. Si lo es, no ejecutamos la lógica personalizada.
-        if all(inv.move_type in (constants.IN_INVOICE, constants.IN_REFUND)
-               and (not inv.journal_id.sit_tipo_documento or inv.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE) for inv in self):
-            # Si todos los registros son de compra, no ejecutamos el código personalizado.
-            _logger.info("SIT-invoice_sv: Factura de compra detectada, se salta la lógica personalizada.")
-            return super().write(vals)
-
-        # Log previo al write
-        _logger.info("[WRITE-ORDER(invoice_sv)] Entró primero: invoice_sv")
-        _logger.warning("Account_move_invoice_sv [WRITE-PRE] move_ids=%s, vals=%s", self.ids, vals)
-        tb_str = ''.join(traceback.format_stack())
-        _logger.debug("Account_move_invoice_sv [WRITE-PRE-STACK] Stack:\n%s", tb_str)
-
-        # Ejecutar write original
-        res = super().write(vals)
-
-        # Log posterior al write
-        _logger.warning("[WRITE-POST invoice_sv] move_ids=%s, vals=%s", self.ids, vals)
-
-        # Manejo de descuentos
-        campos_descuento = {'descuento_gravado', 'descuento_exento', 'descuento_no_sujeto', 'descuento_global_monto'}
-        if any(c in vals for c in campos_descuento):
-            _logger.info("[WRITE-DESCUENTO] Se detectaron campos de descuento, agregando líneas de seguro/flete")
-            self.agregar_lineas_seguro_flete()
-
-        return res
+    # def write(self, vals):
+    #     # Si la empresa no tiene habilitada la facturación electrónica, usamos el comportamiento estándar
+    #     if not all(inv.company_id.sit_facturacion for inv in self):
+    #         _logger.info("SIT-invoice_sv: Facturación no activa, se usa write estándar.")
+    #         return super().write(vals)
+    #
+    #     # Primero, verificamos si es una factura de compra. Si lo es, no ejecutamos la lógica personalizada.
+    #     if all(inv.move_type in (constants.IN_INVOICE, constants.IN_REFUND)
+    #            and (not inv.journal_id.sit_tipo_documento or inv.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE) for inv in self):
+    #         # Si todos los registros son de compra, no ejecutamos el código personalizado.
+    #         _logger.info("SIT-invoice_sv: Factura de compra detectada, se salta la lógica personalizada.")
+    #         return super().write(vals)
+    #
+    #     # Log previo al write
+    #     _logger.info("[WRITE-ORDER(invoice_sv)] Entró primero: invoice_sv")
+    #     _logger.warning("Account_move_invoice_sv [WRITE-PRE] move_ids=%s, vals=%s", self.ids, vals)
+    #     tb_str = ''.join(traceback.format_stack())
+    #     _logger.debug("Account_move_invoice_sv [WRITE-PRE-STACK] Stack:\n%s", tb_str)
+    #
+    #     # Ejecutar write original
+    #     res = super().write(vals)
+    #
+    #     # Log posterior al write
+    #     _logger.warning("[WRITE-POST invoice_sv] move_ids=%s, vals=%s", self.ids, vals)
+    #
+    #     # Manejo de descuentos
+    #     campos_descuento = {'descuento_gravado', 'descuento_exento', 'descuento_no_sujeto', 'descuento_global_monto'}
+    #     if any(c in vals for c in campos_descuento):
+    #         _logger.info("[WRITE-DESCUENTO] Se detectaron campos de descuento, agregando líneas de seguro/flete")
+    #         self.agregar_lineas_seguro_flete()
+    #
+    #     return res
 
     # def create(self, vals_list_invoice):
     #     # Crear una lista para almacenar los movimientos creados

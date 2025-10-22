@@ -12,6 +12,11 @@
                         <field name="sit_referencia" invisible="journal_code == 'SLR' or move_type == 'in_invoice'"/>
                         <!--                        <field name="sit_observaciones" invisible="move_type == 'in_invoice' and not codigo_tipo_documento"/>-->
                         <!--                        <field name="sit_observaciones" string="Descripción" invisible="move_type != 'in_invoice' or codigo_tipo_documento"/>-->
+                    </div>
+                </xpath>
+
+                <xpath expr="//field[@name='invoice_vendor_bill_id']" position="after">
+                    <div class="mt-2 mb-2" invisible="journal_code == 'SLR'">
                         <label for="sit_regimen" invisible="journal_code != 'EXP'"/>
                         <field name="sit_regimen" string="Régimen de Exportación" invisible="journal_code != 'EXP'"/>
                     </div>
@@ -19,7 +24,7 @@
 
                 <xpath expr="//label[@for='journal_id']" position="after">
                     <!--                    <field name="invoice_payment_term_name" invisible="1"/>-->
-                    <group string="Pago Hacienda" invisible="move_type != 'out_invoice' and not codigo_tipo_documento">
+                    <group string="Pago Hacienda" invisible="(move_type != 'out_invoice' and not codigo_tipo_documento) or not sit_facturacion">
                         <field name="invoice_payment_term_id" string="Términos de Pago"/>
                         <field name="condiciones_pago" string="Condiciones de Pago"
                                options="{'no_open': True, 'no_create': True}"/>
@@ -30,8 +35,7 @@
                     </group>
                 </xpath>
                 <notebook>
-                    <page string="FEL" name="certificados2"
-                          invisible="journal_code == 'SLR' or not codigo_tipo_documento">
+                    <page string="FEL" name="certificados2" invisible="journal_code == 'SLR' or not sit_facturacion or (move_type in('in_invoice', 'in_refund') and (not codigo_tipo_documento or codigo_tipo_documento != '14') )">
                         <group>
                             <field name="sit_qr_hacienda" widget="image" invisible="0"/>
                             <field name="sit_json_respuesta" invisible="1"/>
