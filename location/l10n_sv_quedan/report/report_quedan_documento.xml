@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <!-- Bloque: definición de formato de papel para el reporte del Quedán -->
     <record id="paperformat_quedan" model="report.paperformat">
@@ -30,82 +31,92 @@
     <!-- Plantilla QWeb del Quedán -->
     <template id="report_quedan_documento_template">
         <t t-name="l10n_sv_quedan.report_quedan_documento_template">
-            <t t-call="web.html_container">
-                <t t-foreach="docs" t-as="doc">
-                    <div class="page">
-                        <!-- Encabezado: empresa y número del Quedán -->
-                        <h1 style="text-align:center; font-size: 16px; font-weight: 700;">
-                            <t t-esc="doc.company_id.name"/>
-                        </h1>
-                        <p style="text-align:center;">
-                            <t t-esc="doc.name"/>
-                        </p>
-
-                        <!-- Datos de contacto de la empresa (opcionales) -->
-                        <div style="width:100%; display:grid;">
-                            <article style="display:flex; gap: 1%; justify-content:center; height: 15px;">
-                                <p>Teléfono:</p>
-                                <t t-esc="doc.company_id.phone or ''"/>
-                            </article>
-                            <article style="display:flex; gap: 1%; justify-content:center;">
-                                <p>Correo:</p>
-                                <t t-esc="doc.company_id.email or ''"/>
-                            </article>
-                        </div>
-
-                        <!-- Datos del Quedán -->
-                        <p>
-                            <strong>A favor de:</strong>
-                            <t t-esc="doc.partner_id.name"/>
-                        </p>
-                        <p>
-                            <strong>Fecha de pago:</strong>
-                            <!-- Formato local de fecha -->
-                            <t t-esc="format_date(doc.fecha_programada)"/>
-                        </p>
-                        <p>
-                            <strong>Observaciones:</strong>
-                            <t t-esc="doc.observaciones or ''"/>
-                        </p>
-
-                        <br/>
-
-                        <!-- Tabla de facturas incluidas -->
-                        <h2 style="font-size:16px; font-weight:700;">Facturas incluidas</h2>
-                        <table style="width:100%; border-collapse:collapse;" border="1">
-                            <thead>
-                                <tr>
-                                    <th style="border:1px solid #000; padding:6px 8px;">Referencia</th>
-                                    <th style="border:1px solid #000; padding:6px 8px;">Fecha de emisión</th>
-                                    <th style="border:1px solid #000; padding:6px 8px;">Total</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <t t-foreach="doc.factura_ids" t-as="invoice">
-                                    <tr>
-                                        <td style="border:1px solid #000; padding:6px 8px;">
-                                            <t t-esc="invoice.name"/>
-                                        </td>
-                                        <td style="border:1px solid #000; padding:6px 8px;">
-                                            <t t-esc="format_date(invoice.invoice_date)"/>
-                                        </td>
-                                        <td style="border:1px solid #000; padding:6px 8px; text-align:right;">
-                                            <!-- Formateo monetario usando la moneda del Quedán -->
-                                            <t t-esc="format_amount(invoice.amount_total, doc.currency_id)"/>
-                                        </td>
-                                    </tr>
+            <t t-name="l10n_sv_quedan.report_quedan_documento_template">
+                <t t-call="web.html_container">
+                    <meta charset="UTF-8"/>
+                    <t t-foreach="docs" t-as="doc">
+                        <div class="page">
+                            <div style="position: absolute; z-index: -10; top:0; left:0;">
+                                <t t-if="doc.company_id.logo_web">
+                                    <img id="logo"
+                                         t-att-src="'data:image/png;base64,%s' % doc.company_id.logo_web.decode('utf-8')"
+                                         style="width:10vw;"/>
                                 </t>
-                            </tbody>
-                        </table>
+                            </div>
 
-                        <br/>
 
-                        <!-- Total del Quedán -->
-                        <p style="text-align:right;">
-                            <strong>Monto total: </strong>
-                            <t t-esc="format_amount(doc.monto_total, doc.currency_id)"/>
-                        </p>
-                    </div>
+                            <h1 style="text-align:center; font-size: 16px; font-weight: 700;">
+                                <t t-esc="doc.company_id.name"/>
+                            </h1>
+                            <p style="text-align:center; line-height: 0.5rem;">
+                                <t t-esc="doc.name"/>
+                            </p>
+
+                            <div style="width: 100%; display:grid; padding-top: 0.5rem;">
+                                <article>
+                                    <p style="text-align: center; line-height: 0.5rem;">Telefono:
+                                        <t t-esc="doc.company_id.phone"/>
+                                    </p>
+                                </article>
+                                <article>
+                                    <p style="text-align: center;  line-height: 0.5rem;">Correo:
+                                        <t t-esc="doc.company_id.email"/>
+                                    </p>
+                                </article>
+                            </div>
+
+                            <div style="margin-top: 2%;  padding: 1%;">
+                                <p style="line-height: 0.5rem;">
+                                    <strong>A favor de:</strong>
+                                    <t t-esc="doc.partner_id.name"/>
+                                </p>
+                                <p style="line-height: 0.5rem;">
+                                    <strong>Fecha de pago:</strong>
+                                    <t t-esc="doc.fecha_programada"/>
+                                </p>
+                                <p style="line-height: 0.5rem;">
+                                    <strong>Observaciones:</strong>
+                                    <t t-esc="doc.observaciones"/>
+                                </p>
+                            </div>
+
+                            <br/>
+
+                            <h2 style="font-size: 16px; font-weight: 700;">Facturas incluidas</h2>
+                            <table style="width:100%; border-collapse:collapse;" border="1">
+                                <thead>
+                                    <tr>
+                                        <th style="border: solid rgba(0,0,0,0.5) 1px; padding: 1% 1%;">Referencia</th>
+                                        <th style="border: solid rgba(0,0,0,0.5) 1px; padding: 1% 1%;">Fecha de
+                                            emisión
+                                        </th>
+                                        <th style="border: solid rgba(0,0,0,0.5) 1px; padding: 1% 1%;">Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <t t-foreach="doc.factura_ids" t-as="invoice">
+                                        <tr>
+                                            <td style="border: solid rgba(0,0,0,0.5) 1px; padding: 1% 1%;">
+                                                <t t-esc="invoice.name"/>
+                                            </td>
+                                            <td style="border: solid rgba(0,0,0,0.5) 1px; padding: 1% 1%;">
+                                                <t t-esc="invoice.invoice_date"/>
+                                            </td>
+                                            <td style="border: solid rgba(0,0,0,0.5) 1px; padding: 1% 1%;">
+                                                <t t-esc="invoice.amount_total"/>
+                                            </td>
+                                        </tr>
+                                    </t>
+                                </tbody>
+                            </table>
+
+                            <br/>
+                            <p>
+                                <strong>Monto total:</strong>
+                                <t t-esc="doc.monto_total"/>
+                            </p>
+                        </div>
+                    </t>
                 </t>
             </t>
         </t>
