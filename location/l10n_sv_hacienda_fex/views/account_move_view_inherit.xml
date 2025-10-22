@@ -8,7 +8,7 @@
       <field name="model">account.move</field>
       <field name="inherit_id" ref="account.view_move_form"/>
       <field name="arch" type="xml">
-        <xpath expr="//field[@name='sit_regimen']" position="before">
+        <xpath expr="//field[@name='invoice_vendor_bill_id']" position="after">
             <div class="mt-2 mb-2">
               <label for="tipoItemEmisor" invisible="not codigo_tipo_documento or codigo_tipo_documento != '11'"/>
               <field name="tipoItemEmisor" invisible="not codigo_tipo_documento or codigo_tipo_documento != '11'"/>
