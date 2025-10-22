@@ -77,7 +77,8 @@ class AccountMoveReversal(models.TransientModel):
                 # if not self.journal_id.sequence_id:
                 #     ctx_move['force_name'] = '/'
 
-                reversal_move = self.env['account.move'].with_context(ctx_move).create(base_vals)
+                # reversal_move = self.env['account.move'].with_context(ctx_move).create(base_vals)
+                reversal_move = self.env['account.move'].create(base_vals)
 
                 # --- 2. Copiar líneas de productos ---
                 lines_vals = []

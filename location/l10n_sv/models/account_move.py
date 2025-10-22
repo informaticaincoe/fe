@@ -421,15 +421,14 @@ class sit_account_move(models.Model):
                 _logger.info("SIT | Asignando name secuencial %s para move_id=%s", rec.name, rec.id)
 
                 # Verificar si el diario tiene secuencia configurada
-                if rec.journal_id.sequence_id:
+                if company and not company.sit_facturacion and rec.journal_id.sequence_id:
                     # Asignar el nombre secuencial si existe la secuencia
                     rec.name = rec.journal_id.sequence_id.next_by_id()
                     _logger.info("SIT | Secuencia asignada a move_id=%s: %s", rec.id, rec.name)
                 else:
                     # Asignar un nombre predeterminado o manejar el caso si no hay secuencia
-                    rec.name = '/'
-                    _logger.warning("SIT | Diario sin secuencia, asignado nombre predeterminado a move_id=%s: %s",
-                                    rec.id, rec.name)
+                    # rec.name = '/'
+                    _logger.warning("SIT | Diario sin secuencia, asignando nombre predeterminado a move_id=%s: %s", rec.id, rec.name)
 
             # Aplicar el nombre generado en la base de datos
             if rec.name and rec.name != '/':
@@ -549,16 +548,14 @@ class sit_account_move(models.Model):
         # --- Evitar lógica para compras sin tipo de documento FSE (14) ---
         # Si es una factura de compra y el tipo de documento no es FSE (código 14), omitir lógica personalizada
         if all(inv.move_type in (constants.IN_INVOICE, constants.IN_REFUND)
-               and (
-                       not inv.journal_id.sit_tipo_documento or inv.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)
+               and (not inv.journal_id.sit_tipo_documento or inv.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)
                for inv in self):
             _logger.info("SIT-invoice_sv: Factura de compra detectada, se salta la lógica personalizada.")
             return super().write(vals)
 
         # --- Validación de empresa ---
         if not any(move.company_id.sit_facturacion for move in self):
-            _logger.info(
-                "SIT-write: Ninguna factura pertenece a empresa con facturación activa. Usando write estándar.")
+            _logger.info("SIT-write: Ninguna factura pertenece a empresa con facturación activa. Usando write estándar.")
             res = super().write(vals)
             # for move in self:
             #     if not move.name or move.name == '/':
@@ -603,8 +600,7 @@ class sit_account_move(models.Model):
         # Filtrar facturas que aplican a facturación electrónica
         facturas_aplican = self.filtered(lambda inv: inv.company_id.sit_facturacion and
                                                      (inv.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND) or
-                                                      (inv.move_type in (constants.IN_INVOICE,
-                                                                         constants.IN_REFUND) and inv.journal_id and inv.journal_id.sit_tipo_documento and inv.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FSE))
+                                                      (inv.move_type in (constants.IN_INVOICE, constants.IN_REFUND) and inv.journal_id and inv.journal_id.sit_tipo_documento and inv.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FSE))
                                          )
 
         # Copiar retenciones si se modifican campos clave
