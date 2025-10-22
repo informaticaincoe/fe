@@ -158,8 +158,8 @@ class AccountMove(models.Model):
         es_compra = (self.move_type in (constants.IN_INVOICE, constants.IN_REFUND) and self.journal_id and
                      (not self.journal_id.sit_tipo_documento or self.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE))
 
-        if not es_compra:
-            raise UserError("Solo se pueden invalidar documentos electrónicos.")
+        # if es_compra:
+        #     raise UserError("Solo se pueden invalidar documentos electrónicos.")
 
         # Si no se ha guardado el evento de invalidación (o si no se ha asignado en el formulario):
         _logger.info("SIT-Invaldiacion factura a reemplazar: %s", self.sit_factura_a_reemplazar)

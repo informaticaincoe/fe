@@ -95,8 +95,9 @@ class sit_AccountContingencia(models.Model):
         facturas_no_asignadas = []
         version = None
         mensajes = []
-        cant_lotes = config_utils.get_config_value(self.env, 'cantidad_lote', self.company_id.id) or 400
-        cant_facturas = config_utils.get_config_value(self.env, 'cantidad_factura', self.company_id.id) or 100
+        cant_lotes = int(config_utils.get_config_value(self.env, 'cantidad_lote', self.company_id.id) or 400)
+        cant_facturas = int(config_utils.get_config_value(self.env, 'cantidad_factura', self.company_id.id) or 100)
+
         for lote in self.lote_ids:
             ambiente_test = False
 
@@ -852,11 +853,13 @@ class sit_AccountContingencia(models.Model):
     def check_parametros_contingencia(self):
         # Tipo de documento: iva/nit(campo fax) = 1, dui(campo dui) = 4, otro = 5, pasaporte = 2, extranjero = 3
         if not self.company_id:
-            raise UserError(_('El Nombre de la compañía no definido'))        
+            raise UserError(_('El Nombre de la compañía no definido'))
+
+        _logger.info("SIT-Usuario: %s", self.invoice_user_id)
         if not self.invoice_user_id.partner_id.name: #if not self.company_id.partner_id.user_id.partner_id.name:
             raise UserError(_('El Nombre de Responsable no definido'))        
         if not self.invoice_user_id.partner_id.vat and not self.invoice_user_id.partner_id.dui:
-            raise UserError(_('El Número de Documento no definido')) # raise UserError(_('El Número de RFC no definido'))
+            raise UserError(_('El Número de Documento de Responsable no definido')) # raise UserError(_('El Número de RFC no definido'))
         if not self.company_id.tipoEstablecimiento.codigo:
             raise UserError(_('El tipoEstablecimiento no definido'))        
         if not self.sit_tipo_contingencia:
