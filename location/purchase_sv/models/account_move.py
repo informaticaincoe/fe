@@ -14,6 +14,7 @@ _logger = logging.getLogger(__name__)
 
 try:
     from odoo.addons.common_utils.utils import constants
+
     _logger.info("SIT Modulo constants [purchase-account_move]")
 except ImportError as e:
     _logger.error(f"Error al importar 'constants': {e}")
@@ -21,7 +22,6 @@ except ImportError as e:
 
 
 class AccountMove(models.Model):
-
     _inherit = 'account.move'
 
     exp_duca_id = fields.One2many('exp_duca', 'move_id', string='DUCAs')
@@ -49,7 +49,7 @@ class AccountMove(models.Model):
 
     fecha_iva = fields.Date(string="Fecha IVA")
 
-    #CAMPOS NUMERICOS EN DETALLE DE COMPRAS
+    # CAMPOS NUMERICOS EN DETALLE DE COMPRAS
     # comp_exenta_nsuj = fields.Float(
     #     string="Compras Internas Exentas y/o No Sujetas",
     #     digits=(16, 2),  # 16 dígitos totales, 2 decimales
@@ -98,10 +98,92 @@ class AccountMove(models.Model):
         readonly=False,  # editable siempre
         copy=False,
         default='/',
-        help="Editable siempre por el usuario"
+        help="Editable siempre por el usuario",
+        # compute="_compute_unique_name"
     )
 
+
+    # Verificar que el name (o numero de control) sea unico
+    @api.constrains('name', 'company_id')
+    def _check_unique_name(self):
+        for move in self:
+            name = (move.name or '').strip()
+            # Permitir '/' y vacío (borradores) y saltar si no hay nombre
+            if not name or name == '/':
+                continue
+
+            # Busca duplicado en la misma compañía, excluyendo el propio registro
+            dup = self.search([
+                ('id', '!=', move.id),
+                ('company_id', '=', move.company_id.id),
+                ('name', '=', name),
+            ], limit=1)
+
+            if dup:
+                # Mensaje claro al usuario
+                raise ValidationError(_(
+                    "El número de documento '%(name)s' ya existe",
+                ) % {
+                      'name': name,
+                      'doc': dup.display_name or dup.name,
+                })
+
+    # Verificar que el sello sea unico
+    @api.constrains('hacienda_selloRecibido', 'company_id', 'move_type')
+    def _check_unique_sello(self):
+        for move in self:
+            # Solo aplica a compras
+            if move.move_type not in ('in_invoice', 'in_refund'):
+                continue
+
+            sello = self._norm_sello(move.hacienda_selloRecibido)
+            if not sello:
+                continue
+
+            dup = self.search([
+                ('id', '!=', move.id),
+                ('company_id', '=', move.company_id.id),
+                ('move_type', 'in', ['in_invoice', 'in_refund']),
+                ('hacienda_selloRecibido', '=', sello),
+            ], limit=1)
+
+            if dup:
+                raise ValidationError(_("El Sello de recepción '%(sello)s' ya existe en el documento %(doc)s.") % {
+                    'sello': sello,
+                    'doc': dup.name or dup.display_name,
+                })
+
+    # Verificar que el sello sea unico
+    @api.constrains('hacienda_codigoGeneracion_identificacion', 'company_id', 'move_type')
+    def _check_unique_cod_generacion(self):
+        for move in self:
+            if move.move_type not in ('in_invoice', 'in_refund'):
+                continue
+
+            codigo_generacion = self._norm_sello(move.hacienda_codigoGeneracion_identificacion)
+            if not codigo_generacion:
+                continue
+
+            dup = self.search([
+                ('id', '!=', move.id),
+                ('company_id', '=', move.company_id.id),
+                ('move_type', 'in', ['in_invoice', 'in_refund']),
+                ('hacienda_codigoGeneracion_identificacion', '=', codigo_generacion),
+            ], limit=1)
+
+            if dup:
+                raise ValidationError(_("El codigo de generacion '%(codigo_generacion)s' ya existe en el documento %(doc)s.") % {
+                    'codigo_generacion': codigo_generacion,
+                    'doc': dup.name or dup.display_name,
+                })
+
     _original_name = fields.Char(compute='_compute_original_name', store=False)
+
+    @staticmethod
+    def _norm_sello(v):
+        v = (v or '')
+        return v.replace('-', '').replace(' ', '').upper().strip()
+
 
     sit_amount_tax_system = fields.Monetary(
         string="SIT Amount Tax System",

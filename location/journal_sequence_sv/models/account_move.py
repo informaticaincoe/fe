@@ -118,7 +118,7 @@ class AccountMove(models.Model):
         # Si quieres forzar reset del nombre cuando FE ON:
         if self.env.company.sit_facturacion and self.name == '/' and (
                 self.move_type not in (constants.IN_INVOICE, constants.IN_REFUND) or
-                (self.move_type == constants.IN_INVOICE and self.journal_id.sit_tipo_documento and self.journal_id.sit_tipo_documento.codigo == constantsCOD_DTE_FSE)
+                (self.move_type == constants.IN_INVOICE and self.journal_id.sit_tipo_documento and self.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FSE)
         ):
             _logger.info("SIT-ONCHANGE: FE activado, reseteando name a '/' (antes name=%s)", self.name)
             # self.name = '/'
