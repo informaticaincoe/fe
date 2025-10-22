@@ -1240,7 +1240,7 @@ class AccountMove(models.Model):
                     if isinstance(Resultado, dict) and Resultado.get('type') == 'ir.actions.client':
                         mensajes_contingencia.append(Resultado)
                     else:
-                        _logger.info("=== SIT Error en DTE")
+                        _logger.info("=== SIT DTE no procesado o en entorno de pruebas")
                         # Lanzar error al final si fue rechazado
                         if estado:
                             _logger.info("SIT Estado DTE guardado: %s", estado)
@@ -2330,8 +2330,7 @@ class AccountMove(models.Model):
 
         # Filtrar solo facturas de venta o compra
         invoices = self.filtered(
-            lambda inv: inv.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND, constants.IN_INVOICE,
-                                          constants.IN_REFUND))
+            lambda inv: inv.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND, constants.IN_INVOICE, constants.IN_REFUND))
         if not invoices:
             # Si no hay facturas, llamar al método original sin hacer validaciones DTE
             return super().action_post()
@@ -2353,8 +2352,7 @@ class AccountMove(models.Model):
             _logger.info("SIT Self hacienda_ws: %s, Tipo de Movimiento: %s", inv.id, inv.move_type)
 
             if inv.company_id and not inv.company_id.sit_facturacion:
-                _logger.info(
-                    "SIT No aplica facturación electrónica para la factura %s. Se omiten validaciones iniciales.",
+                _logger.info("SIT No aplica facturación electrónica para la factura %s. Se omiten validaciones iniciales.",
                     inv.name)
                 # return super().action_post()
                 continue
@@ -2374,15 +2372,28 @@ class AccountMove(models.Model):
             doc_electronico = bool(inv.journal_id and inv.journal_id.sit_tipo_documento)
             if not inv.env.context.get('skip_dte_validations', False):
                 # Verificar si ya se completaron las validaciones esenciales para continuar
+
+                # Validar formato del name
+                if inv.company_id.sit_facturacion or doc_electronico:
+                    # Formato general del numero de control: DTE-01-M001P001-000000000000001
+                    pattern = r"^DTE-\d{2}-[A-Z0-9]{8}-\d{15}$"
+                    if not re.match(pattern, inv.name):
+                        raise ValidationError(_(
+                            "Número de control DTE inválido: %s.\n"
+                            "Formato esperado: DTE-<tipo_documento>-<codigo_establecimiento+punto_de_venta>-<correlativo de 15 dígitos> \n"
+                            "Por ejemplo: DTE-00-E001P001-000000000000001."
+                        ) % inv.name)
+                    # raise ValidationError(_("Número de control DTE inválido para la factura %s.") % inv.name)
+
                 if not inv.invoice_date:
                     _logger.warning("SIT | Fecha del documento no seleccionada.")
                     raise ValidationError("Debe seleccionar la fecha del documento.")
 
-                if doc_electronico and not inv.condiciones_pago:
+                if (inv.company_id.sit_facturacion or doc_electronico) and not inv.condiciones_pago:
                     _logger.warning("SIT | No se ha seleccionado una Condición de la Operación.")
                     raise ValidationError("Debe seleccionar una Condicion de la Operación.")
 
-                if doc_electronico and not inv.forma_pago:
+                if (inv.company_id.sit_facturacion or doc_electronico) and not inv.forma_pago:
                     _logger.warning("SIT | No se ha seleccionado una Forma de Pago.")
                     raise ValidationError("Seleccione una Forma de Pago.")
 
@@ -2394,15 +2405,14 @@ class AccountMove(models.Model):
                     _logger.warning("SIT | El documento relacionado aún no tiene el sello de Hacienda.")
                     raise ValidationError("El documento relacionado aún no cuenta con el sello de Hacienda.")
 
-                if doc_electronico and not inv.tipo_ingreso_id and inv.journal_id and inv.journal_id.sit_tipo_documento and inv.journal_id.sit_tipo_documento.codigo in (
+                if (inv.company_id.sit_facturacion or doc_electronico) and not inv.tipo_ingreso_id and inv.journal_id and inv.journal_id.sit_tipo_documento and inv.journal_id.sit_tipo_documento.codigo in (
                         constants.COD_DTE_FE, constants.COD_DTE_FEX, constants.COD_DTE_CCF, constants.COD_DTE_NC,
                         constants.COD_DTE_ND):
-                    _logger.warning("SIT | No se ha seleccionado el tipo de ingreso para el documento electrónico %s.",
-                                    inv.name)
+                    _logger.warning("SIT | No se ha seleccionado el tipo de ingreso para el documento electrónico %s.", inv.name)
                     raise ValidationError(
                         "Debe seleccionar un tipo de ingreso antes de validar el documento electrónico.")
 
-                if doc_electronico and not inv.tipo_operacion and inv.journal_id and inv.journal_id.sit_tipo_documento and inv.journal_id.sit_tipo_documento.codigo in (
+                if (inv.company_id.sit_facturacion or doc_electronico) and not inv.tipo_operacion and inv.journal_id and inv.journal_id.sit_tipo_documento and inv.journal_id.sit_tipo_documento.codigo in (
                         constants.COD_DTE_FE, constants.COD_DTE_FEX, constants.COD_DTE_CCF, constants.COD_DTE_NC,
                         constants.COD_DTE_ND):
                     _logger.warning(
@@ -2410,7 +2420,7 @@ class AccountMove(models.Model):
                     raise ValidationError(
                         "Debe seleccionar un tipo de operación antes de validar el documento electrónico.")
 
-                if (doc_electronico and
+                if ((inv.company_id.sit_facturacion or doc_electronico) and
                         inv.journal_id and inv.journal_id.sit_tipo_documento and
                         inv.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FSE and
                         (
