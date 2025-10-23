@@ -381,6 +381,10 @@ class sit_account_move(models.Model):
     def create(self, vals_list):
         _logger.info("SIT | Iniciando create unificado para AccountMove. Vals_list: %s", vals_list)
 
+        # BYPASS para movimientos que no son factura/nota (nómina, asientos manuales, recibos)
+        if any(v.get('move_type') in ('entry', 'out_receipt', 'in_receipt') for v in vals_list):
+            return super().create(vals_list)
+
         # --- Llenar name provisional '/' antes de crear registros ---
         for vals in vals_list:
             # Buscar el diario si está en los valores

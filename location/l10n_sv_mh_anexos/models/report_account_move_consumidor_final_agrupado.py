@@ -12,6 +12,9 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.Model):
     _description = "Facturas consumidor final agrupadas por día, tipo y clase de documento"
     _auto = False
 
+    hacienda_estado = fields.Char(string="Hacienda estado", readonly=True)
+    company_id = fields.Many2one('res.company', readonly=True)
+
     invoice_date = fields.Date("Fecha", readonly=True)
 
     hacienda_codigoGeneracion_identificacion = fields.Char("Codigo generación", readonly=True)
@@ -24,12 +27,16 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.Model):
         readonly=True,
     )
 
+
+
     # nuevo: incluir journal_id
     journal_id = fields.Many2one(
         "account.journal",
         string="Diario",
         readonly=True
     )
+
+
 
     codigo_tipo_documento = fields.Char(
         string="Código tipo documento",
@@ -98,18 +105,16 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.Model):
         compute='_compute_get_numero_documento_al',
     )
 
-
-    # hacienda_selloRecibido = fields.Char(
-    #     string="Sello recibido",
-    #     readonly=True,
-    #     store=True
-    # )
-
     hacienda_selloRecibido = fields.Char(
         string="Sello Recibido",
         compute="_compute_hacienda_selloRecibido",
-        store=False,
     )
+
+    sit_evento_invalidacion = fields.Integer(
+        string="Evento de invalidacion",
+        readonly=True,
+    )
+
 
     exportaciones_dentro_centroamerica = fields.Monetary(
         string="Exportaciones dentro del area de centroamerica",
@@ -270,18 +275,24 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.Model):
 
     cantidad_facturas = fields.Integer("Cantidad de facturas", readonly=True)
 
-    monto_total_operacion = fields.Monetary("Monto total operación", readonly=True)
     monto_total_impuestos = fields.Monetary("IVA operación", readonly=True)
     total_exento = fields.Monetary("Ventas exentas", readonly=True)
     total_no_sujeto = fields.Monetary("Ventas no sujetas", readonly=True)
     total_operacion = fields.Monetary("Total de ventas", readonly=True)
+    total_operacion_suma = fields.Monetary(
+        string="Total operación",
+        compute="_compute_total_operacion_suma",
+        currency_field="currency_id",
+        readonly=True,
+        store=False,  # en _auto=False normalmente lo dejamos en memoria
+    )
 
     currency_id = fields.Many2one("res.currency", string="Moneda", readonly=True)
 
-    # partner_id = fields.Many2one(
-    #     'res.partner',
-    #     string='Cliente'
-    # )
+    @api.depends('total_operacion', 'currency_id')
+    def _compute_total_operacion_suma(self):
+        for rec in self:
+            rec.total_operacion_suma = (rec.total_operacion or 0.0)
 
     @api.depends('name')
     def _compute_get_clase_documento(self):
@@ -291,7 +302,7 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.Model):
             else:
                 record.clase_documento = '1'
 
-    @api.depends('invoice_date', 'journal_id', 'codigo_tipo_documento')
+    @api.depends('name','invoice_date', 'journal_id', 'codigo_tipo_documento')
     def _compute_total_gravado_local(self):
         Move = self.env['account.move']
         for rec in self:
@@ -473,6 +484,7 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.Model):
     @api.depends('invoice_date', 'journal_id', 'codigo_tipo_documento')
     def _compute_get_numero_documento_del(self):
         for record in self:
+
             move_del = self.env['account.move'].search([
                 ('invoice_date', '=', record.invoice_date),
                 ('journal_id', '=', record.journal_id.id),
@@ -512,42 +524,53 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.Model):
 
     def init(self):
         self.env.cr.execute("""
-                            CREATE
-                            OR REPLACE VIEW report_account_move_consumidor_final_agrupado AS (
+            CREATE OR REPLACE VIEW report_account_move_consumidor_final_agrupado AS (
                 SELECT
-                    MIN(am.id) AS id,
-                    am.invoice_date::date AS invoice_date,
+                    MIN(am.id)                      AS id,
+                    am.company_id                   AS company_id,
+                    am.invoice_date::date           AS invoice_date,
+                    am.journal_id                   AS journal_id,
+                    am.codigo_tipo_documento        AS codigo_tipo_documento,
+                    am.clase_documento_id           AS clase_documento_id,
+
+                    MIN(am.hacienda_estado)         AS hacienda_estado,
+                    MIN(am.name)                    AS name,
+                    MIN(am."hacienda_selloRecibido")              AS "hacienda_selloRecibido",
+                    MIN(am."sit_evento_invalidacion")    AS "sit_evento_invalidacion",
+                    MIN(am.tipo_operacion)  AS tipo_operacion,
+                    COUNT(am.id)                    AS cantidad_facturas,
+
+                    -- rangos del día
+                    MIN(am.name)                    AS numero_resolucion_consumidor_final,
+                    MIN(am.name)                    AS numero_control_interno_del,
+                    MAX(am.name)                    AS numero_control_interno_al,
+
+                    -- totales
+                    SUM(am.amount_tax)              AS monto_total_impuestos,
+                    SUM(am.total_exento)            AS total_exento,
+                    SUM(am.total_no_sujeto)         AS total_no_sujeto,
+                    SUM(am.total_gravado)           AS total_gravado,
+                    SUM(am.total_operacion)         AS total_operacion,
+
+                    (SELECT id FROM res_currency WHERE name='USD' LIMIT 1) AS currency_id
+                FROM account_move am
+                WHERE am.state = 'posted'
+                  AND am.invoice_date IS NOT NULL
+                  AND am.codigo_tipo_documento IN ('01','11')
+                  AND am.move_type IN ('out_invoice','out_refund')
+                  AND am.hacienda_estado IN ('PROCESADO')
+                  AND am.sit_evento_invalidacion IS NULL
+                  -- AND am."hacienda_selloRecibido" IS NOT NULL 
+                  -- DESCOMENTAR ESTA LINEA DESPUES DE PRUEBAS PARA QUE SOLO SE LEAN LAS FACTURAS PROCESADAS
+                  
+                GROUP BY
+                    am.company_id,
+                    am.invoice_date::date,
                     am.journal_id,
                     am.codigo_tipo_documento,
-                    am.clase_documento_id,
-
-                    MIN(am.name) AS name,
-
-                    COUNT(am.id) AS cantidad_facturas,
-
-                    -- ✅ Primera y última factura del día
-                    MIN(am.name) AS numero_resolucion_consumidor_final,
-                    --MIN(am.hacienda_codigoGeneracion_identificacion) AS numero_documento_del,
-                    --MAX(am.hacienda_codigoGeneracion_identificacion) AS numero_documento_al,
-
-                    -- ✅ Si quieres también por número de control interno
-                    MIN(am.name) AS numero_control_interno_del,
-                    MAX(am.name) AS numero_control_interno_al,
-
-                    -- Totales
-                    SUM(am.total_operacion) AS monto_total_operacion,
-                    SUM(am.amount_tax) AS monto_total_impuestos,
-                    SUM(am.total_exento) AS total_exento,
-                    SUM(am.total_no_sujeto) AS total_no_sujeto,
-                    SUM(am.total_gravado) AS total_gravado,
-                    SUM(am.total_operacion) AS total_operacion,
-
-                    (SELECT id FROM res_currency WHERE name='USD' LIMIT 1) as currency_id
-                FROM account_move am
-                WHERE am.codigo_tipo_documento IN ('01','11','03','05')
-                GROUP BY am.invoice_date::date, am.journal_id, am.codigo_tipo_documento, am.clase_documento_id
+                    am.clase_documento_id
             )
-                            """)
+        """)
 
     def export_csv_from_action(self):
         ctx = self.env.context

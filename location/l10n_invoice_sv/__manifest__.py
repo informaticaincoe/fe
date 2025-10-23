@@ -26,12 +26,6 @@
     'version': '17.1',
     'depends': ['base', 'l10n_sv', 'account', 'product', 'mail'],
     'assets': {
-        'web.assets_backend': [
-            # 'l10n_invoice_sv/static/src/js/form_visibility_handler.js',
-        ],
-        'web.assets_frontend': [
-            'l10n_invoice_sv/static/src/css/bootstrap.min.css',
-        ],
         'web.assets_pdf': [
             'l10n_invoice_sv/static/src/css/bootstrap.min.css',
         ],

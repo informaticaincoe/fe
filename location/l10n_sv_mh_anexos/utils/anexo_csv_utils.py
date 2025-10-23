@@ -21,8 +21,8 @@ class AnexoCSVUtils(models.AbstractModel):
             # --- claves propias ---
             "ANX_CF_AGRUPADO": [
                 "invoice_date",
-                "clase_documento_display",
-                "codigo_tipo_documento_display",
+                "clase_documento",
+                "codigo_tipo_documento",
                 "numero_resolucion_consumidor_final",
                 "hacienda_selloRecibido",
                 "numero_control_interno_del",
@@ -39,10 +39,9 @@ class AnexoCSVUtils(models.AbstractModel):
                 "exportaciones_de_servicio",
                 "ventas_tasa_cero",
                 "ventas_cuenta_terceros",
-                "monto_total_operacion",
-                "total_operacion",
-                "tipo_operacion_display",
-                "tipo_ingreso_display",
+                "total_operacion_suma",
+                "tipo_operacion_codigo",
+                "tipo_ingreso_codigo",
                 "numero_anexo",
             ],
             "ANX_CONTRIBUYENTE": [
@@ -113,7 +112,7 @@ class AnexoCSVUtils(models.AbstractModel):
                 "codigo_tipo_documento",
                 "hacienda_codigoGeneracion_identificacion",
                 "Número de documento",
-                "total_operacion",
+                "tipo_operacion_display",
                 "amount_tax",
                 "invoice_year",
                 "numero_anexo",
