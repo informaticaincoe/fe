@@ -99,7 +99,7 @@
                         groups="account.group_account_invoice"/>
                 <button name="action_post" type="object" string="Validar en TEST" class="oe_highlight"
                         groups="account.group_account_invoice"
-                        invisible="not sit_facturacion or (move_type in('in_invoice', 'in_refund') and not codigo_tipo_documento)"/>
+                        invisible="not sit_facturacion or (move_type in('in_invoice', 'in_refund', 'entry') and not codigo_tipo_documento)"/>
                 <button name="generar_qr" string="Generar QR" type="object" class="oe_highlight"
                         invisible="move_type in('entry', 'in_invoice', 'in_refund') or not sit_facturacion"/>
             </button>
