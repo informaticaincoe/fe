@@ -560,8 +560,7 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.Model):
                   AND am.move_type IN ('out_invoice','out_refund')
                   AND am.hacienda_estado IN ('PROCESADO')
                   AND am.sit_evento_invalidacion IS NULL
-                  -- AND am."hacienda_selloRecibido" IS NOT NULL 
-                  -- DESCOMENTAR ESTA LINEA DESPUES DE PRUEBAS PARA QUE SOLO SE LEAN LAS FACTURAS PROCESADAS
+                  AND am."hacienda_selloRecibido" IS NOT NULL
                   
                 GROUP BY
                     am.company_id,
