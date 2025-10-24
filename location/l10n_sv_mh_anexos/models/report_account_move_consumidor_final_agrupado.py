@@ -27,16 +27,12 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.Model):
         readonly=True,
     )
 
-
-
     # nuevo: incluir journal_id
     journal_id = fields.Many2one(
         "account.journal",
         string="Diario",
         readonly=True
     )
-
-
 
     codigo_tipo_documento = fields.Char(
         string="Código tipo documento",
@@ -75,7 +71,7 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.Model):
     )
 
     numero_resolucion_consumidor_final = fields.Char(
-        string="Clase de documento",
+        string="Número de resolución",
         compute='_compute_get_numero_resolucion_consumidor_final',
         readonly=True,
         store=False,
@@ -95,8 +91,6 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.Model):
         compute='_compute_get_numero_control_documento_interno_al',
     )
 
-
-
     numero_documento_del = fields.Char(
         compute='_compute_get_numero_documento_del',
     )
@@ -110,11 +104,23 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.Model):
         compute="_compute_hacienda_selloRecibido",
     )
 
+    has_sello_anulacion = fields.Boolean(
+        string="Tiene Sello Anulación",
+        compute="_compute_has_sello_anulacion",
+        store=True,
+        index=True,
+    )
+
+    @api.depends('sit_evento_invalidacion.hacienda_selloRecibido_anulacion')
+    def _compute_has_sello_anulacion(self):
+        for move in self:
+            move.has_sello_anulacion = any(
+                bool(x.hacienda_selloRecibido_anulacion) for x in move.sit_evento_invalidacion)
+
     sit_evento_invalidacion = fields.Integer(
         string="Evento de invalidacion",
         readonly=True,
     )
-
 
     exportaciones_dentro_centroamerica = fields.Monetary(
         string="Exportaciones dentro del area de centroamerica",
@@ -302,7 +308,7 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.Model):
             else:
                 record.clase_documento = '1'
 
-    @api.depends('name','invoice_date', 'journal_id', 'codigo_tipo_documento')
+    @api.depends('name', 'invoice_date', 'journal_id', 'codigo_tipo_documento')
     def _compute_total_gravado_local(self):
         Move = self.env['account.move']
         for rec in self:
@@ -459,7 +465,7 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.Model):
         for record in self:
             record.numero_resolucion_consumidor_final = record.name
 
-    @api.depends( )
+    @api.depends()
     def _compute_get_numero_control_documento_interno_del(self):
         for record in self:
             move = self.env['account.move'].search([
@@ -484,7 +490,6 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.Model):
     @api.depends('invoice_date', 'journal_id', 'codigo_tipo_documento')
     def _compute_get_numero_documento_del(self):
         for record in self:
-
             move_del = self.env['account.move'].search([
                 ('invoice_date', '=', record.invoice_date),
                 ('journal_id', '=', record.journal_id.id),
@@ -561,7 +566,7 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.Model):
                   AND am.hacienda_estado IN ('PROCESADO')
                   AND am.sit_evento_invalidacion IS NULL
                   AND am."hacienda_selloRecibido" IS NOT NULL
-                  
+
                 GROUP BY
                     am.company_id,
                     am.invoice_date::date,
@@ -570,7 +575,6 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.Model):
                     am.clase_documento_id
             )
         """)
-
     def export_csv_from_action(self):
         ctx = self.env.context
         numero_anexo = str(ctx.get("numero_anexo") or "")
@@ -617,4 +621,3 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.Model):
             "url": f"/web/content/{att.id}?download=true",
             "target": "self",
         }
-

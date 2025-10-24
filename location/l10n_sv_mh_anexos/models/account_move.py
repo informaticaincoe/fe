@@ -22,11 +22,35 @@ except ImportError as e:
 class account_move(models.Model):
     _inherit = 'account.move'
 
+
     @staticmethod
     def _only_digits(val):
         """Devuelve solo los dígitos del valor (sin guiones/plecas/espacios)."""
         import re
         return re.sub(r'\D', '', val or '')
+
+    hacienda_estado = fields.Char(string="Hacienda estado", readonly=True)
+    company_id = fields.Many2one('res.company', readonly=True)
+
+    sit_evento_invalidacion = fields.Many2one(
+        'account.move.invalidation',  # <--- Definición 1 (Many2one)
+        string='Evento de invalidación',
+        ondelete='set null',
+        index=True,
+    )
+
+    has_sello_anulacion = fields.Boolean(
+        string="Tiene Sello Anulación",
+        compute="_compute_has_sello_anulacion",
+        store=False,
+        index=True,
+    )
+
+    @api.depends('sit_evento_invalidacion.hacienda_selloRecibido_anulacion')
+    def _compute_has_sello_anulacion(self):
+        for move in self:
+            move.has_sello_anulacion = any(
+                bool(x.hacienda_selloRecibido_anulacion) for x in move.sit_evento_invalidacion)
 
     # consumidor final
     tipo_ingreso_id = fields.Many2one(
@@ -133,9 +157,10 @@ class account_move(models.Model):
         readonly=True,
         store=False,
     )
+
     codigo_tipo_documento = fields.Char(
-        related='journal_id.sit_tipo_documento.codigo',
-        store=False
+        string="Código tipo documento",
+        readonly=True
     )
 
     codigo_tipo_documento_display = fields.Char(
@@ -541,7 +566,7 @@ class account_move(models.Model):
     )
 
 
-    @api.depends('journal_id')
+    @api.depends('name')
     def _compute_get_clase_documento(self):
         for record in self:
             if record.name.startswith("DTE"):
@@ -914,7 +939,7 @@ class account_move(models.Model):
     @api.depends('journal_id')
     def _compute_tipo_detalle(self):
         for record in self:
-            if record.sit_evento_invalidacion:
+            if record.has:
                 record.tipo_de_detalle = 'D'
             else:
                 record.tipo_de_detalle = ''

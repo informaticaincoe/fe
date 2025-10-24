@@ -116,6 +116,18 @@ class AnexoCSVUtils(models.AbstractModel):
                 "amount_tax",
                 "invoice_year",
                 "numero_anexo",
+            ],
+            "ANX_ANULADOS": [
+                "name",
+                "clase_documento",
+                "desde_tiquete_preimpreso",
+                "hasta_tiquete_preimpreso",
+                "codigo_tipo_documento",
+                "tipo_de_detalle",
+                "hacienda_selloRecibido",
+                "desde",
+                "hasta",
+                "hacienda_codigoGeneracion_identificacion"
             ]
         }
         return mapping.get(str(key), [])
@@ -167,7 +179,7 @@ class AnexoCSVUtils(models.AbstractModel):
                 if fname in (
                         "hacienda_codigoGeneracion_identificacion",
                         "hacienda_selloRecibido", "name",
-                        "dui_cliente", "nit_o_nrc_anexo_contribuyentes",
+                        "dui_cliente", "nit_o_nrc_anexo_contribuyentes", "documento_sujeto_excluido"
                 ):
                     clean = clean.replace("-", "")
 
@@ -181,6 +193,7 @@ class AnexoCSVUtils(models.AbstractModel):
                         clean = fields.Date.to_date(val).strftime("%d%m%Y")
                     except Exception:
                         pass
+
 
                 # Sanitizar comillas/saltos
                 clean = clean.replace('"', '').replace("'", '').replace("\n", " ").replace("\r", " ")

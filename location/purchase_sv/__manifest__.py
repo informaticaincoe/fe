@@ -13,6 +13,7 @@
         "l10n_sv",
         "l10n_sv_hacienda_contingencia",
         "l10n_invoice_sv",
+        "l10n_sv_mh_anexos"
     ],
     "demo": [
     ],

@@ -33,10 +33,10 @@
         "data/res.configuration.csv",
         "views/res_company_config.xml",
     ],
-    "demo": [
-        "demo/certificate_demo.xml",
-        "demo/parameter_demo.xml",
-    ],
+    # "demo": [
+    #     "demo/certificate_demo.xml",
+    #     "demo/parameter_demo.xml",
+    # ],
     "images": [],
     'installable': True,
     "auto_install": False,

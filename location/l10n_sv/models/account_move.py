@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
-from odoo import fields, models, api
+from odoo import fields, models, api, _
 import logging
+
+from odoo.exceptions import UserError
 
 _logger = logging.getLogger(__name__)
 
@@ -198,7 +200,7 @@ class sit_account_move(models.Model):
             # 3) Forma de pago
             if move.journal_id.sit_tipo_documento and move.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FSE:
                 if not move.forma_pago and p.formas_pago_compras_id:
-                    mov.forma_pago = p.formas_pago_compras_id
+                    move.forma_pago = p.formas_pago_compras_id
 
     def _apply_partner_defaults_compras_if_needed(self):
         """Cubre creaciones sin UI (import/API), donde no corre el onchange."""
