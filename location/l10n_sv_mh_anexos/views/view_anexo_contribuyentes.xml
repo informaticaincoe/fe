@@ -17,7 +17,7 @@
                     <field name="clase_documento"/>
                     <field name="codigo_tipo_documento"/>
                     <field name="hacienda_codigoGeneracion_identificacion" string="Número de resolución"/>
-                    <!-- <field name="hacienda_selloRecibido" string="Serie del documento"/> -->
+                    <field name="hacienda_selloRecibido" string="Serie del documento"/>
                     <field name="name" string="Número de documento"/>
                     <field name="numero_control_interno_del" string="Número de control interno"/>
                     <field name="nit_o_nrc_anexo_contribuyentes" string="NIT o NRC del cliente"/>

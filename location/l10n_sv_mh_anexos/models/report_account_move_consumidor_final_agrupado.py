@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from odoo import fields, models, api
+from odoo import fields, models, api, tools
 import logging
 import base64
 from datetime import date
@@ -11,6 +11,32 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.Model):
     _name = "report.account.move.consumidor.final.agrupado"
     _description = "Facturas consumidor final agrupadas por día, tipo y clase de documento"
     _auto = False
+
+    sit_evento_invalidacion = fields.Many2one(
+        'account.move.invalidation',
+        string='Evento de invalidación',
+        readonly=True,
+        ondelete='set null',
+        index=True,
+    )
+
+    has_sello_anulacion = fields.Boolean(
+        compute="_compute_has_sello_anulacion",
+        search="_search_has_sello_anulacion",
+        store=False,
+    )
+
+    def _search_has_sello_anulacion(self, operator, value):
+        Inv = self.env['account.move.invalidation']
+        inv_ids = Inv.search([('hacienda_selloRecibido_anulacion', '!=', False)]).ids
+        if (operator, bool(value)) in [('=', True), ('!=', False)]:
+            return [('sit_evento_invalidacion', 'in', inv_ids)]
+        elif (operator, bool(value)) in [('=', False), ('!=', True)]:
+            return ['|', ('sit_evento_invalidacion', '=', False),
+                    ('sit_evento_invalidacion', 'not in', inv_ids)]
+        _logger.info("datos %s ", self)
+        return []
+
 
     hacienda_estado = fields.Char(string="Hacienda estado", readonly=True)
     company_id = fields.Many2one('res.company', readonly=True)
@@ -104,23 +130,10 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.Model):
         compute="_compute_hacienda_selloRecibido",
     )
 
-    has_sello_anulacion = fields.Boolean(
-        string="Tiene Sello Anulación",
-        compute="_compute_has_sello_anulacion",
-        store=True,
-        index=True,
-    )
-
-    @api.depends('sit_evento_invalidacion.hacienda_selloRecibido_anulacion')
-    def _compute_has_sello_anulacion(self):
-        for move in self:
-            move.has_sello_anulacion = any(
-                bool(x.hacienda_selloRecibido_anulacion) for x in move.sit_evento_invalidacion)
-
-    sit_evento_invalidacion = fields.Integer(
-        string="Evento de invalidacion",
-        readonly=True,
-    )
+    # sit_evento_invalidacion = fields.Integer(
+    #     string="Evento de invalidacion",
+    #     readonly=True,
+    # )
 
     exportaciones_dentro_centroamerica = fields.Monetary(
         string="Exportaciones dentro del area de centroamerica",
@@ -281,6 +294,8 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.Model):
 
     cantidad_facturas = fields.Integer("Cantidad de facturas", readonly=True)
 
+    serie_documento_consumidor_final = fields.Char( "Serie de documento", compute="_compute_serie_documento_consumidor_final",readonly=True)
+
     monto_total_impuestos = fields.Monetary("IVA operación", readonly=True)
     total_exento = fields.Monetary("Ventas exentas", readonly=True)
     total_no_sujeto = fields.Monetary("Ventas no sujetas", readonly=True)
@@ -294,6 +309,14 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.Model):
     )
 
     currency_id = fields.Many2one("res.currency", string="Moneda", readonly=True)
+
+    @api.depends('hacienda_selloRecibido')
+    def _compute_serie_documento_consumidor_final(self):
+        for record in self:
+            if record.name and record.name.startswith("DTE"):
+                record.serie_documento_consumidor_final = "N/A"
+            else:
+                record.serie_documento_consumidor_final = record.hacienda_selloRecibido
 
     @api.depends('total_operacion', 'currency_id')
     def _compute_total_operacion_suma(self):
@@ -463,7 +486,10 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.Model):
     @api.depends('codigo_tipo_documento', 'journal_id')
     def _compute_get_numero_resolucion_consumidor_final(self):
         for record in self:
-            record.numero_resolucion_consumidor_final = record.name
+            if record.name and record.name.startswith("DTE"):
+                record.numero_resolucion_consumidor_final = "N/A"
+            else:
+                record.numero_resolucion_consumidor_final = record.name
 
     @api.depends()
     def _compute_get_numero_control_documento_interno_del(self):
@@ -471,10 +497,10 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.Model):
             move = self.env['account.move'].search([
                 ('invoice_date', '=', record.invoice_date)
             ], order='invoice_date ASC', limit=1)
-            if record.clase_documento == "1":
-                record.numero_control_interno_del = move.hacienda_codigoGeneracion_identificacion
+            if record.clase_documento == "4":
+                record.numero_control_interno_del = "N/A"
             else:
-                record.numero_control_interno_del = ""
+                record.numero_control_interno_del = move.hacienda_codigoGeneracion_identificacion
 
     @api.depends()
     def _compute_get_numero_control_documento_interno_al(self):
@@ -482,10 +508,10 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.Model):
             move = self.env['account.move'].search([
                 ('invoice_date', '=', record.invoice_date)
             ], order='invoice_date DESC', limit=1)
-            if record.clase_documento == "1":
-                record.numero_control_interno_al = move.hacienda_codigoGeneracion_identificacion
+            if record.clase_documento == "4":
+                record.numero_control_interno_al = "N/A"
             else:
-                record.numero_control_interno_al = ""
+                record.numero_control_interno_al = move.hacienda_codigoGeneracion_identificacion
 
     @api.depends('invoice_date', 'journal_id', 'codigo_tipo_documento')
     def _compute_get_numero_documento_del(self):
@@ -528,6 +554,7 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.Model):
             record.ventas_exentas_no_sujetas = 0.00
 
     def init(self):
+        tools.drop_view_if_exists(self.env.cr, 'report_account_move_consumidor_final_agrupado')
         self.env.cr.execute("""
             CREATE OR REPLACE VIEW report_account_move_consumidor_final_agrupado AS (
                 SELECT
@@ -566,7 +593,7 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.Model):
                   AND am.hacienda_estado IN ('PROCESADO')
                   AND am.sit_evento_invalidacion IS NULL
                   AND am."hacienda_selloRecibido" IS NOT NULL
-
+                  
                 GROUP BY
                     am.company_id,
                     am.invoice_date::date,
@@ -575,6 +602,7 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.Model):
                     am.clase_documento_id
             )
         """)
+
     def export_csv_from_action(self):
         ctx = self.env.context
         numero_anexo = str(ctx.get("numero_anexo") or "")

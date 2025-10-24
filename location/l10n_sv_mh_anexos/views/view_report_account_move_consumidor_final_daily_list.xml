@@ -17,7 +17,7 @@
                     <field name="clase_documento_display"/>
                     <field name="codigo_tipo_documento_display"/>
                     <field name="numero_resolucion_consumidor_final"/>
-                    <field name="hacienda_selloRecibido" string="Serie del documento"/>
+                    <field name="numero_resolucion_consumidor_final" string="Serie del documento"/>
                     <field name="numero_control_interno_del"/>
                     <field name="numero_control_interno_al"/>
                     <field name="numero_documento_del"/>

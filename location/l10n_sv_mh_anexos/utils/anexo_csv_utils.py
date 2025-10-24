@@ -24,7 +24,7 @@ class AnexoCSVUtils(models.AbstractModel):
                 "clase_documento",
                 "codigo_tipo_documento",
                 "numero_resolucion_consumidor_final",
-                "hacienda_selloRecibido",
+                "serie_documento_consumidor_final",
                 "numero_control_interno_del",
                 "numero_control_interno_al",
                 "numero_documento_del",
@@ -178,9 +178,14 @@ class AnexoCSVUtils(models.AbstractModel):
 
                 if fname in (
                         "hacienda_codigoGeneracion_identificacion",
-                        "hacienda_selloRecibido", "name",
-                        "dui_cliente", "nit_o_nrc_anexo_contribuyentes", "documento_sujeto_excluido"
+                        "hacienda_selloRecibido",
+                        "dui_cliente", "nit_o_nrc_anexo_contribuyentes",
+                        "documento_sujeto_excluido"
                 ):
+                    clean = clean.replace("-", "")
+
+                # se eliminan guines del numero de control a menos que sea para anexo de documentos anulados
+                if fname == "name" and  key not in ("ANX_ANULADOS"):
                     clean = clean.replace("-", "")
 
                 # “0” por defecto para estos códigos si están vacíos
@@ -193,7 +198,6 @@ class AnexoCSVUtils(models.AbstractModel):
                         clean = fields.Date.to_date(val).strftime("%d%m%Y")
                     except Exception:
                         pass
-
 
                 # Sanitizar comillas/saltos
                 clean = clean.replace('"', '').replace("'", '').replace("\n", " ").replace("\r", " ")
