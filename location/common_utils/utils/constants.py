@@ -131,3 +131,6 @@ OUT_REFUND = "out_refund"
 TYPE_VENTA = "sale"
 TYPE_COMPRA = "purchase"
 TYPE_ENTRY = "entry"
+
+# Identificacion documentos electronicos
+DTE_COD = 4

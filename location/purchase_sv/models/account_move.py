@@ -45,52 +45,37 @@ class AccountMove(models.Model):
         readonly=True,
     )
 
-    fecha_aplicacion = fields.Date(string="Fecha de Aplicación")
+    # fecha_aplicacion = fields.Date(string="Fecha de Aplicación")
+    #
+    # fecha_iva = fields.Date(string="Fecha IVA")
 
-    fecha_iva = fields.Date(string="Fecha IVA")
+    is_dte_doc = fields.Boolean(
+        string="Es documento DTE",
+        compute="_compute_is_dte_doc",
+        store=False,  # explícito para dejar claro que NO se guarda
+    )
 
-    # CAMPOS NUMERICOS EN DETALLE DE COMPRAS
-    # comp_exenta_nsuj = fields.Float(
-    #     string="Compras Internas Exentas y/o No Sujetas",
-    #     digits=(16, 2),  # 16 dígitos totales, 2 decimales
-    #     help="Ingrese un valor decimal, por ejemplo 1234.56"
-    # )
-    #
-    # inter_exenta_nsuj = fields.Float(
-    #     string="Internaciones Exentas y/o No Sujetas",
-    #     digits=(16, 2),  # 16 dígitos totales, 2 decimales
-    #     help="Ingrese un valor decimal, por ejemplo 1234.56"
-    # )
-    #
-    # importacion_exenta_nsuj = fields.Float(
-    #     string="Importaciones Exentas y/o No Sujetas",
-    #     digits=(16, 2),  # 16 dígitos totales, 2 decimales
-    #     help="Ingrese un valor decimal, por ejemplo 1234.56"
-    # )
-    #
-    # inter_gravada = fields.Float(
-    #     string="Compras Internas Gravadas",
-    #     digits=(16, 2),  # 16 dígitos totales, 2 decimales
-    #     help="Ingrese un valor decimal, por ejemplo 1234.56"
-    # )
-    #
-    # inter_gravada_bien = fields.Float(
-    #     string="Internaciones Gravadas de Bienes",
-    #     digits=(16, 2),  # 16 dígitos totales, 2 decimales
-    #     help="Ingrese un valor decimal, por ejemplo 1234.56"
-    # )
-    #
-    # impor_gravada_bien = fields.Float(
-    #     string="Importaciones Gravadas de Bienes",
-    #     digits=(16, 2),  # 16 dígitos totales, 2 decimales
-    #     help="Ingrese un valor decimal, por ejemplo 1234.56"
-    # )
-    #
-    # impor_gravada_servicio = fields.Float(
-    #     string="Importaciones Gravadas de Servicios",
-    #     digits=(16, 2),  # 16 dígitos totales, 2 decimales
-    #     help="Ingrese un valor decimal, por ejemplo 1234.56"
-    # )
+    sit_condicion_plazo = fields.Selection(
+        [
+            ('desde_fecha_doc', "Plazo Crédito desde Fecha Documento"),
+            ('no_genera_cxp', "No genera Cuenta por Pagar"),
+            ('no_genera_asiento', "No genera Partida Contable"),
+            ('ya_provisionada', "Ya provisionada en Contabilidad"),
+            ('contabilizar_indep', "Contabilizar en Partida independiente"),
+        ],
+        string="Condición del Plazo Crédito",
+        help="Selecciona la opción que aplica para este documento",
+    )
+
+    @api.depends('clase_documento_id')
+    def _compute_is_dte_doc(self):
+        for rec in self:
+            codigo = rec.clase_documento_id.codigo if rec.clase_documento_id else None
+            valor = bool(codigo == constants.DTE_COD) if codigo else False
+
+            # 🔍 Log detallado de depuración
+            _logger.info("SIT | _compute_is_dte_doc | move_id=%s | clase_documento_id=%s | codigo=%s | is_dte_doc=%s", rec.id, rec.clase_documento_id.id if rec.clase_documento_id else None, codigo, valor)
+            rec.is_dte_doc = valor
 
     # Campo name editable
     name = fields.Char(
@@ -205,58 +190,9 @@ class AccountMove(models.Model):
         store=True,
         default=0.0)
 
-    # @api.depends('move_type')
-    # def _compute_invoice_line_view(self):
-    #     for move in self:
-    #         if move.move_type == 'in_invoice':  # compras
-    #             move.invoice_line_ids_view_id = self.env.ref('purchase_sv.invoice_line_in_purchase_list').id
-    #         else:  # ventas
-    #             move.invoice_line_ids_view_id = self.env.ref('purchase_sv.invoice_line_out_sale_list').id
-    #         _logger.info("SIT | move_id=%s | move_type=%s | view=%s", move.id, move.move_type, move.invoice_line_ids_view_id.name)
-
-    # @api.model_create_multi
-    # def create(self, vals_list):
-    #     _logger.info("SIT Purchase | Creando AccountMove(s): %s", vals_list)
-    #
-    #     # Primero creamos los registros normalmente
-    #     tipo_documento_obj = self.env['account.journal.tipo_documento.field']  # Ajusta el modelo si usa otro nombre
-    #     moves = super().create(vals_list)
-    #
-    #     # Forzamos None en compras y notas de crédito de compra
-    #     for move in moves:
-    #         # 1️ Forzar None a hacienda_codigoGeneracion_identificacion en compras/notas de crédito de compra
-    #         if (move.move_type in (constants.IN_INVOICE, constants.IN_REFUND) and
-    #                 (not move.journal_id.sit_tipo_documento or move.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)):
-    #             _logger.info(f"SIT | move_type={move.move_type} → Forzando None a hacienda_codigoGeneracion_identificacion para move_id={move.id}")
-    #             move.hacienda_codigoGeneracion_identificacion = None
-    #
-    #             # Preseleccionar sit_tipo_documento_id si no está asignado
-    #             if move.move_type == constants.IN_REFUND:
-    #                 doc = tipo_documento_obj.search([('codigo', '=', constants.COD_DTE_NC)], limit=1)
-    #                 move.sit_tipo_documento_id = doc
-    #                 _logger.info("SIT | Nota de crédito (in_refund): preseleccionando tipo documento 05 para move_id=%s", move.id)
-    #             elif move.move_type == constants.IN_INVOICE and move.debit_origin_id:
-    #                 doc = tipo_documento_obj.search([('codigo', '=', constants.COD_DTE_ND)], limit=1)
-    #                 move.sit_tipo_documento_id = doc
-    #                 _logger.info("SIT | Nota de débito (in_debit): preseleccionando tipo documento 06 para move_id=%s", move.id)
-    #     return moves
-
     def _get_default_tipo_documento(self):
         # Lógica para obtener el valor predeterminado según el contexto o condiciones
         return self.env['account.journal.tipo_documento.field'].search([('codigo', '=', '01')], limit=1)
-
-
-    # @api.onchange('move_type')
-    # def _get_tipo_documento_domain(self):
-    #     # Lógica para establecer el dominio del campo para siempre mostrar los documentos con los códigos especificados
-    #     # Mostrar los tipos de documentos con los códigos '03', '05', '06', '11' en todos los casos
-    #     # Las compras de tipo nota de credito(05) y nota de debito(06) se generan desde la funcionalidad de odoo
-    #     if self.move_type == 'in_refund' and self.sit_tipo_documento_id.codigo == constants.COD_DTE_NC: # Nota de credito en compras
-    #         return [('codigo', 'in', ['05'])]
-    #     elif self.move_type == 'in_invoice' and self.sit_tipo_documento_id.codigo == constants.COD_DTE_ND: # Notas de debito en compras
-    #         return [('codigo', 'in', ['06'])]
-    #     else:
-    #         return [('codigo', 'in', ['01', '03', '11'])]
 
     @api.onchange('name', 'hacienda_codigoGeneracion_identificacion', 'hacienda_selloRecibido')
     def _onchange_remove_hyphen_and_spaces(self):
@@ -371,154 +307,22 @@ class AccountMove(models.Model):
                     move.id, total_percepcion, total_ret_iva, total_ret_renta
                 )
 
-    # def write(self, vals):
-    #
-    #     # Bypass total cuando venimos del _ensure_name() del otro modulo
-    #     # evitar reentrar en validacione sy cortar la recursion
-    #     if self.env.context.get('skip_sv_ensure_name'):
-    #         _logger.info("SIT | write bypass por skip_sv_ensure_name en contexto")
-    #         return super().write(vals)
-    #
-    #     # Si estamos pasando a booorrrrador (button_draft) omitimos validaciones de name
-    #     # al despostear Odoo puede resetear el name a '/' y esto debe permitirse
-    #     if vals.get('state') == 'draft':
-    #         _logger.info("SIT | write bypass por cambio a borrador en contexto")
-    #         return super().write(vals)
-    #
-    #
-    #     # --- Validación de empresa: si ninguna factura pertenece a empresa con facturación activa, usar write estándar ---
-    #     if not any(move.company_id.sit_facturacion for move in self):
-    #         _logger.info("SIT-write: Ninguna factura pertenece a empresa con facturación activa. Se usa write estándar.")
-    #         # return super().write(vals)
-    #         res = super().write(vals)
-    #
-    #         # Aún así asignar name si es factura (venta, exportación, etc.)
-    #         for move in self:
-    #             if not move.name or move.name == '/':
-    #                 sequence = move.journal_id.sequence_id
-    #                 if sequence:
-    #                     move.name = sequence.next_by_id()
-    #                     _logger.info(f"SIT: Asignado name estándar {move.name} para move {move.id}")
-    #         return res
-    #
-    #     _logger.info("SIT | Entrando a write, context=%s", self.env.context)
-    #     _logger.info("SIT | Vals write: %s", vals)
-    #
-    #     # --- OMITIR validación si NO es factura de venta con DTE ---
-    #     if self.env.context.get('module') or self.env.context.get('_dte_auto_generated'):
-    #         _logger.info("SIT | write ignorado por instalación de módulo o autogenerado")
-    #         return super().write(vals)
-    #
-    #     _logger.info("SIT | Vals write: %s", vals)
-    #     # Validar si el campo 'name' está presente en vals y si está vacío
-    #     if (not self.exists() or self.filtered(lambda m: not m.name)) and ('name' not in vals or not vals['name']):
-    #         _logger.warning(
-    #             "[WRITE-VALIDATION] Asignando '/' por defecto al campo 'name' porque estaba vacío o no existe")
-    #         vals['name'] = '/'
-    #
-    #     # Validaciones específicas del name
-    #     if 'name' in vals:
-    #         for move in self:
-    #             if (move.move_type in (constants.IN_INVOICE, constants.IN_REFUND) and move.journal_id and
-    #                     (not move.journal_id.sit_tipo_documento or move.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)):
-    #                 continue
-    #
-    #             _logger.info("Tipo de documento(dte): %s", move.codigo_tipo_documento)
-    #             if not move.codigo_tipo_documento:
-    #                 continue
-    #
-    #             old_name = move.name or ''
-    #             new_name = vals.get('name') or ''
-    #
-    #             _logger.info(
-    #                 "[WRITE-VALIDATION] move_id=%s, state=%s, old_name=%s, new_name=%s, "
-    #                 "auto_generated=%s, manual_update=%s, allow_name_reset=%s",
-    #                 move.id, move.state, old_name, new_name,
-    #                 self.env.context.get("_dte_auto_generated"),
-    #                 self.env.context.get("_dte_manual_update"),
-    #                 self.env.context.get("allow_name_reset")
-    #             )
-    #
-    #             # Si el valor no cambia, dejamos pasar
-    #             if old_name == new_name:
-    #                 _logger.info(
-    #                     "Account_move_purchase [WRITE-VALIDATION] El valor de 'name' no cambió (se mantiene %s). Permitido.",
-    #                     old_name
-    #                 )
-    #                 continue
-    #
-    #             # Si no viene con el flag de generación automática → bloquear
-    #             bloquear = True  # asumimos que siempre se bloquea
-    #
-    #             # Permitir reset a '/'
-    #             if old_name == '/' and new_name != '/':
-    #                 bloquear = False
-    #             # Permitir actualización desde onchange / auto-generada
-    #             elif self.env.context.get("_dte_auto_generated") or self.env.context.get('install_mode'):
-    #                 bloquear = False
-    #             # Permitir actualización manual explícita
-    #             elif self.env.context.get("_dte_manual_update"):
-    #                 bloquear = False
-    #                 # Permitir limpiar el name si se está recreando (nuevo_name vacío)
-    #             elif not new_name and old_name:
-    #                 _logger.info(
-    #                     "Se permite limpiar el campo name temporalmente (old_name=%s, new_name vacío, move_id=%s)",
-    #                     old_name, move.id)
-    #                 bloquear = False
-    #             elif not old_name and new_name == '/':
-    #                 bloquear = False
-    #
-    #             _logger.info(
-    #                 "SIT Bloquear modificacion de name: %s, name anterior: %s, nuevo name. %s",
-    #                 bloquear, old_name, new_name
-    #             )
-    #
-    #             _logger.info("SIT Bloquear modificacion de name: %s, name anterior: %s, nuevo name. %s", bloquear,
-    #                          old_name, new_name)
-    #             if bloquear:
-    #                 _logger.warning(
-    #                     "[WRITE-VALIDATION] Intento de modificar manualmente el 'name' en factura de venta "
-    #                     "(move_id=%s). Valor anterior: %s → Nuevo valor: %s",
-    #                     move.id, old_name, new_name
-    #                 )
-    #                 raise UserError(
-    #                     _("No está permitido modificar manualmente el número de la factura de venta, "
-    #                       "ni en borrador ni validada.")
-    #                 )
-    #
-    #             _logger.info(
-    #                 "[WRITE-VALIDATION] Cambio de 'name' permitido. Valor anterior: %s → Nuevo valor: %s",
-    #                 old_name, new_name
-    #             )
-    #         # --- recalcular totales de percepción/retención/renta antes de guardar ---
-    #         for move in self:
-    #             if move.line_ids:
-    #                 move._compute_totales_retencion_percepcion()
-    #                 _logger.info(
-    #                     "SIT | Totales recalculados en write para move_id=%s -> Percepción=%.2f | Retención IVA=%.2f | Renta=%.2f",
-    #                     move.id, move.percepcion_amount, move.retencion_iva_amount, move.retencion_renta_amount
-    #                 )
-    #
-    #     # Manejo de descuentos
-    #     campos_descuento = {'descuento_gravado', 'descuento_exento', 'descuento_no_sujeto', 'descuento_global_monto'}
-    #     if any(c in vals for c in campos_descuento):
-    #         _logger.info("[WRITE-DESCUENTO] Se detectaron campos de descuento, agregando líneas de seguro/flete")
-    #         self.agregar_lineas_seguro_flete()
-    #         # --- llamar al super() para que se guarde todo ---
-    #     return super().write(vals)
-
     def action_post(self):
         _logger.info("SIT Action post purchase: %s", self)
         # Si FE está desactivada → comportamiento estándar de Odoo
-        invoices = self.filtered(lambda inv: inv.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND, constants.IN_INVOICE, constants.IN_REFUND))
+        invoices = self.filtered(
+            lambda inv: inv.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND, constants.IN_INVOICE,
+                                          constants.IN_REFUND))
         if not invoices:
             # Si no hay facturas, llamar al método original sin hacer validaciones DTE
             return super().action_post()
 
-        for move in self:
+        # Obtener el registro de Pago Inmediato
+        IMMEDIATE_PAYMENT = self.env.ref('account.account_payment_term_immediate').id
 
+        for move in self:
             _logger.info("SIT-Compra move type: %s, tipo documento %s: ", move.move_type, move.codigo_tipo_documento)
-            if move.move_type not in(constants.IN_INVOICE, constants.IN_REFUND):
+            if move.move_type not in (constants.IN_INVOICE, constants.IN_REFUND):
                 _logger.info("SIT Action post no aplica a modulos distintos a compra.")
                 continue
             if move.move_type == constants.IN_INVOICE and move.journal_id and move.journal_id.sit_tipo_documento and move.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FSE:
@@ -535,32 +339,33 @@ class AccountMove(models.Model):
                         "El Número de Resolución '%s' ya existe en otro documento (%s)."
                     ) % (move.hacienda_codigoGeneracion_identificacion, existing.name))
 
-            if not move.fecha_aplicacion:
-                _logger.info("SIT | Fecha de aplicacion no seleccionada.")
-                raise ValidationError("Debe seleccionar la Fecha de Aplicación.")
+            # if not move.fecha_aplicacion:
+            #     _logger.info("SIT | Fecha de aplicacion no seleccionada.")
+            #     raise ValidationError("Debe seleccionar la Fecha de Aplicación.")
 
-            if not move.fecha_iva:
-                _logger.info("SIT | Fecha IVA no seleccionada.")
-                raise ValidationError("Debe seleccionar la Fecha de IVA.")
+            # if not move.fecha_iva:
+            #     _logger.info("SIT | Fecha IVA no seleccionada.")
+            #     raise ValidationError("Debe seleccionar la Fecha de IVA.")
 
-            fecha_iva = move.fecha_iva
-            date_invoice = move.invoice_date
+            # fecha_iva = move.fecha_iva
+            # date_invoice = move.invoice_date
 
-            _logger.info("SIT | Fecha factura: %s, Fecha IVA: %s.", date_invoice, fecha_iva)
-            if fecha_iva and date_invoice:
-                # Ambas son fechas, se comparan directamente
-                if fecha_iva < date_invoice:
-                    _logger.info(
-                        "SIT | Fecha IVA (%s) no debe ser menor a la fecha de la factura (%s).",
-                        fecha_iva,
-                        date_invoice
-                    )
-                    raise ValidationError(
-                        "Fecha IVA (%s) no debe ser menor a la fecha de la factura (%s)." % (
-                            fecha_iva,
-                            date_invoice
-                        )
-                    )
+            # _logger.info("SIT | Fecha factura: %s, Fecha IVA: %s.", date_invoice, fecha_iva)
+            # if fecha_iva and date_invoice:
+            #     # Ambas son fechas, se comparan directamente
+            #     if fecha_iva < date_invoice:
+            #         _logger.info(
+            #             "SIT | Fecha IVA (%s) no debe ser menor a la fecha de la factura (%s).",
+            #             fecha_iva,
+            #             date_invoice
+            #         )
+            #         raise ValidationError(
+            #             "Fecha IVA (%s) no debe ser menor a la fecha de la factura (%s)." % (
+            #                 fecha_iva,
+            #                 date_invoice
+            #             )
+            #         )
+
             if not move.sit_tipo_documento_id:
                 _logger.info("SIT | Tipo de documento no seleccionado.")
                 raise ValidationError("Debe seleccionar el Tipo de documento de compra.")
@@ -577,8 +382,23 @@ class AccountMove(models.Model):
                 _logger.info("SIT | Codigo de generacion no agregado.")
                 raise ValidationError("Debe agregar el Codigo de generación.")
 
+            # Validación de Condición/Plazo solo para ventas
+            payment_term_id = move.invoice_payment_term_id.id if move.invoice_payment_term_id else None
+            _logger.info("Termino de pago seleccionado: %s",
+                         move.invoice_payment_term_id.name if move.invoice_payment_term_id else None)
+
+            if payment_term_id and payment_term_id != IMMEDIATE_PAYMENT and not move.sit_condicion_plazo:
+                _logger.info(
+                    "Debe seleccionar el campo 'Condición del Plazo Crédito' si el término de pago no es 'Pago inmediato'."
+                )
+                raise ValidationError(_(
+                    "Debe seleccionar el campo 'Condición del Plazo Crédito' si el término de pago no es 'Pago inmediato'."
+                ))
+
             # Generar las líneas de percepción/retención/renta antes de postear
             move.generar_asientos_retencion_compras()
+
+        # Finalmente llamar al método estándar de Odoo
         return super(AccountMove, self).action_post()
 
     def _post(self, soft=True):

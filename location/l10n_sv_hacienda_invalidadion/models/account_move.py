@@ -658,11 +658,11 @@ class AccountMove(models.Model):
                 continue
 
             try:
-                # 1️⃣ Buscar líneas reconciliadas de la factura
+                # 1 Buscar líneas reconciliadas de la factura
                 reconciled_lines = move.line_ids.filtered(lambda l: l.reconciled)
                 if not reconciled_lines:
                     _logger.info("SIT | No hay líneas reconciliadas para %s, nada que anular.", move.name)
-                    move.message_post(body="💡 No se encontraron pagos reconciliados que anular.")
+                    move.message_post(body="No se encontraron pagos reconciliados que anular.")
                 else:
                     _logger.info("SIT | Se encontraron %d líneas reconciliadas.", len(reconciled_lines))
                     # Deshacer conciliaciones
@@ -671,34 +671,32 @@ class AccountMove(models.Model):
                             reconcile_id = line.full_reconcile_id
                             _logger.info("SIT | Deshaciendo conciliación %s vinculada a %s", reconcile_id.id, move.name)
                             reconcile_id.unlink()
-                            move.message_post(
-                                body=f"🔁 Se deshizo la conciliación contable {reconcile_id.display_name}."
-                            )
+                            move.message_post(body=f"Se deshizo la conciliación contable {reconcile_id.display_name}.")
 
-                # 2️⃣ Buscar pagos relacionados a la factura
-                payments = self.env['account.payment'].search([
-                    ('invoice_ids', 'in', move.id),
-                ])
+                # 2 Buscar pagos relacionados a la factura
+                # payments = self.env['account.payment'].search([
+                #     ('invoice_ids', 'in', move.id),
+                # ])
 
-                if not payments:
-                    _logger.info("SIT | No se encontraron pagos relacionados a %s.", move.name)
-                    move.message_post(body="💡 No se encontraron pagos relacionados que cancelar.")
-                else:
-                    for payment in payments:
-                        _logger.info("SIT | Cancelando pago %s vinculado a %s", payment.name, move.name)
-                        # Deshacer todas las conciliaciones del pago
-                        for line in payment.move_id.line_ids.filtered(lambda l: l.reconciled):
-                            if line.full_reconcile_id:
-                                line.full_reconcile_id.unlink()
-                            elif line.partial_reconcile_id:
-                                line.partial_reconcile_id.unlink()
-                        # Poner el pago en borrador y cancelar
-                        if payment.state == 'posted':
-                            payment.button_draft()
-                            payment.action_cancel()
-                            move.message_post(body=f"💰 Pago {payment.name} cancelado automáticamente.")
+                # if not payments:
+                #     _logger.info("SIT | No se encontraron pagos relacionados a %s.", move.name)
+                #     move.message_post(body="No se encontraron pagos relacionados que cancelar.")
+                # else:
+                #     for payment in payments:
+                #         _logger.info("SIT | Cancelando pago %s vinculado a %s", payment.name, move.name)
+                #         # Deshacer todas las conciliaciones del pago
+                #         for line in payment.move_id.line_ids.filtered(lambda l: l.reconciled):
+                #             if line.full_reconcile_id:
+                #                 line.full_reconcile_id.unlink()
+                #             elif line.partial_reconcile_id:
+                #                 line.partial_reconcile_id.unlink()
+                #         # Poner el pago en borrador y cancelar
+                #         if payment.state == 'posted':
+                #             payment.button_draft()
+                #             payment.action_cancel()
+                #             move.message_post(body=f"💰 Pago {payment.name} cancelado automáticamente.")
 
-                # 3️⃣ Cancelar el asiento contable principal (de la factura)
+                # 3 Cancelar el asiento contable principal (de la factura)
                 if move.state == 'posted':
                     move.button_draft()
                     move.button_cancel()
@@ -708,4 +706,4 @@ class AccountMove(models.Model):
 
             except Exception as e:
                 _logger.error("SIT | Error anulando movimientos contables de %s: %s", move.name, e, exc_info=True)
-                move.message_post(body=f"⚠️ Error al anular movimientos contables: {str(e)}")
+                move.message_post(body=f"Error al anular movimientos contables: {str(e)}")
