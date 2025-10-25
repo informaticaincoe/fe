@@ -17,7 +17,7 @@
                     <field name="clase_documento_display"/>
                     <field name="codigo_tipo_documento_display"/>
                     <field name="numero_resolucion_consumidor_final"/>
-                    <field name="hacienda_selloRecibido" string="Serie del documento"/>
+                    <field name="numero_resolucion_consumidor_final" string="Serie del documento"/>
                     <field name="numero_control_interno_del"/>
                     <field name="numero_control_interno_al"/>
                     <field name="numero_documento_del"/>
@@ -32,8 +32,7 @@
                     <field name="exportaciones_de_servicio"/>
                     <field name="ventas_tasa_cero"/>
                     <field name="ventas_cuenta_terceros"/>
-                    <field name="monto_total_operacion"/>
-                    <field name="total_operacion"/>
+                    <field name="total_operacion_suma"/>
                     <field name="tipo_operacion_display"/>
                     <field name="tipo_ingreso_display"/>
                     <field name="numero_anexo"/>

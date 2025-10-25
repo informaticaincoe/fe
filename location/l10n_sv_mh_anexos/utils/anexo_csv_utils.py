@@ -21,10 +21,10 @@ class AnexoCSVUtils(models.AbstractModel):
             # --- claves propias ---
             "ANX_CF_AGRUPADO": [
                 "invoice_date",
-                "clase_documento_display",
-                "codigo_tipo_documento_display",
+                "clase_documento",
+                "codigo_tipo_documento",
                 "numero_resolucion_consumidor_final",
-                "hacienda_selloRecibido",
+                "serie_documento_consumidor_final",
                 "numero_control_interno_del",
                 "numero_control_interno_al",
                 "numero_documento_del",
@@ -39,10 +39,9 @@ class AnexoCSVUtils(models.AbstractModel):
                 "exportaciones_de_servicio",
                 "ventas_tasa_cero",
                 "ventas_cuenta_terceros",
-                "monto_total_operacion",
-                "total_operacion",
-                "tipo_operacion_display",
-                "tipo_ingreso_display",
+                "total_operacion_suma",
+                "tipo_operacion_codigo",
+                "tipo_ingreso_codigo",
                 "numero_anexo",
             ],
             "ANX_CONTRIBUYENTE": [
@@ -113,10 +112,22 @@ class AnexoCSVUtils(models.AbstractModel):
                 "codigo_tipo_documento",
                 "hacienda_codigoGeneracion_identificacion",
                 "Número de documento",
-                "total_operacion",
+                "tipo_operacion_display",
                 "amount_tax",
                 "invoice_year",
                 "numero_anexo",
+            ],
+            "ANX_ANULADOS": [
+                "name",
+                "clase_documento",
+                "desde_tiquete_preimpreso",
+                "hasta_tiquete_preimpreso",
+                "codigo_tipo_documento",
+                "tipo_de_detalle",
+                "hacienda_selloRecibido",
+                "desde",
+                "hasta",
+                "hacienda_codigoGeneracion_identificacion"
             ]
         }
         return mapping.get(str(key), [])
@@ -167,9 +178,14 @@ class AnexoCSVUtils(models.AbstractModel):
 
                 if fname in (
                         "hacienda_codigoGeneracion_identificacion",
-                        "hacienda_selloRecibido", "name",
+                        "hacienda_selloRecibido",
                         "dui_cliente", "nit_o_nrc_anexo_contribuyentes",
+                        "documento_sujeto_excluido"
                 ):
+                    clean = clean.replace("-", "")
+
+                # se eliminan guines del numero de control a menos que sea para anexo de documentos anulados
+                if fname == "name" and  key not in ("ANX_ANULADOS"):
                     clean = clean.replace("-", "")
 
                 # “0” por defecto para estos códigos si están vacíos

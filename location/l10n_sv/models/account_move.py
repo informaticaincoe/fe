@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
-from odoo import fields, models, api
+from odoo import fields, models, api, _
 import logging
+
+from odoo.exceptions import UserError
 
 _logger = logging.getLogger(__name__)
 
@@ -198,7 +200,7 @@ class sit_account_move(models.Model):
             # 3) Forma de pago
             if move.journal_id.sit_tipo_documento and move.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FSE:
                 if not move.forma_pago and p.formas_pago_compras_id:
-                    mov.forma_pago = p.formas_pago_compras_id
+                    move.forma_pago = p.formas_pago_compras_id
 
     def _apply_partner_defaults_compras_if_needed(self):
         """Cubre creaciones sin UI (import/API), donde no corre el onchange."""
@@ -380,6 +382,10 @@ class sit_account_move(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         _logger.info("SIT | Iniciando create unificado para AccountMove. Vals_list: %s", vals_list)
+
+        # BYPASS para movimientos que no son factura/nota (nómina, asientos manuales, recibos)
+        if any(v.get('move_type') in ('entry', 'out_receipt', 'in_receipt') for v in vals_list):
+            return super().create(vals_list)
 
         # --- Llenar name provisional '/' antes de crear registros ---
         for vals in vals_list:

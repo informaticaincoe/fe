@@ -74,6 +74,7 @@
                 </div>
             </xpath>
 
+
             <!-- (b) Reemplaza el bloque de inputs (due_date) para quitar términos y el 'or' -->
             <xpath expr="//group[@id='header_right_group']//div[@name='due_date']" position="replace">
                 <div name="due_date" class="d-flex"
