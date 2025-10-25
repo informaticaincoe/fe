@@ -35,7 +35,6 @@ class AccountMove(models.Model):
         # related='journal_id.sit_tipo_documento',
         store=True,
         default=lambda self: self._get_default_tipo_documento(),
-        # domain=lambda self: self._get_tipo_documento_domain(),
     )
 
     codigo_tipo_documento_id = fields.Char(
@@ -66,16 +65,6 @@ class AccountMove(models.Model):
         string="Condición del Plazo Crédito",
         help="Selecciona la opción que aplica para este documento",
     )
-
-    @api.depends('clase_documento_id')
-    def _compute_is_dte_doc(self):
-        for rec in self:
-            codigo = rec.clase_documento_id.codigo if rec.clase_documento_id else None
-            valor = bool(codigo == constants.DTE_COD) if codigo else False
-
-            # 🔍 Log detallado de depuración
-            _logger.info("SIT | _compute_is_dte_doc | move_id=%s | clase_documento_id=%s | codigo=%s | is_dte_doc=%s", rec.id, rec.clase_documento_id.id if rec.clase_documento_id else None, codigo, valor)
-            rec.is_dte_doc = valor
 
     # Campo name editable
     name = fields.Char(
@@ -191,11 +180,42 @@ class AccountMove(models.Model):
         default=0.0)
 
     def _get_default_tipo_documento(self):
+        """Busca en 'account.journal.tipo_documento.field' el registro con código '01'
+        y lo usa como valor por defecto.
+        """
         # Lógica para obtener el valor predeterminado según el contexto o condiciones
         return self.env['account.journal.tipo_documento.field'].search([('codigo', '=', '01')], limit=1)
 
+    @api.depends('clase_documento_id', 'move_type', 'journal_id', 'journal_id.sit_tipo_documento', 'journal_id.sit_tipo_documento.codigo')
+    def _compute_is_dte_doc(self):
+        """
+        Calcula si el movimiento es un documento DTE.
+        Aplica solo a facturas de proveedor IN_INVOICE o IN_REFUND que no sean FSE.
+        """
+        for rec in self:
+            valor = False  # valor por defecto
+            if (rec.move_type in (constants.IN_INVOICE, constants.IN_REFUND) and rec.journal_id
+                    and (
+                            not rec.journal_id.sit_tipo_documento or rec.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)):
+                codigo = rec.clase_documento_id.codigo if rec.clase_documento_id else None
+                valor = bool(codigo == constants.DTE_COD)
+
+            _logger.info(
+                "SIT | _compute_is_dte_doc | move_id=%s | clase_documento_id=%s | codigo=%s | is_dte_doc=%s",
+                rec.id,
+                rec.clase_documento_id.id if rec.clase_documento_id else None,
+                rec.clase_documento_id.codigo if rec.clase_documento_id else None,
+                valor
+            )
+            rec.is_dte_doc = valor
+
     @api.onchange('name', 'hacienda_codigoGeneracion_identificacion', 'hacienda_selloRecibido')
     def _onchange_remove_hyphen_and_spaces(self):
+        """
+        Limpia guiones y espacios de campos relevantes al cambiar alguno de ellos.
+        - Se aplica solo a facturas de proveedor (IN_INVOICE, IN_REFUND) que no sean FSE.
+        - Campos afectados: 'name', 'hacienda_codigoGeneracion_identificacion', 'hacienda_selloRecibido'.
+        """
         if (self.move_type not in(constants.IN_INVOICE, constants.IN_REFUND) or
                 (self.move_type == constants.IN_INVOICE and self.journal_id.sit_tipo_documento and self.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FSE)):
             return
@@ -212,21 +232,27 @@ class AccountMove(models.Model):
             old_val = self.hacienda_codigoGeneracion_identificacion
             self.hacienda_codigoGeneracion_identificacion = old_val.replace('-', '').replace(' ', '')
             if old_val != self.hacienda_codigoGeneracion_identificacion:
-                _logger.info(
-                    "[ONCHANGE] move_id=%s: 'hacienda_codigoGeneracion_identificacion' changed from '%s' to '%s'",
-                    self.id, old_val, self.hacienda_codigoGeneracion_identificacion)
+                _logger.info("[ONCHANGE] move_id=%s: 'hacienda_codigoGeneracion_identificacion' changed from '%s' to '%s'",
+                             self.id, old_val, self.hacienda_codigoGeneracion_identificacion)
 
         # hacienda_selloRecibido
         if self.hacienda_selloRecibido:
             old_val = self.hacienda_selloRecibido
             self.hacienda_selloRecibido = old_val.replace('-', '').replace(' ', '')
             if old_val != self.hacienda_selloRecibido:
-                _logger.info(
-                    "[ONCHANGE] move_id=%s: 'hacienda_selloRecibido' changed from '%s' to '%s'",
-                    self.id, old_val, self.hacienda_selloRecibido)
+                _logger.info("[ONCHANGE] move_id=%s: 'hacienda_selloRecibido' changed from '%s' to '%s'",
+                             self.id, old_val, self.hacienda_selloRecibido)
 
     @api.depends('invoice_line_ids.price_unit', 'invoice_line_ids.quantity', 'invoice_line_ids.discount', 'invoice_line_ids.tax_ids', 'currency_id', 'move_type', 'partner_id',)
     def _compute_sit_amount_tax_system(self):
+        """
+        Calcula el total de impuestos de la factura según las líneas y el sistema de impuestos.
+
+        - Aplica solo a facturas de proveedor (IN_INVOICE, IN_REFUND) que no sean FSE.
+        - Calcula impuestos por línea considerando precio unitario, cantidad, descuento y taxes.
+        - Ajusta el total para notas de crédito (negativo).
+        - Guarda el resultado en 'sit_amount_tax_system'.
+        """
         for move in self:
             if (move.move_type in (constants.IN_INVOICE, constants.IN_REFUND) and move.journal_id and
                     (not move.journal_id.sit_tipo_documento or move.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)):
@@ -253,66 +279,71 @@ class AccountMove(models.Model):
                     _logger.info("SIT | Línea %s total_tax calculado: %s", line.name, total_tax_line)
                     total_tax += total_tax_line
 
-                if move.move_type in ('in_refund', 'out_refund'):
+                if move.move_type in (constants.IN_REFUND):
                     total_tax *= -1
                     _logger.info("SIT | Ajuste por nota de crédito: total_tax=%s", total_tax)
 
                 move.sit_amount_tax_system = move.currency_id.round(total_tax)
                 _logger.info("SIT | move %s sit_amount_tax_system final: %s", move.name, move.sit_amount_tax_system)
 
-    def _compute_totales_retencion_percepcion(self):
-        """Suma automática de percepción, retención IVA y renta desde las líneas."""
-        for move in self:
-            if (move.move_type in (constants.IN_INVOICE, constants.IN_REFUND) and move.journal_id and
-                    (not move.journal_id.sit_tipo_documento or move.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)):
-                percepcion_total = sum(move.line_ids.mapped('percepcion_amount'))
-                retencion_iva_total = sum(move.line_ids.mapped('retencion_amount'))
-                retencion_renta_total = sum(move.line_ids.mapped('renta_amount'))
+    # def _compute_totales_retencion_percepcion(self):
+    #     """Suma automática de percepción, retención IVA y renta desde las líneas."""
+    #     for move in self:
+    #         if (move.move_type in (constants.IN_INVOICE, constants.IN_REFUND) and move.journal_id and
+    #                 (not move.journal_id.sit_tipo_documento or move.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)):
+    #             percepcion_total = sum(move.line_ids.mapped('percepcion_amount'))
+    #             retencion_iva_total = sum(move.line_ids.mapped('retencion_amount'))
+    #             retencion_renta_total = sum(move.line_ids.mapped('renta_amount'))
+    #
+    #             # Asigna los totales a los campos existentes
+    #             # Evitar recursión al escribir valores
+    #             if not self.env.context.get('skip_compute'):
+    #                 move.with_context(skip_compute=True).write({
+    #                     'percepcion_amount': percepcion_total,
+    #                     'retencion_iva_amount': retencion_iva_total,
+    #                     'retencion_renta_amount': retencion_renta_total,
+    #                 })
+    #             else:
+    #                 # Solo asignar en memoria si el flag está activo
+    #                 move.percepcion_amount = percepcion_total
+    #                 move.retencion_iva_amount = retencion_iva_total
+    #                 move.retencion_renta_amount = retencion_renta_total
+    #
+    #             _logger.info("SIT | Totales move_id=%s => Percepción=%.2f | Retención IVA=%.2f | Retención Renta=%.2f",
+    #                          move.id, percepcion_total, retencion_iva_total, retencion_renta_total)
 
-                # Asigna los totales a los campos existentes
-                # Evitar recursión al escribir valores
-                if not self.env.context.get('skip_compute'):
-                    move.with_context(skip_compute=True).write({
-                        'percepcion_amount': percepcion_total,
-                        'retencion_iva_amount': retencion_iva_total,
-                        'retencion_renta_amount': retencion_renta_total,
-                    })
-                else:
-                    # Solo asignar en memoria si el flag está activo
-                    move.percepcion_amount = percepcion_total
-                    move.retencion_iva_amount = retencion_iva_total
-                    move.retencion_renta_amount = retencion_renta_total
-
-                _logger.info("SIT | Totales move_id=%s => Percepción=%.2f | Retención IVA=%.2f | Retención Renta=%.2f",
-                             move.id, percepcion_total, retencion_iva_total, retencion_renta_total)
-
-    def _update_totales_move(self):
-        """
-        Actualiza los totales de retención y percepción desde las líneas.
-        No se usa @api.depends para evitar conflictos con otros computes existentes.
-        """
-        for move in self:
-            if (move.move_type in (constants.IN_INVOICE, constants.IN_REFUND) and move.journal_id and
-                    (not move.journal_id.sit_tipo_documento or move.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)):
-                total_percepcion = sum(move.line_ids.mapped('percepcion_amount'))
-                total_ret_iva = sum(move.line_ids.mapped('retencion_amount'))
-                total_ret_renta = sum(move.line_ids.mapped('renta_amount'))
-
-                move.percepcion_amount = total_percepcion
-                move.retencion_iva_amount = total_ret_iva
-                move.retencion_renta_amount = total_ret_renta
-
-                _logger.info(
-                    "SIT | Totales actualizados move_id=%s => Percepción=%.2f | Ret. IVA=%.2f | Ret. Renta=%.2f",
-                    move.id, total_percepcion, total_ret_iva, total_ret_renta
-                )
+    # def _update_totales_move(self):
+    #     """
+    #     Actualiza los totales de retención y percepción desde las líneas.
+    #     No se usa @api.depends para evitar conflictos con otros computes existentes.
+    #     """
+    #     for move in self:
+    #         if (move.move_type in (constants.IN_INVOICE, constants.IN_REFUND) and move.journal_id and
+    #                 (not move.journal_id.sit_tipo_documento or move.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)):
+    #             total_percepcion = sum(move.line_ids.mapped('percepcion_amount'))
+    #             total_ret_iva = sum(move.line_ids.mapped('retencion_amount'))
+    #             total_ret_renta = sum(move.line_ids.mapped('renta_amount'))
+    #
+    #             move.percepcion_amount = total_percepcion
+    #             move.retencion_iva_amount = total_ret_iva
+    #             move.retencion_renta_amount = total_ret_renta
+    #
+    #             _logger.info(
+    #                 "SIT | Totales actualizados move_id=%s => Percepción=%.2f | Ret. IVA=%.2f | Ret. Renta=%.2f",
+    #                 move.id, total_percepcion, total_ret_iva, total_ret_renta
+    #             )
 
     def action_post(self):
+        """
+        - Aplica solo a facturas de proveedor (IN_INVOICE, IN_REFUND) que no sean FSE.
+        - Valida campos obligatorios: tipo de documento, clase de documento, sello y código de generación.
+        - Evita duplicados en 'hacienda_codigoGeneracion_identificacion'.
+        - Genera líneas de percepción, retención y renta antes de postear.
+        - Luego llama al método estándar 'action_post' de Odoo.
+        """
         _logger.info("SIT Action post purchase: %s", self)
         # Si FE está desactivada → comportamiento estándar de Odoo
-        invoices = self.filtered(
-            lambda inv: inv.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND, constants.IN_INVOICE,
-                                          constants.IN_REFUND))
+        invoices = self.filtered(lambda inv: inv.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND, constants.IN_INVOICE, constants.IN_REFUND))
         if not invoices:
             # Si no hay facturas, llamar al método original sin hacer validaciones DTE
             return super().action_post()
@@ -382,18 +413,17 @@ class AccountMove(models.Model):
                 _logger.info("SIT | Codigo de generacion no agregado.")
                 raise ValidationError("Debe agregar el Codigo de generación.")
 
+            if not move.sit_obervaciones:
+                _logger.info("SIT | Descripcion no agregada.")
+                raise ValidationError("Se requiere una descripción.")
+
             # Validación de Condición/Plazo solo para ventas
             payment_term_id = move.invoice_payment_term_id.id if move.invoice_payment_term_id else None
-            _logger.info("Termino de pago seleccionado: %s",
-                         move.invoice_payment_term_id.name if move.invoice_payment_term_id else None)
+            _logger.info("Termino de pago seleccionado: %s", move.invoice_payment_term_id.name if move.invoice_payment_term_id else None)
 
-            if payment_term_id and payment_term_id != IMMEDIATE_PAYMENT and not move.sit_condicion_plazo:
-                _logger.info(
-                    "Debe seleccionar el campo 'Condición del Plazo Crédito' si el término de pago no es 'Pago inmediato'."
-                )
-                raise ValidationError(_(
-                    "Debe seleccionar el campo 'Condición del Plazo Crédito' si el término de pago no es 'Pago inmediato'."
-                ))
+            # if payment_term_id and payment_term_id != IMMEDIATE_PAYMENT and not move.sit_condicion_plazo:
+            #     _logger.info("Debe seleccionar el campo 'Condición del Plazo Crédito' si el término de pago no es 'Pago inmediato'.")
+            #     raise ValidationError(_("Debe seleccionar el campo 'Condición del Plazo Crédito' si el término de pago no es 'Pago inmediato'."))
 
             # Generar las líneas de percepción/retención/renta antes de postear
             move.generar_asientos_retencion_compras()
@@ -402,6 +432,13 @@ class AccountMove(models.Model):
         return super(AccountMove, self).action_post()
 
     def _post(self, soft=True):
+        """Extiende el método de posteo de facturas de compra para manejo de anulaciones DTE.
+
+        - Aplica solo a facturas de proveedor (IN_INVOICE, IN_REFUND) que no sean FSE.
+        - Si la factura está marcada como 'sit_invalidar', crea la invalidación correspondiente si aún no existe.
+        - Registra logs de auditoría durante todo el proceso.
+        - Devuelve el resultado original para mantener el flujo estándar de Odoo.
+        """
         _logger.info("SIT Purchase.")
 
         result = super(AccountMove, self)._post(soft=soft)
@@ -411,7 +448,8 @@ class AccountMove(models.Model):
                 _logger.info("SIT Post no aplica a modulos distintos a compra.")
                 continue
 
-            if move.move_type == constants.IN_INVOICE and move.journal_id and move.journal_id.sit_tipo_documento and move.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FSE:
+            if (move.move_type == constants.IN_INVOICE and move.journal_id
+                    and move.journal_id.sit_tipo_documento and move.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FSE):
                 _logger.info("SIT Post no aplica para compras electronicas(como suejto excluido).")
                 continue
 

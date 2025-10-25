@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ===================================================== -->
+    <!-- VENTAS (sale.order) -->
+    <!-- ===================================================== -->
+    <record id="view_order_form_inherit_created_modified" model="ir.ui.view">
+        <field name="name">sale.order.form.created.modified</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_order_form"/>
+        <field name="arch" type="xml">
+            <!-- Insertamos al final del formulario -->
+            <xpath expr="//sheet" position="inside">
+                <separator string="Información del registro"/>
+                <group>
+                    <group>
+                        <field name="create_uid" string="Creado por" readonly="1"/>
+                        <field name="create_date" string="Fecha de creación" readonly="1"/>
+                    </group>
+                    <group>
+                        <field name="write_uid" string="Última modificación por" readonly="1"/>
+                        <field name="write_date" string="Fecha de modificación" readonly="1"/>
+                    </group>
+                </group>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Vista de lista (opcional) -->
+    <record id="view_order_list_inherit_created_by" model="ir.ui.view">
+        <field name="name">sale.order.list.created.by</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_order_tree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//list" position="inside">
+                <field name="create_uid" string="Creado por"/>
+                <field name="write_uid" string="Modificado por"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ===================================================== -->
+    <!-- COMPRAS (purchase.order) -->
+    <!-- ===================================================== -->
+    <record id="view_purchase_order_form_inherit_created_modified" model="ir.ui.view">
+        <field name="name">purchase.order.form.created.modified</field>
+        <field name="model">purchase.order</field>
+        <field name="inherit_id" ref="purchase.purchase_order_form"/>
+        <field name="arch" type="xml">
+            <!-- Insertamos al final del formulario -->
+            <xpath expr="//sheet" position="inside">
+                <separator string="Información del registro"/>
+                <group>
+                    <group>
+                        <field name="create_uid" string="Creado por" readonly="1"/>
+                        <field name="create_date" string="Fecha de creación" readonly="1"/>
+                    </group>
+                    <group>
+                        <field name="write_uid" string="Última modificación por" readonly="1"/>
+                        <field name="write_date" string="Fecha de modificación" readonly="1"/>
+                    </group>
+                </group>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Vista de lista (opcional) -->
+    <record id="view_purchase_order_list_inherit_created_by" model="ir.ui.view">
+        <field name="name">purchase.order.list.created.by</field>
+        <field name="model">purchase.order</field>
+        <field name="inherit_id" ref="purchase.purchase_order_tree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//list" position="inside">
+                <field name="create_uid" string="Creado por"/>
+                <field name="write_uid" string="Modificado por"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ===================================================== -->
+    <!-- FACTURAS (account.move) - VENTAS Y COMPRAS -->
+    <!-- ===================================================== -->
+    <record id="view_move_form_inherit_created_modified" model="ir.ui.view">
+        <field name="name">account.move.form.created.modified</field>
+        <field name="model">account.move</field>
+        <field name="inherit_id" ref="account.view_move_form"/>
+        <field name="arch" type="xml">
+            <!-- Insertamos al final del formulario -->
+            <xpath expr="//sheet" position="inside">
+                <separator string="Información del registro"/>
+                <group>
+                    <group>
+                        <field name="create_uid" string="Creado por" readonly="1"/>
+                        <field name="create_date" string="Fecha de creación" readonly="1"/>
+                    </group>
+                    <group>
+                        <field name="write_uid" string="Última modificación por" readonly="1"/>
+                        <field name="write_date" string="Fecha de modificación" readonly="1"/>
+                    </group>
+                </group>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Vista de lista (opcional) -->
+    <record id="view_move_list_inherit_created_by" model="ir.ui.view">
+        <field name="name">account.move.list.created.by</field>
+        <field name="model">account.move</field>
+        <field name="inherit_id" ref="account.view_invoice_tree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//list" position="inside">
+                <field name="create_uid" string="Creado por"/>
+                <field name="write_uid" string="Modificado por"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

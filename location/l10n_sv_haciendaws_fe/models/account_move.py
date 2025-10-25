@@ -485,6 +485,11 @@ class AccountMove(models.Model):
 
     def _inverse_name(self):
         for rec in self:
+            # --- BYPASS total para movimientos que no son factura/nota ---
+            if rec.move_type in ('entry', 'out_receipt', 'in_receipt'):
+                _logger.info("[INVERSE-NAME] BYPASS aplicado: move_type=%s (no se modifica name)", rec.move_type)
+                continue
+
             if rec.move_type in (constants.IN_INVOICE, constants.IN_REFUND) and rec.journal_id.sequence_id:
                 _logger.info("[INVERSE-NAME] Compra normal con secuencia, no se modifica name")
                 continue

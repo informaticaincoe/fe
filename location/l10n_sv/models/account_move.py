@@ -384,8 +384,8 @@ class sit_account_move(models.Model):
         _logger.info("SIT | Iniciando create unificado para AccountMove. Vals_list: %s", vals_list)
 
         # BYPASS para movimientos que no son factura/nota (nómina, asientos manuales, recibos)
-        if any(v.get('move_type') in ('entry', 'out_receipt', 'in_receipt') for v in vals_list):
-            return super().create(vals_list)
+        # if any(v.get('move_type') in ('entry', 'out_receipt', 'in_receipt') for v in vals_list):
+        #     return super().create(vals_list)
 
         # --- Llenar name provisional '/' antes de crear registros ---
         for vals in vals_list:
@@ -403,6 +403,11 @@ class sit_account_move(models.Model):
                         journal.sequence_id.name)
                 else:
                     _logger.info("SIT | Diario sin secuencia, asignado name provisional '/'")
+
+        # BYPASS para movimientos que no son factura/nota (nómina, asientos manuales, recibos)
+        if any(v.get('move_type') in ('entry', 'out_receipt', 'in_receipt') for v in vals_list):
+            _logger.info("SIT | Todos los movimientos son entry/receipts. Bypass completo al super().create()")
+            return super().create(vals_list)
 
         # --- Crear registros base (solo una vez) ---
         base_records = super().create(vals_list)
@@ -529,6 +534,11 @@ class sit_account_move(models.Model):
     def write(self, vals):
         _logger.info("SIT | Iniciando write unificado. Vals: %s", vals)
 
+        # --- Evitar lógica personalizada para asientos contables simples (entry) ---
+        if all(inv.move_type == 'entry' for inv in self):
+            _logger.info("SIT | write bypass completo para move_type=entry")
+            return super().write(vals)
+
         # --- OMITIR validación si NO es factura de venta con DTE ---
         if self.env.context.get('install_mode') or self.env.context.get('_dte_auto_generated'):
             _logger.info("SIT | write ignorado por instalación de módulo o autogenerado")
@@ -615,12 +625,12 @@ class sit_account_move(models.Model):
             facturas_aplican._copiar_retenciones_desde_documento_relacionado()
 
         # Recalcular totales de percepción/retención/renta
-        for move in self:
-            if move.line_ids:
-                move._compute_totales_retencion_percepcion()
-                _logger.info(
-                    "SIT | Totales recalculados write move_id=%s -> Percepción=%.2f | Retención IVA=%.2f | Renta=%.2f",
-                    move.id, move.percepcion_amount, move.retencion_iva_amount, move.retencion_renta_amount)
+        # for move in self:
+        #     if move.line_ids:
+        #         move._compute_totales_retencion_percepcion()
+        #         _logger.info(
+        #             "SIT | Totales recalculados write move_id=%s -> Percepción=%.2f | Retención IVA=%.2f | Renta=%.2f",
+        #             move.id, move.percepcion_amount, move.retencion_iva_amount, move.retencion_renta_amount)
 
         # Manejo de descuentos
         campos_descuento = {'descuento_gravado', 'descuento_exento', 'descuento_no_sujeto', 'descuento_global_monto'}
