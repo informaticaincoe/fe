@@ -14,12 +14,10 @@ _logger = logging.getLogger(__name__)
 
 try:
     from odoo.addons.common_utils.utils import constants
-
     _logger.info("SIT Modulo constants [purchase-account_move]")
 except ImportError as e:
     _logger.error(f"Error al importar 'constants': {e}")
     constants = None
-
 
 class AccountMove(models.Model):
     _inherit = 'account.move'
@@ -32,7 +30,6 @@ class AccountMove(models.Model):
     sit_tipo_documento_id = fields.Many2one(
         'account.journal.tipo_documento.field',
         string='Tipo de Documento',
-        # related='journal_id.sit_tipo_documento',
         store=True,
         default=lambda self: self._get_default_tipo_documento(),
     )
@@ -73,41 +70,43 @@ class AccountMove(models.Model):
         copy=False,
         default='/',
         help="Editable siempre por el usuario",
-        # compute="_compute_unique_name"
     )
-
 
     # Verificar que el name (o numero de control) sea unico
     @api.constrains('name', 'company_id')
     def _check_unique_name(self):
         for move in self:
-            name = (move.name or '').strip()
-            # Permitir '/' y vacío (borradores) y saltar si no hay nombre
-            if not name or name == '/':
-                continue
+            if (move.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND) or
+                (move.move_type == constants.IN_INVOICE and move.journal_id and move.journal_id.sit_tipo_documento and move.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FSE)):
+                name = (move.name or '').strip()
+                _logger.info("Validando número de documento '%s' (ID %s) para la compañía ID %s tipo de movimiento %s", name, move.id, move.company_id.id, move.move_type)
 
-            # Busca duplicado en la misma compañía, excluyendo el propio registro
-            dup = self.search([
-                ('id', '!=', move.id),
-                ('company_id', '=', move.company_id.id),
-                ('name', '=', name),
-            ], limit=1)
+                # Permitir '/' y vacío (borradores) y saltar si no hay nombre
+                if not name or name == '/':
+                    continue
 
-            if dup:
-                # Mensaje claro al usuario
-                raise ValidationError(_(
-                    "El número de documento '%(name)s' ya existe",
-                ) % {
-                      'name': name,
-                      'doc': dup.display_name or dup.name,
-                })
+                # Busca duplicado en la misma compañía, excluyendo el propio registro
+                dup = self.search([
+                    ('id', '!=', move.id),
+                    ('company_id', '=', move.company_id.id),
+                    ('name', '=', name),
+                ], limit=1)
+
+                if dup:
+                    # Mensaje claro al usuario
+                    raise ValidationError(_(
+                        "El número de documento '%(name)s' ya existe",
+                    ) % {
+                          'name': name,
+                          'doc': dup.display_name or dup.name,
+                    })
 
     # Verificar que el sello sea unico
     @api.constrains('hacienda_selloRecibido', 'company_id', 'move_type')
     def _check_unique_sello(self):
         for move in self:
             # Solo aplica a compras
-            if move.move_type not in ('in_invoice', 'in_refund'):
+            if move.move_type not in (constants.IN_INVOICE, constants.IN_REFUND):
                 continue
 
             sello = self._norm_sello(move.hacienda_selloRecibido)
@@ -117,7 +116,7 @@ class AccountMove(models.Model):
             dup = self.search([
                 ('id', '!=', move.id),
                 ('company_id', '=', move.company_id.id),
-                ('move_type', 'in', ['in_invoice', 'in_refund']),
+                ('move_type', 'in', [constants.IN_INVOICE, constants.IN_REFUND]),
                 ('hacienda_selloRecibido', '=', sello),
             ], limit=1)
 
@@ -131,7 +130,7 @@ class AccountMove(models.Model):
     @api.constrains('hacienda_codigoGeneracion_identificacion', 'company_id', 'move_type')
     def _check_unique_cod_generacion(self):
         for move in self:
-            if move.move_type not in ('in_invoice', 'in_refund'):
+            if move.move_type not in (constants.IN_INVOICE, constants.IN_REFUND):
                 continue
 
             codigo_generacion = self._norm_sello(move.hacienda_codigoGeneracion_identificacion)
@@ -141,7 +140,7 @@ class AccountMove(models.Model):
             dup = self.search([
                 ('id', '!=', move.id),
                 ('company_id', '=', move.company_id.id),
-                ('move_type', 'in', ['in_invoice', 'in_refund']),
+                ('move_type', 'in', [constants.IN_INVOICE, constants.IN_REFUND]),
                 ('hacienda_codigoGeneracion_identificacion', '=', codigo_generacion),
             ], limit=1)
 
@@ -175,9 +174,11 @@ class AccountMove(models.Model):
     percepcion_amount = fields.Monetary(
         string="Percepción",
         currency_field='currency_id',
+        compute='_compute_retencion',
         readonly=True,
         store=True,
-        default=0.0)
+        default=0.0
+    )
 
     def _get_default_tipo_documento(self):
         """Busca en 'account.journal.tipo_documento.field' el registro con código '01'
@@ -195,8 +196,7 @@ class AccountMove(models.Model):
         for rec in self:
             valor = False  # valor por defecto
             if (rec.move_type in (constants.IN_INVOICE, constants.IN_REFUND) and rec.journal_id
-                    and (
-                            not rec.journal_id.sit_tipo_documento or rec.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)):
+                    and (not rec.journal_id.sit_tipo_documento or rec.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)):
                 codigo = rec.clase_documento_id.codigo if rec.clase_documento_id else None
                 valor = bool(codigo == constants.DTE_COD)
 
@@ -286,53 +286,6 @@ class AccountMove(models.Model):
                 move.sit_amount_tax_system = move.currency_id.round(total_tax)
                 _logger.info("SIT | move %s sit_amount_tax_system final: %s", move.name, move.sit_amount_tax_system)
 
-    # def _compute_totales_retencion_percepcion(self):
-    #     """Suma automática de percepción, retención IVA y renta desde las líneas."""
-    #     for move in self:
-    #         if (move.move_type in (constants.IN_INVOICE, constants.IN_REFUND) and move.journal_id and
-    #                 (not move.journal_id.sit_tipo_documento or move.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)):
-    #             percepcion_total = sum(move.line_ids.mapped('percepcion_amount'))
-    #             retencion_iva_total = sum(move.line_ids.mapped('retencion_amount'))
-    #             retencion_renta_total = sum(move.line_ids.mapped('renta_amount'))
-    #
-    #             # Asigna los totales a los campos existentes
-    #             # Evitar recursión al escribir valores
-    #             if not self.env.context.get('skip_compute'):
-    #                 move.with_context(skip_compute=True).write({
-    #                     'percepcion_amount': percepcion_total,
-    #                     'retencion_iva_amount': retencion_iva_total,
-    #                     'retencion_renta_amount': retencion_renta_total,
-    #                 })
-    #             else:
-    #                 # Solo asignar en memoria si el flag está activo
-    #                 move.percepcion_amount = percepcion_total
-    #                 move.retencion_iva_amount = retencion_iva_total
-    #                 move.retencion_renta_amount = retencion_renta_total
-    #
-    #             _logger.info("SIT | Totales move_id=%s => Percepción=%.2f | Retención IVA=%.2f | Retención Renta=%.2f",
-    #                          move.id, percepcion_total, retencion_iva_total, retencion_renta_total)
-
-    # def _update_totales_move(self):
-    #     """
-    #     Actualiza los totales de retención y percepción desde las líneas.
-    #     No se usa @api.depends para evitar conflictos con otros computes existentes.
-    #     """
-    #     for move in self:
-    #         if (move.move_type in (constants.IN_INVOICE, constants.IN_REFUND) and move.journal_id and
-    #                 (not move.journal_id.sit_tipo_documento or move.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)):
-    #             total_percepcion = sum(move.line_ids.mapped('percepcion_amount'))
-    #             total_ret_iva = sum(move.line_ids.mapped('retencion_amount'))
-    #             total_ret_renta = sum(move.line_ids.mapped('renta_amount'))
-    #
-    #             move.percepcion_amount = total_percepcion
-    #             move.retencion_iva_amount = total_ret_iva
-    #             move.retencion_renta_amount = total_ret_renta
-    #
-    #             _logger.info(
-    #                 "SIT | Totales actualizados move_id=%s => Percepción=%.2f | Ret. IVA=%.2f | Ret. Renta=%.2f",
-    #                 move.id, total_percepcion, total_ret_iva, total_ret_renta
-    #             )
-
     def action_post(self):
         """
         - Aplica solo a facturas de proveedor (IN_INVOICE, IN_REFUND) que no sean FSE.
@@ -349,13 +302,10 @@ class AccountMove(models.Model):
             return super().action_post()
 
         # Obtener el registro de Pago Inmediato
-        IMMEDIATE_PAYMENT = self.env.ref('account.account_payment_term_immediate').id
+        # IMMEDIATE_PAYMENT = self.env.ref('account.account_payment_term_immediate').id
 
         for move in self:
             _logger.info("SIT-Compra move type: %s, tipo documento %s: ", move.move_type, move.codigo_tipo_documento)
-            if move.move_type not in (constants.IN_INVOICE, constants.IN_REFUND):
-                _logger.info("SIT Action post no aplica a modulos distintos a compra.")
-                continue
             if move.move_type == constants.IN_INVOICE and move.journal_id and move.journal_id.sit_tipo_documento and move.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FSE:
                 _logger.info("SIT Action post no aplica para compras electronicas(como suejto excluido).")
                 continue
@@ -413,13 +363,13 @@ class AccountMove(models.Model):
                 _logger.info("SIT | Codigo de generacion no agregado.")
                 raise ValidationError("Debe agregar el Codigo de generación.")
 
-            if not move.sit_obervaciones:
+            if not move.sit_observaciones:
                 _logger.info("SIT | Descripcion no agregada.")
                 raise ValidationError("Se requiere una descripción.")
 
             # Validación de Condición/Plazo solo para ventas
-            payment_term_id = move.invoice_payment_term_id.id if move.invoice_payment_term_id else None
-            _logger.info("Termino de pago seleccionado: %s", move.invoice_payment_term_id.name if move.invoice_payment_term_id else None)
+            # payment_term_id = move.invoice_payment_term_id.id if move.invoice_payment_term_id else None
+            # _logger.info("Termino de pago seleccionado: %s", move.invoice_payment_term_id.name if move.invoice_payment_term_id else None)
 
             # if payment_term_id and payment_term_id != IMMEDIATE_PAYMENT and not move.sit_condicion_plazo:
             #     _logger.info("Debe seleccionar el campo 'Condición del Plazo Crédito' si el término de pago no es 'Pago inmediato'.")
@@ -475,6 +425,7 @@ class AccountMove(models.Model):
         return result
 
     exp_duca_id = fields.One2many('exp_duca', 'move_id', string='DUCAs')
+
     def generar_asientos_retencion_compras(self):
         """
         Genera automáticamente las líneas contables de **percepción**, **retención** y **renta**
@@ -497,13 +448,25 @@ class AccountMove(models.Model):
                 continue
 
             if move.state != 'draft':
-                _logger.warning(
-                    f"SIT | [Move {move.id}] No se puede modificar, no está en borrador (estado={move.state}).")
+                _logger.warning(f"SIT | [Move {move.id}] No se puede modificar, no está en borrador (estado={move.state}).")
                 continue
 
             company = move.company_id
             currency = move.currency_id
             precision = currency.rounding or 0.01
+
+            # --- Validar configuración de cuentas en compañía
+            missing_accounts = []
+            if not company.percepcion_purchase_id:
+                missing_accounts.append("Cuenta de Percepción 1%")
+            if not company.retencion_iva_purchase_id:
+                missing_accounts.append("Cuenta de Retención IVA")
+            if not company.renta_purchase_id:
+                missing_accounts.append("Cuenta de Renta")
+
+            if missing_accounts:
+                raise UserError("No se pueden generar los asientos de retención/percepción/renta porque faltan cuentas en la compañía "
+                                f"{company.name}:\n- " + "\n- ".join(missing_accounts))
 
             # --- Detalle de líneas
             _logger.info(f"SIT | [Move {move.id}] Revisando {len(move.invoice_line_ids)} líneas de factura")
@@ -526,10 +489,9 @@ class AccountMove(models.Model):
             )
 
             # Eliminar líneas previas de este tipo
-            previas = move.line_ids.filtered(lambda l: l.name in ["Percepción", "Retención IVA", "Renta"])
+            previas = move.line_ids.filtered(lambda l: l.name in [company.percepcion_purchase_id.name, company.retencion_iva_purchase_id.name, company.renta_purchase_id.name])
             if previas:
-                _logger.info(
-                    f"SIT | [Move {move.id}] Eliminando {len(previas)} líneas previas de retención/percepción/renta")
+                _logger.info(f"SIT | [Move {move.id}] Eliminando {len(previas)} líneas previas de retención/percepción/renta")
                 previas.unlink()
 
             lineas = []
@@ -538,10 +500,10 @@ class AccountMove(models.Model):
                 return float_round(monto or 0.0, precision_rounding=precision)
 
             # --- Percepción
-            if total_percepcion > 0 and company.iva_percibido_account_id:
+            if total_percepcion > 0 and company.percepcion_purchase_id:
                 lineas.append({
-                    'name': 'Percepción',
-                    'account_id': company.iva_percibido_account_id.id,
+                    'name': company.percepcion_purchase_id.name,
+                    'account_id': company.percepcion_purchase_id.id,
                     'debit': redondear(total_percepcion),
                     'credit': 0.0,
                     'move_id': move.id,
@@ -549,10 +511,10 @@ class AccountMove(models.Model):
                 _logger.info(f"SIT | [Move {move.id}] Línea de Percepción lista: {redondear(total_percepcion)}")
 
             # --- Retención IVA
-            if total_retencion > 0 and company.retencion_iva_account_id:
+            if total_retencion > 0 and company.retencion_iva_purchase_id:
                 lineas.append({
-                    'name': 'Retención IVA',
-                    'account_id': company.retencion_iva_account_id.id,
+                    'name': company.retencion_iva_purchase_id.name,
+                    'account_id': company.retencion_iva_purchase_id.id,
                     'debit': 0.0,
                     'credit': redondear(total_retencion),
                     'move_id': move.id,
@@ -560,10 +522,10 @@ class AccountMove(models.Model):
                 _logger.info(f"SIT | [Move {move.id}] Línea de Retención IVA lista: {redondear(total_retencion)}")
 
             # --- Renta
-            if total_renta > 0 and company.retencion_renta_account_id:
+            if total_renta > 0 and company.renta_purchase_id:
                 lineas.append({
-                    'name': 'Renta',
-                    'account_id': company.retencion_renta_account_id.id,
+                    'name': company.renta_purchase_id.name,
+                    'account_id': company.renta_purchase_id.id,
                     'debit': 0.0,
                     'credit': redondear(total_renta),
                     'move_id': move.id,
@@ -575,6 +537,68 @@ class AccountMove(models.Model):
                 _logger.info(f"SIT | [Move {move.id}] Se agregaron {len(lineas)} líneas contables de ret./perc./renta")
             else:
                 _logger.info(f"SIT | [Move {move.id}] No hay montos para agregar (percepción/retención/renta)")
+
+    @api.depends(
+        'invoice_line_ids.apply_percepcion',
+        'invoice_line_ids.apply_retencion',
+        'invoice_line_ids.renta_percentage',
+        'invoice_line_ids.price_subtotal'
+    )
+    def _compute_retencion(self):
+        """
+        Extiende el cálculo de retenciones del módulo 'invoice_sv' para incluir:
+          - Percepción (1%)
+          - Retención de IVA (personalizada)
+          - Retención de renta (porcentaje variable)
+
+        Funcionamiento:
+          1. Ejecuta primero el cálculo base del módulo original (super()).
+          2. Aplica la extensión solo a facturas de compra (IN_INVOICE, IN_REFUND)
+             que no sean del tipo FSE.
+          3. Suma los montos línea por línea y actualiza los totales del movimiento.
+          4. Si los valores cambian a 0, también se reflejan (no se acumulan).
+
+        Campos afectados:
+          - percepcion_amount
+          - retencion_iva_amount
+          - retencion_renta_amount
+        """
+        # Ejecutar el cómputo original del módulo base
+        super(AccountMove, self)._compute_retencion()
+
+        for move in self:
+            # --- FILTRO: solo aplica a facturas de proveedor (no FSE) ---
+            if (move.move_type not in (constants.IN_INVOICE, constants.IN_REFUND) or
+                    (move.move_type == constants.IN_INVOICE and move.journal_id
+                    and move.journal_id.sit_tipo_documento and move.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FSE)):
+                _logger.info(
+                    "SIT | _compute_retencion extendido omitido para move_id=%s (tipo=%s)",
+                    move.id, move.move_type
+                )
+                continue
+
+            # --- SUMATORIAS DE LÍNEAS ---
+            total_percepcion = sum(line.percepcion_amount for line in move.invoice_line_ids)
+            total_retencion = sum(line.retencion_amount for line in move.invoice_line_ids)
+            total_renta = sum(line.renta_amount for line in move.invoice_line_ids)
+
+            # --- LOG DETALLADO DE CADA LÍNEA ---
+            for line in move.invoice_line_ids:
+                _logger.info(
+                    "SIT | [Línea %s] percepcion=%s, retencion=%s, renta=%s (subtotal=%s)",
+                    line.id, line.percepcion_amount, line.retencion_amount,
+                    line.renta_amount, line.price_subtotal
+                )
+
+            # --- ASIGNACIÓN DIRECTA (sin acumulación) ---
+            move.percepcion_amount = total_percepcion or 0.0
+            move.retencion_iva_amount = total_retencion or 0.0
+            move.retencion_renta_amount = total_renta or 0.0
+
+            _logger.info(
+                "SIT | [Move %s] Totales recalculados -> Percepción=%s, Retención IVA=%s, Renta=%s",
+                move.id, total_percepcion, total_retencion, total_renta
+            )
 
     # --- campo O2M en plural ---
     exp_duca_ids = fields.One2many('exp_duca', 'move_id', string='DUCAs')
