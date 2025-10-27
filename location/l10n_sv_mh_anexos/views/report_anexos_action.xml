@@ -39,12 +39,11 @@
             <field name="res_model">account.move</field>
             <field name="view_mode">list</field>
             <field name="view_id" ref="view_anexo_contribuyentes_list"/>
-            <!--            <field name="search_view_id" ref="view_anexos_fechas_search"/>-->
             <field name="domain">[
                 ('codigo_tipo_documento','in', ['03', '05', '06']),
                 ('hacienda_estado', '=', 'PROCESADO'),
                 ('hacienda_selloRecibido', '!=', ''),
-                ('sit_evento_invalidacion', '=', '')]</field>
+                ('has_sello_anulacion', '=', '')]</field>
             <field name="context">{'numero_anexo': 1, 'anexo_action_id':'ANX_CONTRIBUYENTE'}</field>
         </record>
 
@@ -56,7 +55,11 @@
             <field name="view_id" ref="view_anexo_compras_list"/>
             <!--            <field name="search_view_id" ref="view_anexos_fechas_search"/>-->
             <!--            <field name="domain">[('codigo_tipo_documento', 'in', ['03', '05', '06', '11']), ('hacienda_estado', '=', 'PROCESADO'), ('hacienda_selloRecibido', '!=', '')]</field>-->
-            <field name="domain">[('codigo_tipo_documento','in', ['01', '11', '03'])]</field>
+            <field name="domain">[
+                ('codigo_tipo_documento','in', ['01', '11', '03']),
+                ('hacienda_estado', '=', 'PROCESADO'),
+                ('hacienda_selloRecibido', '!=', ''),
+                ('has_sello_anulacion', '=', '')]</field>
             <field name="context">{'numero_anexo': 3, 'anexo_action_id': 'ANX_COMPRAS'}</field>
         </record>
 
@@ -108,7 +111,11 @@
             <field name="view_mode">list</field>
             <field name="view_id" ref="view_report_account_move_daily_mayores_list"/>
             <!--            <field name="search_view_id" ref="view_anexos_fechas_search"/>-->
-            <field name="domain">[('amount_total', '>', 25000)]</field>
+            <field name="domain">[
+                ('amount_total', '>', 25000),
+                ('hacienda_estado', '=', 'PROCESADO'),
+                ('hacienda_selloRecibido', '!=', ''),
+                ('has_sello_anulacion', '=', '')]</field>
             <field name="context">{'numero_anexo': 4, 'anexo_action_id': 'ANX_CLIENTES_MAYORES'}</field>
         </record>
 
@@ -128,7 +135,7 @@
 
         <!-- Submenús -->
         <menuitem id="menu_report_account_move_daily"
-                  name="Facturas por día"
+                  name="Facturas menores a 25000"
                   parent="menu_hacienda_reports"
                   action="action_report_account_move_daily"/>
 

@@ -15,7 +15,6 @@
                 <field name="monto_total_impuestos"/>
                 <field name="invoice_year"/>
                 <field name="numero_anexo"/>
-                <field name="name"/> <!-- Quitar este campo -->
             </list>
         </field>
     </record>

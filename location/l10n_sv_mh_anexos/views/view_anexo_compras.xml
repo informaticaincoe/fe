@@ -13,10 +13,14 @@
                                 display="always"
                         />
                     </header>
-                    <!--                    <field name="invoice_month" string="Mes" />-->
-                    <!--                    <field name="name" string="Documento"/>-->
                     <field name="invoice_date" string="Fecha de Emisión"/>
                     <field name="clase_documento"/>
+                    <field name="codigo_tipo_documento"/>
+                    <field name="numero_documento"/>
+                    <field name="nit_o_nrc_anexo_contribuyentes"/>
+                    <field name="razon_social"/>
+
+
                     <field name="codigo_tipo_documento"/>
                     <field name="name" string="Número de documento"/>
 

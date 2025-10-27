@@ -48,9 +48,9 @@ class AnexoCSVUtils(models.AbstractModel):
                 'invoice_date',
                 'clase_documento',
                 'codigo_tipo_documento',
-                'hacienda_codigoGeneracion_identificacion',  # Número de Resolución
+                'numero_resolucion',  # Número de Resolución
                 'hacienda_selloRecibido',  # Número de Serie de Documento
-                'name',  # Número de Documento
+                'numero_documento',  # Número de Documento
                 'numero_control_interno_del',  # Número de Documento
                 'nit_o_nrc_anexo_contribuyentes',
                 'razon_social',
@@ -72,7 +72,7 @@ class AnexoCSVUtils(models.AbstractModel):
                 'razon_social',
                 'invoice_date',
                 'hacienda_selloRecibido',
-                'name',
+                'numero_documento',
                 'total_operacion',
                 'retencion_iva_amount',
                 'tipo_operacion_codigo',
@@ -101,7 +101,6 @@ class AnexoCSVUtils(models.AbstractModel):
                 "monto_total_impuestos",
                 "invoice_year",
                 "numero_anexo",
-                "name",
             ],
             "ANX_CLIENTES_MAYORES": [
                 "invoice_month",
@@ -112,13 +111,13 @@ class AnexoCSVUtils(models.AbstractModel):
                 "codigo_tipo_documento",
                 "hacienda_codigoGeneracion_identificacion",
                 "Número de documento",
-                "tipo_operacion_display",
+                "tipo_operacion_codigo",
                 "amount_tax",
                 "invoice_year",
                 "numero_anexo",
             ],
             "ANX_ANULADOS": [
-                "name",
+                "numero_resolucion_anexos_anulados",
                 "clase_documento",
                 "desde_tiquete_preimpreso",
                 "hasta_tiquete_preimpreso",
@@ -167,20 +166,19 @@ class AnexoCSVUtils(models.AbstractModel):
                 val = row_vals.get(fname, "")
 
                 # --- Formatos / Limpiezas ---
-                if fname == "invoice_date" and val:
-                    # viene como 'YYYY-MM-DD' (date), formatear DD/MM/AAAA
+                if fname == "invoice_date" and key in ("ANX_CLIENTES_MAYORES", "ANX_CLIENTES_MENORES") and val:
+                    clean = clean.replace("/", "")
+                else:
                     try:
                         clean = fields.Date.to_date(val).strftime("%d/%m/%Y")
                     except Exception:
                         clean = str(val)
-                else:
-                    clean = "" if val is None else str(val)
 
-                if fname in (
+                if fname in ( #Eliminar guiones de la siguiente lista de variables
                         "hacienda_codigoGeneracion_identificacion",
                         "hacienda_selloRecibido",
                         "dui_cliente", "nit_o_nrc_anexo_contribuyentes",
-                        "documento_sujeto_excluido"
+                        "documento_sujeto_excluido", "numero_documento_del", "numero_documento_al", "numero_documento"
                 ):
                     clean = clean.replace("-", "")
 
