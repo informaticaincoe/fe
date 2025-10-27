@@ -174,6 +174,7 @@ class account_move(models.Model):
         readonly=True,
         store=False,
     )
+
     codigo_tipo_documento = fields.Char(
         string="Código tipo documento",
         readonly=True
@@ -210,6 +211,20 @@ class account_move(models.Model):
     hacienda_codigoGeneracion_identificacion = fields.Char(
         string="codigo generacion",
         readonly=True,
+    )
+
+    numero_documento = fields.Char(
+        string="Numero de control interno",
+        readonly=True,
+        store=False,
+        compute='_compute_get_numero_documento',
+    )
+
+    numero_control_interno = fields.Char(
+        string="Numero de control interno",
+        readonly=True,
+        store=False,
+        compute='_compute_get_numero_control_interno',
     )
 
     numero_control_interno_del = fields.Char(
@@ -372,6 +387,12 @@ class account_move(models.Model):
         store=False
     )
 
+    numero_resolucion = fields.Char(
+        string="Numero resolucion",
+        compute="_compute_numero_resolucion",
+        store=False
+    )
+
     desde_tiquete_preimpreso = fields.Char(
         string="Numero resolucion",
         compute="_compute_desde_tiquete_preimpreso",
@@ -461,6 +482,24 @@ class account_move(models.Model):
                 if rec.sector else ""
             )
 
+    @api.depends('journal_id')
+    def _compute_resolucion_anexos_anulados(self):
+        limite = date(2022, 10, 1)
+        for record in self:
+            if record.invoice_date < limite:
+                record.numero_documento = record.hacienda_codigoGeneracion_identificacion
+            else:
+                record.numero_documento = record.name
+
+    @api.depends('journal_id')
+    def _compute_numero_resolucion(self):
+        limite = date(2022, 11, 1)
+        for record in self:
+            if record.invoice_date < limite:
+                record.numero_resolucion = record.hacienda_codigoGeneracion_identificacion
+            else:
+                record.numero_resolucion = record.name
+
     @api.depends('invoice_date')
     def _compute_invoice_month(self):
         for record in self:
@@ -500,9 +539,9 @@ class account_move(models.Model):
         store=False,
     )
 
-    numero_documento = fields.Char(
+    numero_documento_identificacion = fields.Char(
         string="Número de documento de identificacion",
-        compute='_compute_get_numero_documento',
+        compute='numero_documento_identificacion',
         readonly=True,
         store=False,
     )
@@ -616,7 +655,7 @@ class account_move(models.Model):
                 record.tipo_documento_identificacion = ''
 
     @api.depends('partner_id')
-    def _compute_get_numero_documento(self):
+    def numero_documento_identificacion(self):
         for record in self:
             if record.partner_id and record.partner_id.dui:
                 record.numero_documento = "01"
@@ -633,6 +672,20 @@ class account_move(models.Model):
                 numero = "DTE-" + record.journal_id.name
 
             record.numero_control_interno_del = numero
+
+    @api.depends('journal_id')
+    def _compute_get_numero_documento(self):
+        limite = date(2022, 11, 1)
+        for record in self:
+            if record.invoice_date < limite:
+                record.numero_documento = record.name
+            else:
+                record.numero_documento = record.hacienda_codigoGeneracion_identificacion
+
+    @api.depends('journal_id')
+    def _compute_get_numero_control_interno(self):
+        for record in self:
+            record.numero_control_interno = ""
 
     @api.depends('journal_id')
     def _compute_get_numero_control_documento_interno_del(self):
