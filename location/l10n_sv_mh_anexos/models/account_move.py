@@ -22,6 +22,32 @@ except ImportError as e:
 class account_move(models.Model):
     _inherit = 'account.move'
 
+    semester = fields.Selection(
+        [('S1', 'Ene–Jun'), ('S2', 'Jul–Dic')],
+        compute='_compute_semester',
+        store=True, index=True
+    )
+    semester_year = fields.Integer(
+        compute='_compute_semester',
+        store=True, index=True
+    )
+    semester_label = fields.Char(  # útil para mostrar/ordenar: "2025-H1"
+        compute='_compute_semester',
+        store=True, index=True
+    )
+
+    @api.depends('invoice_date')
+    def _compute_semester(self):
+        for m in self:
+            if m.invoice_date:
+                m.semester_year = m.invoice_date.year
+                m.semester = 'S1' if m.invoice_date.month <= 6 else 'S2'
+                m.semester_label = f"{m.semester_year}-{m.semester}"
+            else:
+                m.semester_year = False
+                m.semester = False
+                m.semester_label = False
+
     @staticmethod
     def _only_digits(val):
         """Devuelve solo los dígitos del valor (sin guiones/plecas/espacios)."""
@@ -34,6 +60,18 @@ class account_move(models.Model):
         ondelete='set null',
         index=True,
     )
+
+    sit_tipo_documento = fields.Char(
+        string="Tipo de documento",
+        compute="_compute_sit_tipo_documento",
+        readonly=True,
+        store=False,
+    )
+
+    @api.depends('name')
+    def _compute_sit_tipo_documento(self):
+        for record in self:
+            record.sit_tipo_documento = record.sit_tipo_documento.codigo
 
     # ✅ nombre correcto
     has_sello_anulacion = fields.Boolean(
@@ -438,7 +476,7 @@ class account_move(models.Model):
     def _compute_tipo_ingreso_display(self):
         limite = date(2025, 1, 1)
         for rec in self:
-            if rec.invoice_date >= limite:
+            if rec.invoice_date and rec.invoice_date >= limite:
                 rec.tipo_ingreso_display = (
                     f"{rec.tipo_ingreso_id.codigo}. {rec.tipo_ingreso_id.valor}"
                     if rec.tipo_ingreso_id else ""
@@ -458,7 +496,7 @@ class account_move(models.Model):
     def _compute_tipo_operacion_display(self):
         limite = date(2025, 1, 1)
         for rec in self:
-            if rec.invoice_date >= limite:
+            if rec.invoice_date and rec.invoice_date >= limite:
                 rec.tipo_operacion_display = (
                     f"{rec.tipo_operacion.codigo}. {rec.tipo_operacion.valor}"
                     if rec.tipo_operacion else ""
@@ -487,9 +525,9 @@ class account_move(models.Model):
         limite = date(2022, 10, 1)
         for record in self:
             if record.invoice_date < limite:
-                record.numero_documento = record.hacienda_codigoGeneracion_identificacion
+                record.numero_resolucion_anexos_anulados = record.hacienda_codigoGeneracion_identificacion
             else:
-                record.numero_documento = record.name
+                record.numero_resolucion_anexos_anulados = record.name
 
     @api.depends('journal_id')
     def _compute_numero_resolucion(self):
@@ -677,7 +715,7 @@ class account_move(models.Model):
     def _compute_get_numero_documento(self):
         limite = date(2022, 11, 1)
         for record in self:
-            if record.invoice_date < limite:
+            if record.invoice_date and record.invoice_date < limite:
                 record.numero_documento = record.name
             else:
                 record.numero_documento = record.hacienda_codigoGeneracion_identificacion

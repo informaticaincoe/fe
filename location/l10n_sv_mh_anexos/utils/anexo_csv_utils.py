@@ -82,16 +82,15 @@ class AnexoCSVUtils(models.AbstractModel):
                 'numero_anexo',
             ],
             "ANX_C162": [
-                'name',
-                'clase_documento',
-                'desde_tiquete_preimpreso',
-                'hasta_tiquete_preimpreso',
-                'codigo_tipo_documento',
-                'tipo_de_detalle',
-                'hacienda_selloRecibido',
-                'desde',
-                'hasta',
-                'hacienda_codigoGeneracion_identificacion',
+                "nit_cliente",
+                "fecha_documento",
+                "sit_tipo_documento",
+                "sello_recepcion",
+                "numero_anexo",
+                "total_monto_sujeto",
+                "total_iva_retenido",
+                "dui_proveedor",
+                "numero_anexo"
             ],
             "ANX_CLIENTES_MENORES": [
                 "invoice_month",
@@ -110,11 +109,10 @@ class AnexoCSVUtils(models.AbstractModel):
                 "invoice_date",
                 "codigo_tipo_documento",
                 "hacienda_codigoGeneracion_identificacion",
-                "Número de documento",
-                "tipo_operacion_codigo",
+                "total_operacion",
                 "amount_tax",
                 "invoice_year",
-                "numero_anexo",
+                "numero_anexo"
             ],
             "ANX_ANULADOS": [
                 "numero_resolucion_anexos_anulados",
@@ -174,7 +172,7 @@ class AnexoCSVUtils(models.AbstractModel):
                     except Exception:
                         clean = str(val)
 
-                if fname in ( #Eliminar guiones de la siguiente lista de variables
+                if fname in (  # Eliminar guiones de la siguiente lista de variables
                         "hacienda_codigoGeneracion_identificacion",
                         "hacienda_selloRecibido",
                         "dui_cliente", "nit_o_nrc_anexo_contribuyentes",
@@ -183,7 +181,7 @@ class AnexoCSVUtils(models.AbstractModel):
                     clean = clean.replace("-", "")
 
                 # se eliminan guines del numero de control a menos que sea para anexo de documentos anulados
-                if fname == "name" and  key not in ("ANX_ANULADOS"):
+                if fname == "name" and key not in ("ANX_ANULADOS"):
                     clean = clean.replace("-", "")
 
                 # “0” por defecto para estos códigos si están vacíos

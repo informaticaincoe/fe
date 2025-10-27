@@ -413,9 +413,9 @@ class AccountMove(models.Model):
                 _logger.info("SIT | Codigo de generacion no agregado.")
                 raise ValidationError("Debe agregar el Codigo de generación.")
 
-            if not move.sit_obervaciones:
-                _logger.info("SIT | Descripcion no agregada.")
-                raise ValidationError("Se requiere una descripción.")
+            # if not move.sit_obervaciones:
+            #     _logger.info("SIT | Descripcion no agregada.")
+            #     raise ValidationError("Se requiere una descripción.")
 
             # Validación de Condición/Plazo solo para ventas
             payment_term_id = move.invoice_payment_term_id.id if move.invoice_payment_term_id else None
