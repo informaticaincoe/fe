@@ -24,7 +24,6 @@ class AnexoCSVUtils(models.AbstractModel):
                 "clase_documento",
                 "codigo_tipo_documento",
                 "numero_resolucion_consumidor_final",
-                "serie_documento_consumidor_final",
                 "numero_control_interno_del",
                 "numero_control_interno_al",
                 "numero_documento_del",
@@ -51,7 +50,7 @@ class AnexoCSVUtils(models.AbstractModel):
                 'numero_resolucion',  # Número de Resolución
                 'hacienda_selloRecibido',  # Número de Serie de Documento
                 'numero_documento',  # Número de Documento
-                'numero_control_interno_del',  # Número de Documento
+                'numero_control_interno',
                 'nit_o_nrc_anexo_contribuyentes',
                 'razon_social',
                 'total_exento',
@@ -86,7 +85,7 @@ class AnexoCSVUtils(models.AbstractModel):
                 "fecha_documento",
                 "sit_tipo_documento",
                 "sello_recepcion",
-                "numero_anexo",
+                "numero_documento",
                 "total_monto_sujeto",
                 "total_iva_retenido",
                 "dui_proveedor",
@@ -109,7 +108,7 @@ class AnexoCSVUtils(models.AbstractModel):
                 "invoice_date",
                 "codigo_tipo_documento",
                 "hacienda_codigoGeneracion_identificacion",
-                "total_operacion",
+                "amount_untaxed",
                 "amount_tax",
                 "invoice_year",
                 "numero_anexo"
@@ -129,10 +128,40 @@ class AnexoCSVUtils(models.AbstractModel):
         }
         return mapping.get(str(key), [])
 
+
     def generate_csv(self, records, numero_anexo=None, view_id=None, include_header=False):
-        from lxml import etree
-        import logging
-        _logger = logging.getLogger(__name__)
+
+        # utils/anexo_csv_utils.py
+        from decimal import Decimal, InvalidOperation
+        import re
+
+        # Campos que deben ir con 2 decimales en el CSV
+        NUMERIC_2D_FIELDS = {"total_monto_sujeto", "total_iva_retenido"}
+
+        _DEC2 = Decimal("0.01")
+
+        def _to_decimal(val) -> Decimal:
+            """Convierte val a Decimal de forma robusta (acepta str con comas, símbolos, etc.)."""
+            if val is None or val is False:
+                return Decimal("0")
+            if isinstance(val, Decimal):
+                return val
+            if isinstance(val, (int, float)):
+                return Decimal(str(val))
+            if isinstance(val, str):
+                s = val.strip()
+                if not s:
+                    return Decimal("0")
+                # quitar separadores de miles y símbolos no numéricos (deja dígitos, punto y signo)
+                s = s.replace(",", "")
+                s = re.sub(r"[^0-9.\-]", "", s)
+                try:
+                    return Decimal(s)
+                except InvalidOperation:
+                    return Decimal("0")
+            # cualquier otro tipo → 0
+            return Decimal("0")
+
 
         ctx = self.env.context
         csv_content = io.StringIO()
@@ -174,15 +203,19 @@ class AnexoCSVUtils(models.AbstractModel):
 
                 if fname in (  # Eliminar guiones de la siguiente lista de variables
                         "hacienda_codigoGeneracion_identificacion",
-                        "hacienda_selloRecibido",
+                        "hacienda_selloRecibido", "dui_proveedor",
                         "dui_cliente", "nit_o_nrc_anexo_contribuyentes",
-                        "documento_sujeto_excluido", "numero_documento_del", "numero_documento_al", "numero_documento"
+                        "documento_sujeto_excluido", "numero_documento_del", "numero_documento_al", "numero_documento", "numero_resolucion", "numero_resolucion_anexos_anulados"
                 ):
                     clean = clean.replace("-", "")
 
-                # se eliminan guines del numero de control a menos que sea para anexo de documentos anulados
-                if fname == "name" and key not in ("ANX_ANULADOS"):
-                    clean = clean.replace("-", "")
+                if fname in NUMERIC_2D_FIELDS:
+                    amount = _to_decimal(clean).quantize(_DEC2)  # Decimal con 2 decimales
+                    # si tu CSV debe ser numérico puro, puedes dejarlo como str con 2 decimales:
+                    clean = f"{amount:.2f}"
+                else:
+                    # normaliza no-numéricos
+                    clean = "" if clean in (None, False) else str(clean)
 
                 # “0” por defecto para estos códigos si están vacíos
                 if fname in ("tipo_operacion_codigo", "tipo_ingreso_codigo") and not clean:

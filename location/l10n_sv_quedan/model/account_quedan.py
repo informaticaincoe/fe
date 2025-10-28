@@ -18,6 +18,7 @@ import base64
 from email.utils import parseaddr, formataddr
 from odoo.tools.misc import ustr
 import base64, re
+
 try:
     import unicodedata
 except Exception:
@@ -49,6 +50,7 @@ class AccountQuedan(models.Model):
         index=True,
         help="Compañía propietaria del documento.",
     )
+
     currency_id = fields.Many2one(
         'res.currency',
         string="Moneda",
@@ -124,6 +126,27 @@ class AccountQuedan(models.Model):
         store=True,
         help="Suma de los totales de las facturas vinculadas.",
     )
+
+    fecha_creacion = fields.Date("Fecha", compute="_compute_fecha_creacion", store=True, readonly=True, )
+
+    autor_creacion = fields.Many2one(
+        comodel_name='res.users',
+        string="Creado Por",
+        compute="_compute_autor_creacion",
+        store=True,
+        readonly=True
+    )
+
+    @api.depends()
+    def _compute_autor_creacion(self):
+        for rec in self:
+            # 'create_uid' es un campo de sistema Many2one a res.users
+            rec.autor_creacion = rec.create_uid
+
+    @api.depends("factura_ids")
+    def _compute_fecha_creacion(self):
+        for rec in self:
+            rec.fecha_creacion = rec.create_date
 
     @api.depends('factura_ids.amount_total')
     def _compute_monto_total(self):
@@ -309,15 +332,21 @@ class AccountQuedan(models.Model):
     @api.depends('company_id', 'partner_id')
     def _compute_taken_invoice_ids(self):
         """Obtiene las facturas que ya están en otros Quedanes para excluirlas del selector."""
+        Move = self.env['account.move']
+        Quedan = self.env['account.quedan']
         for rec in self:
             if not rec.company_id:
-                rec.taken_invoice_ids = self.env['account.move']
+                rec.taken_invoice_ids = Move.browse()
                 continue
+
             dom = [('id', '!=', rec.id), ('company_id', '=', rec.company_id.id)]
             if rec.partner_id:
                 dom.append(('partner_id', '=', rec.partner_id.id))
-            others = self.env['account.quedan'].search(dom)
-            rec.taken_invoice_ids = others.mapped('factura_ids')
+
+            others = Quedan.search(dom)
+            # Sólo bills de proveedor (in_invoice)
+            taken_moves = others.mapped('factura_ids').filtered(lambda m: m.move_type == 'in_invoice')
+            rec.taken_invoice_ids = taken_moves
 
     # ========= Validaciones =========
     @api.constrains('factura_ids', 'company_id', 'partner_id')

@@ -68,6 +68,12 @@ class account_move(models.Model):
         store=False,
     )
 
+    # move_type = fields.Selection(
+    #     selection=lambda self: self.env['account.move']._fields['move_type'].selection,
+    #     string="Tipo de documento",
+    #     readonly=True,
+    # )
+
     @api.depends('name')
     def _compute_sit_tipo_documento(self):
         for record in self:
@@ -355,6 +361,11 @@ class account_move(models.Model):
 
     total_operacion = fields.Monetary(
         string="Total de ventas",
+        readonly=True,
+    )
+
+    amount_untaxed = fields.Monetary(
+        string="Monto de operación",
         readonly=True,
     )
 
@@ -696,11 +707,11 @@ class account_move(models.Model):
     def numero_documento_identificacion(self):
         for record in self:
             if record.partner_id and record.partner_id.dui:
-                record.numero_documento = "01"
+                record.numero_documento_identificacion = "01"
             elif record.partner_id and record.partner_id.vat:
-                record.numero_documento = "03"
+                record.numero_documento_identificacion = "03"
             else:
-                record.numero_documento = ''
+                record.numero_documento_identificacion = ''
 
     @api.depends('journal_id')
     def _compute_numero_control_interno_del(self):
@@ -1025,11 +1036,11 @@ class account_move(models.Model):
     @api.depends('journal_id')
     def _compute_tipo_detalle(self):
         for record in self:
-            _logger.info("has_sello %s ", record.has_sello_anulacion)
             if record.has_sello_anulacion:
-                record.tipo_de_detalle = 'D'
-            else:
-                record.tipo_de_detalle = ''
+                if record.clase_documento == '4':
+                    record.tipo_de_detalle = 'D'
+                else:
+                    record.tipo_de_detalle = 'A'
 
     @api.depends('journal_id')
     def _compute_desde(self):

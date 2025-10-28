@@ -79,7 +79,13 @@ class svDteRetencionRecibida1(models.Model):
 
     sello_recepcion = fields.Char("Sello recepcion")
 
-    numero_documento = fields.Char("Numero documento")
+    numero_documento = fields.Char(
+        string="Número documento",
+        compute="_compute_numero_documento",
+        store=False,
+        readonly=True,
+    )
+
     codigo_generacion = fields.Char("Código generación")
 
     numero_anexo = fields.Char(
@@ -121,10 +127,6 @@ class svDteRetencionRecibida1(models.Model):
             move = rec.factura_relacionada_id
             # Si quieres NIT del CLIENTE:
             rec.nit_company = move.partner_id.vat if move and move.partner_id else False
-            # Si quieres NIT de la COMPAÑÍA emisora:
-            # rec.nit_company = move.company_id.vat if move and move.company_id else False
-
-            _logger.info("factura_relacionada_id=%s, nit_company=%s", move and move.id, rec.nit_company)
 
     @api.depends('factura_relacionada_id')
     def _compute_has_sello_anulacion(self):
@@ -157,7 +159,7 @@ class svDteRetencionRecibida1(models.Model):
         return domain_true if target else domain_false
 
     @api.depends('factura_relacionada_id')
-    def _compute_get_numero_documento(self):
+    def _compute_numero_documento(self):
         limite = date(2022, 11, 1)
         for record in self:
             if record.invoice_date and record.invoice_date < limite:

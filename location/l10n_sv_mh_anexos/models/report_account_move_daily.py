@@ -17,10 +17,10 @@ class ReportAccountMoveDaily(models.Model):
     name = fields.Char("Número de factura")
     currency_id = fields.Many2one("res.currency", string="Moneda", readonly=True)
 
-    semester = fields.Selection(
-        [('S1', 'Ene–Jun'), ('S2', 'Jul–Dic')],
-        string="Semestre", readonly=True, index=True
-    )
+    # semester = fields.Selection(
+    #     [('S1', 'Ene–Jun'), ('S2', 'Jul–Dic')],
+    #     string="Semestre", readonly=True, index=True
+    # )
     semester_year = fields.Integer(string="Año (Semestre)", readonly=True, index=True)
 
     semester_label = fields.Char(  # útil para mostrar/ordenar: "2025-H1"
@@ -100,10 +100,11 @@ class ReportAccountMoveDaily(models.Model):
               (
                   SELECT
                       MIN(am.id) AS id,
+                      MIN (am.move_type) as move_type,
                       am.invoice_date::date AS invoice_date,
                       STRING_AGG(am.name, ', ') AS name,
                       COUNT(am.id) AS cantidad_facturas,
-                      SUM(am.total_operacion) AS monto_total_operacion,
+                      SUM(am.amount_untaxed) AS monto_total_operacion,
                       SUM(am.amount_tax) AS monto_total_impuestos,
                       (SELECT id FROM res_currency WHERE name='USD' LIMIT 1) AS currency_id,
 
@@ -115,7 +116,7 @@ class ReportAccountMoveDaily(models.Model):
                       )::text AS semester_label
 
                   FROM account_move am
-                  WHERE am.total_operacion < 25000  -- (tu condición)
+                  WHERE am.amount_untaxed < 25000  and am.move_type::text ILIKE 'out_invoice' -- (tu condición)
                   GROUP BY
                       am.invoice_date::date,
                       EXTRACT(YEAR FROM am.invoice_date)::int,

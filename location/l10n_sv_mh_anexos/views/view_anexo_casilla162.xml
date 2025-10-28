@@ -17,7 +17,7 @@
                     <field name="fecha_documento"/>
                     <field name="sit_tipo_documento"/>
                     <field name="sello_recepcion"/>
-                    <field name="numero_anexo"/>
+                    <field name="numero_documento"/>
                     <field name="total_monto_sujeto"/>
                     <field name="total_iva_retenido"/>
                     <field name="dui_proveedor"/>

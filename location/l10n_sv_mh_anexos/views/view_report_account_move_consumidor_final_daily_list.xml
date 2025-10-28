@@ -16,7 +16,6 @@
                     <field name="invoice_date"/>
                     <field name="clase_documento_display"/>
                     <field name="codigo_tipo_documento_display"/>
-                    <field name="numero_resolucion_consumidor_final"/>
                     <field name="numero_resolucion_consumidor_final" string="Serie del documento"/>
                     <field name="numero_control_interno_del"/>
                     <field name="numero_control_interno_al"/>
