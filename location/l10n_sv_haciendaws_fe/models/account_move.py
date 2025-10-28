@@ -201,6 +201,12 @@ class AccountMove(models.Model):
     correo_enviado = fields.Boolean(string="Correo enviado en la creacion del dte", copy=False)
     invoice_time = fields.Char(string="Hora de Facturación", compute='_compute_invoice_time', store=True, readonly=True)
 
+    sit_entorno_test = fields.Boolean(
+        related='company_id.sit_entorno_test',
+        readonly=True,
+        store=True,
+    )
+
     # -----Busquedas de configuracion
     @property
     def url_firma(self):

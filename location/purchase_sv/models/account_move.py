@@ -180,6 +180,13 @@ class AccountMove(models.Model):
         default=0.0
     )
 
+    amount_exento = fields.Monetary(
+        string="Exento",
+        compute='_compute_amount_exento',
+        store=True,
+        currency_field='currency_id'
+    )
+
     def _get_default_tipo_documento(self):
         """Busca en 'account.journal.tipo_documento.field' el registro con código '01'
         y lo usa como valor por defecto.
@@ -286,6 +293,37 @@ class AccountMove(models.Model):
                 move.sit_amount_tax_system = move.currency_id.round(total_tax)
                 _logger.info("SIT | move %s sit_amount_tax_system final: %s", move.name, move.sit_amount_tax_system)
 
+    @api.depends('line_ids.price_subtotal', 'line_ids.tax_ids')
+    def _compute_amount_exento(self):
+        for move in self:
+            total_exento = 0.0
+            _logger.info("SIT | Calculando amount_exento para move_id=%s", move.id)
+            for line in move.line_ids:
+
+                if line.move_id.move_type in (constants.TYPE_ENTRY, constants.OUT_RECEIPT, constants.IN_RECEIPT):
+                    _logger.info("[SIT] Se omite _compute_amount_exento para movimiento tipo '%s' (ID: %s)", line.move_id.move_type, line.move_id.id)
+                    continue
+
+                if (line.move_id and
+                        (line.move_id.move_type not in(constants.IN_INVOICE, constants.IN_REFUND) or
+                        (line.move_id.move_type == constants.IN_INVOICE and line.move_id.journal_id
+                         and line.move_id.journal_id.sit_tipo_documento and line.move_id.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FSE)) ):
+                    _logger.info("[SIT] Se omite movimientos distintos a compras '%s' (ID: %s)", line.move_id.move_type, line.move_id.id)
+                    continue
+
+                impuestos = line.tax_ids
+                if not impuestos:
+                    _logger.info("SIT | Línea sin impuestos: line_id=%s, subtotal=%.2f", line.id, line.price_subtotal)
+                    total_exento += line.price_subtotal
+                elif all(t.amount == 0 for t in impuestos):
+                    _logger.info("SIT | Línea con impuestos 0%%: line_id=%s, subtotal=%.2f", line.id, line.price_subtotal)
+                    total_exento += line.price_subtotal
+                else:
+                    _logger.debug("SIT | Línea con impuestos >0%%: line_id=%s", line.id)
+
+            move.amount_exento = total_exento
+            _logger.info("SIT | Total exento para move_id=%s = %.2f", move.id, total_exento)
+
     def action_post(self):
         """
         - Aplica solo a facturas de proveedor (IN_INVOICE, IN_REFUND) que no sean FSE.
@@ -306,6 +344,10 @@ class AccountMove(models.Model):
 
         for move in self:
             _logger.info("SIT-Compra move type: %s, tipo documento %s: ", move.move_type, move.codigo_tipo_documento)
+            if move.move_type in(constants.OUT_INVOICE, constants.OUT_REFUND):
+                _logger.info("SIT Action post no aplica para ventas.")
+                continue
+
             if move.move_type == constants.IN_INVOICE and move.journal_id and move.journal_id.sit_tipo_documento and move.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FSE:
                 _logger.info("SIT Action post no aplica para compras electronicas(como suejto excluido).")
                 continue
@@ -457,11 +499,11 @@ class AccountMove(models.Model):
 
             # --- Validar configuración de cuentas en compañía
             missing_accounts = []
-            if not company.percepcion_purchase_id:
+            if move.percepcion_amount > 0 and not company.percepcion_purchase_id:
                 missing_accounts.append("Cuenta de Percepción 1%")
-            if not company.retencion_iva_purchase_id:
+            if move.retencion_iva_amount > 0 and not company.retencion_iva_purchase_id:
                 missing_accounts.append("Cuenta de Retención IVA")
-            if not company.renta_purchase_id:
+            if move.retencion_renta_amount > 0 and not company.renta_purchase_id:
                 missing_accounts.append("Cuenta de Renta")
 
             if missing_accounts:

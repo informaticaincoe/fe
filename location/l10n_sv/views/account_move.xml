@@ -35,7 +35,7 @@
                     </group>
                 </xpath>
                 <notebook>
-                    <page string="FEL" name="certificados2" invisible="journal_code == 'SLR' or not sit_facturacion or (move_type in('in_invoice', 'in_refund') and (not codigo_tipo_documento or codigo_tipo_documento != '14') )">
+                    <page string="FEL" name="certificados2" invisible="journal_code == 'SLR' or not sit_facturacion or (move_type in('entry', 'in_invoice', 'in_refund') and (not codigo_tipo_documento or codigo_tipo_documento != '14') )">
                         <group>
                             <field name="sit_qr_hacienda" widget="image" invisible="0"/>
                             <field name="sit_json_respuesta" invisible="1"/>

@@ -86,8 +86,8 @@
         <field name="arch" type="xml">
             <!-- Insertamos al final del formulario -->
             <xpath expr="//sheet" position="inside">
-                <separator string="Información del registro"/>
-                <group>
+                <separator string="Información del registro" invisible="move_type == 'entry'"/>
+                <group invisible="move_type == 'entry'">
                     <group>
                         <field name="create_uid" string="Creado por" readonly="1"/>
                         <field name="create_date" string="Fecha de creación" readonly="1"/>

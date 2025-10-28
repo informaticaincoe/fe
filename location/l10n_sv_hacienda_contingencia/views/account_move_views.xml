@@ -5,15 +5,17 @@
         <field name="name">sit_contingencia1_view_move_form</field>
         <field name="inherit_id" ref="l10n_invoice_sv.view_invoice_form_sv"/>
         <field name="arch" type="xml">
-            <button name="action_post" position="replace">
-                <button name="action_post" type="object" 
-                    invisible="['|', ('state', '!=', 'draft'), ('validation_type', '!=', 'production')]" 
+<!--            <button name="action_post" position="replace">-->
+            <xpath expr="//button[@name='action_post']" position="after">
+                <button name="action_post" type="object"
+                    invisible="not (sit_entorno_test and sit_facturacion) or state != 'draft' or validation_type != 'production'"
                     string="Validar (C) en PROD HACIENDA" class="oe_highlight" groups="account.group_account_invoice"/>
-                    <button name="action_post" type="object" 
-                    invisible="['|', ('state', '!=', 'draft'), ('validation_type', '!=', 'homologation')]" 
+                <button name="action_post" type="object"
+                    invisible="not (sit_entorno_test and sit_facturacion) or state != 'draft' or validation_type != 'production'"
                     string="Validar (C) en TEST" class="oe_highlight" groups="account.group_account_invoice"/>
-<!--                    <field name="sit_es_configencia" invisible="0" placeholder="Contingencia"/>-->
-            </button>
+    <!--                    <field name="sit_es_configencia" invisible="0" placeholder="Contingencia"/>-->
+            </xpath>
+<!--            </button>-->
             <xpath expr="//sheet[1]/div[1]" position="after">
                 <widget name="web_ribbon" title="Contingencia" bg_color="bg-warning" 
                         invisible="['|', ('sit_es_configencia', '=', False)]"/>

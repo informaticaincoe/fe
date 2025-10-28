@@ -144,7 +144,8 @@
             <field name="inherit_id" ref="account.view_move_form"/>
             <field name="arch" type="xml">
                 <xpath expr="//field[@name='narration']" position="before">
-                    <group string="Totales de Percepción y Retención" colspan="4" invisible="move_type not in('in_invoice', 'in_refund') or codigo_tipo_documento">
+                    <group string="Totales" colspan="4" invisible="move_type not in('in_invoice', 'in_refund') or codigo_tipo_documento">
+                        <field name="amount_exento" string="Total Exento" readonly="True"/>
                         <field name="percepcion_amount" string="Percepción 1%" readonly="True"/>
                         <field name="retencion_iva_amount" string="Retención IVA" readonly="True"/>
                         <field name="retencion_renta_amount" string="Renta" readonly="True"/>
