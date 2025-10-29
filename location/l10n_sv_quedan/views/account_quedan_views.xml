@@ -30,19 +30,19 @@
                             type="object"
                             class="btn-secondary"
                             icon="fa-envelope"
-                            invisible="state not in ['confirmed','overdue']"/>
+                            invisible="state not in ['confirmed','overdue']" />
 
                     <button name="download_quedan"
                             string="Descargar documento"
                             type="object"
                             class="btn-primary"
-                            icon="fa-download"/>
+                            icon="fa-download" />
 
                     <button name="action_confirm"
                             string="Confirmar"
                             type="object"
                             class="btn-success"
-                            invisible="state != 'draft'"/>
+                            invisible="state != 'draft'" />
 
                     <button name="action_paid"
                             string="Marcar como Pagado"
@@ -107,5 +107,5 @@
               name="Quedanes"
               parent="account.menu_finance_payables"
               action="action_account_quedan"
-              sequence="30"/>
+              sequence="30" />
 </odoo>
