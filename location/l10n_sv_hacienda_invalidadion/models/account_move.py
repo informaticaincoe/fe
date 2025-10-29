@@ -148,6 +148,8 @@ class AccountMove(models.Model):
 #---------------------------------------------------------------------------------------------
     def button_anul(self):
         return self.action_button_anulacion()
+    def button_anulacion(self):
+        return self.action_button_anulacion()
     
     def action_button_anulacion(self):
         _logger.info("SIT [INICIO] action_button_anulacion para facturas: %s, clase de documento: %s", self.ids, self.clase_documento_id)
