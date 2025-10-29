@@ -41,10 +41,6 @@ class AccountMove(models.Model):
         readonly=True,
     )
 
-    # fecha_aplicacion = fields.Date(string="Fecha de Aplicación")
-    #
-    # fecha_iva = fields.Date(string="Fecha IVA")
-
     is_dte_doc = fields.Boolean(
         string="Es documento DTE",
         compute="_compute_is_dte_doc",
