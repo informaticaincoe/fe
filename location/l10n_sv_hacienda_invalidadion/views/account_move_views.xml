@@ -24,14 +24,14 @@
 <!--                        context="{'save_first': True}"-->
 <!--                        groups="account.group_account_invoice"/>-->
 <!--            </xpath>-->
-<!--            <xpath expr="//header/button[@name='action_post']" position="after">-->
-<!--                <button name="button_anul"-->
-<!--                        string="Anu_prue"-->
-<!--                        type="object"-->
-<!--                        class="btn btn-danger"-->
-<!--                        context="{'save_first': True}"-->
-<!--                        groups="account.group_account_invoice"/>-->
-<!--            </xpath>-->
+            <xpath expr="//header/button[@name='action_post']" position="after">
+                <button name="button_anul"
+                        string="Anu_prue"
+                        type="object"
+                        class="btn btn-danger"
+                        context="{'save_first': True}"
+                        groups="account.group_account_invoice"/>
+            </xpath>
         </field>
     </record>
 
