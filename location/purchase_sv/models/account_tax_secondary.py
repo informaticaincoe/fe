@@ -6,8 +6,8 @@ class AccountTaxSecondary(models.Model):
     # Cuentas alternativas permitirdas SOLO para uso en la validacion de compras
     sv_secondary_account_ids = fields.Many2one(
         'account.tax.secondary.account', 'tax_id',
-        string="Cuentas Alternativas para Validación de Compras",
-        help="Cuentas alternativas permitidas SOLO para uso en la validacion de compras",
+        string='Cuentas Alternativas para Validación de Compras',
+        help='Cuentas alternativas permitidas SOLO para uso en la validacion de compras',
     )
 
 class AccountTaxSecondaryAccount(models.Model):
