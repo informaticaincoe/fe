@@ -20,7 +20,7 @@ class AccountTaxSecondaryAccount(models.Model):
         required=True,
         ondelete='cascade'
     )
-    account_id = fields.many2one(
+    account_id = fields.Many2one(
         'account.account', 
         required=True,
         string='Cuenta contable'
