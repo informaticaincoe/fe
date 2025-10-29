@@ -22,6 +22,12 @@ except ImportError as e:
 class AccountMove(models.Model):
     _inherit = 'account.move'
 
+    sv_need_tax_override = fields.Boolean(
+        compute= '_compute_sv_need_tax_override',
+        store=False,
+        string='Necesita ajuste de impuestos'
+    )
+
     exp_duca_id = fields.One2many('exp_duca', 'move_id', string='DUCAs')
 
     document_number = fields.Char("Número de documento de proveedor")
@@ -67,6 +73,33 @@ class AccountMove(models.Model):
         default='/',
         help="Editable siempre por el usuario",
     )
+
+    # METODOS PARA VERIFICAR SI ES NECESARIO CAMBIAR CUENTA CONTABLE DE IMPUESTO
+    def _compute_sv_need_tax_override(self):
+        """Determina si el asiento necesita ajuste de cuentas de impuesto
+        según las cuentas alternativas configuradas en los impuestos de las líneas.
+        """
+        for m in self:
+            need = False
+            if m.is_purchase_document(include_receipts=False):
+                if m.invoice_date and m.invoice_date_due and m.invoice_date_duce > m.invoice_date:
+                    need = True
+                m.sv.need_tax_override = need
+    
+    def _sv_get_blocking_tax_lines(self):
+        """Líneas de impuesto cuyo account_id sigue igual a la cuenta por defecto del
+        tax_repartition_line (o sea, aún no fue sustituida)."""
+        self.ensure_one()
+        tax_lines = self.line_ids.filtered(lambda l: l.tax_line_id)
+        return tax_lines.filtered(lambda l: l.account_id == l.tax_repartition_line_id.account_id)
+
+
+
+
+
+
+
+
 
     # Verificar que el name (o numero de control) sea unico
     @api.constrains('name', 'company_id')
@@ -358,33 +391,6 @@ class AccountMove(models.Model):
                         "El Número de Resolución '%s' ya existe en otro documento (%s)."
                     ) % (move.hacienda_codigoGeneracion_identificacion, existing.name))
 
-            # if not move.fecha_aplicacion:
-            #     _logger.info("SIT | Fecha de aplicacion no seleccionada.")
-            #     raise ValidationError("Debe seleccionar la Fecha de Aplicación.")
-
-            # if not move.fecha_iva:
-            #     _logger.info("SIT | Fecha IVA no seleccionada.")
-            #     raise ValidationError("Debe seleccionar la Fecha de IVA.")
-
-            # fecha_iva = move.fecha_iva
-            # date_invoice = move.invoice_date
-
-            # _logger.info("SIT | Fecha factura: %s, Fecha IVA: %s.", date_invoice, fecha_iva)
-            # if fecha_iva and date_invoice:
-            #     # Ambas son fechas, se comparan directamente
-            #     if fecha_iva < date_invoice:
-            #         _logger.info(
-            #             "SIT | Fecha IVA (%s) no debe ser menor a la fecha de la factura (%s).",
-            #             fecha_iva,
-            #             date_invoice
-            #         )
-            #         raise ValidationError(
-            #             "Fecha IVA (%s) no debe ser menor a la fecha de la factura (%s)." % (
-            #                 fecha_iva,
-            #                 date_invoice
-            #             )
-            #         )
-
             if not move.sit_tipo_documento_id:
                 _logger.info("SIT | Tipo de documento no seleccionado.")
                 raise ValidationError("Debe seleccionar el Tipo de documento de compra.")
@@ -413,6 +419,23 @@ class AccountMove(models.Model):
             #     _logger.info("Debe seleccionar el campo 'Condición del Plazo Crédito' si el término de pago no es 'Pago inmediato'.")
             #     raise ValidationError(_("Debe seleccionar el campo 'Condición del Plazo Crédito' si el término de pago no es 'Pago inmediato'."))
 
+            # Verificar si se necesita ajuste de cuentas de impuesto
+            if (not self.env.context.get('sv_skip_tax_override')) and move._sv_need_tax_override:
+                blocking = move._sv_get_blocking_tax_lines()
+                if blocking:
+                    wiz = self.env['sv.tax.override.wizzard'].create({
+                        'move_id': move.id,
+                        'line_ids': [(0, 0, {'tax_move_line_id': bl.id}) for bl in blocking],
+                    })
+                    return {
+                        'type': 'ir.actions.act_window',
+                        'res_model': 'sv.tax.override.wizzard',
+                        'view_mode': 'form',
+                        'res_id': wiz.id,
+                        'target': 'new',
+                        'name': _('Ajuste de cuentas de impuestos'),
+                    }
+                
             # Generar las líneas de percepción/retención/renta antes de postear
             move.generar_asientos_retencion_compras()
 
