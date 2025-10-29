@@ -477,48 +477,27 @@ class AccountMove(models.Model):
         Solo se aplica si el asiento está en borrador.
         No reemplaza otras líneas del asiento que no sean de percepción/retención/renta.
         Las cuentas deben estar configuradas en la compañía:
-        - `iva_percibido_account_id`
-        - `retencion_iva_account_id`
-        - `retencion_renta_account_id`
+        - `percepcion_purchase_id`
+        - `retencion_iva_purchase_id`
+        - `renta_purchase_id`
         """
         for move in self:
             _logger.info(f"SIT | [Move {move.id}] Inicio de generación de asientos ret./perc./renta")
 
             if (move.move_type not in (constants.IN_INVOICE, constants.IN_REFUND) or
-                    (move.move_type == constants.IN_INVOICE and move.journal_id and move.journal_id.sit_tipo_documento and move.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FSE)):
+                    (
+                            move.move_type == constants.IN_INVOICE and move.journal_id and move.journal_id.sit_tipo_documento and move.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FSE)):
                 _logger.info(f"SIT | [Move {move.id}] No aplica: solo compras o notas de crédito de compra.")
                 continue
 
             if move.state != 'draft':
-                _logger.warning(f"SIT | [Move {move.id}] No se puede modificar, no está en borrador (estado={move.state}).")
+                _logger.warning(
+                    f"SIT | [Move {move.id}] No se puede modificar, no está en borrador (estado={move.state}).")
                 continue
 
             company = move.company_id
             currency = move.currency_id
             precision = currency.rounding or 0.01
-
-            # --- Validar configuración de cuentas en compañía
-            missing_accounts = []
-            if move.percepcion_amount > 0 and not company.percepcion_purchase_id:
-                missing_accounts.append("Cuenta de Percepción 1%")
-            if move.retencion_iva_amount > 0 and not company.retencion_iva_purchase_id:
-                missing_accounts.append("Cuenta de Retención IVA")
-            if move.retencion_renta_amount > 0 and not company.renta_purchase_id:
-                missing_accounts.append("Cuenta de Renta")
-
-            if missing_accounts:
-                raise UserError("No se pueden generar los asientos de retención/percepción/renta porque faltan cuentas en la compañía "
-                                f"{company.name}:\n- " + "\n- ".join(missing_accounts))
-
-            # --- Detalle de líneas
-            _logger.info(f"SIT | [Move {move.id}] Revisando {len(move.invoice_line_ids)} líneas de factura")
-            for line in move.invoice_line_ids:
-                _logger.info(
-                    f"SIT | [Move {move.id}] Línea {line.id}: subtotal={line.price_subtotal}, "
-                    f"apply_percepcion={line.apply_percepcion}, percepcion_amount={line.percepcion_amount}, "
-                    f"apply_retencion={line.apply_retencion}, retencion_amount={line.retencion_amount}, "
-                    f"renta_percentage={line.renta_percentage}"
-                )
 
             # Acumular montos
             total_percepcion = sum(line.percepcion_amount for line in move.invoice_line_ids)
@@ -530,11 +509,69 @@ class AccountMove(models.Model):
                 f"Retención IVA: {total_retencion}, Renta: {total_renta}"
             )
 
+            # --- Si todos los montos son 0, no hacer nada ---
+            if not any([total_percepcion > 0, total_retencion > 0, total_renta > 0]):
+                _logger.info(f"SIT | [Move {move.id}] No aplica generación de asientos (todos los montos = 0).")
+                continue
+
+            # --- Validar configuración de cuentas en compañía
+            missing_accounts = []
+            if total_percepcion > 0 and not company.percepcion_purchase_id:
+                missing_accounts.append("Cuenta de Percepción 1%")
+            if total_retencion > 0 and not company.retencion_iva_purchase_id:
+                missing_accounts.append("Cuenta de Retención IVA")
+            if total_renta > 0 and not company.renta_purchase_id:
+                missing_accounts.append("Cuenta de Renta")
+
+            if missing_accounts:
+                raise UserError(
+                    "No se pueden generar los asientos de retención/percepción/renta porque faltan cuentas en la compañía "
+                    f"{company.name}:\n- " + "\n- ".join(missing_accounts)
+                    )
+
+            # --- Si no hay ninguna cuenta configurada, salir sin error ---
+            if not any([
+                company.percepcion_purchase_id,
+                company.retencion_iva_purchase_id,
+                company.renta_purchase_id
+            ]):
+                _logger.info(
+                    f"SIT | [Move {move.id}] No se configuraron cuentas de retención/percepción/renta en {company.name}, se omite.")
+                continue
+
+            # --- Eliminar líneas previas seguras ---
+            target_names = {
+                c.name for c in [
+                    company.percepcion_purchase_id,
+                    company.retencion_iva_purchase_id,
+                    company.renta_purchase_id
+                ] if c
+            }
+
             # Eliminar líneas previas de este tipo
-            previas = move.line_ids.filtered(lambda l: l.name in [company.percepcion_purchase_id.name, company.retencion_iva_purchase_id.name, company.renta_purchase_id.name])
+            # previas = move.line_ids.filtered(lambda l: l.name in [company.percepcion_purchase_id.name, company.retencion_iva_purchase_id.name, company.renta_purchase_id.name])
+            # if previas:
+            #     _logger.info(f"SIT | [Move {move.id}] Eliminando {len(previas)} líneas previas de retención/percepción/renta")
+            #     previas.unlink()
+
+            # Solo considerar líneas con esos nombres pero EXCLUIR líneas tipo receivable/payable
+            previas = move.line_ids.filtered(
+                lambda l: (
+                        l.account_id
+                        and l.account_id.account_type not in ('asset_receivable', 'liability_payable')
+                        and l.name in target_names
+                        and not l.reconciled
+                )
+            )
+
             if previas:
-                _logger.info(f"SIT | [Move {move.id}] Eliminando {len(previas)} líneas previas de retención/percepción/renta")
-                previas.unlink()
+                _logger.info(
+                    f"SIT | [Move {move.id}] Eliminando {len(previas)} líneas previas de retención/percepción/renta.")
+                try:
+                    previas.unlink()
+                except Exception as e:
+                    _logger.exception(f"SIT | [Move {move.id}] Error al eliminar previas: {e}")
+                    # fallback: marcar para sobrescribir en lugar de eliminar
 
             lineas = []
 
@@ -574,11 +611,13 @@ class AccountMove(models.Model):
                 })
                 _logger.info(f"SIT | [Move {move.id}] Línea de Renta lista: {redondear(total_renta)}")
 
+            # --- Crear líneas en el asiento ---
             if lineas:
                 move.write({'line_ids': [(0, 0, vals) for vals in lineas]})
-                _logger.info(f"SIT | [Move {move.id}] Se agregaron {len(lineas)} líneas contables de ret./perc./renta")
+                _logger.info(f"SIT | [Move {move.id}] Se agregaron {len(lineas)} líneas contables de ret./perc./renta.")
             else:
-                _logger.info(f"SIT | [Move {move.id}] No hay montos para agregar (percepción/retención/renta)")
+                _logger.info(
+                    f"SIT | [Move {move.id}] No hay líneas para agregar (montos = 0 o sin cuentas configuradas).")
 
     @api.depends(
         'invoice_line_ids.apply_percepcion',
