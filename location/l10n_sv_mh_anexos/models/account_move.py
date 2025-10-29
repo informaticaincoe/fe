@@ -28,6 +28,47 @@ class account_move(models.Model):
         import re
         return re.sub(r'\D', '', val or '')
 
+    sit_evento_invalidacion = fields.Many2one(
+        'account.move.invalidation',
+        string='Evento de invalidación',
+        ondelete='set null',
+        index=True,
+    )
+
+    # ✅ nombre correcto
+    has_sello_anulacion = fields.Boolean(
+        string="Tiene Sello Anulación",
+        compute="_compute_has_sello_anulacion",
+        search="_search_has_sello_anulacion",
+        store=False,
+        readonly=True,
+        index=True,
+    )
+
+    @api.depends('sit_evento_invalidacion', 'sit_evento_invalidacion.hacienda_selloRecibido_anulacion')
+    def _compute_has_sello_anulacion(self):
+        for m in self:
+            inv = m.sit_evento_invalidacion
+            m.has_sello_anulacion = bool(inv and inv.hacienda_selloRecibido_anulacion)
+            _logger.info("has_sello_anulacion %s → %s", m.name, m.has_sello_anulacion)
+
+    # Search compatible con dominios sobre el booleano
+    def _search_has_sello_anulacion(self, operator, value):
+        # Normalizamos a consultas sobre el campo del M2O (Odoo hace el join)
+        is_true = (operator, bool(value)) in [('=', True), ('!=', False)]
+        is_false = (operator, bool(value)) in [('=', False), ('!=', True)]
+
+        if is_true:
+            # registros cuya invalidación tiene sello
+            return [('sit_evento_invalidacion.hacienda_selloRecibido_anulacion', '!=', False)]
+        elif is_false:
+            # sin invalidación o invalidación sin sello
+            return ['|',
+                    ('sit_evento_invalidacion', '=', False),
+                    ('sit_evento_invalidacion.hacienda_selloRecibido_anulacion', '=', False)]
+        # fallback por si pasan otro operador raro
+        return []
+
     # consumidor final
     tipo_ingreso_id = fields.Many2one(
         comodel_name="account.tipo.ingreso",
@@ -133,9 +174,10 @@ class account_move(models.Model):
         readonly=True,
         store=False,
     )
+
     codigo_tipo_documento = fields.Char(
-        related='journal_id.sit_tipo_documento.codigo',
-        store=False
+        string="Código tipo documento",
+        readonly=True
     )
 
     codigo_tipo_documento_display = fields.Char(
@@ -169,6 +211,20 @@ class account_move(models.Model):
     hacienda_codigoGeneracion_identificacion = fields.Char(
         string="codigo generacion",
         readonly=True,
+    )
+
+    numero_documento = fields.Char(
+        string="Numero de control interno",
+        readonly=True,
+        store=False,
+        compute='_compute_get_numero_documento',
+    )
+
+    numero_control_interno = fields.Char(
+        string="Numero de control interno",
+        readonly=True,
+        store=False,
+        compute='_compute_get_numero_control_interno',
     )
 
     numero_control_interno_del = fields.Char(
@@ -331,6 +387,12 @@ class account_move(models.Model):
         store=False
     )
 
+    numero_resolucion = fields.Char(
+        string="Numero resolucion",
+        compute="_compute_numero_resolucion",
+        store=False
+    )
+
     desde_tiquete_preimpreso = fields.Char(
         string="Numero resolucion",
         compute="_compute_desde_tiquete_preimpreso",
@@ -349,7 +411,7 @@ class account_move(models.Model):
         store=False
     )
 
-    desde = fields.Char( # Desde para documentos extraviados y anulados
+    desde = fields.Char(  # Desde para documentos extraviados y anulados
         string="Desde",
         compute="_compute_desde",
         store=False
@@ -384,7 +446,6 @@ class account_move(models.Model):
             else:
                 rec.tipo_ingreso_display = ("0")
 
-
     @api.depends('tipo_costo_gasto_id')
     def _compute_tipo_costo_gasto_display(self):
         for rec in self:
@@ -392,7 +453,6 @@ class account_move(models.Model):
                 f"{rec.tipo_costo_gasto_id.codigo}. {rec.tipo_costo_gasto_id.valor}"
                 if rec.tipo_costo_gasto_id else ""
             )
-
 
     @api.depends('tipo_operacion')
     def _compute_tipo_operacion_display(self):
@@ -406,7 +466,6 @@ class account_move(models.Model):
             else:
                 rec.tipo_operacion_display = ("0")
 
-
     @api.depends('clasificacion_facturacion')
     def _compute_clasificacion_facturacion_display(self):
         for rec in self:
@@ -415,7 +474,6 @@ class account_move(models.Model):
                 if rec.clasificacion_facturacion else ""
             )
 
-
     @api.depends('sector')
     def _compute_sector_display(self):
         for rec in self:
@@ -423,6 +481,24 @@ class account_move(models.Model):
                 f"{rec.sector.codigo}. {rec.sector.valor}"
                 if rec.sector else ""
             )
+
+    @api.depends('journal_id')
+    def _compute_resolucion_anexos_anulados(self):
+        limite = date(2022, 10, 1)
+        for record in self:
+            if record.invoice_date < limite:
+                record.numero_documento = record.hacienda_codigoGeneracion_identificacion
+            else:
+                record.numero_documento = record.name
+
+    @api.depends('journal_id')
+    def _compute_numero_resolucion(self):
+        limite = date(2022, 11, 1)
+        for record in self:
+            if record.invoice_date < limite:
+                record.numero_resolucion = record.hacienda_codigoGeneracion_identificacion
+            else:
+                record.numero_resolucion = record.name
 
     @api.depends('invoice_date')
     def _compute_invoice_month(self):
@@ -463,9 +539,9 @@ class account_move(models.Model):
         store=False,
     )
 
-    numero_documento = fields.Char(
+    numero_documento_identificacion = fields.Char(
         string="Número de documento de identificacion",
-        compute='_compute_get_numero_documento',
+        compute='numero_documento_identificacion',
         readonly=True,
         store=False,
     )
@@ -540,17 +616,15 @@ class account_move(models.Model):
         readonly=True,
     )
 
-
-    @api.depends('journal_id')
+    @api.depends('name')
     def _compute_get_clase_documento(self):
         for record in self:
             if record.name.startswith("DTE"):
-                _logger.info('name %s ',record.name)
-                _logger.info('clase_documento_id %s ',record.clase_documento_id)
+                _logger.info('name %s ', record.name)
+                _logger.info('clase_documento_id %s ', record.clase_documento_id)
                 record.clase_documento = '4'
             else:
                 record.clase_documento = '1'
-
 
     @api.depends('journal_id')
     def _compute_get_clase_documento_display(self):
@@ -580,9 +654,8 @@ class account_move(models.Model):
             else:
                 record.tipo_documento_identificacion = ''
 
-
     @api.depends('partner_id')
-    def _compute_get_numero_documento(self):
+    def numero_documento_identificacion(self):
         for record in self:
             if record.partner_id and record.partner_id.dui:
                 record.numero_documento = "01"
@@ -591,16 +664,28 @@ class account_move(models.Model):
             else:
                 record.numero_documento = ''
 
-
     @api.depends('journal_id')
     def _compute_numero_control_interno_del(self):
         for record in self:
             numero = False  # valor por defecto
             if record.journal_id and record.journal_id.name:
-                    numero = "DTE-" + record.journal_id.name
+                numero = "DTE-" + record.journal_id.name
 
             record.numero_control_interno_del = numero
 
+    @api.depends('journal_id')
+    def _compute_get_numero_documento(self):
+        limite = date(2022, 11, 1)
+        for record in self:
+            if record.invoice_date < limite:
+                record.numero_documento = record.name
+            else:
+                record.numero_documento = record.hacienda_codigoGeneracion_identificacion
+
+    @api.depends('journal_id')
+    def _compute_get_numero_control_interno(self):
+        for record in self:
+            record.numero_control_interno = ""
 
     @api.depends('journal_id')
     def _compute_get_numero_control_documento_interno_del(self):
@@ -615,12 +700,10 @@ class account_move(models.Model):
             else:
                 record.numero_control_interno_al = 0
 
-
     @api.depends('journal_id')
     def _compute_get_hacienda_codigo_generacion_sin_guion(self):
         for record in self:
             record.numero_documento_del_al = record.hacienda_codigoGeneracion_identificacion
-
 
     @api.depends('journal_id')
     def _compute_get_numero_maquina_registradora(self):
@@ -635,12 +718,10 @@ class account_move(models.Model):
             else:
                 record.total_gravado_local = 0.00
 
-
     @api.depends('journal_id')
     def _compute_get_ventas_exentas_no_sujetas(self):
         for record in self:
             record.ventas_exentas_no_sujetas = 0.00
-
 
     @api.depends('journal_id')
     def _compute_get_exportaciones_dentro_centroamerica(self):
@@ -653,7 +734,6 @@ class account_move(models.Model):
             else:
                 record.exportaciones_dentro_centroamerica = 0.00
 
-
     @api.depends('journal_id', 'partner_id.country_id', 'codigo_tipo_documento', 'total_gravado')
     def _compute_get_exportaciones_fuera_centroamerica(self):
         for record in self:
@@ -665,7 +745,6 @@ class account_move(models.Model):
                     record.exportaciones_fuera_centroamerica = 0.00
             else:
                 record.exportaciones_fuera_centroamerica = 0.00
-
 
     @api.depends('invoice_line_ids', 'invoice_line_ids.product_id', 'invoice_line_ids.price_subtotal',
                  'codigo_tipo_documento')
@@ -682,30 +761,25 @@ class account_move(models.Model):
 
             record.exportaciones_de_servicio = total_servicios
 
-
     @api.depends('journal_id')
     def _compute_get_ventas_tasa_cero(self):
         for record in self:
             record.ventas_tasa_cero = 0.00
-
 
     @api.depends('journal_id')
     def _compute_get_ventas_cuenta_terceros(self):
         for record in self:
             record.ventas_cuenta_terceros = 0.00
 
-
     @api.depends('journal_id')
     def _compute_get_tipo_operacion_renta(self):
         for record in self:
             record.tipo_operacion_renta = record.tipo_operacion_renta
 
-
     @api.depends('journal_id')
     def _compute_get_tipo_ingreso_renta(self):
         for record in self:
             record.tipo_ingreso_renta = 0.00
-
 
     @api.depends('journal_id')
     def _compute_get_numero_anexo(self):
@@ -835,7 +909,6 @@ class account_move(models.Model):
         for record in self:
             record.debito_fiscal_contribuyentes = record.amount_tax
 
-
     @api.depends('partner_id')
     def _compute_get_debito_fiscal_terceros(self):
         for record in self:
@@ -914,7 +987,8 @@ class account_move(models.Model):
     @api.depends('journal_id')
     def _compute_tipo_detalle(self):
         for record in self:
-            if record.sit_evento_invalidacion:
+            _logger.info("has_sello %s ", record.has_sello_anulacion)
+            if record.has_sello_anulacion:
                 record.tipo_de_detalle = 'D'
             else:
                 record.tipo_de_detalle = ''
@@ -980,4 +1054,3 @@ class account_move(models.Model):
             "url": f"/web/content/{attachment.id}?download=true",
             "target": "self",
         }
-

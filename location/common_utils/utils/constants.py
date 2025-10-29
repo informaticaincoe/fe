@@ -130,3 +130,13 @@ OUT_INVOICE = "out_invoice"
 OUT_REFUND = "out_refund"
 TYPE_VENTA = "sale"
 TYPE_COMPRA = "purchase"
+TYPE_ENTRY = "entry"
+OUT_RECEIPT = "out_receipt"
+IN_RECEIPT = "in_receipt"
+
+# Identificacion documentos electronicos
+DTE_COD = 4
+
+#Clave de porcentajes configurados desde compañía
+config_percepcion = "percepcion"
+config_retencion_iva = "retencion_iva"

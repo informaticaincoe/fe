@@ -1,0 +1,19 @@
+<odoo noupdate="0">
+    <record id="config_percepcion" model="res.configuration">
+        <field name="company_id" ref="base.main_company"/>
+        <field name="value_type">float</field>
+        <field name="value_text">1</field>
+        <field name="description">Percepcion 1% aplicable en las compras</field>
+        <field name="active">True</field>
+        <field name="clave">percepcion</field>
+    </record>
+
+    <record id="config_retencion" model="res.configuration">
+        <field name="company_id" ref="base.main_company"/>
+        <field name="value_type">float</field>
+        <field name="value_text">1</field>
+        <field name="description">Retención IVA aplicable en las compras</field>
+        <field name="active">True</field>
+        <field name="clave">retencion_iva</field>
+    </record>
+</odoo>

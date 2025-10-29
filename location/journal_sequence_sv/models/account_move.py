@@ -30,7 +30,7 @@ class AccountMove(models.Model):
 
         journal = self.journal_id
         # Si es normal o no hay refund_sequence -> principal
-        if self.move_type in ('entry', 'out_invoice', 'in_invoice', 'out_receipt', 'in_receipt') or not journal.refund_sequence:
+        if self.move_type in (constants.TYPE_ENTRY, constants.OUT_INVOICE, constants.IN_INVOICE, 'out_receipt', 'in_receipt') or not journal.refund_sequence:
             return journal.sequence_id
         # Si es NC y existe refund_sequence -> refund
         if journal.refund_sequence_id:
@@ -51,8 +51,7 @@ class AccountMove(models.Model):
             except AttributeError:
                 pass
         journal = self.journal_id
-        if self.move_type in ('entry', 'out_invoice', 'in_invoice', 'out_receipt',
-                              'in_receipt') or not journal.refund_sequence:
+        if self.move_type in (constants.TYPE_ENTRY, constants.OUT_INVOICE, constants.IN_INVOICE, 'out_receipt', 'in_receipt') or not journal.refund_sequence:
             return journal.sequence_id
         return journal.refund_sequence_id or journal.sequence_id
 
@@ -61,12 +60,11 @@ class AccountMove(models.Model):
 
         if (not self.env.company.sit_facturacion
                 or (self.move_type in (constants.IN_INVOICE, constants.IN_REFUND)
-                    and (
-                            not self.journal_id.sit_tipo_documento or self.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE))):
+                    and (not self.journal_id.sit_tipo_documento or self.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE))):
             return super()._post(soft=soft)
 
         # 1) Solo asigno la secuencia estándar para diarios NO sale
-        non_sales = self.filtered(lambda m: m.journal_id.type != 'sale')
+        non_sales = self.filtered(lambda m: m.journal_id.type != constants.TYPE_VENTA)
         for move in non_sales:
             _logger.info("Revisando move %s con diario %s (%s)", move.id, move.journal_id.name, move.journal_id.type)
 
@@ -137,40 +135,3 @@ class AccountMove(models.Model):
 
     def _constrains_date_sequence(self):
         return
-
-    # def write(self, vals):
-    #     # Si la empresa no tiene habilitada la facturación electrónica, se usa el comportamiento estándar
-    #     if not all(inv.company_id.sit_facturacion for inv in self):
-    #         _logger.info("SIT-journal_sequence_sv: Facturación no activa, se usa write estándar.")
-    #         return super().write(vals)
-    #
-    #     # Verificamos si son facturas de compra (in_invoice o in_refund). Si lo son, no ejecutamos la lógica personalizada.
-    #     if all(inv.move_type in (constants.IN_INVOICE, constants.IN_REFUND)
-    #            and (
-    #                    not inv.journal_id.sit_tipo_documento or inv.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)
-    #            for inv in self):
-    #         _logger.info(
-    #             "SIT-journal_sequence_sv: Factura de compra detectada, se salta la lógica personalizada para 'name'.")
-    #
-    #         # Verificamos si ya se ha procesado un reembolso antes de ejecutar cualquier lógica adicional
-    #         if 'is_refund_processed' in vals and vals['is_refund_processed']:
-    #             _logger.info("SIT-journal_sequence_sv: Reembolso ya procesado, evitando cambios adicionales.")
-    #             return super().write(vals)
-    #
-    #         return super().write(vals)
-    #
-    #     _logger.info("SIT-Write(journal_sequence_sv): Asigna / en name si es false: %s", vals)
-    #
-    #     # --- Evitar sobreescritura del name existente ---
-    #     for move in self:
-    #         # Si no se envía 'name' o se envía False, pero el registro YA tiene un name válido, no lo tocamos
-    #         if ('name' not in vals or vals.get('name') is False) and move.name and move.name != '/':
-    #             _logger.info("SIT-Write(journal_sequence_sv): Ya tiene name '%s', no se reemplaza.", move.name)
-    #             return super(AccountMove, self).write(vals)
-    #
-    #     # para evitar que pongan name = False
-    #     if 'name' in vals and vals['name'] is False:
-    #         _logger.info("SIT-Write(journal_sequence_sv): Name sin modificacion: %s", vals['name'])
-    #         vals['name'] = '/'
-    #         _logger.info("SIT-Write(journal_sequence_sv) modificacion: Name modificado: %s", vals['name'])
-    #     return super().write(vals)

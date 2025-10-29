@@ -328,7 +328,7 @@ class AccountMoveInvalidation(models.Model):
                         # elif validation_type == 'production':
                         #     _logger.info("SIT Factura de Producción")
                         #     ambiente = "01"
-                        _logger.info("SIT Ambiente: %s", validation_type)
+                        _logger.info("SIT button_anul() SIT Ambiente: %s", validation_type)
 
                         # Generar json de Invalidación
                         payload = invoice.obtener_payload_anulacion(validation_type)
@@ -521,7 +521,7 @@ class AccountMoveInvalidation(models.Model):
                                     'company_id': self.company_id.id
                                 })
                             else:
-                                resultado_final["mensaje"] = "DTE anulado correctamente."
+                                resultado_final["mensaje"] = "DTE invalidado correctamente."
                                 invoice.write({
                                     'hacienda_estado_anulacion': Resultado['estado'],
                                     'hacienda_codigoMsg_anulacion': Resultado['codigoMsg'],
@@ -544,7 +544,7 @@ class AccountMoveInvalidation(models.Model):
                             resultado_final["mensaje"] = "DTE invalidado correctamente."
                             resultado_final["resultado_mh"] = Resultado
 
-                            _logger.info("SIT Factura anulada correctamente.")
+                            _logger.info("SIT Factura invalidada correctamente.")
                         except Exception as e:
                             _logger.exception("SIT Error en el procesamiento de la respuesta de Hacienda:")
                             resultado_final["mensaje"] = f"Ocurrió un error al procesar la respuesta de Hacienda: {e}"
@@ -637,7 +637,7 @@ class AccountMoveInvalidation(models.Model):
         _logger.info("SIT invoice_info FIN NVALIDACION = %s", invoice_info)
         self.check_parametros_firmado_anu()
 
-        _logger.info("SIT payload_data =%s", invoice_info)
+        _logger.info("SIT obtener payload_data anulacion=%s", invoice_info)
         return invoice_info
 
     def generar_dte_invalidacion(self, enviroment_type, payload, payload_original, ambiente_test):
@@ -1026,6 +1026,8 @@ class AccountMoveInvalidation(models.Model):
         # Validaciones comunes para cualquier tipo de DTE
         if not self.sit_factura_a_reemplazar.invoice_line_ids:
             raise UserError(_('La factura no tiene LINEAS DE PRODUCTOS asociada.'))
+
+        _logger.info("SIT Fin check_parametros_firmado_anu()")
         return True  # ✅ Indicamos explícitamente que pasó la validación
 
     def check_parametros_dte_invalidacion(self, generacion_dte, ambiente_test):
