@@ -22,10 +22,10 @@ class AccountMove(models.Model):
     def _get_sequence(self):
         """Resuelve la secuencia a usar respetando el core si FE está OFF."""
         self.ensure_one()
-        if (not self.env.company.sit_facturacion
-                or (self.move_type in (constants.IN_INVOICE, constants.IN_REFUND)
-                    and (not self.journal_id.sit_tipo_documento or self.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE))
-        ):
+        if (self.move_type in (constants.IN_INVOICE, constants.IN_REFUND) and
+             (not self.journal_id.sit_tipo_documento or self.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE) ):
+            return super()._get_sequence()
+        if not self.env.company.sit_facturacion:
             return super()._get_sequence()
 
         journal = self.journal_id
@@ -42,9 +42,14 @@ class AccountMove(models.Model):
     def _get_standard_sequence(self):
         """Devuelve la secuencia estándar (no-DTE) para el diario."""
         self.ensure_one()
-        if (not self.env.company.sit_facturacion
-                or (self.move_type in (constants.IN_INVOICE, constants.IN_REFUND)
-                    and (not self.journal_id.sit_tipo_documento or self.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)) ):
+        if (self.move_type in (constants.IN_INVOICE, constants.IN_REFUND) and
+                (not self.journal_id.sit_tipo_documento or self.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE) ):
+            # respetar core; si no existe en tu versión, puedes retornar self.journal_id.sequence_id
+            try:
+                return super()._get_standard_sequence()
+            except AttributeError:
+                pass
+        if (not self.env.company.sit_facturacion):
             # respetar core; si no existe en tu versión, puedes retornar self.journal_id.sequence_id
             try:
                 return super()._get_standard_sequence()
@@ -58,9 +63,12 @@ class AccountMove(models.Model):
 
     def _post(self, soft=True):
 
-        if (not self.env.company.sit_facturacion
-                or (self.move_type in (constants.IN_INVOICE, constants.IN_REFUND)
-                    and (not self.journal_id.sit_tipo_documento or self.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE))):
+        if self.move_type in (constants.TYPE_ENTRY, constants.OUT_RECEIPT, constants.IN_RECEIPT):
+            return super()._post(soft=soft)
+        if (self.move_type in (constants.IN_INVOICE, constants.IN_REFUND) and
+                (not self.journal_id.sit_tipo_documento or self.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)):
+            return super()._post(soft=soft)
+        if not self.env.company.sit_facturacion:
             return super()._post(soft=soft)
 
         # 1) Solo asigno la secuencia estándar para diarios NO sale

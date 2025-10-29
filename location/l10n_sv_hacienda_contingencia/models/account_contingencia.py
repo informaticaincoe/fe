@@ -10,6 +10,13 @@ from pytz import timezone
 from datetime import datetime, timedelta
 import pytz
 
+try:
+    from odoo.addons.common_utils.utils import config_utils
+    _logger.info("SIT Modulo config_utils [contingencia account_contingencia1[contingencia]]")
+except ImportError as e:
+    _logger.error(f"Error al importar 'config_utils': {e}")
+    config_utils = None
+
 def _default_fecha_hora_sv(self):
     tz = pytz.timezone('America/El_Salvador')
     dt_with_tz = pytz.utc.localize(datetime.utcnow()).astimezone(tz)
@@ -215,6 +222,9 @@ class sit_account_contingencia(models.Model):
 
         for record in records:
             _logger.info("SIT | Procesando contingencia creada con ID=%s", record.id)
+            cant_lotes = int(config_utils.get_config_value(self.env, 'cantidad_lote', self.company_id.id) or 400)
+            cant_facturas = int(config_utils.get_config_value(self.env, 'cantidad_factura', self.company_id.id) or 1)
+
             # Buscar todas las facturas que están en contingencia y no están asignadas a ninguna contingencia aún
             facturas_en_contingencia = self.env['account.move'].search([
                 ('sit_es_configencia', '=', True),
@@ -228,22 +238,22 @@ class sit_account_contingencia(models.Model):
                 _logger.info("SIT | Facturas encontradas en contingencia: %s", facturas_en_contingencia_count)
 
                 # Verificar si las facturas no superan los 400 lotes de 100 facturas por lote
-                max_lotes = 400  # 400
-                facturas_por_lote = 100  # 100
+                # max_lotes = 400  # 400
+                # facturas_por_lote = 100  # 100
 
-                total_lotes = ((facturas_en_contingencia_count // facturas_por_lote) +
-                               (1 if facturas_en_contingencia_count % facturas_por_lote != 0 else 0))
+                total_lotes = ((facturas_en_contingencia_count // cant_facturas) +
+                               (1 if facturas_en_contingencia_count % cant_facturas != 0 else 0))
 
-                if total_lotes > max_lotes:
+                if total_lotes > cant_lotes:
                     _logger.info(
                         "La cantidad de facturas excede el límite de lotes permitidos. Solo se asignarán los primeros 400 lotes.")
-                    facturas_a_incluir = facturas_en_contingencia[:max_lotes * facturas_por_lote]
+                    facturas_a_incluir = facturas_en_contingencia[:cant_lotes * cant_facturas]
                     facturas_en_contingencia = facturas_a_incluir  # Solo trabajar con las primeras 40,000 facturas
 
                 # Crear los lotes y asignar las facturas a cada lote
                 lote_count = 0
-                for i in range(0, facturas_en_contingencia_count, facturas_por_lote):
-                    facturas_lote = facturas_en_contingencia[i:i + facturas_por_lote]
+                for i in range(0, facturas_en_contingencia_count, cant_facturas):
+                    facturas_lote = facturas_en_contingencia[i:i + cant_facturas]
 
                     # Crear lote
                     lote_vals = {
