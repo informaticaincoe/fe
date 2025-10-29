@@ -184,7 +184,7 @@ class AccountMove(models.Model):
             _logger.info("SIT Tipo invalidacion: %s, tipo de documento: %s, cod generacion: %s, codGeneracion reemplazo: %s",
                          self.sit_tipoAnulacion, self.journal_id.sit_tipo_documento.codigo, self.hacienda_codigoGeneracion_identificacion, self.sit_factura_a_reemplazar.hacienda_codigoGeneracion_identificacion)
             if (self.journal_id.sit_tipo_documento and self.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_NC
-                    and self.sit_tipoAnulacion in ('1', '3') and self.hacienda_codigoGeneracion_identificacion ==  self.sit_factura_a_reemplazar.hacienda_codigoGeneracion_identificacion):
+                    and self.sit_tipoAnulacion in ('1', '3') and self.hacienda_codigoGeneracion_identificacion == self.sit_factura_a_reemplazar.hacienda_codigoGeneracion_identificacion):
                 raise UserError(
                     _("Para invalidar este documento, es necesario generar un documento de reemplazo que cuente con el sello de recepción correspondiente."))
 
@@ -250,7 +250,12 @@ class AccountMove(models.Model):
                     'sit_evento_invalidacion': invalidation.id
                 })
                 _logger.info("SIT Estado de factura actualizado a cancelado: %s", invoice.name)
+            except Exception as e:
+                _logger.exception("SIT | Error crítico al crear invalidación de %s: %s", invoice.name, e)
+                raise UserError(f"No se pudo registrar la invalidación de {invoice.name}: {e}")
 
+            # Procesos secundarios (no críticos, errores loggeados)
+            try:
                 resultado = None
                 if not es_compra:
                     resultado = invalidation.button_anul()
@@ -260,42 +265,62 @@ class AccountMove(models.Model):
                     resultado_final["notificar"] = True
                     resultado = resultado_final
                 _logger.info("SIT Método button_anul ejecutado correctamente para ID: %s", invalidation.id)
-
-                if resultado.get('exito'):
-                    invoice.write({
-                        'state': 'cancel',
-                    })
-                if not resultado.get('exito'):
-                    # Retornamos la acción para mostrar notificación sin error popup
-                    return {
-                        'type': 'ir.actions.client',
-                        'tag': 'display_notification',
-                        'params': {
-                            'title': 'Error',
-                            'message': resultado.get('mensaje'),
-                            'type': 'warning',
-                            'sticky': False,
-                        }
-                    }
-                if resultado.get('notificar'):
-                    return {
-                        'type': 'ir.actions.client',
-                        'tag': 'display_notification',
-                        'params': {
-                            'title': 'Invalidación Exitosa',
-                            'message': (
-                                'Se invalidó el DTE. El sello de Hacienda fue recibido correctamente.'
-                                if not ambiente_test else
-                                'Se invalidó el DTE correctamente.'
-                            ),
-                            'type': 'success',
-                            'sticky': False,
-                        }
-                    }
-                _logger.info("SIT Método button_anul ejecutado correctamente para ID: %s", invalidation.id)
-
             except Exception as e:
-                _logger.exception("SIT Error posterior al crear la invalidación: %s", e)
+                _logger.exception("SIT | Error ejecutando button_anul de %s: %s", invoice.name, e)
+                resultado = {"exito": False, "mensaje": f"Error en validación MH: {e}", "notificar": False}
+
+            if resultado.get('exito'):
+                # --- 0) Intentar anular por completo los efectos contables (pagos, conciliaciones, asiento factura) ---
+                try:
+                    _logger.info("SIT | Intentando anular efectos contables de la factura %s", invoice.name)
+                    invoice._anular_movimientos_contables()
+                except Exception as e:
+                    _logger.exception("SIT | Error durante anulación contable para %s: %s", invoice.name, str(e))
+
+                # --- 1) Establecer estado cancel a la factura (registro DTE) ---
+                try:
+                    invoice.write({'state': 'cancel'})
+                    _logger.info("SIT | Estado de factura %s actualizado a 'cancel'", invoice.name)
+                except Exception as e_write:
+                    _logger.exception("SIT | Error actualizando state a 'cancel' para %s: %s", invoice.name, str(e_write))
+
+                # --- 2) Generar devolución automática de stock (si aplica) ---
+                try:
+                    _logger.info("SIT | Intentando generar devolución automática de stock para %s", invoice.name)
+                    invoice._generar_devolucion_entrega()
+                    # invoice._anular_movimientos_contables()
+                except Exception as e:
+                    _logger.exception("SIT | Error durante la devolución automática de stock: %s", str(e))
+
+            # Notificaciones
+            if not resultado.get('exito'):
+                # Retornamos la acción para mostrar notificación sin error popup
+                return {
+                    'type': 'ir.actions.client',
+                    'tag': 'display_notification',
+                    'params': {
+                        'title': 'Error',
+                        'message': resultado.get('mensaje'),
+                        'type': 'warning',
+                        'sticky': False,
+                    }
+                }
+            if resultado.get('notificar'):
+                return {
+                    'type': 'ir.actions.client',
+                    'tag': 'display_notification',
+                    'params': {
+                        'title': 'Invalidación Exitosa',
+                        'message': (
+                            'Se invalidó el DTE. El sello de Hacienda fue recibido correctamente.'
+                            if not ambiente_test else
+                            'Se invalidó el DTE correctamente.'
+                        ),
+                        'type': 'success',
+                        'sticky': False,
+                    }
+                }
+            _logger.info("SIT Método button_anul ejecutado correctamente para ID: %s", invalidation.id)
 
         return True
 
@@ -496,94 +521,194 @@ class AccountMove(models.Model):
         self.sit_qr_hacienda = qrCode
         return
 
-    # def check_parametros_invalidacion(self):
-    #     if not (self.company_id and self.company_id.sit_facturacion):
-    #         _logger.info("SIT No aplica facturación electrónica. Se omite generación de check_parametros_invalidacion en evento de invalidacion.")
-    #         return False
-    #
-    #     ambiente_test = False
-    #     if config_utils:
-    #         ambiente_test = config_utils._compute_validation_type_2(self.env, self.company_id)
-    #         _logger.info("SIT Tipo de entorno invalidacion[Ambiente]: %s", ambiente_test)
-    #         if ambiente_test:
-    #             # Si es ambiente de pruebas, no seguir con el resto del código
-    #             _logger.info("SIT Entorno de pruebas detectado, deteniendo generación de payload de anulación.")
-    #             return False
-    #
-    #     if not self.name:
-    #          raise UserError(_('El Número de control no definido'))
-    #     if not self.company_id.tipoEstablecimiento.codigo:
-    #         raise UserError(_('El tipoEstablecimiento no definido'))
-    #
-    #
-    #     if not self.sit_tipoAnulacion or self.sit_tipoAnulacion == False:
-    #         raise UserError(_('El tipoAnulacion no definido'))
-    #
+    def _generar_devolucion_entrega(self):
+        """Genera automáticamente una devolución del stock asociada a la factura (venta o compra).
 
-    # def check_parametros_firmado_anu(self):
-    #     if not (self.company_id and self.company_id.sit_facturacion):
-    #         _logger.info("SIT No aplica facturación electrónica. Se omite validación de parámetros de firmado en invalidacion.")
-    #         return False
-    #
-    #     if not self.journal_id.sit_tipo_documento.codigo:
-    #         raise UserError(_('El Tipo de  DTE no definido.'))
-    #     if not self.name:
-    #         raise UserError(_('El Número de control no definido'))
-    #     if not self.company_id.sit_passwordPri:
-    #         raise UserError(_('El valor passwordPri no definido'))
-    #     if not self.company_id.sit_uuid:
-    #         raise UserError(_('El valor uuid no definido'))
-    #     if not self.company_id.vat:
-    #         raise UserError(_('El emisor no tiene NIT configurado.'))
-    #     if not self.company_id.company_registry:
-    #         raise UserError(_('El emisor no tiene NRC configurado.'))
-    #     if not self.company_id.name:
-    #         raise UserError(_('El emisor no tiene NOMBRE configurado.'))
-    #     if not self.company_id.codActividad:
-    #         raise UserError(_('El emisor no tiene CODIGO DE ACTIVIDAD configurado.'))
-    #     if not self.company_id.tipoEstablecimiento:
-    #         raise UserError(_('El emisor no tiene TIPO DE ESTABLECIMIENTO configurado.'))
-    #     if not self.company_id.state_id:
-    #         raise UserError(_('El emisor no tiene DEPARTAMENTO configurado.'))
-    #     if not self.company_id.munic_id:
-    #         raise UserError(_('El emisor no tiene MUNICIPIO configurado.'))
-    #     if not self.company_id.email:
-    #         raise UserError(_('El emisor no tiene CORREO configurado.'))
-    #
-    #     if not self.journal_id.sit_tipo_documento.codigo:
-    #         raise UserError(_('El Tipo de DTE no definido.'))
-    #     if not self.name:
-    #         raise UserError(_('El Número de control no definido'))
-    #     # Validaciones para el emisor (comunes para todos los tipos de DTE)
-    #     # ...
-    #
-    #     # Validaciones específicas según el tipo de DTE
-    #     tipo_dte = self.journal_id.sit_tipo_documento.codigo
-    #
-    #     if tipo_dte == constants.COD_DTE_FE:
-    #         # Solo validar el nombre para DTE tipo 01
-    #         if not self.partner_id.name:
-    #             raise UserError(_('El receptor no tiene NOMBRE configurado para facturas tipo 01.'))
-    #     elif tipo_dte == constants.COD_DTE_CCF:
-    #         # Validaciones completas para DTE tipo 03
-    #         if not self.partner_id.vat and self.partner_id.is_company:
-    #             _logger.info("SIT, es compañia se requiere NIT")
-    #             _logger.info("SIT, partner campos requeridos account=%s", self.partner_id)
-    #             raise UserError(_('El receptor no tiene NIT configurado.'))
-    #         if not self.partner_id.nrc and self.partner_id.is_company:
-    #             _logger.info("SIT, es compañia se requiere NRC")
-    #             raise UserError(_('El receptor no tiene NRC configurado.'))
-    #         if not self.partner_id.name:
-    #             raise UserError(_('El receptor no tiene NOMBRE configurado.'))
-    #         if not self.partner_id.codActividad:
-    #             raise UserError(_('El receptor no tiene CODIGO DE ACTIVIDAD configurado.'))
-    #         if not self.partner_id.state_id:
-    #             raise UserError(_('El receptor no tiene DEPARTAMENTO configurado.'))
-    #         if not self.partner_id.munic_id:
-    #             raise UserError(_('El receptor no tiene MUNICIPIO configurado.'))
-    #         if not self.partner_id.email:
-    #             raise UserError(_('El receptor no tiene CORREO configurado.'))
-    #
-    #     # Validaciones comunes para cualquier tipo de DTE
-    #     if not self.invoice_line_ids:
-    #         raise UserError(_('La factura no tiene LINEAS DE PRODUCTOS asociada.'))
+        FUNCIONALIDAD:
+            - Si la factura es de VENTA: devuelve los productos entregados (picking tipo 'outgoing').
+            - Si la factura es de COMPRA: devuelve los productos recibidos (picking tipo 'incoming').
+
+        DETALLES:
+            - No duplica devoluciones ya existentes.
+            - Crea y valida automáticamente los movimientos de devolución.
+            - Usa el wizard estándar de Odoo (`stock.return.picking`) compatible con Odoo 18.
+            - Registra logs detallados SIT para auditoría.
+
+        MANEJO DE ERRORES:
+            - Cada picking se procesa de forma aislada (try/except por picking).
+            - Si ocurre un error en una devolución, se continúa con las demás facturas.
+        """
+        StockReturnPicking = self.env['stock.return.picking']
+
+        for move in self:
+            try:
+                # --- Determinar si es venta o compra ---
+                if move.move_type in ('out_invoice', 'out_refund'):
+                    doc_type = 'venta'
+                    picking_code_target = 'outgoing'  # buscamos entregas
+                    picking_code_return = 'incoming'  # devolvemos como entrada
+                    origin_model = 'sale.order'
+                elif move.move_type in ('in_invoice', 'in_refund'):
+                    doc_type = 'compra'
+                    picking_code_target = 'incoming'  # buscamos recepciones
+                    picking_code_return = 'outgoing'  # devolvemos como salida
+                    origin_model = 'purchase.order'
+                else:
+                    _logger.info(
+                        "SIT | %s no es ni venta ni compra, se omite devolución automática.", move.name)
+                    continue
+
+                # --- Buscar documento de origen (venta o compra) ---
+                origin = move.invoice_origin and self.env[origin_model].search([
+                    ('name', '=', move.invoice_origin)
+                ], limit=1)
+                if not origin:
+                    _logger.info(
+                        "SIT | No se encontró %s origen para %s (origin=%s)", origin_model, move.name,
+                        move.invoice_origin)
+                    continue
+
+                pickings = origin.picking_ids.filtered(
+                    lambda p: p.picking_type_id.code == picking_code_target and p.state == 'done')
+                if not pickings:
+                    _logger.info(
+                        "SIT | No hay movimientos %s confirmados para devolver en %s", picking_code_target,
+                        move.name)
+                    continue
+
+                # --- Iterar sobre cada picking validado ---
+                for picking in pickings:
+                    try:
+                        if not picking or not picking.exists():
+                            _logger.warning(
+                                "SIT | picking vacío o inexistente antes de crear wizard para %s", move.name)
+                            continue
+
+                        # Verificar si ya existe una devolución
+                        existing_returns = self.env['stock.picking'].search([
+                            ('origin', '=', picking.name),
+                            ('picking_type_id.code', '=', picking_code_return),
+                            ('state', '!=', 'cancel')
+                        ])
+                        if existing_returns:
+                            _logger.info(
+                                "SIT | El picking %s ya tiene devolución previa, se omite.", picking.name)
+                            continue
+
+                        _logger.info(
+                            "SIT | Generando devolución automática (%s) para picking_id=%s [%s]",
+                            doc_type, picking.id, picking.name)
+
+                        # Crear wizard de devolución (con picking_id explícito)
+                        return_wizard = StockReturnPicking.with_context(
+                            active_id=picking.id,
+                            active_ids=[picking.id]
+                        ).create({
+                            'picking_id': picking.id,
+                        })
+
+                        # --- Forzar cantidades mayores a cero en todas las líneas ---
+                        if not return_wizard.product_return_moves:
+                            _logger.warning(
+                                "SIT | Wizard de devolución vacío para picking %s, se omite.", picking.name)
+                            continue
+
+                        for return_line in return_wizard.product_return_moves:
+                            if not return_line.quantity or return_line.quantity <= 0:
+                                return_line.quantity = return_line.move_id.product_uom_qty
+
+                        # Crear devolución real
+                        new_picking = return_wizard._create_return()
+                        if not new_picking or not new_picking.exists():
+                            _logger.warning(
+                                "SIT | No se generó picking de devolución para %s", picking.name)
+                            continue
+
+                        # Confirmar y validar devolución (Odoo 18)
+                        new_picking.action_confirm()
+                        new_picking.action_assign()
+                        new_picking.button_validate()
+
+                        _logger.info(
+                            "SIT | Devolución completada correctamente: %s (para %s, tipo=%s)",
+                            new_picking.name, picking.name, doc_type)
+
+                    except Exception as e_picking:
+                        _logger.exception(
+                            "SIT | Error procesando devolución de picking %s: %s", picking.name,
+                            str(e_picking))
+                        continue
+
+            except Exception as e:
+                _logger.exception(
+                    "SIT | Error al generar devoluciones de stock para %s: %s", move.name, str(e))
+
+
+    def _anular_movimientos_contables(self):
+        """
+        SIT | Anula los movimientos contables asociados a la factura cuando se invalida ante Hacienda.
+        - Reversa los pagos conciliados (move_line_ids reconciliados).
+        - Cancela los pagos vinculados.
+        - Cancela los asientos contables (principal y pagos).
+        - Agrega mensajes al chatter para auditoría.
+        """
+        for move in self:
+            _logger.info("SIT | Iniciando anulación contable para move_id=%s (%s)", move.id, move.name)
+
+            if move.state != "posted":
+                _logger.info(
+                    "SIT | El documento %s no está en estado 'posted', se omite anulación contable.",
+                    move.name
+                )
+                continue
+
+            try:
+                # 1 Buscar líneas reconciliadas de la factura
+                reconciled_lines = move.line_ids.filtered(lambda l: l.reconciled)
+                if not reconciled_lines:
+                    _logger.info("SIT | No hay líneas reconciliadas para %s, nada que anular.", move.name)
+                    move.message_post(body="No se encontraron pagos reconciliados que anular.")
+                else:
+                    _logger.info("SIT | Se encontraron %d líneas reconciliadas.", len(reconciled_lines))
+                    # Deshacer conciliaciones
+                    for line in reconciled_lines:
+                        if line.full_reconcile_id:
+                            reconcile_id = line.full_reconcile_id
+                            _logger.info("SIT | Deshaciendo conciliación %s vinculada a %s", reconcile_id.id, move.name)
+                            reconcile_id.unlink()
+                            move.message_post(body=f"Se deshizo la conciliación contable {reconcile_id.display_name}.")
+
+                # 2 Buscar pagos relacionados a la factura
+                # payments = self.env['account.payment'].search([
+                #     ('invoice_ids', 'in', move.id),
+                # ])
+
+                # if not payments:
+                #     _logger.info("SIT | No se encontraron pagos relacionados a %s.", move.name)
+                #     move.message_post(body="No se encontraron pagos relacionados que cancelar.")
+                # else:
+                #     for payment in payments:
+                #         _logger.info("SIT | Cancelando pago %s vinculado a %s", payment.name, move.name)
+                #         # Deshacer todas las conciliaciones del pago
+                #         for line in payment.move_id.line_ids.filtered(lambda l: l.reconciled):
+                #             if line.full_reconcile_id:
+                #                 line.full_reconcile_id.unlink()
+                #             elif line.partial_reconcile_id:
+                #                 line.partial_reconcile_id.unlink()
+                #         # Poner el pago en borrador y cancelar
+                #         if payment.state == 'posted':
+                #             payment.button_draft()
+                #             payment.action_cancel()
+                #             move.message_post(body=f"💰 Pago {payment.name} cancelado automáticamente.")
+
+                # 3 Cancelar el asiento contable principal (de la factura)
+                if move.state == 'posted':
+                    move.button_draft()
+                    move.button_cancel()
+                    _logger.info("SIT | Asiento contable principal cancelado correctamente para %s", move.name)
+
+                _logger.info("SIT | Anulación contable completada correctamente para %s", move.name)
+
+            except Exception as e:
+                _logger.error("SIT | Error anulando movimientos contables de %s: %s", move.name, e, exc_info=True)
+                move.message_post(body=f"Error al anular movimientos contables: {str(e)}")

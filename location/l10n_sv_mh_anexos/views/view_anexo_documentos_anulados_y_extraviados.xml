@@ -13,7 +13,7 @@
                                     display="always"
                             />
                     </header>
-                    <field name="name" string="Número de resolución"/>
+                    <field name="numero_resolucion_anexos_anulados" string="Número de resolución"/>
                     <field name="clase_documento_display"/>
                     <field name="desde_tiquete_preimpreso" string="Desde (preimrpeso)"/>
                     <field name="hasta_tiquete_preimpreso" string="hasta (preimrpeso)"/>

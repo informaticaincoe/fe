@@ -15,7 +15,7 @@
 
                 <field name="invoice_month"/>
                 <field name="codigo_tipo_documento_display"/>
-                <field name="documento_sujeto_excluido"/>
+                <field name="documento_sujeto_excluido"/> <!-- cambiar nombre a numero de documento en general -->
                 <field name="razon_social"/>
                 <field name="invoice_date"/>
                 <field name="codigo_tipo_documento_display"/>

@@ -20,7 +20,7 @@
                     <field name="razon_social" string="Nombre"/>
                     <field name="invoice_date" string="Fecha de Emisión"/>
                     <field name="hacienda_selloRecibido" string="Número de serie"/><!-- Sello-->
-                    <field name="name" string="Número de documento"/><!-- Sello-->
+                    <field name="numero_documento" string="Número de documento"/><!-- Sello-->
                     <field name="total_operacion" string="Monto de la operacion"/>
                     <field name="retencion_iva_amount" string="Monto de la retencion IVA 13%"/>
                     <field name="tipo_operacion_display"/>

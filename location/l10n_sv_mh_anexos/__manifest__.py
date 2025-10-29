@@ -14,12 +14,13 @@
                 'account',
                 'phone_validation',
                 'l10n_latam_base',
-                'l10n_sv_haciendaws_fe'
+                'l10n_sv_haciendaws_fe',
+                'l10n_sv_hacienda_invalidadion'
                 ],
     'data': [
         "security/ir.model.access.csv",
 
-        "views/report_anexos_search_action.xml",
+        # "views/report_anexos_search_action.xml",
 
         "views/view_report_account_move_consumidor_final_daily_list.xml",
 

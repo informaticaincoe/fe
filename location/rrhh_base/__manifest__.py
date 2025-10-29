@@ -2,10 +2,6 @@
     'name': 'Base Recursos Humanos',
     'depends': ['hr_contract', 'l10n_sv_hr_retenciones', 'hr_payroll'],
     'assets': {
-        'web.assets_frontend': [
-            'rrhh_base/static/src/css/inter_font.css',
-            'rrhh_base/static/src/css/bootstrap.min.css',
-        ],
         'web.assets_pdf': [
             'rrhh_base/static/src/css/inter_font.css',
             'rrhh_base/static/src/css/bootstrap.min.css',
