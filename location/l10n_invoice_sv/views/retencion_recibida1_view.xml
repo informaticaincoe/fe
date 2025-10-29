@@ -7,14 +7,18 @@
                 <form>
                     <sheet>
                         <group>
+                            <field name="factura_relacionada_id"
+                                   domain="[('move_type','=','in_invoice')]"
+                                   options="{'no_create': True, 'no_create_edit': True}"/>
+                            <field name="proveedor_id" />
                             <field name="numero_control"/>
                             <field name="codigo_generacion"/>
                             <field name="sello_recepcion"/>
                             <field name="fecha_documento"/>
                             <field name="fecha_recibido"/>
-                            <field name="factura_relacionada_id"
-                                   domain="[('move_type','=','out_invoice'),('codigo_tipo_documento','=','03')]"
-                                   options="{'no_create': True, 'no_create_edit': True}"/>
+                            <field name="total_monto_sujeto"/>
+                            <field name="total_iva_retenido"/>
+
 
                         </group>
                     </sheet>

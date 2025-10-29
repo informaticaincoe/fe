@@ -5,27 +5,23 @@
         <field name="arch" type="xml">
             <list string="Facturas agrupadas por día">
                 <header>
-                    <button name="action_download_csv_anexo"
-                            type="object"
-                            string="Descargar CSV"
-                            class="oe_highlight"
-                            display="always"
-                    />
+                    <button name="action_download_csv_anexo" type="object"
+                            string="Descargar CSV" class="oe_highlight" display="always"/>
                 </header>
-
                 <field name="invoice_month"/>
-                <field name="codigo_tipo_documento_display"/>
-                <field name="documento_sujeto_excluido"/> <!-- cambiar nombre a numero de documento en general -->
+                <field name="codigo_tipo_documento_cliente_display" string="Documento de identificación"/>
+                <field name="documento_sujeto_excluido"/>
                 <field name="razon_social"/>
                 <field name="invoice_date"/>
                 <field name="codigo_tipo_documento_display"/>
                 <field name="hacienda_codigoGeneracion_identificacion" string="Número de documento"/>
-                <field name="total_operacion"/>
-                <field name="amount_tax"/>
+                <field name="amount_untaxed" string="Monto de operación"/>
+                <field name="amount_tax" string="IVA"/>
                 <field name="invoice_year"/>
                 <field name="numero_anexo"/>
             </list>
         </field>
     </record>
+
 </odoo>
 

@@ -21,6 +21,7 @@
         "security/ir.model.access.csv",
 
         # "views/report_anexos_search_action.xml",
+        # "views/filter_anexos_agrupar_por_semestre.xml",
 
         "views/view_report_account_move_consumidor_final_daily_list.xml",
 
@@ -35,6 +36,8 @@
         "views/view_account_new_fields.xml",
 
         "views/report_anexos_action.xml",
+        "views/hide_new_button_in_anexos.xml",
+
         # 'views/anexos_report_views.xml',
         "data/account.tipo.costo.gasto.csv",
         "data/account.tipo.ingreso.csv",

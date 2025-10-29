@@ -5,8 +5,23 @@
             <field name="model">sv.dte.retencion.recibida1</field>
             <field name="arch" type="xml">
                 <list string="Anexo Percepciones (Casilla 162)">
-
-                    <field name="nit_company"/>
+                    <header>
+                        <button name="export_csv_from_action"
+                                type="object"
+                                string="Descargar CSV"
+                                class="oe_highlight"
+                                context="{'active_view_id': context.get('active_view_id') or context.get('view_id')}"
+                                display="always"/>
+                    </header>
+                    <field name="nit_cliente"/>
+                    <field name="fecha_documento"/>
+                    <field name="sit_tipo_documento"/>
+                    <field name="sello_recepcion"/>
+                    <field name="numero_documento"/>
+                    <field name="total_monto_sujeto"/>
+                    <field name="total_iva_retenido"/>
+                    <field name="dui_proveedor"/>
+                    <field name="numero_anexo"/>
                 </list>
             </field>
         </record>

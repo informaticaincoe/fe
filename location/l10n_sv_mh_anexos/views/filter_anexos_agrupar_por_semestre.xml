@@ -1,0 +1,40 @@
+<!--<odoo>-->
+<!--    <data>-->
+<!--&lt;!&ndash;        Filtro para Factura clientes mayores&ndash;&gt;-->
+<!--        <record id="view_account_move_search_semestre" model="ir.ui.view">-->
+<!--            <field name="name">account.move.search.semestre</field>-->
+<!--            <field name="model">account.move</field>-->
+<!--            <field name="inherit_id" ref="account.view_account_move_filter"/>-->
+<!--            <field name="arch" type="xml">-->
+<!--                <xpath expr="//search" position="inside">-->
+<!--                    <filter name="group_semester"-->
+<!--                            string="Agrupar por semestre"-->
+<!--                            context="{'group_by': 'semester_label'}"-->
+<!--                            help="Agrupa por Año-Semestre (p.ej. 2025-S1)"/>-->
+<!--                    &lt;!&ndash; Filtros rápidos opcionales &ndash;&gt;-->
+<!--                    <filter name="semester_S1" string="S1 (Ene–Jun)" domain="[('semester','=','S1')]"/>-->
+<!--                    <filter name="semester_S2" string="S2 (Jul–Dic)" domain="[('semester','=','S2')]"/>-->
+<!--                </xpath>-->
+<!--            </field>-->
+<!--        </record>-->
+
+<!--        &lt;!&ndash;        Filtro para Factura clientes menores&ndash;&gt;-->
+<!--        <record id="view_report_account_move_daily_search_semestre" model="ir.ui.view">-->
+<!--            <field name="name">report.account.move.daily.search.semestre</field>-->
+<!--            <field name="model">report.account.move.daily</field>-->
+<!--            <field name="arch" type="xml">-->
+<!--                <search string="Facturas clientes &lt; 25,000">-->
+<!--                    <field name="invoice_date"/>-->
+<!--                    <filter name="group_semester"-->
+<!--                            string="Agrupar por semestre"-->
+<!--                            context="{'group_by': 'semester_label'}"-->
+<!--                            help="Agrupa por Año–Semestre (ej. 2025-S1)"/>-->
+<!--                    <separator/>-->
+<!--                    <filter name="semester_S1" string="S1 (Ene–Jun)" domain="[('semester','=','S1')]"/>-->
+<!--                    <filter name="semester_S2" string="S2 (Jul–Dic)" domain="[('semester','=','S2')]"/>-->
+<!--                </search>-->
+<!--            </field>-->
+<!--        </record>-->
+
+<!--    </data>-->
+<!--</odoo>-->
