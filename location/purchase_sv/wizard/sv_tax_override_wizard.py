@@ -70,6 +70,5 @@ class SvTaxOverrideWizardLine(models.TransientModel):
     new_account_id = fields.Many2one(
         'account.account',
         string='Nueva cuenta',
-        required=True,
-        domain="[('company_id','=',wizard_id.move_id.company_id.id)]"
+        required=True
     )
