@@ -29,6 +29,7 @@
         "views/account_move_views.xml",
         "views/sale_purchase_created_by_views.xml",
         "views/res_company_account.xml",
+
         "views/sv_tax_override_views.xml",
     ],
     "installable": True,

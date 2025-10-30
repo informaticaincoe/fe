@@ -94,13 +94,6 @@ class AccountMove(models.Model):
         return tax_lines.filtered(lambda l: l.account_id == l.tax_repartition_line_id.account_id)
 
 
-
-
-
-
-
-
-
     # Verificar que el name (o numero de control) sea unico
     @api.constrains('name', 'company_id')
     def _check_unique_name(self):
@@ -353,6 +346,20 @@ class AccountMove(models.Model):
             move.amount_exento = total_exento
             _logger.info("SIT | Total exento para move_id=%s = %.2f", move.id, total_exento)
 
+    def _sv_requires_tax_override(self):
+        """True si es compra y el vencimiento es mayor que la fecha contable."""
+        self.ensure_one()
+        return (
+            self.move_type in ('in_invoice', 'in_refund')
+            and self.invoice_date and self.invoice_date_due
+            and self.invoice_date_due > self.invoice_date
+        )
+
+    def _sv_get_move_taxes(self):
+        """Impuestos usados en líneas de la factura."""
+        self.ensure_one()
+        return self.invoice_line_ids.mapped('tax_ids')
+    
     def action_post(self):
         """
         - Aplica solo a facturas de proveedor (IN_INVOICE, IN_REFUND) que no sean FSE.
@@ -426,21 +433,25 @@ class AccountMove(models.Model):
             #     raise ValidationError(_("Debe seleccionar el campo 'Condición del Plazo Crédito' si el término de pago no es 'Pago inmediato'."))
 
             # Verificar si se necesita ajuste de cuentas de impuesto
-            if (not self.env.context.get('sv_skip_tax_override')) and move._sv_need_tax_override:
-                blocking = move._sv_get_blocking_tax_lines()
-                if blocking:
-                    wiz = self.env['sv.tax.override.wizzard'].create({
-                        'move_id': move.id,
-                        'line_ids': [(0, 0, {'tax_move_line_id': bl.id}) for bl in blocking],
-                    })
-                    return {
-                        'type': 'ir.actions.act_window',
-                        'res_model': 'sv.tax.override.wizzard',
-                        'view_mode': 'form',
-                        'res_id': wiz.id,
-                        'target': 'new',
-                        'name': _('Ajuste de cuentas de impuestos'),
-                    }
+            # --- REGLA: vencimiento > contable en compras -> pedir cuentas alternativas por impuesto ---
+            # Usa el mapeo persistente sv.move.tax.account.override que ya agregamos.
+            if not self.env.context.get('sv_skip_tax_override') and move._sv_requires_tax_override():
+                taxes = move._sv_get_move_taxes()
+                # ¿Qué impuestos aún no tienen mapeo de cuenta alternativa en ESTA factura?
+                missing = taxes.filtered(lambda t: not move.sv_override_ids.filtered(lambda r: r.tax_id == t))
+                if missing:
+                    _logger.info("SIT | Falta asignar cuentas alternativas para impuestos: %s",
+                                 ', '.join(missing.mapped('name')))
+                    # Abre el wizard para que el usuario elija cuentas (solo esta factura)
+                    action = self.env.ref('purchase_sv.action_sv_tax_override_wizard').read()[0]
+                    action['context'] = dict(
+                        self.env.context,
+                        active_model='account.move',
+                        active_id=move.id,
+                        active_ids=[move.id],
+                        default_move_id=move.id,
+                    )
+                    return action   
                 
             # Generar las líneas de percepción/retención/renta antes de postear
             move.generar_asientos_retencion_compras()
