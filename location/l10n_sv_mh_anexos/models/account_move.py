@@ -21,6 +21,7 @@ except ImportError as e:
 CA_CODES = {'SV', 'GT', 'HN', 'NI', 'CR', 'PA'}
 VAT_INCLUDE = ('iva',)
 VAT_EXCLUDE = ('retenc', 'percep', 'percepción', 'renta', 'fuente')
+MONTHS = [(f'{m:02d}', f'{m:02d}') for m in range(1, 13)]
 
 class account_move(models.Model):
     _inherit = 'account.move'
@@ -1187,6 +1188,11 @@ class account_move(models.Model):
 
         return True
 
+    def _monto_iva(self, line):
+        _logger.info("total_iva %s ", line.total_iva)
+
+        return line.total_iva
+
     # --- COMPUTE ---
     @api.depends(
         'partner_id.country_id',
@@ -1325,28 +1331,65 @@ class account_move(models.Model):
     )
 
     def _compute_credito_fiscal(self):
-        for rec in self:
-            rec.credito_fiscal = (rec.compras_internas_gravadas + rec.internaciones_gravadas_bienes +rec.importaciones_gravadas_bienes + rec.importaciones_gravadas_servicio) *0.13
+        for move in self:
+            # 1) IVA de líneas de producto (internas + RC si lo cargas ahí)
+            iva_lineas = 0.0
+            for line in move.invoice_line_ids:
+                # Asegura no sumar líneas negativas raras; si usas notas de crédito, el signo lo da el move
+                iva_lineas += float(line.total_iva or 0.0)
 
+            # 2) IVA de importación (DUCA) — puede venir en otra moneda
+            iva_duca_company = 0.0
+            if hasattr(move, 'exp_duca_id') and move.exp_duca_id:
+                for duca in move.exp_duca_id:
+                    iva_duca = float(duca.iva_importacion or 0.0)
+                    if not iva_duca:
+                        continue
+                    duca_curr = duca.currency_id or move.company_id.currency_id
+                    company_curr = move.company_id.currency_id
+                    # Fecha de conversión: fecha de la factura (o hoy si no hay)
+                    date = move.invoice_date or fields.Date.context_today(move)
+                    if duca_curr and company_curr and duca_curr != company_curr:
+                        iva_duca_company += duca_curr._convert(iva_duca, company_curr, move.company_id, date)
+                    else:
+                        iva_duca_company += iva_duca
+
+            total = iva_lineas + iva_duca_company
+
+            # 3) Notas de crédito de proveedor (in_refund): normalmente ya traen signo correcto en total_iva;
+            #    si tu modelo guarda total_iva siempre positivo, y quieres que el crédito sea negativo en refund,
+            #    descomenta lo siguiente:
+            # if move.move_type == 'in_refund':
+            #     total = -abs(total)
+
+            # Redondeo a 2 decimales
+            move.credito_fiscal = round(total,2)
 
     # --------------- AGRUPAR ANEXOS DE FACTURAS MAYORES A 25000 ------------
 
-    invoice_year = fields.Integer(store=True, index=True, compute='_compute_invoice_period')
-    invoice_month = fields.Integer(store=True, index=True, compute='_compute_invoice_period')
+    invoice_year = fields.Char(compute='_compute_periods', store=True, index=True)
     invoice_semester = fields.Selection(
-        [('1', '1.º semestre (Ene–Jun)'), ('2', '2.º semestre (Jul–Dic)')],
-        store=True, index=True, compute='_compute_invoice_period'
+        [('1', '1.º semestre'), ('2', '2.º semestre')],
+        compute='_compute_periods', store=True, index=True
+    )
+    invoice_month = fields.Char(compute='_compute_periods', store=True, index=True)
+
+    # Wrappers para SearchPanel (Selection)
+    invoice_year_sel = fields.Selection(
+        selection=lambda self: [(str(y), str(y)) for y in range(2018, 2040)],
+        compute='_compute_periods_sel', store=True, index=True, string='Año'
+    )
+    invoice_month_sel = fields.Selection(
+        selection=MONTHS, compute='_compute_periods_sel',
+        store=True, index=True, string='Mes'
     )
 
     @api.depends('invoice_date')
-    def _compute_invoice_period(self):
-        for move in self:
-            d = move.invoice_date or move.date
-            if d:
-                move.invoice_year = d.year
-                move.invoice_month = d.month
-                move.invoice_semester = '1' if d.month <= 6 else '2'
+    def _compute_periods_sel(self):
+        for m in self:
+            if m.invoice_date:
+                m.invoice_year_sel = str(m.invoice_date.year)
+                m.invoice_month_sel = f'{m.invoice_date.month:02d}'  # <-- clave válida
             else:
-                move.invoice_year = False
-                move.invoice_month = False
-                move.invoice_semester = False
+                m.invoice_year_sel = False
+                m.invoice_month_sel = False

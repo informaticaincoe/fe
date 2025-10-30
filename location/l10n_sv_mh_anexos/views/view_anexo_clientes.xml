@@ -1,11 +1,36 @@
 <odoo>
+
+    <record id="view_anexo_menores_search" model="ir.ui.view">
+        <field name="name">account.move.anexo.menores.search</field>
+        <field name="model">report.account.move.daily</field>
+        <field name="arch" type="xml">
+            <search string="Buscar - Anexo Menores a 25,000">
+                <group expand="0" string="Agrupar por (Anexos)">
+                    <filter name="group_by_year" string="Año" context="{'group_by': 'invoice_year_agrupado'}"/>
+                    <filter name="group_by_semester" string="Semestre"
+                            context="{'group_by': 'invoice_semester_agrupado'}"/>
+                    <filter name="group_by_month" string="Mes" context="{'group_by': 'invoice_month_agrupado'}"/>
+                </group>
+
+                <!-- SearchPanel: solo Selection/Many2one -->
+                <searchpanel>
+                    <field name="invoice_year_sel" select="one" enable_counters="1"/>
+                    <field name="invoice_semester_agrupado" select="one" enable_counters="1"/>
+                    <field name="invoice_month_sel" select="one" enable_counters="1"/>
+                </searchpanel>
+            </search>
+        </field>
+    </record>
+
+
     <record id="view_report_account_move_daily_list" model="ir.ui.view">
         <field name="name">report.account.move.daily.list</field>
         <field name="model">report.account.move.daily</field>
         <field name="arch" type="xml">
             <list string="Facturas agrupadas por día">
                 <header>
-                    <button name="export_csv_from_action" type="object" string="Descargar CSV" class="oe_highlight" display="always"/>
+                    <button name="export_csv_from_action" type="object" string="Descargar CSV" class="oe_highlight"
+                            display="always"/>
 
                 </header>
                 <field name="invoice_month"/>

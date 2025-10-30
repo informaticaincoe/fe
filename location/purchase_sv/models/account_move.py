@@ -42,7 +42,6 @@ class AccountMove(models.Model):
     )
 
     # fecha_aplicacion = fields.Date(string="Fecha de Aplicación")
-    #
     # fecha_iva = fields.Date(string="Fecha IVA")
 
     is_dte_doc = fields.Boolean(
@@ -743,7 +742,7 @@ class AccountMove(models.Model):
         store=False,
     )
     duca_iva_importacion = fields.Monetary(
-        string="IVA importación (ref.)",
+        string="IVA",
         currency_field="duca_currency_id",
         compute="_compute_duca_fields",
         inverse="_inverse_duca_iva",

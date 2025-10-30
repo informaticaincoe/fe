@@ -22,6 +22,9 @@
                             <field name="duca_valor_transaccion"/>
                             <field name="duca_otros_gastos"/>
                             <field name="duca_valor_en_aduana"/>
+                            <field name="duca_iva_importacion"/>
+                            <field name="duca_dai_amount"/>
+
                         </group>
 
                         <group string="Documento" col="2">
