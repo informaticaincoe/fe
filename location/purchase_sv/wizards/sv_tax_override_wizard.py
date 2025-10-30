@@ -35,7 +35,6 @@ class SvTaxOverrideWizard(models.TransientModel):
         self.ensure_one()
         move = self.move_id
 
-        # Limpia overrides previos de estos impuestos
         move.sv_override_ids.filtered(
             lambda r: r.tax_id.id in self.line_ids.mapped('tax_id').ids
         ).unlink()
