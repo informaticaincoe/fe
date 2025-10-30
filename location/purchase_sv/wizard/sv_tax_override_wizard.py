@@ -7,12 +7,18 @@ class SvTaxOverrideWizard(models.TransientModel):
     _description = 'Cambiar cuentas de impuestos (solo esta factura)'
 
     move_id = fields.Many2one('account.move', required=True)
-    line_ids = fields.One2many('sv.tax.override.wizard.line', 'wizard_id', string='Impuestos')
+    line_ids = fields.One2many(
+        'sv.tax.override.wizard.line',
+        'wizard_id',
+        string='Impuestos'
+    )
 
     @api.model
     def default_get(self, fields_list):
         res = super().default_get(fields_list)
-        move = self.env['account.move'].browse(self._context.get('active_id') or self._context.get('default_move_id'))
+        move = self.env['account.move'].browse(
+            self._context.get('active_id') or self._context.get('default_move_id')
+        )
         if not move:
             raise UserError(_("No se encontró la factura activa."))
         res['move_id'] = move.id
@@ -35,6 +41,7 @@ class SvTaxOverrideWizard(models.TransientModel):
         self.ensure_one()
         move = self.move_id
 
+        # limpia overrides previos de los mismos impuestos
         move.sv_override_ids.filtered(
             lambda r: r.tax_id.id in self.line_ids.mapped('tax_id').ids
         ).unlink()
@@ -43,7 +50,11 @@ class SvTaxOverrideWizard(models.TransientModel):
         for l in self.line_ids:
             if not l.new_account_id:
                 raise UserError(_("Debes elegir la cuenta para el impuesto %s.") % (l.tax_id.display_name,))
-            vals.append({'move_id': move.id, 'tax_id': l.tax_id.id, 'account_id': l.new_account_id.id})
+            vals.append({
+                'move_id': move.id,
+                'tax_id': l.tax_id.id,
+                'account_id': l.new_account_id.id
+            })
 
         self.env['sv.move.tax.account.override'].create(vals)
         return {'type': 'ir.actions.act_window_close'}
@@ -56,12 +67,9 @@ class SvTaxOverrideWizardLine(models.TransientModel):
     wizard_id = fields.Many2one('sv.tax.override.wizard', required=True, ondelete='cascade')
     tax_id = fields.Many2one('account.tax', required=True, string='Impuesto')
     current_account_id = fields.Many2one('account.account', string='Cuenta actual', readonly=True)
-    new_account_id = fields.Many2one('account.account', string='Nueva cuenta', required=True,
-                                     domain="[('company_id','=',wizard_id.move_id.company_id.id)]")
-
-    @api.onchange('tax_id')
-    def _onchange_tax_id(self):
-        if self.tax_id and self.tax_id.sv_secondary_account_ids:
-            accounts = self.tax_id.sv_secondary_account_ids.mapped('account_id').ids
-            return {'domain': {'new_account_id': [('id', 'in', accounts)]}}
-        return {'domain': {'new_account_id': [('company_id', '=', self.wizard_id.move_id.company_id.id)]}}
+    new_account_id = fields.Many2one(
+        'account.account',
+        string='Nueva cuenta',
+        required=True,
+        domain="[('company_id','=',wizard_id.move_id.company_id.id)]"
+    )
