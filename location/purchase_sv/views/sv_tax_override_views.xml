@@ -5,11 +5,11 @@
   <field name="name">sv.tax.override.wizard.line.tree</field>
   <field name="model">sv.tax.override.wizard.line</field>
   <field name="arch" type="xml">
-    <tree editable="bottom">
+    <list editable="bottom">
       <field name="tax_id" readonly="1"/>
       <field name="current_account_id" readonly="1"/>
       <field name="new_account_id"/>
-    </tree>
+    </list>
   </field>
 </record>
 
