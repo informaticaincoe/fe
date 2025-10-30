@@ -13,16 +13,15 @@ class SvTaxOverrideWizard(models.TransientModel):
     def default_get(self, fields_list):
         res = super().default_get(fields_list)
         move = self.env['account.move'].browse(self._context.get('active_id'))
+        if not move:
+            raise UserError(_("No se encontró la factura activa."))
         res['move_id'] = move.id
 
         lines = []
-        taxes = (move.invoice_line_ids.mapped('tax_ids')).sorted(key=lambda t: t.name)
+        taxes = move.invoice_line_ids.mapped('tax_ids').sorted(key=lambda t: t.name or t.id)
         for tax in taxes:
-            # Cuenta “actual” por defecto (repartition line de factura, tipo 'tax')
             rep = tax.invoice_repartition_line_ids.filtered(lambda r: r.repartition_type == 'tax')[:1]
             current_account_id = rep.account_id.id if rep and rep.account_id else False
-
-            # Si ya hay override guardado, precargarlo
             override = move.sv_override_ids.filtered(lambda r: r.tax_id == tax)[:1]
             lines.append((0, 0, {
                 'tax_id': tax.id,
@@ -36,7 +35,7 @@ class SvTaxOverrideWizard(models.TransientModel):
         self.ensure_one()
         move = self.move_id
 
-        # Borrar overrides previos para los impuestos de este asistente
+        # Limpia existing overrides de estos impuestos
         move.sv_override_ids.filtered(
             lambda r: r.tax_id.id in self.line_ids.mapped('tax_id').ids
         ).unlink()
@@ -44,7 +43,7 @@ class SvTaxOverrideWizard(models.TransientModel):
         vals = []
         for l in self.line_ids:
             if not l.new_account_id:
-                raise UserError(_("Debes elegir la cuenta para el impuesto %s.") % l.tax_id.display_name)
+                raise UserError(_("Debes elegir la cuenta para el impuesto %s.") % (l.tax_id.display_name,))
             vals.append({'move_id': move.id, 'tax_id': l.tax_id.id, 'account_id': l.new_account_id.id})
 
         self.env['sv.move.tax.account.override'].create(vals)

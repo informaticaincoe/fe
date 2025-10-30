@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
-from odoo import api, fields, models, _
-from odoo.exceptions import ValidationError
+from odoo import fields, models
 
 class SvMoveTaxAccountOverride(models.Model):
     _name = 'sv.move.tax.account.override'
@@ -25,6 +24,7 @@ class AccountMove(models.Model):
     )
 
     def _sv_requires_tax_override(self):
+        """Vence > Contable y es compra."""
         self.ensure_one()
         return (
             self.move_type in ('in_invoice', 'in_refund')
@@ -35,17 +35,3 @@ class AccountMove(models.Model):
     def _sv_get_move_taxes(self):
         self.ensure_one()
         return self.invoice_line_ids.mapped('tax_ids')
-
-    # Integra este bloque dentro de TU action_post (antes de generar asientos y antes del super)
-    def action_post(self):
-        for move in self:
-            if move._sv_requires_tax_override():
-                taxes = move._sv_get_move_taxes()
-                missing = taxes.filtered(lambda t: not move.sv_override_ids.filtered(lambda r: r.tax_id == t))
-                if missing:
-                    raise ValidationError(_(
-                        "Esta factura tiene Vencimiento > Fecha contable.\n"
-                        "Debes asignar una CUENTA ALTERNATIVA para cada impuesto:\n%s\n\n"
-                        "Usa el botón “Cambiar cuentas de impuestos”."
-                    ) % ', '.join(missing.mapped('name')))
-        return super().action_post()

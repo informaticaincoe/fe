@@ -413,21 +413,25 @@ class AccountMove(models.Model):
             #     raise ValidationError(_("Debe seleccionar el campo 'Condición del Plazo Crédito' si el término de pago no es 'Pago inmediato'."))
 
             # Verificar si se necesita ajuste de cuentas de impuesto
-            if (not self.env.context.get('sv_skip_tax_override')) and move._sv_need_tax_override:
-                blocking = move._sv_get_blocking_tax_lines()
-                if blocking:
-                    wiz = self.env['sv.tax.override.wizzard'].create({
-                        'move_id': move.id,
-                        'line_ids': [(0, 0, {'tax_move_line_id': bl.id}) for bl in blocking],
-                    })
-                    return {
-                        'type': 'ir.actions.act_window',
-                        'res_model': 'sv.tax.override.wizzard',
-                        'view_mode': 'form',
-                        'res_id': wiz.id,
-                        'target': 'new',
-                        'name': _('Ajuste de cuentas de impuestos'),
-                    }
+            # --- REGLA: vencimiento > contable en compras -> pedir cuentas alternativas por impuesto ---
+            # Usa el mapeo persistente sv.move.tax.account.override que ya agregamos.
+            if not self.env.context.get('sv_skip_tax_override') and move._sv_requires_tax_override():
+                taxes = move._sv_get_move_taxes()
+                # ¿Qué impuestos aún no tienen mapeo de cuenta alternativa en ESTA factura?
+                missing = taxes.filtered(lambda t: not move.sv_override_ids.filtered(lambda r: r.tax_id == t))
+                if missing:
+                    _logger.info("SIT | Falta asignar cuentas alternativas para impuestos: %s",
+                                 ', '.join(missing.mapped('name')))
+                    # Abre el wizard para que el usuario elija cuentas (solo esta factura)
+                    action = self.env.ref('purchase_sv.action_sv_tax_override_wizard').read()[0]
+                    action['context'] = dict(
+                        self.env.context,
+                        active_model='account.move',
+                        active_id=move.id,
+                        active_ids=[move.id],
+                        default_move_id=move.id,
+                    )
+                    return action   
                 
             # Generar las líneas de percepción/retención/renta antes de postear
             move.generar_asientos_retencion_compras()
