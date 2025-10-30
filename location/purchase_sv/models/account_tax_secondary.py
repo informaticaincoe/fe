@@ -1,37 +1,38 @@
-from odoo import api, fields, models
+# purchase_sv/models/account_tax_secondary.py
+from odoo import fields, models
 
-class AccountTaxSecondary(models.Model):
-    _inherit = "account.tax"
-
-    # Cuentas alternativas permitirdas SOLO para uso en la validacion de compras
-    sv_secondary_account_ids = fields.One2many(
-        'account.tax.secondary.account', 'tax_id',
-        string='Cuentas Alternativas para Validación de Compras',
-        help='Cuentas alternativas permitidas SOLO para uso en la validacion de compras',
-    )
-
+# ---- Modelo hijo primero ----
 class AccountTaxSecondaryAccount(models.Model):
-    _name = 'accounut.tax.secondary.account'
-    _description = "Cuentas Alternativas de impuesto"
+    _name = 'account.tax.secondary.account'
+    _description = 'Cuenta alternativa de impuesto'
     _order = 'id'
 
     tax_id = fields.Many2one(
         'account.tax',
         required=True,
-        ondelete='cascade'
+        ondelete='cascade',
+        string='Impuesto',
     )
     account_id = fields.Many2one(
-        'account.account', 
+        'account.account',
         required=True,
-        string='Cuenta contable'
+        string='Cuenta contable',
     )
     company_id = fields.Many2one(
         related='tax_id.company_id',
         store=True,
+        readonly=True,
         string='Compañía',
-        readonly=True
     )
-    name = fields.Char(
-        string='Etiqueta',
-        help="Etiqueta opcional para identificar el uso",
+    name = fields.Char(string='Etiqueta')
+
+# ---- Extensión de account.tax después ----
+class AccountTax(models.Model):
+    _inherit = 'account.tax'
+
+    sv_secondary_account_ids = fields.One2many(
+        'account.tax.secondary.account',  # comodel
+        'tax_id',                         # inverso en el hijo
+        string='Cuentas alternativas (compras)',
+        help='Se sugieren cuando el vencimiento es mayor que la fecha contable en facturas de proveedor.',
     )
