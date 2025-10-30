@@ -13,6 +13,14 @@ class SvTaxOverrideWizard(models.TransientModel):
         string='Impuestos'
     )
 
+    @api.model_create_multi
+    def create(self, vals_list):
+        # Ignora silenciosamente intentos de crear líneas sin impuesto (evita el crash)
+        vals_list = [v for v in vals_list if v.get('tax_id')]
+        if not vals_list:
+            return self.browse()
+        return super().create(vals_list)
+
     @api.model
     def default_get(self, fields_list):
         res = super().default_get(fields_list)
