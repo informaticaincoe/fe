@@ -94,13 +94,6 @@ class AccountMove(models.Model):
         return tax_lines.filtered(lambda l: l.account_id == l.tax_repartition_line_id.account_id)
 
 
-
-
-
-
-
-
-
     # Verificar que el name (o numero de control) sea unico
     @api.constrains('name', 'company_id')
     def _check_unique_name(self):
