@@ -112,16 +112,6 @@
             <field name="name">account.move.form.inherit.retencion.percepcion</field>
             <field name="model">account.move</field>
             <field name="inherit_id" ref="account.view_move_form"/>
-            <field name="arch" type="xml">
-                <xpath expr="//header" position="inside">
-                    <!--  Boton para pruebas de cuentas contables sobre retencion de IVA, percepcion y renta en el modulo de compras-->
-                    <!--  <button name="generar_asientos_retencion_compras"-->
-                    <!--          string="Actualizar Ret./Perc./Renta"-->
-                    <!--          type="object"-->
-                    <!--          class="btn-primary"-->
-                    <!--          invisible="context.get('default_move_type') not in ('in_invoice','in_refund')"/>-->
-                </xpath>
-            </field>
         </record>
 
         <record id="sit_account_term_id" model="ir.ui.view">
@@ -132,7 +122,6 @@
                 <xpath expr="//label[@for='journal_id']" position="after">
                     <group invisible="(move_type != 'in_invoice' or codigo_tipo_documento)">
                         <field name="invoice_payment_term_id" string="Términos de Pago"/>
-                        <!--                        <field name="sit_condicion_plazo" string="Condiciones del Plazo a Crédito"/>-->
                     </group>
                 </xpath>
             </field>
