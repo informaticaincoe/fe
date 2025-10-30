@@ -18,6 +18,9 @@ except ImportError as e:
     _logger.error(f"Error al importar 'config_utils': {e}")
     config_utils = None
 
+CA_CODES = {'SV', 'GT', 'HN', 'NI', 'CR', 'PA'}
+VAT_INCLUDE = ('iva',)
+VAT_EXCLUDE = ('retenc', 'percep', 'percepción', 'renta', 'fuente')
 
 class account_move(models.Model):
     _inherit = 'account.move'
@@ -77,7 +80,7 @@ class account_move(models.Model):
     @api.depends('name')
     def _compute_sit_tipo_documento(self):
         for record in self:
-            record.sit_tipo_documento = record.sit_tipo_documento.codigo
+            record.sit_tipo_documento = record.sit_tipo_documento_id.codigo
 
     # ✅ nombre correcto
     has_sello_anulacion = fields.Boolean(
@@ -233,18 +236,6 @@ class account_move(models.Model):
     invoice_date = fields.Date(
         string="Fecha",
         readonly=True,
-    )
-
-    invoice_month = fields.Char(
-        string="Mes",
-        compute='_compute_invoice_month',
-        store=False
-    )
-
-    invoice_year = fields.Char(
-        string="Año",
-        compute='_compute_invoice_year',
-        store=False
     )
 
     hacienda_selloRecibido = fields.Char(
@@ -549,23 +540,7 @@ class account_move(models.Model):
             else:
                 record.numero_resolucion = record.name
 
-    @api.depends('invoice_date')
-    def _compute_invoice_month(self):
-        for record in self:
-            if record.invoice_date:
-                # Solo número del mes con dos dígitos
-                record.invoice_month = record.invoice_date.strftime('%m')
-            else:
-                record.invoice_month = ''
 
-    @api.depends('invoice_date')
-    def _compute_invoice_year(self):
-        for record in self:
-            if record.invoice_date:
-                # Solo número del mes con dos dígitos
-                record.invoice_year = record.invoice_date.strftime('%Y')
-            else:
-                record.invoice_year = ''
 
     # si es preimpreso
     sit_facturacion = fields.Boolean(
@@ -1103,3 +1078,275 @@ class account_move(models.Model):
             "url": f"/web/content/{attachment.id}?download=true",
             "target": "self",
         }
+
+    # ---------------------------- COMPRAS ------------------------------- #
+
+    amount_exento = fields.Float("Total exento", readonly=True)
+    total_gravado = fields.Float("Total gravado", readonly=True)
+
+    sit_tipo_documento_id = fields.Many2one(
+        "account.journal.tipo.documento.field",  # <--- Adjust this to the actual model
+        string="Tipo Documento",
+        readonly=True
+    )
+
+    compras_internas_total_excento = fields.Float(
+        "Compras internas exentas y/o no sujetas",
+        compute="_compute_compras_internas_exento"
+    )
+    internaciones_exentas_no_sujetas = fields.Float(
+        "Internaciones exentas y/o no sujetas",
+        compute="_compute_internaciones_exentas_no_sujetas"
+    )
+    importaciones_exentas_no_sujetas = fields.Float(
+        "Importaciones exentas y/o no sujetas",
+        compute="_compute_importaciones_exentas_no_sujetas"
+    )
+
+    @api.depends('amount_exento', 'partner_id.country_id', 'sit_tipo_documento_id')
+    def _compute_compras_internas_exento(self):
+        for rec in self:
+            code = rec.partner_id.country_id.code or ''
+            doc = rec.sit_tipo_documento_id.codigo
+            val = 0.0
+            if code == 'SV':
+                val = rec.amount_exento or 0.0
+            rec.compras_internas_total_excento = val
+
+    @api.depends('amount_exento', 'partner_id.country_id', 'sit_tipo_documento_id')
+    def _compute_internaciones_exentas_no_sujetas(self):
+        for rec in self:
+            code = rec.partner_id.country_id.code or ''
+            doc = rec.sit_tipo_documento_id.codigo
+            val = 0.0
+            # Internaciones: compras desde CA (≠ SV) o salidas de regímenes especiales según tu modelado
+            if code in (CA_CODES - {'SV'}):  # ajusta a tus reglas
+                val = rec.amount_exento or 0.0
+            rec.internaciones_exentas_no_sujetas = val  # ← ASIGNA SU PROPIO CAMPO
+
+    @api.depends('amount_exento', 'partner_id.country_id', 'sit_tipo_documento_id')
+    def _compute_importaciones_exentas_no_sujetas(self):
+        for rec in self:
+            code = rec.partner_id.country_id.code or ''
+            doc = rec.sit_tipo_documento_id.codigo
+            val = 0.0
+            # Importaciones (fuera de CA)
+            if code not in CA_CODES:
+                val = rec.amount_exento or 0.0
+            rec.importaciones_exentas_no_sujetas = val  # ← ASIGNA SU PROPIO CAMPO
+
+    compras_internas_gravadas = fields.Float(
+        "Compras internas gravadas",
+        compute="_compute_compras_internas_gravadas"
+    )
+
+    @api.depends('total_gravado', 'partner_id.country_id', 'sit_tipo_documento_id')
+    def _compute_compras_internas_gravadas(self):
+        for rec in self:
+            code = rec.partner_id.country_id.code
+            doc = rec.sit_tipo_documento_id.codigo
+            val = 0.0
+            if code == 'SV':
+                val = rec.total_gravado or 0.00
+
+            rec.compras_internas_gravadas = val
+
+    importaciones_gravadas_servicio = fields.Float(
+        "Importaciones gravadas de servicios",
+        compute="_compute_importaciones_gravadas_servicios"
+    )
+
+    # --- HELPERS con LOGS ---
+    def _is_service_line(self, line):
+        tmpl = line.product_id.product_tmpl_id if line.product_id else False
+        is_service = bool(tmpl) and (
+                getattr(tmpl, 'type', None) == 'service'
+                or getattr(tmpl, 'detailed_type', None) == 'service'
+        )
+        _logger.info("[IMP-SERV] line_id=%s prod=%s tmpl_id=%s type=%s detailed_type=%s -> is_service=%s",
+                     line.id,
+                     getattr(line.product_id, 'display_name', False),
+                     tmpl and tmpl.id,
+                     getattr(tmpl, 'type', None),
+                     getattr(tmpl, 'detailed_type', None),
+                     is_service)
+        return is_service
+
+    def _has_vat_positive(self, line):
+        """
+        True si la línea tiene un monto de IVA positivo, determinado por el
+        resultado del cálculo de impuestos (compute_all).
+
+        La lógica se simplifica para verificar si la suma de los montos de impuestos
+        (que Odoo clasifica como IVA/Venta) es mayor a cero.
+        """
+        _logger.info("IVA UNITARIO %s ", line.iva_unitario)
+        if line.iva_unitario < 0:
+            _logger.info("[IMP-SERV] line_id=%s SIN taxes", line.id)
+            return False
+
+        return True
+
+    # --- COMPUTE ---
+    @api.depends(
+        'partner_id.country_id',
+        'invoice_line_ids.price_subtotal',
+        'invoice_line_ids.price_total',
+        'invoice_line_ids.tax_ids',
+        'invoice_line_ids.tax_ids.children_tax_ids',
+        'invoice_line_ids.product_id'
+    )
+
+    def _compute_importaciones_gravadas_servicios(self):
+        for rec in self:
+            total = 0.0
+            try:
+                country = (rec.partner_id.country_id.code or '')
+                _logger.info("[IMP-SERV] >>> move_id=%s name=%s partner=%s country=%s",
+                             rec.id, rec.name, getattr(rec.partner_id, 'display_name', None), country)
+                _logger.info("[IMP-SERV] CA=%s ; country_not_in_CA=%s", CA_CODES,
+                             bool(country and country not in CA_CODES))
+
+                # Importación = proveedor fuera de CA
+                if country and country not in CA_CODES:
+                    for line in rec.invoice_line_ids:
+                        is_service = self._is_service_line(line)
+                        has_vat = self._has_vat_positive(line)
+                        considered = is_service and has_vat
+                        if considered:
+                            total += line.price_subtotal  # sumar base gravada
+                else:
+                    _logger.info("[IMP-SERV] move_id=%s NO es importación (country in CA o vacío)", rec.id)
+            except Exception:
+                _logger.exception("[IMP-SERV] Error calculando importaciones_gravadas_servicio move %s", rec.id)
+
+            _logger.info("[IMP-SERV] <<< move_id=%s TOTAL_IMPORT_SERV=%.4f", rec.id, total)
+            rec.importaciones_gravadas_servicio = total
+
+    compras_internas_gravadas = fields.Float(
+        "Compras internas gravadas",
+        compute="_compute_compras_internas_gravadas"
+    )
+
+    def _compute_compras_internas_gravadas(self):
+        for rec in self:
+            total = 0.0
+            try:
+                country = (rec.partner_id.country_id.code or '')
+                _logger.info("[IMP-SERV] >>> move_id=%s name=%s partner=%s country=%s",
+                             rec.id, rec.name, getattr(rec.partner_id, 'display_name', None), country)
+                _logger.info("[IMP-SERV] CA=%s ; country_not_in_CA=%s", CA_CODES,
+                             bool(country and country not in CA_CODES))
+
+                # Importación = proveedor fuera de CA
+                if country and country == "SV":
+                    for line in rec.invoice_line_ids:
+                        has_vat = self._has_vat_positive(line)
+                        if has_vat:
+                            total += line.price_subtotal  # sumar base gravada
+                else:
+                    _logger.info("[IMP-SERV] move_id=%s NO es importación (country in CA o vacío)", rec.id)
+            except Exception:
+                _logger.exception("[IMP-SERV] Error calculando importaciones_gravadas_servicio move %s", rec.id)
+
+            _logger.info("[IMP-SERV] <<< move_id=%s TOTAL_IMPORT_SERV=%.4f", rec.id, total)
+            rec.compras_internas_gravadas = total
+
+    internaciones_gravadas_bienes = fields.Float(
+        "Internaciones gravadas de bienes",
+        compute="_compute_internaciones_gravadas_bienes"
+    )
+
+    def _compute_internaciones_gravadas_bienes(self):
+        for rec in self:
+            total = 0.0
+            try:
+                country = (rec.partner_id.country_id.code or '')
+                _logger.info("[IMP-SERV] >>> move_id=%s name=%s partner=%s country=%s",
+                             rec.id, rec.name, getattr(rec.partner_id, 'display_name', None), country)
+                _logger.info("[IMP-SERV] CA=%s ; country_not_in_CA=%s", CA_CODES,
+                             bool(country and country not in CA_CODES))
+
+                # Importación = proveedor fuera de CA
+                if country and country in (CA_CODES - {'SV'}):
+                    for line in rec.invoice_line_ids:
+                        has_vat = self._has_vat_positive(line)
+                        if has_vat:
+                            total += line.price_subtotal  # sumar base gravada
+                else:
+                    _logger.info("[IMP-SERV] move_id=%s NO es importación (country in CA o vacío)", rec.id)
+            except Exception:
+                _logger.exception("[IMP-SERV] Error calculando importaciones_gravadas_servicio move %s", rec.id)
+
+            _logger.info("[IMP-SERV] <<< move_id=%s TOTAL_IMPORT_SERV=%.4f", rec.id, total)
+            rec.internaciones_gravadas_bienes = total
+
+    importaciones_gravadas_bienes = fields.Float(
+        "Importaciones gravadas de bienes",
+        compute="_compute_importaciones_gravadas_bienes"
+    )
+
+    def _compute_importaciones_gravadas_bienes(self):
+        for rec in self:
+            total = 0.0
+            try:
+                country = (rec.partner_id.country_id.code or '')
+                _logger.info("[IMP-SERV] >>> move_id=%s name=%s partner=%s country=%s",
+                             rec.id, rec.name, getattr(rec.partner_id, 'display_name', None), country)
+                _logger.info("[IMP-SERV] CA=%s ; country_not_in_CA=%s", CA_CODES,
+                             bool(country and country not in CA_CODES))
+
+                # Importación = proveedor fuera de CA
+                if country and country not in (CA_CODES):
+                    for line in rec.invoice_line_ids:
+                        has_vat = self._has_vat_positive(line)
+                        if has_vat:
+                            total += line.price_subtotal  # sumar base gravada
+                else:
+                    _logger.info("[IMP-SERV] move_id=%s NO es importación (country in CA o vacío)", rec.id)
+            except Exception:
+                _logger.exception("[IMP-SERV] Error calculando importaciones_gravadas_servicio move %s", rec.id)
+
+            _logger.info("[IMP-SERV] <<< move_id=%s TOTAL_IMPORT_SERV=%.4f", rec.id, total)
+            rec.importaciones_gravadas_bienes = total
+
+    total_compra = fields.Float(
+        "Total compras",
+        compute="_compute_total_compra"
+    )
+
+    def _compute_total_compra(self):
+        for rec in self:
+            rec.total_compra = rec.compras_internas_total_excento + rec.internaciones_exentas_no_sujetas + rec.importaciones_exentas_no_sujetas +rec.compras_internas_gravadas +rec.internaciones_gravadas_bienes +rec.importaciones_gravadas_bienes + rec.importaciones_gravadas_servicio
+
+    credito_fiscal = fields.Float(
+        "Credito fiscal",
+        compute="_compute_credito_fiscal"
+    )
+
+    def _compute_credito_fiscal(self):
+        for rec in self:
+            rec.credito_fiscal = (rec.compras_internas_gravadas + rec.internaciones_gravadas_bienes +rec.importaciones_gravadas_bienes + rec.importaciones_gravadas_servicio) *0.13
+
+
+    # --------------- AGRUPAR ANEXOS DE FACTURAS MAYORES A 25000 ------------
+
+    invoice_year = fields.Integer(store=True, index=True, compute='_compute_invoice_period')
+    invoice_month = fields.Integer(store=True, index=True, compute='_compute_invoice_period')
+    invoice_semester = fields.Selection(
+        [('1', '1.º semestre (Ene–Jun)'), ('2', '2.º semestre (Jul–Dic)')],
+        store=True, index=True, compute='_compute_invoice_period'
+    )
+
+    @api.depends('invoice_date')
+    def _compute_invoice_period(self):
+        for move in self:
+            d = move.invoice_date or move.date
+            if d:
+                move.invoice_year = d.year
+                move.invoice_month = d.month
+                move.invoice_semester = '1' if d.month <= 6 else '2'
+            else:
+                move.invoice_year = False
+                move.invoice_month = False
+                move.invoice_semester = False

@@ -124,10 +124,35 @@ class AnexoCSVUtils(models.AbstractModel):
                 "desde",
                 "hasta",
                 "hacienda_codigoGeneracion_identificacion"
+            ],
+            "ANX_COMPRAS": [
+                "invoice_date",
+                "Fecha de Emisión",
+                "clase_documento_display",
+                "codigo_tipo_documento_display",
+                "numero_documento"
+                "Número documento",
+                "nit_o_nrc_anexo_contribuyentes",
+                "razon_social",
+                "compras_internas_total_excento",
+                "internaciones_exentas_no_sujetas",
+                "importaciones_exentas_no_sujetas",
+                "compras_internas_gravadas",
+                "internaciones_gravadas_bienes",
+                "importaciones_gravadas_bienes",
+                "importaciones_gravadas_servicio",
+                "credito_fiscal",
+                "total_compra",
+                "dui_cliente"
+                "DUI del proveedor",
+                "tipo_operacion_display",
+                "clasificacion_facturacion_display",
+                "sector_display",
+                "tipo_costo_gasto_display",
+                "numero_anexo",
             ]
         }
         return mapping.get(str(key), [])
-
 
     def generate_csv(self, records, numero_anexo=None, view_id=None, include_header=False):
 
@@ -161,7 +186,6 @@ class AnexoCSVUtils(models.AbstractModel):
                     return Decimal("0")
             # cualquier otro tipo → 0
             return Decimal("0")
-
 
         ctx = self.env.context
         csv_content = io.StringIO()
@@ -205,7 +229,8 @@ class AnexoCSVUtils(models.AbstractModel):
                         "hacienda_codigoGeneracion_identificacion",
                         "hacienda_selloRecibido", "dui_proveedor",
                         "dui_cliente", "nit_o_nrc_anexo_contribuyentes",
-                        "documento_sujeto_excluido", "numero_documento_del", "numero_documento_al", "numero_documento", "numero_resolucion", "numero_resolucion_anexos_anulados"
+                        "documento_sujeto_excluido", "numero_documento_del", "numero_documento_al", "numero_documento",
+                        "numero_resolucion", "numero_resolucion_anexos_anulados"
                 ):
                     clean = clean.replace("-", "")
 

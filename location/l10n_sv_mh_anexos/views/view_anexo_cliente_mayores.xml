@@ -1,27 +1,83 @@
 <odoo>
+    <!-- Heredar la search view nativa de account.move -->
+    <record id="view_report_account_move_daily_mayores_search_inherit" model="ir.ui.view">
+        <field name="name">report.account.move.daily.mayores.search.inherit.semestre</field>
+        <field name="model">account.move</field>
+        <field name="inherit_id" ref="account.view_account_move_filter"/>
+        <field name="priority" eval="200"/>  <!-- alta prioridad para ganar a otras herencias -->
+        <field name="arch" type="xml">
+            <!-- Inserta tu bloque “Agrupar por” propio dentro de <search> -->
+            <xpath expr="//search" position="inside">
+                <group expand="0" string="Agrupar por (Anexos)">
+                    <filter name="group_by_year" string="Año"
+                            context="{'group_by': 'invoice_year'}"/>
+                    <filter name="group_by_semester" string="Semestre"
+                            context="{'group_by': 'invoice_semester'}"/>
+                    <filter name="group_by_month" string="Mes"
+                            context="{'group_by': 'invoice_month'}"/>
+                </group>
+
+                <!-- Filtros rápidos por semestre -->
+                <filter name="primer_semestre_actual"
+                        string="1.º semestre (año actual)"
+                        domain="[('invoice_year','=', time.strftime('%Y')), ('invoice_semester','=','1')]"/>
+                <filter name="segundo_semestre_actual"
+                        string="2.º semestre (año actual)"
+                        domain="[('invoice_year','=', time.strftime('%Y')), ('invoice_semester','=','2')]"/>
+
+                <!-- SearchPanel (opcional) -->
+                <searchpanel>
+                    <field name="invoice_year" string="Año" select="one" enable_counters="1"/>
+                    <field name="invoice_semester" string="Semestre" select="one" enable_counters="1"/>
+                    <field name="invoice_month" string="Mes" select="one" enable_counters="1"/>
+                </searchpanel>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Tu list view puede quedarse como está, añade los 3 campos para validar visual -->
     <record id="view_report_account_move_daily_mayores_list" model="ir.ui.view">
         <field name="name">report.account.move.daily.mayores.list</field>
         <field name="model">account.move</field>
         <field name="arch" type="xml">
-            <list string="Facturas agrupadas por día">
+            <list string="Facturas &gt; $25,000">
                 <header>
                     <button name="action_download_csv_anexo" type="object"
                             string="Descargar CSV" class="oe_highlight" display="always"/>
                 </header>
+
+                <!-- Muestra estos para ver que el agrupamiento funciona -->
+                <field name="invoice_year"/>
+                <field name="invoice_semester"/>
                 <field name="invoice_month"/>
+
+                <field name="razon_social"/>
                 <field name="codigo_tipo_documento_cliente_display" string="Documento de identificación"/>
                 <field name="documento_sujeto_excluido"/>
-                <field name="razon_social"/>
-                <field name="invoice_date"/>
                 <field name="codigo_tipo_documento_display"/>
                 <field name="hacienda_codigoGeneracion_identificacion" string="Número de documento"/>
                 <field name="amount_untaxed" string="Monto de operación"/>
                 <field name="amount_tax" string="IVA"/>
-                <field name="invoice_year"/>
                 <field name="numero_anexo"/>
             </list>
         </field>
     </record>
 
-</odoo>
+    <!-- Acción: ya no fuerces search_view_id; deja que coja la heredada de mayor prioridad -->
+    <record id="action_account_move_mayores_25000" model="ir.actions.act_window">
+        <field name="name">Anexo: Facturas &gt; 25,000</field>
+        <field name="res_model">account.move</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[
+            ('move_type','=','out_invoice'),
+            ('state','=','posted'),
+            ('amount_total','&gt;=',25000.0)
+            ]
+        </field>
+        <field name="search_view_id" ref="view_report_account_move_daily_mayores_search_inherit"/>
 
+        <field name="context">
+            {'search_default_group_by_year': 1, 'search_default_group_by_semester': 1}
+        </field>
+    </record>
+</odoo>

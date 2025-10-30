@@ -59,14 +59,14 @@ class AccountMoveLine(models.Model):
             line.total_iva = 0.0
             tipo_doc = line.move_id.journal_id.sit_tipo_documento if line.move_id.journal_id else None
 
-            if line.move_id.move_type in (constants.TYPE_ENTRY, constants.OUT_RECEIPT, constants.IN_RECEIPT):
+            if line.move_id.move_type in (constants.TYPE_ENTRY, constants.OUT_RECEIPT, constants.IN_RECEIPT, constants.OUT_RECEIPT):
                 _logger.info("[SIT] Se omite _compute_total_iva para movimiento tipo '%s' (ID: %s)", line.move_id.move_type, line.move_id.id)
                 continue
 
             # Ventas → solo si hay facturación electrónica
-            if line.move_id.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND) and not line.move_id.company_id.sit_facturacion:
-                _logger.info("SIT _compute_total_iva | Venta detectada sin facturación -> move_id: %s, se omite cálculo de IVA", line.move_id.id)
-                continue
+            # if line.move_id.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND) and not line.move_id.company_id.sit_facturacion:
+            #     _logger.info("SIT _compute_total_iva | Venta detectada sin facturación -> move_id: %s, se omite cálculo de IVA", line.move_id.id)
+            #     continue
 
             # Verificamos si es una factura de compra
             if line.move_id.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
@@ -95,7 +95,7 @@ class AccountMoveLine(models.Model):
             line.iva_unitario = 0.0
             tipo_doc = line.move_id.journal_id.sit_tipo_documento if line.move_id.journal_id else None
 
-            if line.move_id.move_type in (constants.TYPE_ENTRY, constants.OUT_RECEIPT, constants.IN_RECEIPT):
+            if line.move_id.move_type in (constants.TYPE_ENTRY, constants.OUT_RECEIPT, constants.IN_RECEIPT, constants.OUT_RECEIPT):
                 _logger.info("[SIT] Se omite _compute_iva_unitario para movimiento tipo '%s' (ID: %s)", line.move_id.move_type, line.move_id.id)
                 continue
 
@@ -105,12 +105,12 @@ class AccountMoveLine(models.Model):
                 continue
 
             # Compras → solo si es sujeto excluido con facturación o compras normales DTE tipo FSE
-            if line.move_id.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
-                if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE or (
-                        tipo_doc.codigo == constants.COD_DTE_FSE and not line.move_id.company_id.sit_facturacion):
-                    _logger.info("SIT _compute_iva_unitario | Compra normal o sujeto excluido sin facturación -> move_id: %s, no se calcula IVA unitario", line.move_id.id)
-                    line.iva_unitario = 0.0
-                    continue
+            # if line.move_id.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
+            #     if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE or (
+            #             tipo_doc.codigo == constants.COD_DTE_FSE and not line.move_id.company_id.sit_facturacion):
+            #         _logger.info("SIT _compute_iva_unitario | Compra normal o sujeto excluido sin facturación -> move_id: %s, no se calcula IVA unitario", line.move_id.id)
+            #         line.iva_unitario = 0.0
+            #         continue
 
             if line.tax_ids:
                 # Solo considerar impuestos tipo IVA
