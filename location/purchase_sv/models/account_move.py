@@ -583,12 +583,6 @@ class AccountMove(models.Model):
                 ] if c
             }
 
-            # Eliminar líneas previas de este tipo
-            # previas = move.line_ids.filtered(lambda l: l.name in [company.percepcion_purchase_id.name, company.retencion_iva_purchase_id.name, company.renta_purchase_id.name])
-            # if previas:
-            #     _logger.info(f"SIT | [Move {move.id}] Eliminando {len(previas)} líneas previas de retención/percepción/renta")
-            #     previas.unlink()
-
             # Solo considerar líneas con esos nombres pero EXCLUIR líneas tipo receivable/payable
             previas = move.line_ids.filtered(
                 lambda l: (

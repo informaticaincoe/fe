@@ -2530,8 +2530,7 @@ class AccountMove(models.Model):
 
             # Verificar si el correo fue enviado
             _logger.info("SIT Enviar correo context: %s", inv.env.context.get('correo_enviado', False))
-            if not ambiente_test and not inv.env.context.get('correo_enviado',
-                                                             False) and inv.state == 'posted' and not inv.correo_enviado:
+            if not ambiente_test and not inv.env.context.get('correo_enviado', False) and inv.state == 'posted' and not inv.correo_enviado:
                 return {
                     'type': 'ir.actions.client',
                     'tag': 'display_notification',
@@ -2542,8 +2541,7 @@ class AccountMove(models.Model):
                         'sticky': False,
                     },
                 }
-            elif not ambiente_test and not inv.env.context.get('correo_enviado',
-                                                               False) and inv.state == 'posted' and inv.correo_enviado:
+            elif not ambiente_test and not inv.env.context.get('correo_enviado', False) and inv.state == 'posted' and inv.correo_enviado:
                 return {
                     'type': 'ir.actions.client',
                     'tag': 'display_notification',

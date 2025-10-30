@@ -133,6 +133,8 @@ TYPE_COMPRA = "purchase"
 TYPE_ENTRY = "entry"
 OUT_RECEIPT = "out_receipt"
 IN_RECEIPT = "in_receipt"
+TYPE_SALIDA = "outgoing"
+TYPE_RECEPCION = "incoming"
 
 # Identificacion documentos electronicos
 DTE_COD = 4

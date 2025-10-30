@@ -30,15 +30,15 @@ class sit_account_move(models.Model):
     sit_lote_contingencia = fields.Many2one('account.lote', string="Factura asignada en el lote", ondelete="set null")
     sit_bloque_contingencia = fields.Many2one('account.contingencia.bloque', string='Bloque de Factura')
 
-    @api.onchange('sit_es_configencia')
-    def check_sit_es_configencia(self):
-        _logger.info("SIT revisando  si es o no sit_es_configencia  <---------------------------------------------")
-        if self.sit_es_configencia:
-            _logger.info("SIT sit_es_configencia")
-            #self.sit_block_hacienda = True
-        else:
-            _logger.info("SIT NO sit_es_configencia")                
-            #self.sit_block_hacienda = False
+    # @api.onchange('sit_es_configencia')
+    # def check_sit_es_configencia(self):
+    #     _logger.info("SIT revisando  si es o no sit_es_configencia  <---------------------------------------------")
+    #     if self.sit_es_configencia:
+    #         _logger.info("SIT sit_es_configencia")
+    #         #self.sit_block_hacienda = True
+    #     else:
+    #         _logger.info("SIT NO sit_es_configencia")
+    #         #self.sit_block_hacienda = False
 
 # ---------------------------------------------------------------------------------------------
 # LOTES DE CONTINGENCIA
