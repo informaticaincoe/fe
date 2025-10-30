@@ -1,11 +1,9 @@
 # -*- coding: utf-8 -*-
 from odoo import fields, models, api
 import logging
-import re
-import io
 import base64
 from datetime import date
-from odoo.exceptions import UserError
+import re
 
 _logger = logging.getLogger(__name__)
 
@@ -13,7 +11,6 @@ try:
     from odoo.addons.common_utils.utils import config_utils
     from odoo.addons.common_utils.utils import constants
 
-    _logger.info("SIT Modulo config_utils [hacienda ws-account_move]")
 except ImportError as e:
     _logger.error(f"Error al importar 'config_utils': {e}")
     config_utils = None
@@ -23,41 +20,16 @@ VAT_INCLUDE = ('iva',)
 VAT_EXCLUDE = ('retenc', 'percep', 'percepción', 'renta', 'fuente')
 MONTHS = [(f'{m:02d}', f'{m:02d}') for m in range(1, 13)]
 
+
 class account_move(models.Model):
     _inherit = 'account.move'
-
-    semester = fields.Selection(
-        [('S1', 'Ene–Jun'), ('S2', 'Jul–Dic')],
-        compute='_compute_semester',
-        store=True, index=True
-    )
-    semester_year = fields.Integer(
-        compute='_compute_semester',
-        store=True, index=True
-    )
-    semester_label = fields.Char(  # útil para mostrar/ordenar: "2025-H1"
-        compute='_compute_semester',
-        store=True, index=True
-    )
-
-    @api.depends('invoice_date')
-    def _compute_semester(self):
-        for m in self:
-            if m.invoice_date:
-                m.semester_year = m.invoice_date.year
-                m.semester = 'S1' if m.invoice_date.month <= 6 else 'S2'
-                m.semester_label = f"{m.semester_year}-{m.semester}"
-            else:
-                m.semester_year = False
-                m.semester = False
-                m.semester_label = False
 
     @staticmethod
     def _only_digits(val):
         """Devuelve solo los dígitos del valor (sin guiones/plecas/espacios)."""
-        import re
         return re.sub(r'\D', '', val or '')
 
+    # ******************************** valores necesario para anexos ******************************** #
     sit_evento_invalidacion = fields.Many2one(
         'account.move.invalidation',
         string='Evento de invalidación',
@@ -65,6 +37,101 @@ class account_move(models.Model):
         index=True,
     )
 
+    tipo_ingreso_id = fields.Many2one(
+        comodel_name="account.tipo.ingreso",
+        string="Tipo de Ingreso"
+    )
+    tipo_costo_gasto_id = fields.Many2one(
+        comodel_name="account.tipo.costo.gasto",
+        string="Tipo de Costo/Gasto"
+    )
+
+    tipo_operacion = fields.Many2one(
+        comodel_name="account.tipo.operacion",
+        string="Tipo Operacion"
+    )
+
+    clasificacion_facturacion = fields.Many2one(
+        comodel_name="account.clasificacion.facturacion",
+        string="Clasificacion"
+    )
+
+    sector = fields.Many2one(
+        comodel_name="account.sector",
+        string="Sector"
+    )
+
+    clase_documento_id = fields.Many2one(
+        string="Clase de documento",
+        comodel_name="account.clase.documento"
+    )
+
+    codigo_tipo_documento = fields.Char(
+        string="Código tipo documento",
+        readonly=True
+    )
+
+    invoice_date = fields.Date(
+        string="Fecha",
+        readonly=True,
+    )
+
+    hacienda_selloRecibido = fields.Char(
+        string="Sello Recibido",
+        readonly=True,
+    )
+
+    hacienda_codigoGeneracion_identificacion = fields.Char(
+        string="codigo generacion",
+        readonly=True,
+    )
+
+
+    total_exento = fields.Monetary(
+        string="Ventas extentas",
+        readonly=True,
+    )
+
+    total_no_sujeto = fields.Monetary(
+        string="Ventas no sujetas",
+        readonly=True,
+    )
+
+    total_operacion = fields.Monetary(
+        string="Total de ventas",
+        readonly=True,
+    )
+
+    amount_untaxed = fields.Monetary(
+        string="Monto de operación",
+        readonly=True,
+    )
+
+    retencion_iva_amount = fields.Monetary(
+        string="Retencion IVA 13%",
+        readonly=True,
+    )
+
+    amount_tax = fields.Monetary(
+        string="Percepción IVA 1%",
+        readonly=True,
+    )
+
+    # si es preimpreso
+    sit_facturacion = fields.Boolean(
+        related='company_id.sit_facturacion',
+        readonly=True,
+        store=True,
+    )
+
+    razon_social = fields.Char(
+        string="Cliente/Proveedor",
+        related='partner_id.name',
+        readonly=True,
+        store=False,
+    )
+
+    # ----------- Campos computados ----------- #
     sit_tipo_documento = fields.Char(
         string="Tipo de documento",
         compute="_compute_sit_tipo_documento",
@@ -72,18 +139,6 @@ class account_move(models.Model):
         store=False,
     )
 
-    # move_type = fields.Selection(
-    #     selection=lambda self: self.env['account.move']._fields['move_type'].selection,
-    #     string="Tipo de documento",
-    #     readonly=True,
-    # )
-
-    @api.depends('name')
-    def _compute_sit_tipo_documento(self):
-        for record in self:
-            record.sit_tipo_documento = record.sit_tipo_documento_id.codigo
-
-    # ✅ nombre correcto
     has_sello_anulacion = fields.Boolean(
         string="Tiene Sello Anulación",
         compute="_compute_has_sello_anulacion",
@@ -93,55 +148,11 @@ class account_move(models.Model):
         index=True,
     )
 
-    @api.depends('sit_evento_invalidacion', 'sit_evento_invalidacion.hacienda_selloRecibido_anulacion')
-    def _compute_has_sello_anulacion(self):
-        for m in self:
-            inv = m.sit_evento_invalidacion
-            m.has_sello_anulacion = bool(inv and inv.hacienda_selloRecibido_anulacion)
-            _logger.info("has_sello_anulacion %s → %s", m.name, m.has_sello_anulacion)
-
-    # Search compatible con dominios sobre el booleano
-    def _search_has_sello_anulacion(self, operator, value):
-        # Normalizamos a consultas sobre el campo del M2O (Odoo hace el join)
-        is_true = (operator, bool(value)) in [('=', True), ('!=', False)]
-        is_false = (operator, bool(value)) in [('=', False), ('!=', True)]
-
-        if is_true:
-            # registros cuya invalidación tiene sello
-            return [('sit_evento_invalidacion.hacienda_selloRecibido_anulacion', '!=', False)]
-        elif is_false:
-            # sin invalidación o invalidación sin sello
-            return ['|',
-                    ('sit_evento_invalidacion', '=', False),
-                    ('sit_evento_invalidacion.hacienda_selloRecibido_anulacion', '=', False)]
-        # fallback por si pasan otro operador raro
-        return []
-
-    # consumidor final
-    tipo_ingreso_id = fields.Many2one(
-        comodel_name="account.tipo.ingreso",
-        string="Tipo de Ingreso"
-    )
-
     tipo_ingreso_codigo = fields.Char(
         string="Tipo ingreso codigo",
         compute='_compute_get_tipo_ingreso_codigo',
         readonly=True,
         store=False,
-    )
-
-    @api.depends('tipo_ingreso_id', 'invoice_date')
-    def _compute_get_tipo_ingreso_codigo(self):
-        limite = date(2025, 1, 1)
-        for rec in self:
-            val = "0"
-            if rec.invoice_date and rec.invoice_date >= limite and rec.tipo_ingreso_id and rec.tipo_ingreso_id.codigo is not None:
-                val = str(rec.tipo_ingreso_id.codigo)
-            rec.tipo_ingreso_codigo = val
-
-    tipo_costo_gasto_id = fields.Many2one(
-        comodel_name="account.tipo.costo.gasto",
-        string="Tipo de Costo/Gasto"
     )
 
     tipo_costo_gasto_codigo = fields.Char(
@@ -151,26 +162,11 @@ class account_move(models.Model):
         store=False,
     )
 
-    @api.depends('tipo_costo_gasto_id')
-    def _compute_get_tipo_costo_gasto_codigo(self):
-        for rec in self:
-            rec.tipo_costo_gasto_codigo = (f"{rec.tipo_costo_gasto_id.codigo}")
-
-    tipo_operacion = fields.Many2one(
-        comodel_name="account.tipo.operacion",
-        string="Tipo Operacion"
-    )
-
     tipo_operacion_codigo = fields.Char(
         string="Tipo operacion codigo",
         compute='_compute_get_tipo_operacion_codigo',
         readonly=True,
         store=False,
-    )
-
-    clasificacion_facturacion = fields.Many2one(
-        comodel_name="account.clasificacion.facturacion",
-        string="Clasificacion"
     )
 
     clasificacion_facturacion_codigo = fields.Char(
@@ -180,33 +176,11 @@ class account_move(models.Model):
         store=False,
     )
 
-    @api.depends('clasificacion_facturacion')
-    def _compute_get_clasificacion_facturacion_codigo(self):
-        for rec in self:
-            rec.clasificacion_facturacion_codigo = (f"{rec.clasificacion_facturacion.codigo}")
-
-    sector = fields.Many2one(
-        comodel_name="account.sector",
-        string="Sector"
-    )
-
     sector_codigo = fields.Char(
         string="Sector codigo",
         compute='_compute_get_sector_codigo',
         readonly=True,
         store=False,
-    )
-
-    @api.depends('sector')
-    def _compute_get_sector_codigo(self):
-        for rec in self:
-            rec.sector_codigo = (f"{rec.sector.codigo}")
-
-    clase_documento_id = fields.Many2one(
-        # comodel_name="account.clasificacion.facturacion",
-        # string="Clasificacion"
-        string="Clase de documento",
-        comodel_name="account.clase.documento"
     )
 
     clase_documento = fields.Char(
@@ -223,30 +197,10 @@ class account_move(models.Model):
         store=False,
     )
 
-    codigo_tipo_documento = fields.Char(
-        string="Código tipo documento",
-        readonly=True
-    )
-
     codigo_tipo_documento_display = fields.Char(
         string="Tipo de documento",
         compute='_compute_codigo_tipo_documento_display',
         store=False
-    )
-
-    invoice_date = fields.Date(
-        string="Fecha",
-        readonly=True,
-    )
-
-    hacienda_selloRecibido = fields.Char(
-        string="Sello Recibido",
-        readonly=True,
-    )
-
-    hacienda_codigoGeneracion_identificacion = fields.Char(
-        string="codigo generacion",
-        readonly=True,
     )
 
     numero_documento = fields.Char(
@@ -277,29 +231,11 @@ class account_move(models.Model):
         compute='_compute_get_numero_control_documento_interno_al',
     )
 
-    numero_documento_del = fields.Char(
-        compute='_compute_get_hacienda_codigo_generacion_sin_guion',
-    )
-
-    numero_documento_al = fields.Char(
-        compute='_compute_get_hacienda_codigo_generacion_sin_guion',
-    )
-
     numero_maquina_registradora = fields.Char(
         string="Numero de maquina registradora",
         compute='_compute_get_numero_maquina_registradora',
         readonly=True,
         store=False,
-    )
-
-    total_exento = fields.Monetary(
-        string="Ventas extentas",
-        readonly=True,
-    )
-
-    total_no_sujeto = fields.Monetary(
-        string="Ventas no sujetas",
-        readonly=True,
     )
 
     total_gravado_local = fields.Monetary(
@@ -351,16 +287,6 @@ class account_move(models.Model):
         store=False,
     )
 
-    total_operacion = fields.Monetary(
-        string="Total de ventas",
-        readonly=True,
-    )
-
-    amount_untaxed = fields.Monetary(
-        string="Monto de operación",
-        readonly=True,
-    )
-
     tipo_ingreso_renta = fields.Monetary(
         string="Tipo de ingreso (renta)",
         compute='_compute_get_tipo_ingreso_renta',
@@ -374,21 +300,11 @@ class account_move(models.Model):
         readonly=True,
     )
 
-    retencion_iva_amount = fields.Monetary(
-        string="Retencion IVA 13%",
-        readonly=True,
-    )
-
     retencion_iva_amount_1 = fields.Monetary(
         string="Percepción IVA 1%",
         compute="_compute_retencion_iva_amount",
         readonly=True,
         store=False
-    )
-
-    amount_tax = fields.Monetary(
-        string="Percepción IVA 1%",
-        readonly=True,
     )
 
     # === Campos display (codigo + nombre) === #
@@ -462,99 +378,6 @@ class account_move(models.Model):
         string="hasta",
         compute="_compute_hasta",
         store=False
-    )
-
-    # === Métodos compute === #
-
-    @api.depends('tipo_operacion', 'invoice_date')
-    def _compute_get_tipo_operacion_codigo(self):
-        limite = date(2025, 1, 1)
-        for rec in self:
-            val = "0"
-            if rec.invoice_date and rec.invoice_date >= limite and rec.tipo_operacion and rec.tipo_operacion.codigo is not None:
-                val = str(rec.tipo_operacion.codigo)
-            rec.tipo_operacion_codigo = val
-
-    @api.depends('tipo_ingreso_id')
-    def _compute_tipo_ingreso_display(self):
-        limite = date(2025, 1, 1)
-        for rec in self:
-            if rec.invoice_date and rec.invoice_date >= limite:
-                rec.tipo_ingreso_display = (
-                    f"{rec.tipo_ingreso_id.codigo}. {rec.tipo_ingreso_id.valor}"
-                    if rec.tipo_ingreso_id else ""
-                )
-            else:
-                rec.tipo_ingreso_display = ("0")
-
-    @api.depends('tipo_costo_gasto_id')
-    def _compute_tipo_costo_gasto_display(self):
-        for rec in self:
-            rec.tipo_costo_gasto_display = (
-                f"{rec.tipo_costo_gasto_id.codigo}. {rec.tipo_costo_gasto_id.valor}"
-                if rec.tipo_costo_gasto_id else ""
-            )
-
-    @api.depends('tipo_operacion')
-    def _compute_tipo_operacion_display(self):
-        limite = date(2025, 1, 1)
-        for rec in self:
-            if rec.invoice_date and rec.invoice_date >= limite:
-                rec.tipo_operacion_display = (
-                    f"{rec.tipo_operacion.codigo}. {rec.tipo_operacion.valor}"
-                    if rec.tipo_operacion else ""
-                )
-            else:
-                rec.tipo_operacion_display = ("0")
-
-    @api.depends('clasificacion_facturacion')
-    def _compute_clasificacion_facturacion_display(self):
-        for rec in self:
-            rec.clasificacion_facturacion_display = (
-                f"{rec.clasificacion_facturacion.codigo}. {rec.clasificacion_facturacion.valor}"
-                if rec.clasificacion_facturacion else ""
-            )
-
-    @api.depends('sector')
-    def _compute_sector_display(self):
-        for rec in self:
-            rec.sector_display = (
-                f"{rec.sector.codigo}. {rec.sector.valor}"
-                if rec.sector else ""
-            )
-
-    @api.depends('journal_id')
-    def _compute_resolucion_anexos_anulados(self):
-        limite = date(2022, 10, 1)
-        for record in self:
-            if record.invoice_date < limite:
-                record.numero_resolucion_anexos_anulados = record.hacienda_codigoGeneracion_identificacion
-            else:
-                record.numero_resolucion_anexos_anulados = record.name
-
-    @api.depends('journal_id')
-    def _compute_numero_resolucion(self):
-        limite = date(2022, 11, 1)
-        for record in self:
-            if record.invoice_date < limite:
-                record.numero_resolucion = record.hacienda_codigoGeneracion_identificacion
-            else:
-                record.numero_resolucion = record.name
-
-
-
-    # si es preimpreso
-    sit_facturacion = fields.Boolean(
-        related='company_id.sit_facturacion',
-        readonly=True,
-        store=True,
-    )
-
-    razon_social = fields.Char(
-        string="Cliente/Proveedor",
-        related='partner_id.name',
-        readonly=True,
-        store=False,
     )
 
     tipo_documento_identificacion = fields.Char(
@@ -641,6 +464,77 @@ class account_move(models.Model):
         readonly=True,
     )
 
+    numero_documento_del = fields.Char(
+        compute='_compute_get_hacienda_codigo_generacion_sin_guion',
+    )
+
+    numero_documento_al = fields.Char(
+        compute='_compute_get_hacienda_codigo_generacion_sin_guion',
+    )
+
+    # ******************************** Metodos computados ******************************** #
+    @api.depends('name')
+    def _compute_sit_tipo_documento(self):
+        for record in self:
+            record.sit_tipo_documento = record.sit_tipo_documento_id.codigo
+
+    @api.depends('sit_evento_invalidacion', 'sit_evento_invalidacion.hacienda_selloRecibido_anulacion')
+    def _compute_has_sello_anulacion(self):
+        for m in self:
+            inv = m.sit_evento_invalidacion
+            m.has_sello_anulacion = bool(inv and inv.hacienda_selloRecibido_anulacion)
+            _logger.info("has_sello_anulacion %s → %s", m.name, m.has_sello_anulacion)
+
+    # Search compatible con dominios sobre el booleano
+    def _search_has_sello_anulacion(self, operator, value):
+        # Normalizar consultas sobre el campo M2O
+        is_true = (operator, bool(value)) in [('=', True), ('!=', False)]
+        is_false = (operator, bool(value)) in [('=', False), ('!=', True)]
+
+        if is_true:
+            # registros cuya invalidación tiene sello
+            return [('sit_evento_invalidacion.hacienda_selloRecibido_anulacion', '!=', False)]
+        elif is_false:
+            # sin invalidación o invalidación sin sello
+            return ['|',
+                    ('sit_evento_invalidacion', '=', False),
+                    ('sit_evento_invalidacion.hacienda_selloRecibido_anulacion', '=', False)]
+        # fallback en caso pase otro operador
+        return []
+
+    @api.depends('tipo_ingreso_id', 'invoice_date')
+    def _compute_get_tipo_ingreso_codigo(self):
+        limite = date(2025, 1, 1)
+        for rec in self:
+            val = "0"
+            if rec.invoice_date and rec.invoice_date >= limite and rec.tipo_ingreso_id and rec.tipo_ingreso_id.codigo is not None:
+                val = str(rec.tipo_ingreso_id.codigo)
+            rec.tipo_ingreso_codigo = val
+
+    @api.depends('tipo_costo_gasto_id')
+    def _compute_get_tipo_costo_gasto_codigo(self):
+        for rec in self:
+            rec.tipo_costo_gasto_codigo = (f"{rec.tipo_costo_gasto_id.codigo}")
+
+    @api.depends('tipo_operacion', 'invoice_date')
+    def _compute_get_tipo_operacion_codigo(self):
+        limite = date(2025, 1, 1)
+        for rec in self:
+            val = "0"
+            if rec.invoice_date and rec.invoice_date >= limite and rec.tipo_operacion and rec.tipo_operacion.codigo is not None:
+                val = str(rec.tipo_operacion.codigo)
+            rec.tipo_operacion_codigo = val
+
+    @api.depends('clasificacion_facturacion')
+    def _compute_get_clasificacion_facturacion_codigo(self):
+        for rec in self:
+            rec.clasificacion_facturacion_codigo = (f"{rec.clasificacion_facturacion.codigo}")
+
+    @api.depends('sector')
+    def _compute_get_sector_codigo(self):
+        for rec in self:
+            rec.sector_codigo = (f"{rec.sector.codigo}")
+
     @api.depends('name')
     def _compute_get_clase_documento(self):
         for record in self:
@@ -669,35 +563,6 @@ class account_move(models.Model):
             else:
                 record.codigo_tipo_documento_display = ""
 
-    @api.depends('partner_id')
-    def _compute_get_tipo_documento(self):
-        for record in self:
-            if record.partner_id:
-                record.tipo_documento_identificacion = record.partner_id.dui
-            elif record.partner_vat:
-                record.tipo_documento_identificacion = record.partner_id.vat
-            else:
-                record.tipo_documento_identificacion = ''
-
-    @api.depends('partner_id')
-    def numero_documento_identificacion(self):
-        for record in self:
-            if record.partner_id and record.partner_id.dui:
-                record.numero_documento_identificacion = "01"
-            elif record.partner_id and record.partner_id.vat:
-                record.numero_documento_identificacion = "03"
-            else:
-                record.numero_documento_identificacion = ''
-
-    @api.depends('journal_id')
-    def _compute_numero_control_interno_del(self):
-        for record in self:
-            numero = False  # valor por defecto
-            if record.journal_id and record.journal_id.name:
-                numero = "DTE-" + record.journal_id.name
-
-            record.numero_control_interno_del = numero
-
     @api.depends('journal_id')
     def _compute_get_numero_documento(self):
         limite = date(2022, 11, 1)
@@ -724,11 +589,6 @@ class account_move(models.Model):
                 record.numero_control_interno_al = 0
             else:
                 record.numero_control_interno_al = 0
-
-    @api.depends('journal_id')
-    def _compute_get_hacienda_codigo_generacion_sin_guion(self):
-        for record in self:
-            record.numero_documento_del_al = record.hacienda_codigoGeneracion_identificacion
 
     @api.depends('journal_id')
     def _compute_get_numero_maquina_registradora(self):
@@ -797,11 +657,6 @@ class account_move(models.Model):
             record.ventas_cuenta_terceros = 0.00
 
     @api.depends('journal_id')
-    def _compute_get_tipo_operacion_renta(self):
-        for record in self:
-            record.tipo_operacion_renta = record.tipo_operacion_renta
-
-    @api.depends('journal_id')
     def _compute_get_tipo_ingreso_renta(self):
         for record in self:
             record.tipo_ingreso_renta = 0.00
@@ -813,37 +668,158 @@ class account_move(models.Model):
             if ctx.get('numero_anexo'):
                 record.numero_anexo = str(ctx['numero_anexo'])
 
-    @api.depends('partner_id.vat', 'partner_id.nrc', 'partner_id.dui', 'invoice_date', 'partner_id.is_company',
-                 'partner_id.company_type')
-    def _compute_get_dui_cliente(self):
-        """
-        Q. DUI del Cliente (campo Q del anexo):
-        - Solo para Personas Naturales y periodos >= 2022-01-01.
-        - Es OPCIONAL; si se llena, H (NIT/NRC) debe quedar VACÍO.
-        - Para periodos < 2022-01-01 el DUI debe ir VACÍO.
-        - Formato: 9 caracteres sin guiones.
-        """
-        limite = date(2022, 1, 1)
-        for rec in self:
-            valor = ""
-            is_person = (rec.partner_id and (rec.partner_id.company_type or (
-                "company" if rec.partner_id.is_company else "person")) == "person")
-            period = rec.invoice_date or limite
-
-            dui = self._only_digits(getattr(rec.partner_id, "dui", ""))
-
-            if is_person and period >= limite and dui:
-                # Solo aceptamos exactamente 9 dígitos (la guía exige 9, sin guiones/pleca)
-                if len(dui) == 9:
-                    valor = dui
-                else:
-                    # Guardamos vacío para exportación, pero dejamos rastro en logs
-                    _logger.warning("DUI inválido (no 9 dígitos) en %s: '%s'", rec.name, dui)
-                    valor = ""
+    @api.depends('invoice_line_ids.price_subtotal', 'codigo_tipo_documento')
+    def _compute_retencion_iva_amount(self):
+        for record in self:
+            if record.codigo_tipo_documento == '14':  # sujeto excluido
+                record.retencion_iva_amount_1 = str(round(float(record.amount_untaxed) * 0.01, 2))
             else:
-                valor = ""  # Todos los demás casos
+                record.retencion_iva_amount_1 = 0.0
 
-            rec.dui_cliente = valor
+    @api.depends('tipo_ingreso_id')
+    def _compute_tipo_ingreso_display(self):
+        limite = date(2025, 1, 1)
+        for rec in self:
+            if rec.invoice_date and rec.invoice_date >= limite:
+                rec.tipo_ingreso_display = (
+                    f"{rec.tipo_ingreso_id.codigo}. {rec.tipo_ingreso_id.valor}"
+                    if rec.tipo_ingreso_id else ""
+                )
+            else:
+                rec.tipo_ingreso_display = ("0")
+
+    @api.depends('tipo_costo_gasto_id')
+    def _compute_tipo_costo_gasto_display(self):
+        for rec in self:
+            rec.tipo_costo_gasto_display = (
+                f"{rec.tipo_costo_gasto_id.codigo}. {rec.tipo_costo_gasto_id.valor}"
+                if rec.tipo_costo_gasto_id else ""
+            )
+
+    @api.depends('tipo_operacion')
+    def _compute_tipo_operacion_display(self):
+        limite = date(2025, 1, 1)
+        for rec in self:
+            if rec.invoice_date and rec.invoice_date >= limite:
+                rec.tipo_operacion_display = (
+                    f"{rec.tipo_operacion.codigo}. {rec.tipo_operacion.valor}"
+                    if rec.tipo_operacion else ""
+                )
+            else:
+                rec.tipo_operacion_display = ("0")
+
+    @api.depends('clasificacion_facturacion')
+    def _compute_clasificacion_facturacion_display(self):
+        for rec in self:
+            rec.clasificacion_facturacion_display = (
+                f"{rec.clasificacion_facturacion.codigo}. {rec.clasificacion_facturacion.valor}"
+                if rec.clasificacion_facturacion else ""
+            )
+
+    @api.depends('sector')
+    def _compute_sector_display(self):
+        for rec in self:
+            rec.sector_display = (
+                f"{rec.sector.codigo}. {rec.sector.valor}"
+                if rec.sector else ""
+            )
+
+    @api.depends('journal_id')
+    def _compute_resolucion_anexos_anulados(self):
+        limite = date(2022, 10, 1)
+        for record in self:
+            if record.invoice_date < limite:
+                record.numero_resolucion_anexos_anulados = record.hacienda_codigoGeneracion_identificacion
+            else:
+                record.numero_resolucion_anexos_anulados = record.name
+
+    @api.depends('journal_id')
+    def _compute_numero_resolucion(self):
+        limite = date(2022, 11, 1)
+        for record in self:
+            if record.invoice_date < limite:
+                record.numero_resolucion = record.hacienda_codigoGeneracion_identificacion
+            else:
+                record.numero_resolucion = record.name
+
+    @api.depends('journal_id')
+    def _compute_desde_tiquete_preimpreso(self):
+        for record in self:
+            if record.clase_documento == '4':
+                record.desde_tiquete_preimpreso = 0
+            else:
+                record.desde_tiquete_preimpreso = 0
+
+    @api.depends('journal_id')
+    def _compute_hasta_tiquete_preimpreso(self):
+        for record in self:
+            if record.clase_documento == '4':
+                record.hasta_tiquete_preimpreso = 0
+            else:
+                record.hasta_tiquete_preimpreso = 0
+
+    @api.depends('journal_id')
+    def _compute_tipo_detalle(self):
+        for record in self:
+            if record.has_sello_anulacion:
+                if record.clase_documento == '4':
+                    record.tipo_de_detalle = 'D'
+                else:
+                    record.tipo_de_detalle = 'A'
+
+    @api.depends('journal_id')
+    def _compute_desde(self):
+        for record in self:
+            if record.clase_documento == '4':
+                record.desde = 0
+            else:
+                record.desde = 0
+
+    @api.depends('journal_id')
+    def _compute_hasta(self):
+        for record in self:
+            if record.clase_documento == '4':
+                record.hasta = 0
+            else:
+                record.hasta = 0
+
+    @api.depends('partner_id')
+    def _compute_get_tipo_documento(self):
+        for record in self:
+            if record.partner_id:
+                record.tipo_documento_identificacion = record.partner_id.dui
+            elif record.partner_vat:
+                record.tipo_documento_identificacion = record.partner_id.vat
+            else:
+                record.tipo_documento_identificacion = ''
+
+    @api.depends('partner_id')
+    def numero_documento_identificacion(self):
+        for record in self:
+            if record.partner_id and record.partner_id.dui:
+                record.numero_documento_identificacion = "01"
+            elif record.partner_id and record.partner_id.vat:
+                record.numero_documento_identificacion = "03"
+            else:
+                record.numero_documento_identificacion = ''
+
+    @api.depends('partner_id')
+    def _compute_get_nit(self):
+        for record in self:
+            if record.partner_id.vat:
+                record.nit_cliente = record.partner_id.vat
+            else:
+                record.nit_cliente = ''
+            _logger.info("record.nit_cliente %s ", record.nit_cliente)
+
+    @api.depends('partner_id')
+    def _compute_get_nrc(self):
+        for record in self:
+            if record.partner_id.nrc:
+                record.nrc_cliente = record.partner_id.nrc
+            else:
+                record.nrc_cliente = ''
+            _logger.info("record.nrc_cliente %s ", record.nrc_cliente)
 
     @api.depends('partner_id.vat', 'partner_id.nrc', 'partner_id.dui', 'invoice_date', 'partner_id.is_company',
                  'partner_id.company_type')
@@ -887,47 +863,12 @@ class account_move(models.Model):
             rec.nit_o_nrc_anexo_contribuyentes = valor
 
     @api.depends('partner_id')
-    def _compute_get_nrc(self):
-        for record in self:
-            if record.partner_id.nrc:
-                record.nrc_cliente = record.partner_id.nrc
-            else:
-                record.nrc_cliente = ''
-            _logger.info("record.nrc_cliente %s ", record.nrc_cliente)
-
-    @api.depends('partner_id')
-    def _compute_get_nit(self):
+    def _compute_get_nit_company(self):
         for record in self:
             if record.partner_id.vat:
-                record.nit_cliente = record.partner_id.vat
+                record.nit_company = record.partner_id.vat
             else:
-                record.nit_cliente = ''
-            _logger.info("record.nit_cliente %s ", record.nit_cliente)
-
-    @api.depends('partner_id.vat', 'partner_id.nrc', 'partner_id.dui', 'invoice_date')
-    def _compute_nit_nrc_anexo_contribuyentes(self):
-        limite = date(2022, 1, 1)
-        for record in self:
-            valor = ""
-            if record.invoice_date:
-                if record.invoice_date >= limite:
-                    _logger.info("mayor al limite %s ", record.name)
-
-                    # A partir de 2022
-                    if record.partner_id.dui:
-                        valor = ""  # si tiene DUI, se deja vacío
-                    elif record.partner_id.vat:
-                        valor = record.partner_id.vat  # NIT
-                    elif record.partner_id.nrc:
-                        valor = record.partner_id.nrc  # NRC
-                else:
-                    # Antes de 2022, NIT o NRC obligatorio
-                    if record.partner_id.vat:
-                        valor = record.partner_id.vat
-                    elif record.partner_id.nrc:
-                        valor = record.partner_id.nrc
-            _logger.info("record.nit_cliente %s ", record.nit_cliente)
-            record.nit_o_nrc_anexo_contribuyentes = valor
+                record.nit_company = ''
 
     @api.depends('partner_id')
     def _compute_get_debito_fiscal(self):
@@ -939,13 +880,37 @@ class account_move(models.Model):
         for record in self:
             record.debito_fiscal_cuenta_terceros = 0.00
 
-    @api.depends('partner_id')
-    def _compute_get_nit_company(self):
-        for record in self:
-            if record.partner_id.vat:
-                record.nit_company = record.partner_id.vat
+    @api.depends('partner_id.vat', 'partner_id.nrc', 'partner_id.dui', 'invoice_date', 'partner_id.is_company',
+                 'partner_id.company_type')
+    def _compute_get_dui_cliente(self):
+        """
+        Q. DUI del Cliente (campo Q del anexo):
+        - Solo para Personas Naturales y periodos >= 2022-01-01.
+        - Es OPCIONAL; si se llena, H (NIT/NRC) debe quedar VACÍO.
+        - Para periodos < 2022-01-01 el DUI debe ir VACÍO.
+        - Formato: 9 caracteres sin guiones.
+        """
+        limite = date(2022, 1, 1)
+        for rec in self:
+            valor = ""
+            is_person = (rec.partner_id and (rec.partner_id.company_type or (
+                "company" if rec.partner_id.is_company else "person")) == "person")
+            period = rec.invoice_date or limite
+
+            dui = self._only_digits(getattr(rec.partner_id, "dui", ""))
+
+            if is_person and period >= limite and dui:
+                # Solo aceptamos exactamente 9 dígitos (la guía exige 9, sin guiones/pleca)
+                if len(dui) == 9:
+                    valor = dui
+                else:
+                    # Guardamos vacío para exportación, pero dejamos rastro en logs
+                    _logger.warning("DUI inválido (no 9 dígitos) en %s: '%s'", rec.name, dui)
+                    valor = ""
             else:
-                record.nit_company = ''
+                valor = ""  # Todos los demás casos
+
+            rec.dui_cliente = valor
 
     def _compute_get_codigo_tipo_documento_cliente(self):
         for record in self:
@@ -985,54 +950,49 @@ class account_move(models.Model):
             else:
                 record.documento_sujeto_excluido = ""
 
-    @api.depends('invoice_line_ids.price_subtotal', 'codigo_tipo_documento')
-    def _compute_retencion_iva_amount(self):
+    @api.depends('journal_id')
+    def _compute_get_hacienda_codigo_generacion_sin_guion(self):
         for record in self:
-            if record.codigo_tipo_documento == '14':  # sujeto excluido
-                record.retencion_iva_amount_1 = str(round(float(record.amount_untaxed) * 0.01, 2))
-            else:
-                record.retencion_iva_amount_1 = 0.0
+            record.numero_documento_del_al = record.hacienda_codigoGeneracion_identificacion
 
     @api.depends('journal_id')
-    def _compute_desde_tiquete_preimpreso(self):
+    def _compute_numero_control_interno_del(self):
         for record in self:
-            if record.clase_documento == '4':
-                record.desde_tiquete_preimpreso = 0
-            else:
-                record.desde_tiquete_preimpreso = 0
+            numero = False  # valor por defecto
+            if record.journal_id and record.journal_id.name:
+                numero = "DTE-" + record.journal_id.name
+
+            record.numero_control_interno_del = numero
 
     @api.depends('journal_id')
-    def _compute_hasta_tiquete_preimpreso(self):
+    def _compute_get_tipo_operacion_renta(self):
         for record in self:
-            if record.clase_documento == '4':
-                record.hasta_tiquete_preimpreso = 0
-            else:
-                record.hasta_tiquete_preimpreso = 0
+            record.tipo_operacion_renta = record.tipo_operacion_renta
 
-    @api.depends('journal_id')
-    def _compute_tipo_detalle(self):
+    @api.depends('partner_id.vat', 'partner_id.nrc', 'partner_id.dui', 'invoice_date')
+    def _compute_nit_nrc_anexo_contribuyentes(self):
+        limite = date(2022, 1, 1)
         for record in self:
-            if record.has_sello_anulacion:
-                if record.clase_documento == '4':
-                    record.tipo_de_detalle = 'D'
+            valor = ""
+            if record.invoice_date:
+                if record.invoice_date >= limite:
+                    _logger.info("mayor al limite %s ", record.name)
+
+                    # A partir de 2022
+                    if record.partner_id.dui:
+                        valor = ""  # si tiene DUI, se deja vacío
+                    elif record.partner_id.vat:
+                        valor = record.partner_id.vat  # NIT
+                    elif record.partner_id.nrc:
+                        valor = record.partner_id.nrc  # NRC
                 else:
-                    record.tipo_de_detalle = 'A'
-
-    @api.depends('journal_id')
-    def _compute_desde(self):
-        for record in self:
-            if record.clase_documento == '4':
-                record.desde = 0
-            else:
-                record.desde = 0
-
-    @api.depends('journal_id')
-    def _compute_hasta(self):
-        for record in self:
-            if record.clase_documento == '4':
-                record.hasta = 0
-            else:
-                record.hasta = 0
+                    # Antes de 2022, NIT o NRC obligatorio
+                    if record.partner_id.vat:
+                        valor = record.partner_id.vat
+                    elif record.partner_id.nrc:
+                        valor = record.partner_id.nrc
+            _logger.info("record.nit_cliente %s ", record.nit_cliente)
+            record.nit_o_nrc_anexo_contribuyentes = valor
 
     ###################################################################################################
     #                                  Funciones para descarga de csv                                 #
@@ -1080,7 +1040,9 @@ class account_move(models.Model):
             "target": "self",
         }
 
-    # ---------------------------- COMPRAS ------------------------------- #
+    ###################################################################################################
+    #                                   Datos para anexo de compras                                  #
+    ###################################################################################################
 
     amount_exento = fields.Float("Total exento", readonly=True)
     total_gravado = fields.Float("Total gravado", readonly=True)
@@ -1202,7 +1164,6 @@ class account_move(models.Model):
         'invoice_line_ids.tax_ids.children_tax_ids',
         'invoice_line_ids.product_id'
     )
-
     def _compute_importaciones_gravadas_servicios(self):
         for rec in self:
             total = 0.0
@@ -1323,7 +1284,7 @@ class account_move(models.Model):
 
     def _compute_total_compra(self):
         for rec in self:
-            rec.total_compra = rec.compras_internas_total_excento + rec.internaciones_exentas_no_sujetas + rec.importaciones_exentas_no_sujetas +rec.compras_internas_gravadas +rec.internaciones_gravadas_bienes +rec.importaciones_gravadas_bienes + rec.importaciones_gravadas_servicio
+            rec.total_compra = rec.compras_internas_total_excento + rec.internaciones_exentas_no_sujetas + rec.importaciones_exentas_no_sujetas + rec.compras_internas_gravadas + rec.internaciones_gravadas_bienes + rec.importaciones_gravadas_bienes + rec.importaciones_gravadas_servicio
 
     credito_fiscal = fields.Float(
         "Credito fiscal",
@@ -1356,16 +1317,12 @@ class account_move(models.Model):
 
             total = iva_lineas + iva_duca_company
 
-            # 3) Notas de crédito de proveedor (in_refund): normalmente ya traen signo correcto en total_iva;
-            #    si tu modelo guarda total_iva siempre positivo, y quieres que el crédito sea negativo en refund,
-            #    descomenta lo siguiente:
-            # if move.move_type == 'in_refund':
-            #     total = -abs(total)
-
             # Redondeo a 2 decimales
-            move.credito_fiscal = round(total,2)
+            move.credito_fiscal = round(total, 2)
 
-    # --------------- AGRUPAR ANEXOS DE FACTURAS MAYORES A 25000 ------------
+    ###################################################################################################
+    #                             Datos para agrupar facturas por semestre                            #
+    ###################################################################################################
 
     invoice_year = fields.Char(compute='_compute_periods', store=True, index=True)
     invoice_semester = fields.Selection(
@@ -1389,7 +1346,7 @@ class account_move(models.Model):
         for m in self:
             if m.invoice_date:
                 m.invoice_year_sel = str(m.invoice_date.year)
-                m.invoice_month_sel = f'{m.invoice_date.month:02d}'  # <-- clave válida
+                m.invoice_month_sel = f'{m.invoice_date.month:02d}'
             else:
                 m.invoice_year_sel = False
                 m.invoice_month_sel = False
