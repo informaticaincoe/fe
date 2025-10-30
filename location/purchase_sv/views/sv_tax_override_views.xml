@@ -1,33 +1,37 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-  <record id="view_sv_tax_override_wizard" model="ir.ui.view">
-    <field name="name">sv.tax.override.wizard.form</field>
-    <field name="model">sv.tax.override.wizard</field>
-    <field name="arch" type="xml">
-      <form string="Cambiar cuentas de impuestos">
-        <group>
-          <field name="move_id" invisible="1"/>
-          <field name="line_ids">
-            <tree editable="bottom">
-              <field name="tax_id" readonly="1"/>
-              <field name="current_account_id" readonly="1"/>
-              <field name="new_account_id"/>
-            </tree>
-          </field>
-        </group>
-        <footer>
-          <button string="Aplicar" type="object" name="action_apply" class="btn-primary"/>
-          <button string="Cancelar" special="cancel" class="btn-secondary"/>
-        </footer>
-      </form>
-    </field>
-  </record>
+  <!-- 1) Tree dedicado para las líneas -->
+<record id="sv_tax_override_wizard_line_tree" model="ir.ui.view">
+  <field name="name">sv.tax.override.wizard.line.tree</field>
+  <field name="model">sv.tax.override.wizard.line</field>
+  <field name="arch" type="xml">
+    <tree editable="bottom">
+      <field name="tax_id" readonly="1"/>
+      <field name="current_account_id" readonly="1"/>
+      <field name="new_account_id"/>
+    </tree>
+  </field>
+</record>
 
-  <record id="action_sv_tax_override_wizard" model="ir.actions.act_window">
-    <field name="name">Cambiar cuentas de impuestos</field>
-    <field name="res_model">sv.tax.override.wizard</field>
-    <field name="view_mode">form</field>
-    <field name="target">new</field>
-    <field name="context">{'default_move_id': active_id}</field>
-  </record>
+<!-- 2) En el form del wizard, referencia ese tree en lugar del inline -->
+<record id="view_sv_tax_override_wizard" model="ir.ui.view">
+  <field name="name">sv.tax.override.wizard.form</field>
+  <field name="model">sv.tax.override.wizard</field>
+  <field name="arch" type="xml">
+    <form string="Cambiar cuentas de impuestos">
+      <group>
+        <field name="move_id" invisible="1"/>
+        <!-- Usa el tree dedicado -->
+        <field name="line_ids"
+               context="{'default_wizard_id': active_id,
+                         'tree_view_ref': 'purchase_sv.sv_tax_override_wizard_line_tree'}"/>
+      </group>
+      <footer>
+        <button string="Aplicar" type="object" name="action_apply" class="btn-primary"/>
+        <button string="Cancelar" special="cancel" class="btn-secondary"/>
+      </footer>
+    </form>
+  </field>
+</record>
+
 </odoo>
