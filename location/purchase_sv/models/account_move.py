@@ -346,6 +346,20 @@ class AccountMove(models.Model):
             move.amount_exento = total_exento
             _logger.info("SIT | Total exento para move_id=%s = %.2f", move.id, total_exento)
 
+    def _sv_requires_tax_override(self):
+        """True si es compra y el vencimiento es mayor que la fecha contable."""
+        self.ensure_one()
+        return (
+            self.move_type in ('in_invoice', 'in_refund')
+            and self.invoice_date and self.invoice_date_due
+            and self.invoice_date_due > self.invoice_date
+        )
+
+    def _sv_get_move_taxes(self):
+        """Impuestos usados en líneas de la factura."""
+        self.ensure_one()
+        return self.invoice_line_ids.mapped('tax_ids')
+    
     def action_post(self):
         """
         - Aplica solo a facturas de proveedor (IN_INVOICE, IN_REFUND) que no sean FSE.

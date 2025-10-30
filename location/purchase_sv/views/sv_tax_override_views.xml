@@ -7,7 +7,7 @@
       <form string="Cambiar cuentas de impuestos">
         <group>
           <field name="move_id" invisible="1"/>
-          <field name="line_ids">
+          <field name="line_ids" context="{'default_wizard_id': active_id}">
             <tree editable="bottom">
               <field name="tax_id" readonly="1"/>
               <field name="current_account_id" readonly="1"/>

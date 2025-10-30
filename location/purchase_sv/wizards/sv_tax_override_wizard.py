@@ -12,13 +12,13 @@ class SvTaxOverrideWizard(models.TransientModel):
     @api.model
     def default_get(self, fields_list):
         res = super().default_get(fields_list)
-        move = self.env['account.move'].browse(self._context.get('active_id'))
+        move = self.env['account.move'].browse(self._context.get('active_id') or self._context.get('default_move_id'))
         if not move:
             raise UserError(_("No se encontró la factura activa."))
         res['move_id'] = move.id
 
         lines = []
-        taxes = move.invoice_line_ids.mapped('tax_ids').sorted(key=lambda t: t.name or t.id)
+        taxes = move.invoice_line_ids.mapped('tax_ids').sorted(key=lambda t: t.name or str(t.id))
         for tax in taxes:
             rep = tax.invoice_repartition_line_ids.filtered(lambda r: r.repartition_type == 'tax')[:1]
             current_account_id = rep.account_id.id if rep and rep.account_id else False
@@ -35,7 +35,7 @@ class SvTaxOverrideWizard(models.TransientModel):
         self.ensure_one()
         move = self.move_id
 
-        # Limpia existing overrides de estos impuestos
+        # Limpia overrides previos de estos impuestos
         move.sv_override_ids.filtered(
             lambda r: r.tax_id.id in self.line_ids.mapped('tax_id').ids
         ).unlink()
