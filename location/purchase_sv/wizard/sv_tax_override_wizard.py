@@ -13,6 +13,14 @@ class SvTaxOverrideWizard(models.TransientModel):
         string='Impuestos'
     )
 
+    @api.model_create_multi
+    def create(self, vals_list):
+        # Ignora silenciosamente intentos de crear líneas sin impuesto (evita el crash)
+        vals_list = [v for v in vals_list if v.get('tax_id')]
+        if not vals_list:
+            return self.browse()
+        return super().create(vals_list)
+
     @api.model
     def default_get(self, fields_list):
         res = super().default_get(fields_list)
@@ -41,21 +49,18 @@ class SvTaxOverrideWizard(models.TransientModel):
         self.ensure_one()
         move = self.move_id
 
-        # limpia overrides previos de los mismos impuestos
+        # líneas incompletas
+        incompletas = self.line_ids.filtered(lambda l: not l.tax_id or not l.new_account_id)
+        if incompletas:
+            raise UserError(_("Hay líneas incompletas en el asistente. Revisa 'Nueva cuenta'."))
+
+        # limpiar y crear overrides
         move.sv_override_ids.filtered(
             lambda r: r.tax_id.id in self.line_ids.mapped('tax_id').ids
         ).unlink()
 
-        vals = []
-        for l in self.line_ids:
-            if not l.new_account_id:
-                raise UserError(_("Debes elegir la cuenta para el impuesto %s.") % (l.tax_id.display_name,))
-            vals.append({
-                'move_id': move.id,
-                'tax_id': l.tax_id.id,
-                'account_id': l.new_account_id.id
-            })
-
+        vals = [{'move_id': move.id, 'tax_id': l.tax_id.id, 'account_id': l.new_account_id.id}
+                for l in self.line_ids]
         self.env['sv.move.tax.account.override'].create(vals)
         return {'type': 'ir.actions.act_window_close'}
 
