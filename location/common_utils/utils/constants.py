@@ -142,3 +142,6 @@ DTE_COD = 4
 #Clave de porcentajes configurados desde compañía
 config_percepcion = "percepcion"
 config_retencion_iva = "retencion_iva"
+config_iva_rete = "retencion_iva_venta"
+config_retencion_venta = "retencion_venta"
+config_iva_percibido_venta = "iva_percibido_venta"
