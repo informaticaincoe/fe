@@ -22,7 +22,7 @@
         'views/hr_attendance_inherit.xml',
         "report/report.xml",
         "report/report_payslip_incoe.xml",
-        "report/report_override_lang.xml",
+        # "report/report_override_lang.xml",
         "views/hr_payslip_views.xml",
         'data/mail_template_payslip.xml'
     ],

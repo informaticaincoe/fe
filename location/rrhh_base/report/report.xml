@@ -2,7 +2,7 @@
     <data noupdate="0">
         <!-- Eliminar reporte original de Odoo -->
         <delete model="ir.actions.report" id="hr_payroll.report_payslip"/>
-        <!-- Paper format personalizado (opcional, ya lo tienes) -->
+        <!-- Paper format personalizado -->
         <record id="paperformat_payslip_recipe" model="report.paperformat">
             <field name="name">Recibo de salario</field>
             <field name="default" eval="True"/>

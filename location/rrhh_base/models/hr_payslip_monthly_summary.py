@@ -4,10 +4,11 @@ from odoo import api, fields, models, tools
 class HrPayslipMonthlySummary(models.Model):
     _name = 'hr.payslip.monthly.summary'
     _description = 'Resumen mensual de nómina (suma quincenas)'
-    _auto = False
+    _auto = False # es una vista SQL, no tabla física
     _order = 'period_year desc, period_month desc, employee_id'
-    _check_company_auto = True
+    _check_company_auto = True # respeta reglas multi-compañía automáticamente
 
+    # Catálogo de meses para filtros
     PERIOD_MONTHS = [
         ('01','enero'),('02','febrero'),('03','marzo'),('04','abril'),
         ('05','mayo'),('06','junio'),('07','julio'),('08','agosto'),
@@ -19,7 +20,7 @@ class HrPayslipMonthlySummary(models.Model):
         y = date.today().year
         return [(str(v), str(v)) for v in range(y-5, y+2)]
 
-    # ✅ campos base (todos deben existir en la vista)
+    # campos base
     company_id   = fields.Many2one('res.company', string='Empresa', readonly=True, index=True)
     period_year  = fields.Selection(selection=year_selection, string='Año', readonly=True, index=True)
     period_month = fields.Selection(selection=PERIOD_MONTHS, string='Mes', readonly=True, index=True)
@@ -30,7 +31,7 @@ class HrPayslipMonthlySummary(models.Model):
     total_worked_hours  = fields.Float('Horas laboradas', readonly=True)
 
     salario_pagar    = fields.Float('Salario a pagar', readonly=True)
-    comisiones       = fields.Float('Comisiones', readonly=True)            # ← este campo EXISTE, por eso debe venir en el SELECT
+    comisiones       = fields.Float('Comisiones', readonly=True)
     total_comisiones = fields.Float('Total comisiones', readonly=True)
     total_overtime   = fields.Float('Horas extras', readonly=True)
 
@@ -44,7 +45,7 @@ class HrPayslipMonthlySummary(models.Model):
     isr        = fields.Float('ISR', readonly=True)
     afp        = fields.Float('AFP Crecer', readonly=True)
     afp_confia = fields.Float('AFP Confia', readonly=True)
-    afp_ipsfa  = fields.Float('IPSFA', readonly=True)                       # ← minúsculas en el nombre del campo
+    afp_ipsfa  = fields.Float('IPSFA', readonly=True)
     otros      = fields.Float('Otros', readonly=True)
     bancos     = fields.Float('Bancos', readonly=True)
     venta_empleados = fields.Float('Venta empleados', readonly=True)
@@ -56,6 +57,13 @@ class HrPayslipMonthlySummary(models.Model):
 
     @api.model
     def _select(self):
+        """
+            SELECT principal de la vista.
+            - wd: agrega días/horas trabajadas por payslip.
+            - pl: agrega montos por código de línea (sumas por slip_id).
+            - El SELECT final agrupa por empresa/empleado/depto/año/mes
+              y suma quincenas del mismo mes.
+        """
         return """
             WITH wd AS (
                 SELECT wd.payslip_id,
@@ -143,6 +151,13 @@ class HrPayslipMonthlySummary(models.Model):
 
     @api.model
     def _from(self):
+        """
+            FROM/JOIN de la vista:
+            - hr_payslip (ps)
+            - hr_employee (emp) para el departamento
+            - wd/pl CTEs (días/horas y líneas agregadas)
+            - estructura de nómina (s) para filtrar por estructuras válidas
+        """
         return """
             FROM hr_payslip ps
             JOIN hr_employee emp ON emp.id = ps.employee_id
@@ -153,6 +168,11 @@ class HrPayslipMonthlySummary(models.Model):
 
     @api.model
     def _where(self):
+        """
+           Filtro por estructuras de nómina:
+           - Solo considera boletas con estructura ('INCOE','PLAN_VAC') y con struct_id asignado.
+           Ajusta los códigos de estructura según tu configuración real.
+       """
         return """
             WHERE s.code IN ('INCOE', 'PLAN_VAC')
               AND ps.struct_id IS NOT NULL
@@ -160,6 +180,11 @@ class HrPayslipMonthlySummary(models.Model):
 
     @api.model
     def _group_by(self):
+        """
+           Agrupación mensual:
+           - Empresa, empleado, departamento, año, mes.
+           - El MIN(ps.id) en SELECT garantiza un id único por grupo para la vista.
+       """
         return """
             GROUP BY
                 ps.company_id,
@@ -170,6 +195,10 @@ class HrPayslipMonthlySummary(models.Model):
         """
 
     def init(self):
+        """
+            Crea/Reemplaza la vista SQL en PostgreSQL.
+            - drop_view_if_exists: asegura recreación limpia.
+        """
         tools.drop_view_if_exists(self._cr, 'hr_payslip_monthly_summary')
         self._cr.execute(f"""
             CREATE OR REPLACE VIEW hr_payslip_monthly_summary AS
