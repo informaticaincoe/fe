@@ -1,2 +1,7 @@
 id,name,model_id:id,group_id:id,perm_read,perm_create,perm_write,perm_unlink
 access_exp_duca_user,access.exp.duca,model_exp_duca,base.group_user,1,1,1,1
+access_sv_move_tax_account_override,access.sv.move.tax.account.override,model_sv_move_tax_account_override,base.group_user,1,1,1,1
+access_account_tax_secondary_account,access.account.tax.secondary.account,model_account_tax_secondary_account,base.group_system,1,1,1,1
+
+access_sv_tax_override_wizard_user,access.sv.tax.override.wizard,model_sv_tax_override_wizard,base.group_user,1,1,1,1
+access_sv_tax_override_wizard_line_user,access.sv.tax.override.wizard.line,model_sv_tax_override_wizard_line,base.group_user,1,1,1,1
