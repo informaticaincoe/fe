@@ -1,27 +1,51 @@
 <odoo>
+    <!-- Heredar la search view nativa de account.move -->
+    <record id="view_anexo_mayores_search" model="ir.ui.view">
+        <field name="name">account.move.anexo.mayores.search</field>
+        <field name="model">account.move</field>
+        <field name="arch" type="xml">
+            <search string="Buscar - Anexo Mayores 25,000">
+                <group expand="0" string="Agrupar por (Anexos)">
+                    <filter name="group_by_year" string="Año" context="{'group_by': 'invoice_year'}"/>
+                    <filter name="group_by_semester" string="Semestre" context="{'group_by': 'invoice_semester'}"/>
+                    <filter name="group_by_month" string="Mes" context="{'group_by': 'invoice_month'}"/>
+                </group>
+
+                <!-- SearchPanel: usa los Selection -->
+                <searchpanel>
+                    <field name="invoice_year_sel" select="one" enable_counters="1"/>
+                    <field name="invoice_semester" select="one" enable_counters="1"/>
+                    <field name="invoice_month_sel" select="one" enable_counters="1"/>
+                </searchpanel>
+            </search>
+        </field>
+    </record>
+
+
     <record id="view_report_account_move_daily_mayores_list" model="ir.ui.view">
         <field name="name">report.account.move.daily.mayores.list</field>
         <field name="model">account.move</field>
         <field name="arch" type="xml">
-            <list string="Facturas agrupadas por día">
+            <list string="Facturas &gt; $25,000">
                 <header>
                     <button name="action_download_csv_anexo" type="object"
                             string="Descargar CSV" class="oe_highlight" display="always"/>
                 </header>
+
+                <!-- Muestra estos para ver que el agrupamiento funciona -->
+                <!--                <field name="invoice_year"/>-->
+                <!--                <field name="invoice_semester"/>-->
                 <field name="invoice_month"/>
+
+                <field name="razon_social"/>
                 <field name="codigo_tipo_documento_cliente_display" string="Documento de identificación"/>
                 <field name="documento_sujeto_excluido"/>
-                <field name="razon_social"/>
-                <field name="invoice_date"/>
                 <field name="codigo_tipo_documento_display"/>
                 <field name="hacienda_codigoGeneracion_identificacion" string="Número de documento"/>
                 <field name="amount_untaxed" string="Monto de operación"/>
                 <field name="amount_tax" string="IVA"/>
-                <field name="invoice_year"/>
                 <field name="numero_anexo"/>
             </list>
         </field>
     </record>
-
 </odoo>
-
