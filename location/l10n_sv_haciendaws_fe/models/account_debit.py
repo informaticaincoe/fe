@@ -21,7 +21,7 @@ class AccountDebitNote(models.TransientModel):
         self.ensure_one()
 
         # Si es factura de compra -> usar flujo estándar de Odoo
-        if self.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
+        if self.move_type in (constants.IN_INVOICE, constants.IN_REFUND, constants.TYPE_ENTRY, constants.OUT_RECEIPT, constants.IN_RECEIPT):
             _logger.info("SIT: Se detectó factura de compra (move_type=%s). Se ejecutará el flujo estándar de Odoo.", self.move_type)
             return super(AccountDebitNote, self).create_debit()
 

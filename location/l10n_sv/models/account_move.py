@@ -385,7 +385,7 @@ class sit_account_move(models.Model):
         _logger.info("SIT | Iniciando write unificado. Vals: %s", vals)
 
         # --- Evitar lógica personalizada para asientos contables simples (entry) ---
-        if all(inv.move_type == constants.TYPE_ENTRY for inv in self):
+        if all(inv.move_type in(constants.TYPE_ENTRY, constants.OUT_RECEIPT, constants.IN_RECEIPT) for inv in self):
             _logger.info("SIT | write bypass completo para move_type=entry")
 
             # Crear un diccionario temporal para asignar nombres de secuencia

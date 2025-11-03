@@ -154,6 +154,7 @@ class AnexoCSVUtils(models.AbstractModel):
         }
         return mapping.get(str(key), [])
 
+
     def generate_csv(self, records, numero_anexo=None, view_id=None, include_header=False):
 
         # utils/anexo_csv_utils.py

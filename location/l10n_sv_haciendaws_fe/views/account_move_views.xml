@@ -180,7 +180,7 @@
             <xpath expr="//button[@name='action_invoice_sent']" position="replace">
                 <!--                options="{'invisible': ['|', ('state', '!=', 'posted'), ('move_type', '=', 'entry')]}"-->
                 <button name="sit_enviar_correo_dte_automatico" type="object"
-                        invisible="state != 'posted' or move_type in('entry', 'in_invoice', 'in_refund') or not sit_facturacion"
+                        invisible="move_type in('entry', 'in_invoice', 'in_refund') or not sit_facturacion"
                         string="Enviar email"
                         context="{'from_email_button': True}" class="oe_highlight"
                         groups="account.group_account_invoice"/>

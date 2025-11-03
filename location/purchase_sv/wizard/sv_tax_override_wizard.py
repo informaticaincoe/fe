@@ -2,6 +2,9 @@
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError
 
+import logging
+_logger = logging.getLogger(__name__)
+
 class SvTaxOverrideWizard(models.TransientModel):
     _name = 'sv.tax.override.wizard'
     _description = 'Cambiar cuentas de impuestos (solo esta factura)'
@@ -15,11 +18,19 @@ class SvTaxOverrideWizard(models.TransientModel):
 
     @api.model_create_multi
     def create(self, vals_list):
+        _logger.info("SIT | create vals_list inicial: %s", vals_list)
+
         # Ignora silenciosamente intentos de crear líneas sin impuesto (evita el crash)
-        vals_list = [v for v in vals_list if v.get('tax_id')]
-        if not vals_list:
-            return self.browse()
-        return super().create(vals_list)
+        # vals_list = [v for v in vals_list if v.get('tax_id')]
+        # _logger.info("SIT | create vals_list filtrado (solo con tax_id): %s", vals_list)
+
+        # if not vals_list:
+        #     _logger.info("SIT | No hay líneas válidas para crear, retornando browse vacío")
+        #     return self.browse()
+
+        res = super().create(vals_list)
+        _logger.info("SIT | Líneas creadas: %s", res.ids)
+        return res
 
     @api.model
     def default_get(self, fields_list):
@@ -27,6 +38,7 @@ class SvTaxOverrideWizard(models.TransientModel):
         move = self.env['account.move'].browse(
             self._context.get('active_id') or self._context.get('default_move_id')
         )
+        _logger.info("SIT | default_get wizard move_id: %s", move.id if move else "False")
         if not move:
             raise UserError(_("No se encontró la factura activa."))
         res['move_id'] = move.id
@@ -46,22 +58,58 @@ class SvTaxOverrideWizard(models.TransientModel):
         return res
 
     def action_apply(self):
+        _logger.info("SIT | action_apply inicio.")
         self.ensure_one()
         move = self.move_id
+        _logger.info("SIT | action_apply inicio para factura ID=%s", move.id)
 
         # líneas incompletas
         incompletas = self.line_ids.filtered(lambda l: not l.tax_id or not l.new_account_id)
+        _logger.info("SIT | Líneas totales del wizard: %s", len(self.line_ids))
+        _logger.info("SIT | Líneas incompletas detectadas: %s", incompletas.mapped('tax_id.name'))
         if incompletas:
             raise UserError(_("Hay líneas incompletas en el asistente. Revisa 'Nueva cuenta'."))
 
         # limpiar y crear overrides
-        move.sv_override_ids.filtered(
+        to_unlink = move.sv_override_ids.filtered(
             lambda r: r.tax_id.id in self.line_ids.mapped('tax_id').ids
-        ).unlink()
+        )
+        _logger.info("SIT | Overrides a eliminar: %s", to_unlink.mapped('tax_id.name'))
+        to_unlink.unlink()
 
-        vals = [{'move_id': move.id, 'tax_id': l.tax_id.id, 'account_id': l.new_account_id.id}
-                for l in self.line_ids]
-        self.env['sv.move.tax.account.override'].create(vals)
+        vals = []
+        for l in self.line_ids:
+            _logger.info("SIT | Procesando línea: Tax=%s, Nueva cuenta=%s", l.tax_id.name if l.tax_id else "False",
+                         l.new_account_id.name if l.new_account_id else "False")
+            if not l.tax_id or not l.new_account_id:
+                raise UserError(_("Hay líneas incompletas en el asistente. Tax: %s, Nueva cuenta: %s") % (
+                    l.tax_id.name if l.tax_id else "False",
+                    l.new_account_id.name if l.new_account_id else "False"
+                ))
+
+            vals.append({
+                'move_id': move.id,
+                'tax_id': l.tax_id.id,
+                'account_id': l.new_account_id.id
+            })
+
+        # vals = [{'move_id': move.id, 'tax_id': l.tax_id.id, 'account_id': l.new_account_id.id}
+        #         for l in self.line_ids]
+        # self.env['sv.move.tax.account.override'].create(vals)
+
+            # Actualizar la línea contable del impuesto en el move
+            tax_lines = move.line_ids.filtered(lambda ml: ml.tax_line_id == l.tax_id)
+            _logger.info("SIT | Tax lines encontradas para %s: %s", l.tax_id.name, tax_lines.ids)
+            if tax_lines:
+                tax_lines.write({'account_id': l.new_account_id.id})
+                _logger.info("SIT | Actualizada cuenta del impuesto %s a %s", l.tax_id.name, l.new_account_id.code)
+
+        # Crear overrides (registro de respaldo)
+        if vals:
+            _logger.info("SIT | Creando overrides: %s", vals)
+            self.env['sv.move.tax.account.override'].create(vals)
+
+        _logger.info("SIT | action_apply finalizado para factura ID=%s", move.id)
         return {'type': 'ir.actions.act_window_close'}
 
 

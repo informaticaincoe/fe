@@ -363,21 +363,6 @@ class AccountMove(models.Model):
             invoice_info["pagos"] = [pagos]
         return invoice_info
 
-    # def sit_obtener_payload_fex_dte_info(self, ambiente, doc_firmado):
-    #     if not self.env.company.sit_facturacion:
-    #         _logger.info("FE OFF: omitiendo sit_obtener_payload_fex_dte_info")
-    #         return None
-    #
-    #     _logger.info("SIT sit_obtener_payload_exp_dte_info self = %s", self)
-    #     invoice_info = {}
-    #     nit = (self.company_id.vat or "").replace("-", "")
-    #     invoice_info["ambiente"] = ambiente
-    #     invoice_info["idEnvio"] = 1
-    #     invoice_info["version"] = 1
-    #     invoice_info["documento"] = doc_firmado
-    #     invoice_info["codigoGeneracion"] = self.sit_generar_uuid()
-    #     return invoice_info
-
     def sit_generar_uuid(self):
         if not self.env.company.sit_facturacion:
             _logger.info("FE OFF: omitiendo sit_generar_uuid")
