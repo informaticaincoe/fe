@@ -314,7 +314,7 @@ class AccountMoveInvalidation(models.Model):
                             raise UserError(_("La invalidación no puede realizarse. La factura tiene más de 3 Meses."))
 
                 if not invoice.hacienda_estado_anulacion or not invoice.hacienda_selloRecibido_anulacion:
-                    if invoice.sit_factura_a_reemplazar.move_type != 'entry':
+                    if invoice.sit_factura_a_reemplazar.move_type != constants.TYPE_ENTRY:
                         type_report = invoice.sit_factura_a_reemplazar.journal_id.type_report
                         _logger.info("SIT Type report: %s", type_report)
 
@@ -928,17 +928,17 @@ class AccountMoveInvalidation(models.Model):
     def check_parametros_invalidacion(self):
         _logger.info("SIT Iniciando validación de parámetros de invalidación para %s", self)
 
-        # Validar si aplica facturación electrónica
-        if not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion):
-            _logger.info("SIT No aplica facturación electrónica. Se omite check_parametros_invalidacion en evento de invalidación.")
-            return False
-
         # Validar si es compra normal sin sujeto excluido
         if self.sit_factura_a_reemplazar.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
             tipo_doc = self.sit_factura_a_reemplazar.journal_id.sit_tipo_documento
             if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE:
                 _logger.info("SIT Es una compra normal (sin sujeto excluido). Se omite check_parametros_invalidacion.")
                 return False
+
+        # Validar si aplica facturación electrónica
+        if not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion):
+            _logger.info("SIT No aplica facturación electrónica. Se omite check_parametros_invalidacion en evento de invalidación.")
+            return False
 
         # Validaciones obligatorias
         if not self.sit_factura_a_reemplazar.name:
@@ -955,17 +955,17 @@ class AccountMoveInvalidation(models.Model):
     def check_parametros_firmado_anu(self):
         _logger.info("SIT Iniciando validación de parámetros de firmado en invalidación para %s", self)
 
-        # Validar si aplica facturación electrónica
-        if not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion):
-            _logger.info("SIT No aplica facturación electrónica. Se omite validación de parámetros de firmado en invalidación.")
-            return False
-
         # Validar si es compra normal sin sujeto excluido
         if self.sit_factura_a_reemplazar.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
             tipo_doc = self.sit_factura_a_reemplazar.journal_id.sit_tipo_documento
             if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE:
                 _logger.info("SIT Es una compra normal (sin sujeto excluido). Se omite check_parametros_firmado_anu.")
                 return False
+
+        # Validar si aplica facturación electrónica
+        if not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion):
+            _logger.info("SIT No aplica facturación electrónica. Se omite validación de parámetros de firmado en invalidación.")
+            return False
 
         # Validaciones básicas del documento
         if self.sit_factura_a_reemplazar.move_type != 'in_invoice' and not self.sit_factura_a_reemplazar.journal_id.sit_tipo_documento.codigo:
@@ -1033,17 +1033,18 @@ class AccountMoveInvalidation(models.Model):
     def check_parametros_dte_invalidacion(self, generacion_dte, ambiente_test):
         _logger.info("SIT Iniciando validación de parámetros DTE de invalidación para %s", self)
 
-        # Validación de empresa
-        if not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion):
-            _logger.info("SIT check_parametros_dte_invalidacion: empresa %s no aplica a facturación electrónica, se detiene la validación.", self.sit_factura_a_reemplazar.company_id.id if self.sit_factura_a_reemplazar.company_id else None)
-            return False
-
         # Validar si es compra normal sin sujeto excluido
         if self.sit_factura_a_reemplazar.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
             tipo_doc = self.sit_factura_a_reemplazar.journal_id.sit_tipo_documento
             if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE:
                 _logger.info("SIT Es una compra normal (sin sujeto excluido). Se omite check_parametros_dte_invalidacion.")
                 return False
+
+        # Validación de empresa
+        if not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion):
+            _logger.info("SIT check_parametros_dte_invalidacion: empresa %s no aplica a facturación electrónica, se detiene la validación.",
+                         self.sit_factura_a_reemplazar.company_id.id if self.sit_factura_a_reemplazar.company_id else None)
+            return False
 
         # Validaciones del objeto generacion_dte
         if not generacion_dte["ambiente"]:

@@ -19,6 +19,42 @@ class ReportAccountMoveDaily(models.Model):
     name = fields.Char("Número de factura")
     currency_id = fields.Many2one("res.currency", string="Moneda", readonly=True)
 
+    # semester = fields.Selection(
+    #     [('S1', 'Ene–Jun'), ('S2', 'Jul–Dic')],
+    #     string="Semestre", readonly=True, index=True
+    # )
+    semester_year = fields.Integer(string="Año (Semestre)", readonly=True, index=True)
+
+    semester_label = fields.Char(  # útil para mostrar/ordenar: "2025-H1"
+        compute='_compute_semester',
+        store=True, index=True
+    )
+
+    invoice_year = fields.Char(string="Año", compute='_compute_invoice_year', store=True)
+    invoice_month = fields.Char(string="Mes", compute='_compute_invoice_month', store=True)
+
+    @api.depends('invoice_date')
+    def _compute_invoice_year(self):
+        for r in self:
+            r.invoice_year = r.invoice_date.strftime('%Y') if r.invoice_date else ''
+
+    @api.depends('invoice_date')
+    def _compute_invoice_month(self):
+        for r in self:
+            r.invoice_month = r.invoice_date.strftime('%m') if r.invoice_date else ''
+
+    @api.depends('invoice_date')
+    def _compute_semester(self):
+        for m in self:
+            if m.invoice_date:
+                m.semester_year = m.invoice_date.year
+                m.semester = 'S1' if m.invoice_date.month <= 6 else 'S2'
+                m.semester_label = f"{m.semester_year}-{m.semester}"
+            else:
+                m.semester_year = False
+                m.semester = False
+                m.semester_label = False
+
     invoice_year = fields.Char(
         string="Año",
         compute='_compute_invoice_year',
@@ -60,6 +96,7 @@ class ReportAccountMoveDaily(models.Model):
             record.numero_anexo = numero_anexo_ctx
 
     def init(self):
+        # IMPORTANTE: usar el nombre real de la tabla account_move y columnas (total_operacion, amount_tax, name, invoice_date)
         self.env.cr.execute("""
             CREATE OR REPLACE VIEW report_account_move_daily AS
             (

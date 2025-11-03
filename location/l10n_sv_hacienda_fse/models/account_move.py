@@ -54,7 +54,7 @@ class AccountMove(models.Model):
 
         # 3 Verificar que sea COMPRA (in_invoice) y tipo de documento FSE (código 14)
         tipo_doc = self.journal_id.sit_tipo_documento
-        if self.move_type != 'in_invoice' or (tipo_doc and tipo_doc.codigo != constants.COD_DTE_FSE):
+        if self.move_type != constants.IN_INVOICE or (tipo_doc and tipo_doc.codigo != constants.COD_DTE_FSE):
             _logger.info("SIT: omitiendo generación de JSON — aplica solo para compras FSE (in_invoice, código 14). Tipo actual: %s, Código: %s",
                 self.move_type, tipo_doc.codigo if tipo_doc else None
             )
