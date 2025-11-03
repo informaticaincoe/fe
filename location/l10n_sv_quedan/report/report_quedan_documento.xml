@@ -31,92 +31,261 @@
     <!-- Plantilla QWeb del Quedán -->
     <template id="report_quedan_documento_template">
         <t t-name="l10n_sv_quedan.report_quedan_documento_template">
-            <t t-name="l10n_sv_quedan.report_quedan_documento_template">
-                <t t-call="web.html_container">
-                    <meta charset="UTF-8"/>
-                    <t t-foreach="docs" t-as="doc">
-                        <div class="page">
-                            <div style="position: absolute; z-index: -10; top:0; left:0;">
-                                <t t-if="doc.company_id.logo_web">
-                                    <img id="logo"
-                                         t-att-src="'data:image/png;base64,%s' % doc.company_id.logo_web.decode('utf-8')"
-                                         style="width:10vw;"/>
-                                </t>
-                            </div>
+            <t t-call="web.html_container">
+                <meta charset="UTF-8"/>
+                <t t-foreach="docs" t-as="doc">
+                    <style type="text/css">
 
+                        @font-face {
+                        font-family: 'Inter';
+                        src: url('/l10n_sv_quedan/static/src/fonts/Inter.ttf') format('truetype');
+                        font-weight: 400;
+                        font-style: normal;
+                        }
 
-                            <h1 style="text-align:center; font-size: 16px; font-weight: 700;">
-                                <t t-esc="doc.company_id.name"/>
-                            </h1>
-                            <p style="text-align:center; line-height: 0.5rem;">
-                                <t t-esc="doc.name"/>
-                            </p>
+                        body, table, td, th, p, div, span {
+                        font-family: 'Inter', Arial, sans-serif !important;
+                        -webkit-font-smoothing: antialiased; /* evita subpixel RGB “multicolor” */
+                        -moz-osx-font-smoothing: grayscale;
+                        text-rendering: optimizeLegibility; /* mejor kerning/hints */
+                        font-kerning: normal;
+                        }
 
-                            <div style="width: 100%; display:grid; padding-top: 0.5rem;">
-                                <article>
-                                    <p style="text-align: center; line-height: 0.5rem;">Telefono:
-                                        <t t-esc="doc.company_id.phone"/>
-                                    </p>
-                                </article>
-                                <article>
-                                    <p style="text-align: center;  line-height: 0.5rem;">Correo:
-                                        <t t-esc="doc.company_id.email"/>
-                                    </p>
-                                </article>
-                            </div>
+                        /* Si tienes H1/H2 con peso “bold” */
+                        h1, h2, h3 {
+                        font-family: 'Inter', Arial, sans-serif !important;
+                        font-weight: 700;
+                        }
 
-                            <div style="margin-top: 2%;  padding: 1%;">
-                                <p style="line-height: 0.5rem;">
-                                    <strong>A favor de:</strong>
+                        p, th, td, strong {
+                        font-size: 13px;
+                        }
+
+                        /* Nuevos estilos para definir el ancho de columna */
+                        .tg-col-20 { width: 20vw; }
+                        .tg-col-60 { width: 60vw; }
+
+                        .signature-cell { text-align: center; }
+                        .signature-line { border-top: 1px solid #000; width: 70%; margin: 0 auto 4px auto; height:
+                        0; }
+                        .signature-label { margin-top: 2px; }
+
+                        /* Encabezado compacto */
+                        .header { width:100%; border-collapse:collapse; table-layout:fixed; }
+                        .header col.logo { width:30%; }
+                        .header col.title { width:40%; }
+                        .header col.meta { width:30%; }
+
+                        .header td.right { text-align: right; padding-right: 0; } /* pega el bloque al borde derecho */
+                        .header td.right .meta{ display: inline-block; text-align: left; }/* el texto queda alineado a
+                        la izq dentro */
+                        .header .row { white-space: nowrap; line-height: 1.2; margin: 0 0 2px 0; }
+                        .header .label { display: inline-block; width: 95px; } /* ancho fijo para alinear los valores */
+                        .header .value { display: inline-block; }
+
+                        .header td { padding:6px 8px; vertical-align:top; }
+                        .header-title { margin:0; line-height:1.15; text-align:center; font-size:16px;
+                        font-weight:700; }
+                        .header-sub { margin:2px 0 0 0; line-height:1.1; text-align:center; font-size:14px;
+                        font-weight:700; }
+
+                        .header-meta { line-height:1.15; }
+                        .header-meta div { margin:0 0 2px 0; padding:0; }
+
+                        /* que el logo haga ocupar su celda */
+                        .header-logo img { max-width: 70%; height:auto; display:block; }
+
+                        .header td.header-meta{ text-align:right; padding-right:0; }
+
+                        /* Pero el contenido interno se alinea a la izquierda */
+                        .header td.header-meta .meta-block{ display:inline-block; text-align:left; }
+
+                        /* Cada renglón en una sola línea y con etiqueta de ancho fijo */
+                        .header td.header-meta .row { white-space:nowrap; line-height:1.2; margin:0 0 2px 0; }
+                        .header td.header-meta .label { display:inline-block; width:100px; font-weight:600; }
+                        .header td.header-meta .value { display:inline-block; }
+                    </style>
+                    <div class="page">
+                        <table class="header">
+                            <colgroup>
+                                <col class="logo"/>
+                                <col class="title"/>
+                                <col class="meta"/>
+                            </colgroup>
+                            <tr>
+                                <td class="header-logo">
+                                    <t t-if="doc.company_id.logo_web">
+                                        <img t-att-src="'data:image/png;base64,%s' % doc.company_id.logo_web.decode('utf-8')"/>
+                                    </t>
+                                </td>
+                                <td>
+                                    <h1 class="header-title">Quedans</h1>
+                                    <div class="header-sub">
+                                        <t t-esc="doc.company_id.name"/>
+                                    </div>
+                                </td>
+                                <td class="header-meta">
+                                    <div class="meta-block">
+                                        <div class="row">
+                                            <span class="label">Quedan No.:</span>
+                                            <span class="value">
+                                                <t t-esc="doc.name"/>
+                                            </span>
+                                        </div>
+                                        <div class="row">
+                                            <span class="label">Fecha:</span>
+                                            <span class="value">
+                                                <t t-esc="doc.fecha_creacion"/>
+                                            </span>
+                                        </div>
+                                        <div class="row">
+                                            <span class="label">Fecha Pago:</span>
+                                            <span class="value">
+                                                <t t-esc="doc.fecha_programada"/>
+                                            </span>
+                                        </div>
+                                    </div>
+                                </td>
+
+                            </tr>
+                        </table>
+
+                        <div style="margin-top: 2%;  padding: 1%;">
+                            <p style="line-height: 0.5rem;">
+                                <p>Proveedor:
                                     <t t-esc="doc.partner_id.name"/>
                                 </p>
-                                <p style="line-height: 0.5rem;">
-                                    <strong>Fecha de pago:</strong>
-                                    <t t-esc="doc.fecha_programada"/>
-                                </p>
-                                <p style="line-height: 0.5rem;">
-                                    <strong>Observaciones:</strong>
+                            </p>
+                            <p style="line-height: 0.5rem;">
+                                <p>Observaciones:
                                     <t t-esc="doc.observaciones"/>
                                 </p>
-                            </div>
-
-                            <br/>
-
-                            <h2 style="font-size: 16px; font-weight: 700;">Facturas incluidas</h2>
-                            <table style="width:100%; border-collapse:collapse;" border="1">
-                                <thead>
-                                    <tr>
-                                        <th style="border: solid rgba(0,0,0,0.5) 1px; padding: 1% 1%;">Referencia</th>
-                                        <th style="border: solid rgba(0,0,0,0.5) 1px; padding: 1% 1%;">Fecha de
-                                            emisión
-                                        </th>
-                                        <th style="border: solid rgba(0,0,0,0.5) 1px; padding: 1% 1%;">Total</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <t t-foreach="doc.factura_ids" t-as="invoice">
-                                        <tr>
-                                            <td style="border: solid rgba(0,0,0,0.5) 1px; padding: 1% 1%;">
-                                                <t t-esc="invoice.name"/>
-                                            </td>
-                                            <td style="border: solid rgba(0,0,0,0.5) 1px; padding: 1% 1%;">
-                                                <t t-esc="invoice.invoice_date"/>
-                                            </td>
-                                            <td style="border: solid rgba(0,0,0,0.5) 1px; padding: 1% 1%;">
-                                                <t t-esc="invoice.amount_total"/>
-                                            </td>
-                                        </tr>
-                                    </t>
-                                </tbody>
-                            </table>
-
-                            <br/>
-                            <p>
-                                <strong>Monto total:</strong>
-                                <t t-esc="doc.monto_total"/>
                             </p>
                         </div>
-                    </t>
+                        <br/>
+                        <p>Quedan en nuestro poder para su correspondiente revisión los siguientes documentos:</p>
+                        <table style="width:100%; border-collapse:collapse; border: solid #0000004d 1px;" border="1">
+                            <thead>
+                                <tr>
+                                    <th style="border: solid #0000004d 1px; padding: 1% 1%;">Tipo</th>
+                                    <th style="border: solid #0000004d 1px; padding: 1% 1%;">Número</th>
+                                    <th style="border: solid #0000004d 1px; padding: 1% 1%;">Fecha</th>
+                                    <th style="border: solid #0000004d 1px; padding: 1% 1%;">Total</th>
+                                    <th style="border: solid #0000004d 1px; padding: 1% 1%;">Retención IVA
+                                    </th>
+                                    <th style="border: solid #0000004d 1px; padding: 1% 1%;">Percepción</th>
+                                    <th style="border: solid #0000004d 1px; padding: 1% 1%;">Retención renta
+                                    </th>
+                                    <th style="border: solid #0000004d 1px; padding: 1% 1%;">Impuesto</th>
+                                    <th style="border: solid #0000004d 1px; padding: 1% 1%;">Monto impuesto
+                                    </th>
+                                    <th style="border: solid #0000004d 1px; padding: 1% 1%;">Total a pagar
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Sumas por columna -->
+                                <t t-set="sum_amount_total"
+                                   t-value="sum([inv.amount_total or 0.0 for inv in doc.factura_ids])"/>
+                                <t t-set="sum_ret_iva"
+                                   t-value="sum([inv.retencion_iva_amount or 0.0 for inv in doc.factura_ids])"/>
+                                <t t-set="sum_percepcion"
+                                   t-value="sum([inv.iva_percibido_amount or 0.0 for inv in doc.factura_ids])"/>
+                                <t t-set="sum_ret_renta"
+                                   t-value="sum([inv.retencion_renta_amount or 0.0 for inv in doc.factura_ids])"/>
+                                <t t-set="sum_impuesto" t-value="0.0"/>
+                                <t t-set="sum_monto_impuesto" t-value="0.0"/>
+                                <t t-set="sum_total_pagar"
+                                   t-value="sum([inv.total_pagar or 0.0 for inv in doc.factura_ids])"/>
+                                <!-- Detalle -->
+                                <t t-foreach="doc.factura_ids" t-as="invoice">
+                                    <tr>
+                                        <td style="border:1px solid #0000004d; padding:1% 1%;">
+                                            <t t-esc="invoice.journal_id.code"/>
+                                        </td>
+                                        <td style="border:1px solid #0000004d; padding:1% 1%;">
+                                            <t t-esc="invoice.hacienda_codigoGeneracion_identificacion"/>
+                                        </td>
+                                        <td style="border:1px solid #0000004d; padding:1% 1%;">
+                                            <span style="white-space:nowrap;">
+                                                <t t-esc="invoice.invoice_date"/>
+                                            </span>
+                                        </td>
+                                        <td style="border:1px solid #0000004d; padding:1% 1%;">
+                                            <t t-esc="invoice.amount_total"/>
+                                        </td>
+                                        <td style="border:1px solid #0000004d; padding:1% 1%;">
+                                            <t t-esc="invoice.retencion_iva_amount"/>
+                                        </td>
+                                        <td style="border:1px solid #0000004d; padding:1% 1%;">
+                                            <t t-esc="invoice.iva_percibido_amount"/>
+                                        </td>
+                                        <td style="border:1px solid #0000004d; padding:1% 1%;">
+                                            <t t-esc="invoice.retencion_renta_amount"/>
+                                        </td>
+                                        <td style="border:1px solid #0000004d; padding:1% 1%;">0</td>
+                                        <td style="border:1px solid #0000004d; padding:1% 1%;">0.00</td>
+                                        <td style="border:1px solid #0000004d; padding:1% 1%;">
+                                            <t t-esc="invoice.total_pagar"/>
+                                        </td>
+                                    </tr>
+                                </t>
+                                <!-- Fila de totales -->
+                                <tr>
+                                    <td class="tg-0lax" colspan="3"
+                                        style="border:1px solid #0000004d; padding:1% 1%; font-weight:700; text-align:right;">
+                                        Totales:
+                                    </td>
+                                    <td class="tg-0lax"
+                                        style="border:1px solid #0000004d; padding:1% 1%; font-weight:700;">
+                                        <t t-esc="sum_amount_total"/>
+                                    </td>
+                                    <td class="tg-0lax"
+                                        style="border:1px solid #0000004d; padding:1% 1%; font-weight:700;">
+                                        <t t-esc="sum_ret_iva"/>
+                                    </td>
+                                    <td class="tg-0lax"
+                                        style="border:1px solid #0000004d; padding:1% 1%; font-weight:700;">
+                                        <t t-esc="sum_percepcion"/>
+                                    </td>
+                                    <td class="tg-0lax"
+                                        style="border:1px solid #0000004d; padding:1% 1%; font-weight:700;">
+                                        <t t-esc="sum_ret_renta"/>
+                                    </td>
+                                    <td class="tg-0lax"
+                                        style="border:1px solid #0000004d; padding:1% 1%; font-weight:700;">
+                                        <t t-esc="sum_impuesto"/>
+                                    </td>
+                                    <td class="tg-0lax"
+                                        style="border:1px solid #0000004d; padding:1% 1%; font-weight:700;">
+                                        <t t-esc="sum_monto_impuesto"/>
+                                    </td>
+                                    <td class="tg-0lax"
+                                        style="border:1px solid #0000004d; padding:1% 1%; font-weight:700;">
+                                        <t t-esc="sum_total_pagar"/>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p style="margin-top: 5%;">
+                        <strong style="font-size: 14px;">Nota:</strong>
+                    </p>
+                    <table style="width:100%; margin-top: 8px;">
+                        <tr>
+                            <td style="width:50%; vertical-align:top;">
+                                <p>Elaborado por:
+
+
+                                    <t t-esc="doc.create_uid.name or ''"/>
+                                </p>
+                            </td>
+                            <td class="signature-cell" style="width:50%; vertical-align:bottom;">
+                                <div class="signature-line"/>
+                                <div class="signature-label">Autorizado</div>
+                            </td>
+                        </tr>
+                    </table>
                 </t>
             </t>
         </t>

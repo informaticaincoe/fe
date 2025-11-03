@@ -1,0 +1,97 @@
+<odoo>
+    <data>
+        <record id="view_hide_report_account_move_daily_list_new_button" model="ir.ui.view">
+            <field name="name">hide.report.account.move.daily.list</field>
+            <field name="model">report.account.move.daily</field>
+            <field name="inherit_id" ref="l10n_sv_mh_anexos.view_report_account_move_daily_list"/>
+            <field name="priority">20000</field>
+            <field name="arch" type="xml">
+                <xpath expr="//list" position="attributes">
+                    <attribute name="create">false</attribute>
+                </xpath>
+            </field>
+        </record>
+
+        <record id="view_hide_report_account_move_daily_mayores_list_new_button" model="ir.ui.view">
+            <field name="name">hide.report.account.move.daily.mayores.list.new.button</field>
+            <field name="model">account.move</field>
+            <field name="inherit_id" ref="l10n_sv_mh_anexos.view_report_account_move_daily_mayores_list"/>
+            <field name="priority">20000</field>
+            <field name="arch" type="xml">
+                <xpath expr="//list" position="attributes">
+                    <attribute name="create">false</attribute>
+                </xpath>
+            </field>
+        </record>
+
+        <record id="view_hide_report_contribuyentes_new_button" model="ir.ui.view">
+            <field name="name">view.hide.report.contribuyentes.new.button</field>
+            <field name="model">account.move</field>
+            <field name="inherit_id" ref="l10n_sv_mh_anexos.view_anexo_contribuyentes_list"/>
+            <field name="priority">20000</field>
+            <field name="arch" type="xml">
+                <xpath expr="//list" position="attributes">
+                    <attribute name="create">false</attribute>
+                </xpath>
+            </field>
+        </record>
+
+        <record id="view_hide_report_anexo_compras_list_new_button" model="ir.ui.view">
+            <field name="name">hide.report.anexo.compras.list.new.button</field>
+            <field name="model">account.move</field>
+            <field name="inherit_id" ref="l10n_sv_mh_anexos.view_anexo_compras_list"/>
+            <field name="priority">20000</field>
+            <field name="arch" type="xml">
+                <xpath expr="//list" position="attributes">
+                    <attribute name="create">false</attribute>
+                </xpath>
+            </field>
+        </record>
+
+        <record id="view_hide_report_sujeto_excluido_new_button" model="ir.ui.view">
+            <field name="name">view.hide.report.sujeto.excluido.new.button</field>
+            <field name="model">account.move</field>
+            <field name="inherit_id" ref="l10n_sv_mh_anexos.view_anexo_sujeto_excluido_list"/>
+            <field name="priority">20000</field>
+            <field name="arch" type="xml">
+                <xpath expr="//list" position="attributes">
+                    <attribute name="create">false</attribute>
+                </xpath>
+            </field>
+        </record>
+
+        <record id="view_hide_report_consumidor_final_agrupado_new_button" model="ir.ui.view">
+            <field name="name">hide.report.consumidor.final.agrupado.new.button</field>
+            <field name="model">report.account.move.consumidor.final.agrupado</field>
+            <field name="inherit_id" ref="l10n_sv_mh_anexos.view_report_account_move_consumidor_final_agrupado_list"/>
+            <field name="priority">20000</field>
+            <field name="arch" type="xml">
+                <xpath expr="//list" position="attributes">
+                    <attribute name="create">false</attribute>
+                </xpath>
+            </field>
+        </record>
+        <record id="view_hide_anexo_casilla162_new_button" model="ir.ui.view">
+            <field name="name">hide.anexo.casilla162.new.button</field>
+            <field name="model">sv.dte.retencion.recibida1</field>
+            <field name="inherit_id" ref="l10n_sv_mh_anexos.view_anexo_casilla162_list"/>
+            <field name="priority">20000</field>
+            <field name="arch" type="xml">
+                <xpath expr="//list" position="attributes">
+                    <attribute name="create">false</attribute>
+                </xpath>
+            </field>
+        </record>
+        <record id="view_hide_anexo_anulados_y_extraviados_new_button" model="ir.ui.view">
+            <field name="name">hide.anexo.anulados.y.extraviados.new.button</field>
+            <field name="model">account.move</field>
+            <field name="inherit_id" ref="l10n_sv_mh_anexos.view_anexo_anulados_y_extraviado_list"/>
+            <field name="priority">20000</field>
+            <field name="arch" type="xml">
+                <xpath expr="//list" position="attributes">
+                    <attribute name="create">false</attribute>
+                </xpath>
+            </field>
+        </record>
+    </data>
+</odoo>

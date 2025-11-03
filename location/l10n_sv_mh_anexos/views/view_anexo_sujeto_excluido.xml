@@ -19,12 +19,12 @@
                     <field name="documento_sujeto_excluido" string="Número de documento"/>
                     <field name="razon_social" string="Nombre"/>
                     <field name="invoice_date" string="Fecha de Emisión"/>
-                    <field name="hacienda_selloRecibido" string="Número de serie"/><!-- Sello-->
-                    <field name="numero_documento" string="Número de documento"/><!-- Sello-->
+                    <field name="hacienda_selloRecibido" string="Número de serie"/>
+                    <field name="numero_documento" string="Número de documento"/>
                     <field name="total_operacion" string="Monto de la operacion"/>
                     <field name="retencion_iva_amount" string="Monto de la retencion IVA 13%"/>
                     <field name="tipo_operacion_display"/>
-                    <field name="clasificacion_facturacion_display"/>
+                    <field name="clasificacion_facturacion_display" string="Calificación"/>
                     <field name="sector_display"/>
                     <field name="tipo_costo_gasto_display"/>
                     <field name="numero_anexo"/>
