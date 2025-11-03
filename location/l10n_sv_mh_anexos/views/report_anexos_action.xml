@@ -33,7 +33,7 @@
 
         <!-- Acción Crompas -->
         <record id="action_anexo_compras" model="ir.actions.act_window">
-            <field name="name">Anexo Detalles de compra</field>
+            <field name="name">Anexo detalles de compra</field>
             <field name="res_model">account.move</field>
             <field name="view_mode">list</field>
             <field name="view_id" ref="view_anexo_compras_list"/>
@@ -192,7 +192,7 @@
 
         <menuitem
                 id="menu_anexo_extraviados_y_anulados"
-                name="Anexo docuemntos extraviados y anulados"
+                name="Anexo documentos extraviados y anulados"
                 parent="menu_hacienda_reports"
                 action="action_anexo_anulados_y_extraviados"
                 sequence="30"/>

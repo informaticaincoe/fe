@@ -1324,6 +1324,32 @@ class account_move(models.Model):
     #                             Datos para agrupar facturas por semestre                            #
     ###################################################################################################
 
+    semester = fields.Selection(
+        [('S1', 'Ene–Jun'), ('S2', 'Jul–Dic')],
+        compute='_compute_semester',
+        store=True, index=True
+    )
+    semester_year = fields.Integer(
+        compute='_compute_semester',
+        store=True, index=True
+    )
+    semester_label = fields.Char(  # útil para mostrar/ordenar: "2025-H1"
+        compute='_compute_semester',
+        store=True, index=True
+    )
+
+    @api.depends('invoice_date')
+    def _compute_semester(self):
+        for m in self:
+            if m.invoice_date:
+                m.semester_year = m.invoice_date.year
+                m.semester = 'S1' if m.invoice_date.month <= 6 else 'S2'
+                m.semester_label = f"{m.semester_year}-{m.semester}"
+            else:
+                m.semester_year = False
+                m.semester = False
+                m.semester_label = False
+
     invoice_year = fields.Char(compute='_compute_periods', store=True, index=True)
     invoice_semester = fields.Selection(
         [('1', '1.º semestre'), ('2', '2.º semestre')],
@@ -1340,6 +1366,18 @@ class account_move(models.Model):
         selection=MONTHS, compute='_compute_periods_sel',
         store=True, index=True, string='Mes'
     )
+
+    @api.depends('invoice_date')
+    def _compute_semester(self):
+        for m in self:
+            if m.invoice_date:
+                m.semester_year = m.invoice_date.year
+                m.semester = 'S1' if m.invoice_date.month <= 6 else 'S2'
+                m.semester_label = f"{m.semester_year}-{m.semester}"
+            else:
+                m.semester_year = False
+                m.semester = False
+                m.semester_label = False
 
     @api.depends('invoice_date')
     def _compute_periods_sel(self):
