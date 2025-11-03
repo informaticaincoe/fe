@@ -68,7 +68,6 @@ class sit_account_move(models.Model):
 
 
     sit_facturacion = fields.Boolean(
-        related='company_id.sit_facturacion',
         readonly=True,
         store=True,
     )

@@ -202,7 +202,6 @@ class AccountMove(models.Model):
     invoice_time = fields.Char(string="Hora de Facturación", compute='_compute_invoice_time', store=True, readonly=True)
 
     sit_entorno_test = fields.Boolean(
-        related='company_id.sit_entorno_test',
         readonly=True,
         store=True,
     )
@@ -1243,10 +1242,14 @@ class AccountMove(models.Model):
                                 'hacienda_observaciones': str(Resultado.get('observaciones', '')),
                                 'state': 'posted',
                                 'recibido_mh': True,
+                                'sit_facturacion': invoice.company_id.sit_facturacion,
+                                'sit_entorno_test': invoice.company_id.sit_entorno_test
                             })
                         else:
                             invoice.write({
                                 'state': 'posted',
+                                'sit_facturacion': invoice.company_id.sit_facturacion,
+                                'sit_entorno_test': invoice.company_id.sit_entorno_test
                             })
                         _logger.info("SIT Estado registro= %s.", invoice.state)
 

@@ -4,7 +4,6 @@ import logging
 _logger = logging.getLogger(__name__)
 
 import pytz
-# import datetime
 from datetime import datetime
 import pytz
 
@@ -18,7 +17,7 @@ try:
 except ImportError as e:
     _logger.error(f"Error al importar 'config_utils' en modulo de contingencia: {e}")
     config_utils = None
-
+    constants = None
 
 def get_config_value(env, clave, company_id):
     """
@@ -34,7 +33,7 @@ def get_config_value(env, clave, company_id):
 
 def compute_validation_type_2(env):
     """
-    Busca el tipo de entorno (production o pruebas) dependiendo del valor en res.configuration.
+    Busca el tipo de entorno (producción o pruebas) dependiendo del valor en res.configuration.
     """
     _logger.info("SIT Entrando a compute_validation_type_2 desde res.configuration")
 
@@ -65,9 +64,6 @@ def _compute_validation_type_2(env, company):
     _logger.info("SIT Empresa: %s, entorno: %s", config_settings_entorno.id, config_settings_entorno.sit_entorno_test)
     if config_settings_entorno:
         parameter_env_type = config_settings_entorno.sit_entorno_test
-        # if not parameter_env_type:
-        #     _logger.info("SIT No se encontró el tipo de ambiente. Usando valor por defecto pruebas('00')")
-        #     return "00"
 
         _logger.info("SIT Valor ambiente desde res.config.settings: %s", parameter_env_type)
         if not parameter_env_type:
@@ -180,13 +176,13 @@ def get_hourly_rate_from_contract(contract):#Se utilizaba para vacaciones parcia
     - Si wage_type=hourly → usa contract.hourly_wage (lanza error si falta)
     - Si wage_type=monthly o professional_services → calcula desde salario mensual
     """
-    tipo_salario = contract.wage_type or "monthly"
+    tipo_salario = contract.wage_type or "semi-monthly"
 
     # Servicios profesionales se tratan como mensual
-    if tipo_salario == "professional_services":
-        tipo_salario = "monthly"
+    if tipo_salario == constants.SERVICIOS_PROFESIONALES:
+        tipo_salario = constants.SALARIO_MENSUAL
 
-    if tipo_salario == "hourly":
+    if tipo_salario == constants.SALARIO_POR_HORA:
         if not contract.hourly_wage:
             raise UserError(
                 f"El contrato '{contract.name}' es por hora pero no tiene definido "
@@ -197,7 +193,7 @@ def get_hourly_rate_from_contract(contract):#Se utilizaba para vacaciones parcia
     # mensual fijo → promedio 30 días, 8 horas/día
     salario_mensual = get_monthly_wage_from_contract(contract)
     dias_promedio = to_int(get_dias_promedio_salario(contract.env, contract.company_id.id), 0)
-    horas_diarias = to_int(get_config_value(contract.env, 'horas_diarias', contract.company_id.id), 0)
+    horas_diarias = to_int(get_config_value(contract.env, CANT_HORAS_DIARIAS, contract.company_id.id), 0)
 
     if dias_promedio <= 0 or horas_diarias <= 0:
         raise UserError("No se puede calcular la tarifa por hora debido a configuración inválida.")
@@ -209,7 +205,7 @@ def get_dias_promedio_salario(env, company_id):
     Obtiene el número de días promedio para cálculo diario del salario
     desde res.configuration. Si no existe, devuelve 30 por defecto.
     """
-    dias_cfg = get_config_value(env, "dias_promedio_salario", company_id)
+    dias_cfg = get_config_value(env, constants.DIAS_PROMEDIO_TRABAJADOS, company_id)
     try:
         return int(dias_cfg) if dias_cfg else 30
     except ValueError:
