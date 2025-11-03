@@ -22,7 +22,7 @@
                     </xpath>
                 </field>
             </record>
-                
+
             <record model="ir.ui.view" id="view_partner_search_base_sv">
                 <field name="name">view_partner_search_base_sv</field>
                 <field name="model">res.partner</field>

@@ -9,17 +9,17 @@
       <xpath expr="//sheet/notebook" position="inside">
         <page string="Correos de envío">
           <group string="Quedán">
-            <field name="email_from_quedan" placeholder="Facturación INCOE &lt;facturacion@grupoincoe.com&gt;"/>
+            <field name="email_from_quedan" placeholder="correo@ejemplo.com"/>
             <field name="smtp_quedan_id" options="{'no_create': True}"/>
           </group>
 
           <group string="Facturas">
-            <field name="email_from_invoice" placeholder="Facturación INCOE &lt;facturacion@grupoincoe.com&gt;"/>
+            <field name="email_from_invoice" placeholder="correo@ejemplo.com"/>
             <field name="smtp_invoice_id" options="{'no_create': True}"/>
           </group>
 
           <group string="Boletas de pago">
-            <field name="email_from_payslip" placeholder="RRHH INCOE &lt;rrhh@grupoincoe.com&gt;"/>
+            <field name="email_from_payslip" placeholder="correo@ejemplo.com"/>
             <field name="smtp_payslip_id" options="{'no_create': True}"/>
           </group>
         </page>

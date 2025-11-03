@@ -1,14 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <odoo>
     <data noupdate="0">
-        <!-- Se debe selecionar el correo desde el cual se va a enviar el correo desde las plantillas de correo alectronico y el servidor desde el que se va a enviar -->
+           <!-- Plantilla de correo para enviar boletas de pago (hr.payslip) -->
         <record id="rrhh_email_template_payslip" model="mail.template">
-            <field name="name">Boleta de pago: Enviar</field>
-            <field name="model_id" ref="hr_payroll.model_hr_payslip"/>
-            <field name="email_from">${object.company_id.email_from_payslip}</field>
-            <field name="email_to">{{object.employee_id.work_email}}</field>
-            <field name="partner_to">{{object.employee_id.work_email}}</field>
-            <field name="subject">Boleta de pago - {{object.employee_id.name}}</field>
+            <field name="name">Boleta de pago: Enviar</field> <!-- Nombre de la plantilla -->
+            <field name="model_id" ref="hr_payroll.model_hr_payslip"/> <!-- Modelo al que está ligada la plantilla: hr.payslip -->
+            <field name="email_from">${object.company_id.email_from_payslip}</field>  <!-- Remitente -->
+            <field name="email_to">{{object.employee_id.work_email}}</field><!-- Remitente -->
+            <field name="subject">Boleta de pago - {{object.employee_id.name}}</field>  <!-- Asunto del correo personalizado -->
             <field name="body_html" type="html">
                 <div>
                     <p style="margin: 0 0 16px 0;">
@@ -31,8 +30,11 @@
                     </p>
                 </div>
             </field>
+            <!--
+              auto_delete=True => elimina el mail.queue una vez enviado
+              (reduce basura en base de datos, pero no queda rastro del cuerpo del correo).
+            -->
             <field name="auto_delete" eval="True"/>
-            <field name="lang">es_ES</field>
         </record>
     </data>
 </odoo>

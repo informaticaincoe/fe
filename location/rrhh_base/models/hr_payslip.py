@@ -409,11 +409,6 @@ class HrPayslip(models.Model):
         for record in self:
             record.sueldo_liquido = record.total_devengado - record.total_descuentos
 
-
-    from odoo import _, api, models
-    from odoo.exceptions import UserError
-    import base64
-
     def action_send_payslip_email(self):
         self.ensure_one()
 
@@ -423,8 +418,6 @@ class HrPayslip(models.Model):
                 'tag': 'display_notification',
                 'params': {'title': title, 'message': msg, 'type': level, 'sticky': sticky},
             }
-
-        lang_ctx = self.env.user.lang or 'en_US'
 
         template = self.env.ref('rrhh_base.rrhh_email_template_payslip', raise_if_not_found=False)
         if not template:
@@ -464,21 +457,13 @@ class HrPayslip(models.Model):
 
         email_from_norm = formataddr((_sanitize(name), addr)) if name else addr
 
-        # ===== (Opcional) exigir SMTP de boletas =====
-        # Descomenta si NO quieres enviar sin SMTP específico:
-        # if not self.company_id.smtp_payslip_id:
-        #     return _notify(
-        #         "Configura 'SMTP Boletas' en Ajustes → Compañías → Correos de envío.",
-        #         'warning', sticky=True
-        #     )
-
         # ===== Render PDF =====
         report_action = (self.env.ref('rrhh_base.hr_payslip_report', raise_if_not_found=False)
                          or self.env.ref('rrhh_base.report_payslip', raise_if_not_found=False))
         if not report_action:
             return _notify("No se encontró la acción de reporte de la boleta de pago.", 'warning', sticky=True)
 
-        pdf_content, _ = self.env['ir.actions.report'].with_context(lang=lang_ctx)._render_qweb_pdf(
+        pdf_content, _ = self.env['ir.actions.report']._render_qweb_pdf(
             report_action.report_name, [self.id]
         )
         filename = f"Boleta_{self.employee_id.name.replace(' ', '_')}_{self.date_to}.pdf"
@@ -500,14 +485,14 @@ class HrPayslip(models.Model):
             email_values['mail_server_id'] = self.company_id.smtp_payslip_id.id
 
         try:
-            template.with_context(lang=lang_ctx).send_mail(self.id, force_send=True, email_values=email_values)
+            template.send_mail(self.id, force_send=True, email_values=email_values)
         except Exception as e:
             # si no quieres dejar adjunto huérfano cuando falla:
             try:
                 attachment.unlink()
             except Exception:
                 pass
-            return _notify(f"No se pudo enviar el correo: {ustr(e)}", 'danger', sticky=True)
+            return _notify(f"No se pudo enviar el correo: {str(e)}", 'danger', sticky=True)
 
         self.message_post(body=f"Correo enviado a {self.employee_id.work_email} con el archivo {filename}.")
         return _notify(f"Correo enviado con éxito a {self.employee_id.work_email}", 'success')
