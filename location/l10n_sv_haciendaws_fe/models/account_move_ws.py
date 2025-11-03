@@ -27,6 +27,7 @@ try:
 except ImportError as e:
     _logger.error(f"Error al importar 'config_utils': {e}")
     config_utils = None
+    constants = None
 
 class AccountMove(models.Model):
     _inherit = "account.move"

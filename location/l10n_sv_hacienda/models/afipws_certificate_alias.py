@@ -8,12 +8,10 @@ import os
 import requests
 from xml.dom.minidom import parse, parseString
 
-
 try:
     from OpenSSL import crypto
 except ImportError:
     crypto = None
-
 
 import base64
 
@@ -156,6 +154,7 @@ class HaciendaCertificateAlias(models.Model):
 
     @api.onchange("company_id")
     def change_company_name(self):
+        """Actualiza el nombre común del registro según la empresa seleccionada, truncando a 50 caracteres."""
         if self.company_id:
             common_name = "HACIENDA WS %s - %s" % (self.type, self.company_id.name)
             self.common_name = common_name[:50]
@@ -163,14 +162,16 @@ class HaciendaCertificateAlias(models.Model):
     # @api.depends("company_cuit", "service_provider_cuit", "service_type")
     @api.depends("company_cuit")
     def _compute_cuit(self):
+        """Calcula el CUIT del registro tomando el CUIT de la empresa."""
         for rec in self:
     #         if rec.service_type == "outsourced":
     #             rec.cuit = rec.service_provider_cuit
     #         else:
-                rec.cuit = rec.company_cuit
+            rec.cuit = rec.company_cuit
 
     @api.onchange("company_id")
     def change_company_id(self):
+        """Actualiza la ubicación y CUIT del registro según la empresa seleccionada."""
         if self.company_id:
             self.country_id = self.company_id.country_id.id
             self.state_id = self.company_id.state_id.id
@@ -178,6 +179,7 @@ class HaciendaCertificateAlias(models.Model):
             self.company_cuit = self.company_id.vat
 
     def action_confirm(self):
+        """Confirma el registro generando una clave si no existe y cambia el estado a 'confirmed'."""
         if not self.key:
             self.generate_key()
         self.write({"state": "confirmed"})
@@ -203,6 +205,7 @@ class HaciendaCertificateAlias(models.Model):
         return True
 
     def action_cancel(self):
+        """Cancela el registro y todos los certificados relacionados, cambiando su estado a 'cancel'."""
         self.write({"state": "cancel"})
         self.certificate_ids.write({"state": "cancel"})
         return True
@@ -239,40 +242,16 @@ class HaciendaCertificateAlias(models.Model):
 
     @api.constrains("common_name")
     def check_common_name_len(self):
+        """Valida que el campo Common Name no exceda 50 caracteres."""
         if self.filtered(lambda x: x.common_name and len(x.common_name) > 50):
             raise ValidationError(
                 _("The Common Name must be lower than 50 characters long")
             )
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     @api.onchange('key_file')
     def _onchange_file(self):
+        """Procesa el archivo de clave privada cargado, verifica su validez y lo guarda en disco."""
         # self.certificate_file_text.unlink()
-
 
         #directorio='C:/Users/Admin/Documents/GitHub/fe/location/mnt'
         directorio = EXTRA_ADDONS # config_utils.get_config_value(self.env, 'mnt', self.company_id.id)
@@ -301,8 +280,8 @@ class HaciendaCertificateAlias(models.Model):
                     f.write(line)
                     f.write('\n')
 
-
     def _file_isvalid(self):
+        """Verifica que el archivo cargado tenga extensión .key."""
         _logger.info("SIT key_file_name = %s", self.key_file_name)
         if self.key_file_name and str(self.key_file_name.split(".")[-1:][0]) != 'key':
             raise ValidationError(_("No se puede cargar un archivo de tipo diferente a .key"))

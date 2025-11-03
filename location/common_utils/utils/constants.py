@@ -15,6 +15,8 @@ TIPO_VENTA_PROD_GRAV = "gravado"
 TIPO_VENTA_PROD_EXENTO = "exento"
 TIPO_VENTA_PROD_NO_SUJETO = "no_sujeto"
 AMBIENTE_TEST = "00"
+AMBIENTE_PROD = "production"
+HOMOLOGATION = "homologation"
 
 #Modulo de retenciones
 DEDUCCION_EMPLEADO = "empleado"

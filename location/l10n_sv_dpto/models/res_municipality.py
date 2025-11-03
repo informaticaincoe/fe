@@ -10,6 +10,10 @@ class Departamento(models.Model):
   dpto_id = fields.Many2one('res.country.state', string="State", required=True, help="State")
 
   def copy(self, default=None):
+    """
+    Crea una copia del registro asegurando que el 'name' y 'code' sean únicos,
+    agregando un sufijo incremental si ya existen copias previas.
+    """
     default = dict(default or {})
     copied_count = self.search_count(
         [('name', '=like', _(u"Copy of {}%").format(self.name))])

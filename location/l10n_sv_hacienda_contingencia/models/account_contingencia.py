@@ -981,7 +981,7 @@ class sit_account_contingencia(models.Model):
             host = 'https://apitest.dtes.mh.gob.sv'
             url = host + '/seguridad/auth'
         else:
-            url = config_utils.get_config_value(self.env, 'url_auth_prod_hacienda',
+            url = config_utils.get_config_value(self.env, 'autenticar_prod',
                                                 self.company_id.id)  # host = 'https://api.dtes.mh.gob.sv'
         # url = host + '/seguridad/auth'
 
