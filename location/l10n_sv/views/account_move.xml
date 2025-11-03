@@ -10,8 +10,6 @@
                     <div class="mt-2 mb-2" invisible="journal_code == 'SLR'">
                         <label for="sit_referencia" invisible="journal_code == 'SLR' or move_type == 'in_invoice'"/>
                         <field name="sit_referencia" invisible="journal_code == 'SLR' or move_type == 'in_invoice'"/>
-                        <!--                        <field name="sit_observaciones" invisible="move_type == 'in_invoice' and not codigo_tipo_documento"/>-->
-                        <!--                        <field name="sit_observaciones" string="Descripción" invisible="move_type != 'in_invoice' or codigo_tipo_documento"/>-->
                     </div>
                 </xpath>
 
