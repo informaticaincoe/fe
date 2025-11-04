@@ -16,3 +16,6 @@ config_porcentaje_he,base.main_company,,int,50,Recargo por horas extra en día d
 config_autenticacion_prod,base.main_company,,text,https://api.dtes.mh.gob.sv/seguridad/auth,URL para autenticación en producción,True,autenticar_prod
 config_autenticacion_test,base.main_company,,text,https://apitest.dtes.mh.gob.sv/seguridad/auth,URL para autenticación en pruebas,True,autenticar_test
 config_consulta_dte,base.main_company,,text,https://admin.factura.gob.sv,URL para consultar dte,True,consulta_dte
+config_retencion_iva_renta,base.main_company,,float,13,Retencion de IVA 13% aplicable en las ventas,True,retencion_iva_venta
+config_retencion_venta,base.main_company,,float,10,Renta aplicable en las ventas,True,retencion_venta
+config_iva_percepcion_venta,base.main_company,,float,1,IVA Percibido aplicable en las ventas,True,iva_percibido_venta
