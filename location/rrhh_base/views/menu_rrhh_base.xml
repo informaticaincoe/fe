@@ -119,11 +119,4 @@
         />
     </data>
 
-<!--    <record id="hr_payslip_form_show_create_draft_entry" model="ir.ui.view">-->
-<!--        <field name="name">hr.payslip.form.show.create.draft.entry</field>-->
-<!--        <field name="model">hr.payslip</field>-->
-<!--        <field name="inherit_id" ref="hr_payroll_account.hr_payslip_view_form_account"/>-->
-<!--        <field name="priority">20</field>-->
-<!--        <field name="arch" type="xml">-->
-<!--    </record>-->
 </odoo>

@@ -1,5 +1,6 @@
 <odoo>
     <data>
+         <!-- ===== LISTA PRINCIPAL: PLANILLA QUINCENA -->
         <record id="view_hr_planilla_list_custom" model="ir.ui.view">
             <field name="name">hr.payslip.list.custom</field>
             <field name="model">hr.payslip</field>
@@ -32,6 +33,7 @@
             </field>
         </record>
 
+        <!-- ===== EXTENSIÓN DE SEARCH VIEW: agrega "Agrupar por Lote de Nómina" ===== -->
         <record id="hr_payslip_search_view_inherit_group_by_lote" model="ir.ui.view">
             <field name="name">hr.payslip.search.inherit.group.by.lote</field>
             <field name="model">hr.payslip</field>
@@ -46,15 +48,16 @@
             </field>
         </record>
 
+        <!-- ===== ACCIÓN: LISTADO DE NÓMINAS (EXCLUYE VACACIONES) ===== -->
         <record id="rrhh_base.action_reporte_hr_plantilla" model="ir.actions.act_window">
             <field name="name">Nóminas de Empleados</field>
             <field name="res_model">hr.payslip</field>
             <field name="view_mode">list,form</field>
-            <field name="domain">[('struct_id.code', '!=', 'PLAN_VAC')]</field>
-            <field name="context">{'search_default_group_by_payslip_run': 1}</field>
+            <field name="domain">[('struct_id.code', '!=', 'PLAN_VAC')]</field> <!-- filtro para mostrar todas las nominas menos las de vacaciones (excluir vacaciones)-->
+            <field name="context">{'search_default_group_by_payslip_run': 1}</field> <!-- Activa por defecto el group by 'Lote de Nómina' -->
         </record>
 
-        <!-- PLANILLA DE VACACIONES -->
+         <!-- ===== LISTA: PLANILLA DE VACACIONES ===== -->
         <record id="view_hr_planilla_vacaciones_list_custom" model="ir.ui.view">
             <field name="name">hr.payslip.list.custom</field>
             <field name="model">hr.payslip</field>
@@ -87,11 +90,12 @@
             </field>
         </record>
 
+        <!-- ===== ACCIÓN: LISTADO DE VACACIONES (EXCLUYE ESTRUCTURA INCOE) ===== -->
         <record id="rrhh_base.action_reporte_hr_plantilla_vacaciones" model="ir.actions.act_window">
             <field name="name">Nóminas de vacaciones de Empleados</field>
             <field name="res_model">hr.payslip</field>
             <field name="view_mode">list,form</field>
-            <field name="domain">[('struct_id.code', '!=', 'INCOE')]</field>
+            <field name="domain">[('struct_id.code', '!=', 'INCOE')]</field> <!-- filtrar solo mostrar las de vacaciones (excluir quincenal)-->
             <field name="context">{'search_default_group_by_payslip_run': 1}</field>
             <field name="help" type="html">
                 <p class="o_view_nocontent_smiling_face">
@@ -103,6 +107,7 @@
             </field>
         </record>
 
+        <!-- ===== SEARCH VIEW PERSONALIZADA (panel Año/Mes/Quincena y agrupador por lote) ===== -->
         <record id="hr_payslip_search_incoe_custom" model="ir.ui.view">
             <field name="name">hr.payslip.search.incoe.custom</field>
             <field name="model">hr.payslip</field>
@@ -114,7 +119,7 @@
                                 context="{'group_by': 'payslip_run_id'}"/>
                     </group>
 
-                    <!-- Tu panel: Año / Mes / Quincena -->
+                    <!-- Panel de filtros laterales Año/Mes/Quincena/Empresa -->
                     <searchpanel>
                         <field name="company_id" string="EMPRESA" select="multi" enable_counters="1"/>
                         <field name="period_year" string="AÑO" select="one" enable_counters="1"/>
@@ -122,7 +127,7 @@
                         <field name="period_quincena" string="QUINCENA" select="one" enable_counters="1"/>
                     </searchpanel>
 
-                    <!-- (Opcional) Filtros rápidos -->
+                    <!-- Filtros rápidos de periodo -->
                     <filter name="mes_actual"
                             string="Mes actual"
                             domain="[('period_year','=', time.strftime('%%Y')), ('period_month','=', time.strftime('%%m'))]"/>
@@ -140,12 +145,13 @@
             </field>
         </record>
 
+        <!-- ===== ACCIÓN: LISTA FILTRADA SOLO ESTRUCTURA INCOE ===== -->
         <record id="action_reporte_hr_plantilla_incoe" model="ir.actions.act_window">
             <field name="name">Nóminas INCOE</field>
             <field name="res_model">hr.payslip</field>
             <field name="view_mode">list,form</field>
             <field name="domain">[('struct_id.code', '=', 'INCOE')]</field>
-            <field name="search_view_id" ref="hr_payslip_search_incoe_custom"/>
+            <field name="search_view_id" ref="hr_payslip_search_incoe_custom"/>  <!-- Usa la search view personalizada con panel -->
             <field name="view_ids" eval="[(5, 0, 0),
                     (0, 0, {'view_mode': 'list', 'view_id': ref('view_hr_planilla_list_custom')}),
                     (0, 0, {'view_mode': 'form', 'view_id': ref('hr_payroll.view_hr_payslip_form')})]"/>
@@ -155,21 +161,5 @@
                 </p>
             </field>
         </record>
-
-<!--        <record id="action_hr_salary_attachment_custom" model="ir.actions.act_window">-->
-<!--            <field name="name">Deducciones Salariales (Custom)</field>-->
-<!--            <field name="res_model">hr.salary.attachment</field>-->
-<!--            <field name="view_mode">list,form</field>-->
-<!--            <field name="search_view_id" ref="view_hr_salary_attachment_search_inherit"/>-->
-<!--            <field name="context">{'search_default_group_by_date_start': 1}</field>-->
-<!--        </record>-->
-
-
-<!--        <menuitem id="menu_hr_salary_attachment_custom"-->
-<!--                  name="Deducciones salariales"-->
-<!--                  parent="hr_payroll.menu_hr_payroll_root"-->
-<!--                  action="action_hr_salary_attachment_custom"/>-->
     </data>
-
-
 </odoo>
