@@ -1,6 +1,6 @@
 <odoo>
     <data>
-        <!-- Vista en lista -->
+        <!-- Vista en lista para tramos de retencion de renta -->
         <record id="view_hr_retencion_renta_tramos_tree" model="ir.ui.view">
             <field name="name">hr.retencion.renta.tramos.tree</field>
             <field name="model">hr.retencion.tramo</field>
@@ -17,7 +17,7 @@
             </field>
         </record>
 
-        <!-- Vista formulario -->
+        <!-- Vista formulario para tramos de retencion de renta -->
         <record id="view_hr_retencion_renta_tramos_form" model="ir.ui.view">
             <field name="name">hr.retencion.renta.tramos.form</field>
             <field name="model">hr.retencion.tramo</field>
