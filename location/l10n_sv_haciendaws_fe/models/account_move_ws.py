@@ -611,7 +611,6 @@ class AccountMove(models.Model):
             _logger.info("SIT FechaEmi seleccionada = %s", FechaEmi)
         else:
             # os.environ['TZ'] = 'America/El_Salvador'  # Establecer la zona horaria
-            # datetime.datetime.now()
             # salvador_timezone = pytz.timezone('America/El_Salvador')
             # FechaEmi = datetime.datetime.now(salvador_timezone)
             FechaEmi = config_utils.get_fecha_emi()

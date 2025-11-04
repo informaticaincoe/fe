@@ -8,8 +8,6 @@ from datetime import datetime
 import base64
 import pyqrcode
 import logging
-
-
 import datetime
 import pytz
 
@@ -34,11 +32,7 @@ class AccountMove(models.Model):
         invoice_info = {}
         invoice_info["ambiente"] = ambiente
         invoice_info["idEnvio"] = "00001"
-        invoice_info["tipoDte"] = self.journal_id.sit_tipo_documento.codigo 
-        # if invoice_info["tipoDte"] == constants.COD_DTE_FE:
-        #     invoice_info["version"] = self.journal_id.sit_tipo_documento.version # 1
-        # elif invoice_info["tipoDte"] == constants.COD_DTE_CCF:
-        #     invoice_info["version"] = 3
+        invoice_info["tipoDte"] = self.journal_id.sit_tipo_documento.codigo
 
         invoice_info["version"] = self.journal_id.sit_tipo_documento.version
         if doc_firmado:

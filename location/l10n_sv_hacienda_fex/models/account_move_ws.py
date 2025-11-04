@@ -13,9 +13,10 @@ import pytz
 # Definir la zona horaria de El Salvador
 tz_el_salvador = pytz.timezone('America/El_Salvador')
 
-
 import logging
 import json
+import uuid
+from odoo.tools import float_round
 
 _logger = logging.getLogger(__name__)
 
@@ -31,8 +32,6 @@ except ImportError as e:
 class AccountMove(models.Model):
     _inherit = "account.move"
 
-
-
 ######################################### FCE-EXPORTACION
 
     def sit_base_map_invoice_info_fex(self):
@@ -47,27 +46,6 @@ class AccountMove(models.Model):
         invoice_info["activo"] = True
         invoice_info["passwordPri"] = self.company_id.sit_passwordPri
         _logger.info("SIT sit_base_map_invoice_info = %s", invoice_info)
-
-        # if self.sit_json_respuesta and not self.hacienda_selloRecibido:
-        #     try:
-        #         # Intentamos convertir el sit_json_respuesta a un diccionario Python
-        #         json_data = json.loads(self.sit_json_respuesta)
-        #
-        #         # Verificamos si el campo ambiente existe y es igual a "00"
-        #         ambiente = json_data.get("identificacion", {}).get("ambiente", None)
-        #
-        #         if ambiente == "00":
-        #             _logger.info("SIT Ambiente 00 detectado. Sobreescribiendo JSON.")
-        #             invoice_info["dteJson"] = self.sit__fex_base_map_invoice_info_dtejson()
-        #     except json.JSONDecodeError as e:
-        #         _logger.error(f"SIT Error al procesar el JSON: {e}")
-        #         invoice_info["dteJson"] = self.sit_json_respuesta  # En caso de error en la conversión, mantenemos el JSON original
-        # if not self.hacienda_selloRecibido and self.sit_factura_de_contingencia and self.sit_json_respuesta:
-        #     _logger.info("SIT sit_base_map_invoice_info contingencia")
-        #     invoice_info["dteJson"] = self.sit_json_respuesta
-        # else:
-        #     _logger.info("SIT sit_base_map_invoice_info dte")
-        #     invoice_info["dteJson"] = self.sit__fex_base_map_invoice_info_dtejson()
         invoice_info["dteJson"] = self.sit__fex_base_map_invoice_info_dtejson()
         return invoice_info
 
@@ -168,19 +146,19 @@ class AccountMove(models.Model):
                     tipo = int(getattr(line.product_id.tipoItem, 'codigo', 0))
                 except Exception:
                     tipo = 0
-                if tipo == 1:
+                if tipo == constants.ITEM_BIEN:
                     tipo_bien = True
-                elif tipo == 2:
+                elif tipo == constants.ITEM_SERVICIO:
                     tipo_servicio = True
                 if tipo_bien and tipo_servicio:
                     break
 
         if tipo_bien and tipo_servicio:
-            tipo_item_exportacion = 3
+            tipo_item_exportacion = constants.ITEM_EXP_BIEN_SERVICIO # codigo 3
         elif tipo_bien:
-            tipo_item_exportacion = 1
+            tipo_item_exportacion = constants.ITEM_EXP_BIEN # codigo 1
         elif tipo_servicio:
-            tipo_item_exportacion = 2
+            tipo_item_exportacion = constants.ITEM_EXP_SERVICIOS # codigo 2
         else:
             tipo_item_exportacion = 0
 
@@ -190,8 +168,7 @@ class AccountMove(models.Model):
         recinto_fiscal = None
         if self.sale_order_id and self.sale_order_id.recintoFiscal:
             recinto_fiscal = str(self.sale_order_id.recintoFiscal.codigo)
-        _logger.info("SIT Recinto fiscal: %s (tipo: %s)", recinto_fiscal,
-                     type(recinto_fiscal).__name__ if recinto_fiscal is not None else None)
+        _logger.info("SIT Recinto fiscal: %s (tipo: %s)", recinto_fiscal, type(recinto_fiscal).__name__ if recinto_fiscal is not None else None)
         invoice_info["recintoFiscal"] = recinto_fiscal if recinto_fiscal else None
         _logger.info("SIT regimen de exportacion = %s", self.sit_regimen)
         invoice_info["regimen"] = getattr(self.sit_regimen, 'codigo', None)
@@ -216,8 +193,7 @@ class AccountMove(models.Model):
         if isinstance(raw_doc, str):
             invoice_info["numDocumento"] = raw_doc
 
-        tipoDocumento = (self.partner_id.l10n_latam_identification_type_id.codigo
-                         if self.partner_id.l10n_latam_identification_type_id and raw_doc else None)
+        tipoDocumento = (self.partner_id.l10n_latam_identification_type_id.codigo if self.partner_id.l10n_latam_identification_type_id and raw_doc else None)
         invoice_info["tipoDocumento"] = tipoDocumento
         invoice_info["nombre"] = self.partner_id.name
 
@@ -228,8 +204,8 @@ class AccountMove(models.Model):
             invoice_info["codPais"] = None
             invoice_info["nombrePais"] = None
 
-        tipoPersona = 1 if self.partner_id.company_type == 'person' else (
-            2 if self.partner_id.company_type == 'company' else 0)
+        tipoPersona = 1 if self.partner_id.company_type == constants.PERSONA_NATURAL else (
+            2 if self.partner_id.company_type == constants.PERSONA_JURIDICA else 0)
         invoice_info["tipoPersona"] = tipoPersona
         invoice_info["nombreComercial"] = self.partner_id.nombreComercial or None
         invoice_info["descActividad"] = getattr(self.partner_id.codActividad, 'valores', None)
@@ -271,8 +247,8 @@ class AccountMove(models.Model):
             uniMedida = 99 if is_serv else int(getattr(line.product_id.uom_hacienda, 'codigo', 7) or 7)
             line_temp["uniMedida"] = int(uniMedida)
 
-            line_temp["montoDescu"] = round(line.quantity * (line.price_unit * (line.discount / 100.0)), 2) or 0.0
-            ventaGravada = round(getattr(line, 'precio_gravado', 0.0), 2)
+            line_temp["montoDescu"] = float_round(line.quantity * (line.price_unit * (line.discount / 100.0)), precision_rounding=line.move_id.currency_id.rounding) or 0.0
+            ventaGravada = float_round(getattr(line, 'precio_gravado', 0.0), precision_rounding=line.move_id.currency_id.rounding)
             line_temp["ventaGravada"] = ventaGravada
 
             codigo_tributo_codigo = None
@@ -294,24 +270,24 @@ class AccountMove(models.Model):
             )
             if vat_taxes_amounts.get('taxes'):
                 vat_taxes_amount = vat_taxes_amounts['taxes'][0]['amount']
-                sit_amount_base = round(vat_taxes_amounts['taxes'][0]['base'], 2)
+                sit_amount_base = float_round(vat_taxes_amounts['taxes'][0]['base'], precision_rounding=line.move_id.currency_id.rounding)
             else:
                 vat_taxes_amount = 0.0
-                sit_amount_base = round(line.quantity * line.price_unit, 2)
+                sit_amount_base = float_round(line.quantity * line.price_unit, precision_rounding=line.move_id.currency_id.rounding)
 
             line_temp["noGravado"] = 0.0
 
             # Precio unitario final a reportar (tu campo personalizado)
-            line_temp["precioUni"] = round(getattr(line, 'precio_unitario', line.price_unit), 2)
+            line_temp["precioUni"] = float_round(getattr(line, 'precio_unitario', line.price_unit), precision_rounding=line.move_id.currency_id.rounding)
 
             # Recalcular venta gravada con descuentos
             ventaGravada = line.quantity * (getattr(line, 'precio_unitario', line.price_unit) - (
                         getattr(line, 'precio_unitario', line.price_unit) * (line.discount / 100.0)))
             total_Gravada += ventaGravada
-            line_temp["ventaGravada"] = round(ventaGravada, 2)
+            line_temp["ventaGravada"] = float_round(ventaGravada, precision_rounding=line.move_id.currency_id.rounding)
 
-            totalIva += round(
-                vat_taxes_amount - ((((line.price_unit * line.quantity) * (line.discount / 100.0)) / 1.13) * 0.13), 2)
+            totalIva += float_round(
+                vat_taxes_amount - ( ((line.price_unit * line.quantity) * (line.discount / 100.0)) * 0.13), precision_rounding=line.move_id.currency_id.rounding)
 
             lines.append(line_temp)
             # 🔧 Aquí el método correcto es con sufijo _fex
@@ -330,19 +306,19 @@ class AccountMove(models.Model):
 
         _logger.info("SIT sit_base_map_invoice_info_resumen self FEX= %s", self)
         invoice_info = {}
-        invoice_info["totalGravada"] = round(getattr(self, 'total_gravado', 0.0), 2)
+        invoice_info["totalGravada"] = float_round(getattr(self, 'total_gravado', 0.0), precision_rounding=self.currency_id.rounding)
         invoice_info["totalNoGravado"] = 0
-        invoice_info["descuento"] = round(getattr(self, 'descuento_gravado', 0.0), 2)
-        invoice_info["porcentajeDescuento"] = round(getattr(self, 'descuento_global', 0.0), 2)
-        invoice_info["totalDescu"] = round(getattr(self, 'total_descuento', 0.0), 2)
-        invoice_info["montoTotalOperacion"] = round(getattr(self, 'total_operacion', 0.0), 2)
-        invoice_info["totalPagar"] = round(getattr(self, 'total_pagar', 0.0), 2)
+        invoice_info["descuento"] = float_round(getattr(self, 'descuento_gravado', 0.0), precision_rounding=self.currency_id.rounding)
+        invoice_info["porcentajeDescuento"] = float_round(getattr(self, 'descuento_global', 0.0), precision_rounding=self.currency_id.rounding)
+        invoice_info["totalDescu"] = float_round(getattr(self, 'total_descuento', 0.0), precision_rounding=self.currency_id.rounding)
+        invoice_info["montoTotalOperacion"] = float_round(getattr(self, 'total_operacion', 0.0), precision_rounding=self.currency_id.rounding)
+        invoice_info["totalPagar"] = float_round(getattr(self, 'total_pagar', 0.0), precision_rounding=self.currency_id.rounding)
         invoice_info["totalLetras"] = self.amount_text
         invoice_info["condicionOperacion"] = int(self.condiciones_pago)
 
         pagos = {
             "codigo": getattr(self.forma_pago, 'codigo', None),
-            "montoPago": round(getattr(self, 'total_pagar', 0.0), 2),
+            "montoPago": float_round(getattr(self, 'total_pagar', 0.0), precision_rounding=self.currency_id.rounding),
             "referencia": getattr(self, 'sit_referencia', None),
         }
         invoice_info["codIncoterms"] = getattr(self.invoice_incoterm_id, 'codigo_mh', None)
@@ -367,5 +343,4 @@ class AccountMove(models.Model):
         if not self.env.company.sit_facturacion:
             _logger.info("FE OFF: omitiendo sit_generar_uuid")
             return None
-        import uuid
         return str(uuid.uuid4()).upper()

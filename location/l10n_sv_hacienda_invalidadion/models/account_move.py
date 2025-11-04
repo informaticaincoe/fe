@@ -13,7 +13,6 @@ import os
 from PIL import Image
 import io
 
-
 base64.encodestring = base64.encodebytes
 import json
 import requests
@@ -27,10 +26,6 @@ import pytz
 from pytz import timezone, UTC
 
 _logger = logging.getLogger(__name__)
-
-#EXTRA_ADDONS = r'C:\Users\Administrador\Documents\fe\location\mnt\src'
-#EXTRA_ADDONS = r'C:\Users\INCOE\Documents\GitHub\fe\location\mnt\extra-addons\src'
-
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 EXTRA_ADDONS = os.path.join(PROJECT_ROOT, "mnt", "extra-addons", "src")
 
@@ -46,10 +41,7 @@ except ImportError as e:
 class AccountMove(models.Model):
     _inherit = "account.move"
 
-
     state = fields.Selection(selection_add=[('annulment', 'Anulado')],ondelete={'annulment': 'cascade'})
-
-
 
     hacienda_estado_anulacion = fields.Char(
         copy=False,
@@ -105,7 +97,6 @@ class AccountMove(models.Model):
         readonly=True,
          )
 
-
     # CAMPOS INVALIDACION 
     sit_invalidar = fields.Boolean('Invalidar ?',  copy=False,   default=False)
     sit_codigoGeneracion_invalidacion = fields.Char(string="codigoGeneracion" , copy=False, store=True)
@@ -125,7 +116,6 @@ class AccountMove(models.Model):
     sit_numDocResponsable = fields.Char(related="sit_nombreResponsable.vat", string="Número de documento de identificación" , copy=False, )
     # sit_tipo_contingencia_valores = fields.Char(related="sit_tipo_contingencia.valores", string="Tipo de contingiancia(nombre)")
 
-    
     sit_nombreSolicita = fields.Many2one('res.partner', string="Nombre de la persona que solicita invalidar el DTE", copy=False)
     # sit_nombreSolicita = fields.Char(string="Nombre de la persona que solicita invalidar el DTE" , copy=False, )
     sit_tipDocSolicita = fields.Char(string="Tipo documento de identificación solicitante" , copy=False, default="13")
@@ -146,8 +136,6 @@ class AccountMove(models.Model):
 #---------------------------------------------------------------------------------------------
 # ANULAR FACTURA
 #---------------------------------------------------------------------------------------------
-
-    
     def action_button_anulacion(self):
         _logger.info("SIT [INICIO] action_button_anulacion para facturas: %s, clase de documento: %s", self.ids, self.clase_documento_id)
 
@@ -181,9 +169,8 @@ class AccountMove(models.Model):
             _logger.info("SIT Tipo invalidacion: %s, tipo de documento: %s, cod generacion: %s, codGeneracion reemplazo: %s",
                          self.sit_tipoAnulacion, self.journal_id.sit_tipo_documento.codigo, self.hacienda_codigoGeneracion_identificacion, self.sit_factura_a_reemplazar.hacienda_codigoGeneracion_identificacion)
             if (self.journal_id.sit_tipo_documento and self.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_NC
-                    and self.sit_tipoAnulacion in ('1', '3') and self.hacienda_codigoGeneracion_identificacion == self.sit_factura_a_reemplazar.hacienda_codigoGeneracion_identificacion):
-                raise UserError(
-                    _("Para invalidar este documento, es necesario generar un documento de reemplazo que cuente con el sello de recepción correspondiente."))
+                    and self.sit_tipoAnulacion in (constants.INV_ERROR_INFO_DTE, constants.INV_OTRO) and self.hacienda_codigoGeneracion_identificacion == self.sit_factura_a_reemplazar.hacienda_codigoGeneracion_identificacion):
+                raise UserError(_("Para invalidar este documento, es necesario generar un documento de reemplazo que cuente con el sello de recepción correspondiente."))
 
             if self.sit_evento_invalidacion and self.sit_evento_invalidacion.hacienda_selloRecibido_anulacion and self.sit_evento_invalidacion.invalidacion_recibida_mh:
                 raise UserError("Este DTE ya ha sido invalidado por Hacienda. No es posible repetir la anulación.")
@@ -222,7 +209,7 @@ class AccountMove(models.Model):
                     'sit_factura_a_reemplazar': invoice.id,  # Factura que estamos anulando
                     'sit_fec_hor_Anula': utc_dt,  # Fecha de anulación
                     'sit_codigoGeneracionR': invoice.sit_codigoGeneracionR,
-                    'sit_tipoAnulacion': invoice.sit_tipoAnulacion or '1' if not es_compra else None,  # Tipo de anulación
+                    'sit_tipoAnulacion': invoice.sit_tipoAnulacion or constants.INV_ERROR_INFO_DTE if not es_compra else None,  # Tipo de anulación
                     'sit_motivoAnulacion': invoice.sit_motivoAnulacion or 'Error en la información' if not es_compra else 'Se registro la compra como anulada',
                     'company_id': invoice.company_id.id,
                 }
@@ -237,7 +224,6 @@ class AccountMove(models.Model):
                     existing.write(invalidation)
                     invalidation = existing
                 else:
-                    # invalidation.update({'sit_factura_a_reemplazar': invoice.id})
                     invalidation = self.env['account.move.invalidation'].create(invalidation)
                     _logger.info("SIT Registro de invalidación creado con ID: %s", invalidation.id)
                     self.env.cr.commit()
@@ -330,27 +316,22 @@ class AccountMove(models.Model):
 
             validation_type = self.env["res.company"]._get_environment_type()
             _logger.info("SIT _compute_validation_type_2 =%s ", validation_type)
-                    # if validation_type == "homologation":
-                    # try:
-                        # rec.company_id.get_key_and_certificate(validation_type)
-                    # except Exception:
-                        # validation_type = False
         return validation_type
 
     def _autenticar(self, user, pwd):
         _logger.info("SIT self = %s", self)
 
-        # 1 Validar si la empresa tiene activa la facturación electrónica
-        if not (self.company_id and self.company_id.sit_facturacion):
-            _logger.info("SIT No aplica facturación electrónica. Se omite autenticación.")
-            return False
-
-        # 2 Validar si es una compra normal (sin sujeto excluido)
+        # 1 Validar si es una compra normal (sin sujeto excluido)
         if self.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
             tipo_doc = self.journal_id.sit_tipo_documento
             if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE:
                 _logger.info("SIT: Documento de compra normal (sin sujeto excluido). Se omite autenticación para DTE.")
                 return False
+
+        # 2 Validar si la empresa tiene activa la facturación electrónica
+        if not (self.company_id and self.company_id.sit_facturacion):
+            _logger.info("SIT No aplica facturación electrónica. Se omite autenticación.")
+            return False
 
         _logger.info("SIT self = %s, %s", user, pwd)
 
@@ -360,11 +341,10 @@ class AccountMove(models.Model):
 
         url = None
         # 4 Determinar URL según el entorno
-        if enviroment_type == 'homologation':
+        if enviroment_type == constants.HOMOLOGATION:
             url = config_utils.get_config_value(self.env, 'autenticar_test', self.company_id.id) if config_utils else 'https://apitest.dtes.mh.gob.sv/seguridad/auth'
         else:
             url = config_utils.get_config_value(self.env, 'autenticar_prod', self.company_id.id) if config_utils else 'https://api.dtes.mh.gob.sv/seguridad/auth'
-        # url = host + '/seguridad/auth'
 
         # 5 Validar parámetros de Hacienda
         self.check_hacienda_values()
@@ -389,7 +369,6 @@ class AccountMove(models.Model):
                 raise UserError(_(error))
 
         # 7 Parsear respuesta JSON
-        resultado = []
         json_response = response.json()
         _logger.info("SIT Autenticación exitosa. Respuesta JSON: %s", json_response)
         return json_response
@@ -397,29 +376,23 @@ class AccountMove(models.Model):
     def _generar_qr(self, ambiente, codGen, fechaEmi):
         _logger.info("SIT generando qr___ = %s", self)
 
-        # 1 Validar si aplica facturación electrónica
-        if not (self.company_id and self.company_id.sit_facturacion):
-            _logger.info("SIT No aplica facturación electrónica. Se omite generación de QR(_generar_qr) en evento de invalidacion.")
-            return False
-
-        # 2 Validar si es una compra normal (sin sujeto excluido)
+        # 1 Validar si es una compra normal (sin sujeto excluido)
         if self.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
             tipo_doc = self.journal_id.sit_tipo_documento
             if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE:
                 _logger.info("SIT: Documento de compra normal (sin sujeto excluido). Se omite generación de QR.")
                 return False
 
+        # 2 Validar si aplica facturación electrónica
+        if not (self.company_id and self.company_id.sit_facturacion):
+            _logger.info("SIT No aplica facturación electrónica. Se omite generación de QR(_generar_qr) en evento de invalidacion.")
+            return False
+
         # 3 Obtener URL de consulta según el entorno
-        # enviroment_type = self._get_environment_type()
-        # enviroment_type = self.env["res.company"]._get_environment_type()
         company = self.company_id
         if not company:
             raise UserError(_("No se encontró la compañía asociada a la factura a reemplazar."))
         enviroment_type = company._get_environment_type()
-        # if enviroment_type == 'homologation':
-        #     host = 'https://admin.factura.gob.sv'
-        # else:
-        #     host = 'https://admin.factura.gob.sv'
         host = config_utils.get_config_value(self.env, 'consulta_dte', self.company_id.id) if config_utils else 'https://admin.factura.gob.sv'
 
         # 4 Construir URL del QR
@@ -436,7 +409,6 @@ class AccountMove(models.Model):
             border=4,  # Ancho del borde del código QR
         )
         codigo_qr.add_data(texto_codigo_qr)
-        import os
 
         if os.name == 'nt':  # Windows
             os.chdir(EXTRA_ADDONS)
@@ -460,17 +432,17 @@ class AccountMove(models.Model):
     def generar_qr(self):
         _logger.info("SIT generando QR para move_id=%s", self.id)
 
-        # 1 Validar si aplica facturación electrónica
-        if not (self.company_id and self.company_id.sit_facturacion):
-            _logger.info("SIT No aplica facturación electrónica. Se omite generación de QR(generar_qr) en evento de invalidacion.")
-            return False
-
-        # 2 Validar si es una compra normal (sin sujeto excluido)
+        # 1 Validar si es una compra normal (sin sujeto excluido)
         if self.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
             tipo_doc = self.journal_id.sit_tipo_documento
             if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE:
                 _logger.info("SIT: Documento de compra normal (sin sujeto excluido). Se omite generación de QR.")
                 return False
+
+        # 2 Validar si aplica facturación electrónica
+        if not (self.company_id and self.company_id.sit_facturacion):
+            _logger.info("SIT No aplica facturación electrónica. Se omite generación de QR(generar_qr) en evento de invalidacion.")
+            return False
 
         # 3 Obtener entorno y URL
         company = self.company_id
@@ -478,10 +450,11 @@ class AccountMove(models.Model):
             raise UserError(_("No se encontró la compañía asociada a la factura a reemplazar."))
 
         enviroment_type = company._get_environment_type()
-        if enviroment_type == 'homologation':
-            ambiente = "00"
+        ambiente = None
+        if enviroment_type == constants.HOMOLOGATION:
+            ambiente = constants.AMBIENTE_TEST
         else:
-            ambiente = "01"
+            ambiente = constants.PROD_AMBIENTE
 
         host = config_utils.get_config_value(self.env, 'consulta_dte', self.company_id.id) if config_utils else 'https://admin.factura.gob.sv'
         texto_codigo_qr = host + "/consultaPublica?ambiente=" + str(ambiente) + "&codGen=" + str(self.hacienda_codigoGeneracion_identificacion) + "&fechaEmi=" + str(self.fecha_facturacion_hacienda)
@@ -495,7 +468,6 @@ class AccountMove(models.Model):
             border=1,  # Ancho del borde del código QR
         )
         codigo_qr.add_data(texto_codigo_qr)
-        import os
 
         if os.name == 'nt':  # Windows
             os.chdir(EXTRA_ADDONS)
@@ -541,18 +513,15 @@ class AccountMove(models.Model):
             try:
                 # --- Determinar si es venta o compra ---
                 if move.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND):
-                    doc_type = 'venta'
                     picking_code_target = constants.TYPE_SALIDA  # buscamos entregas
                     picking_code_return = constants.TYPE_RECEPCION  # devolvemos como entrada
                     origin_model = 'sale.order'
                 elif move.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
-                    doc_type = 'compra'
                     picking_code_target = constants.TYPE_RECEPCION  # buscamos recepciones('incoming')
                     picking_code_return = constants.TYPE_SALIDA  # devolvemos como salida('outgoing')
                     origin_model = 'purchase.order'
                 else:
-                    _logger.info(
-                        "SIT | %s no es ni venta ni compra, se omite devolución automática.", move.name)
+                    _logger.info("SIT | %s no es ni venta ni compra, se omite devolución automática.", move.name)
                     continue
 
                 # --- Buscar documento de origen (venta o compra) ---
@@ -577,8 +546,7 @@ class AccountMove(models.Model):
                 for picking in pickings:
                     try:
                         if not picking or not picking.exists():
-                            _logger.warning(
-                                "SIT | picking vacío o inexistente antes de crear wizard para %s", move.name)
+                            _logger.warning("SIT | picking vacío o inexistente antes de crear wizard para %s", move.name)
                             continue
 
                         # Verificar si ya existe una devolución
@@ -588,13 +556,12 @@ class AccountMove(models.Model):
                             ('state', '!=', 'cancel')
                         ])
                         if existing_returns:
-                            _logger.info(
-                                "SIT | El picking %s ya tiene devolución previa, se omite.", picking.name)
+                            _logger.info("SIT | El picking %s ya tiene devolución previa, se omite.", picking.name)
                             continue
 
                         _logger.info(
                             "SIT | Generando devolución automática (%s) para picking_id=%s [%s]",
-                            doc_type, picking.id, picking.name)
+                            move.move_type, picking.id, picking.name)
 
                         # Crear wizard de devolución (con picking_id explícito)
                         return_wizard = StockReturnPicking.with_context(
@@ -606,8 +573,7 @@ class AccountMove(models.Model):
 
                         # --- Forzar cantidades mayores a cero en todas las líneas ---
                         if not return_wizard.product_return_moves:
-                            _logger.warning(
-                                "SIT | Wizard de devolución vacío para picking %s, se omite.", picking.name)
+                            _logger.warning("SIT | Wizard de devolución vacío para picking %s, se omite.", picking.name)
                             continue
 
                         for return_line in return_wizard.product_return_moves:
@@ -617,8 +583,7 @@ class AccountMove(models.Model):
                         # Crear devolución real
                         new_picking = return_wizard._create_return()
                         if not new_picking or not new_picking.exists():
-                            _logger.warning(
-                                "SIT | No se generó picking de devolución para %s", picking.name)
+                            _logger.warning("SIT | No se generó picking de devolución para %s", picking.name)
                             continue
 
                         # Confirmar y validar devolución (Odoo 18)
@@ -628,7 +593,7 @@ class AccountMove(models.Model):
 
                         _logger.info(
                             "SIT | Devolución completada correctamente: %s (para %s, tipo=%s)",
-                            new_picking.name, picking.name, doc_type)
+                            new_picking.name, picking.name, move.move_type)
 
                     except Exception as e_picking:
                         _logger.exception(
@@ -637,9 +602,7 @@ class AccountMove(models.Model):
                         continue
 
             except Exception as e:
-                _logger.exception(
-                    "SIT | Error al generar devoluciones de stock para %s: %s", move.name, str(e))
-
+                _logger.exception("SIT | Error al generar devoluciones de stock para %s: %s", move.name, str(e))
 
     def _anular_movimientos_contables(self):
         """
@@ -653,10 +616,7 @@ class AccountMove(models.Model):
             _logger.info("SIT | Iniciando anulación contable para move_id=%s (%s)", move.id, move.name)
 
             if move.state != "posted":
-                _logger.info(
-                    "SIT | El documento %s no está en estado 'posted', se omite anulación contable.",
-                    move.name
-                )
+                _logger.info("SIT | El documento %s no está en estado 'posted', se omite anulación contable.", move.name)
                 continue
 
             try:
@@ -680,7 +640,6 @@ class AccountMove(models.Model):
                     move.button_draft()
                     move.button_cancel()
                     _logger.info("SIT | Asiento contable principal cancelado correctamente para %s", move.name)
-
                 _logger.info("SIT | Anulación contable completada correctamente para %s", move.name)
 
             except Exception as e:

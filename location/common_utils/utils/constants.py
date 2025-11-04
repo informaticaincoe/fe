@@ -9,14 +9,22 @@ COD_DTE_ND = "06"
 COD_DTE_FEX = "11"
 COD_DTE_FSE = "14"
 COD_TIPO_DOCU_DUI = "13"
+COD_TIPO_DOCU_NIT = "36"
 COD_TIPO_ITEM = "4"
 COD_TIPO_DOC_GENERACION_DTE = 2
 TIPO_VENTA_PROD_GRAV = "gravado"
 TIPO_VENTA_PROD_EXENTO = "exento"
 TIPO_VENTA_PROD_NO_SUJETO = "no_sujeto"
+UNI_MEDIDA_OTRA = 99
 AMBIENTE_TEST = "00"
+PROD_AMBIENTE = "01"
 AMBIENTE_PROD = "production"
 HOMOLOGATION = "homologation"
+MODELO_PREVIO = 1
+MODELO_DIFERIDO = 2
+PAGO_CONTADO = 1
+PAGO_CREDITO = 2
+PAGO_OTRO = 3
 
 #Modulo de retenciones
 DEDUCCION_EMPLEADO = "empleado"
@@ -152,3 +160,19 @@ config_retencion_iva = "retencion_iva"
 config_iva_rete = "retencion_iva_venta"
 config_retencion_venta = "retencion_venta"
 config_iva_percibido_venta = "iva_percibido_venta"
+
+# Tipos de item en ventas
+ITEM_BIEN = 1
+ITEM_SERVICIO = 2
+
+ITEM_EXP_BIEN = 1
+ITEM_EXP_SERVICIOS = 2
+ITEM_EXP_BIEN_SERVICIO = 3
+
+PERSONA_JURIDICA = "company"
+PERSONA_NATURAL = "person"
+
+# Invalidacion
+INV_ERROR_INFO_DTE = "1"
+INV_RESCINDIR = "2"
+INV_OTRO = "3"
