@@ -11,24 +11,16 @@ from xml.dom import minidom
 import logging
 from lxml import etree
 import base64
-from OpenSSL import crypto
-
 
 _logger = logging.getLogger(__name__)
 
 sit_now = datetime.datetime.now()
 sit_now = str(sit_now)
 
-
 try:
     from OpenSSL import crypto
 except ImportError:
     crypto = None
-import base64
-import logging
-
-_logger = logging.getLogger(__name__)
-
 
 class HaciendaCertificate(models.Model):
 

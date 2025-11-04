@@ -437,8 +437,12 @@ class AccountMove(models.Model):
             # Usa el mapeo persistente sv.move.tax.account.override que ya agregamos.
             if not self.env.context.get('sv_skip_tax_override') and move._sv_requires_tax_override():
                 taxes = move._sv_get_move_taxes()
+                _logger.info("SIT | Taxes obtenidos para override: %s", taxes.mapped('name'))
+
                 # ¿Qué impuestos aún no tienen mapeo de cuenta alternativa en ESTA factura?
                 missing = taxes.filtered(lambda t: not move.sv_override_ids.filtered(lambda r: r.tax_id == t))
+                _logger.info("SIT | Impuestos sin cuenta alternativa asignada: %s", ', '.join(missing.mapped('name')))
+
                 if missing:
                     _logger.info("SIT | Falta asignar cuentas alternativas para impuestos: %s",
                                  ', '.join(missing.mapped('name')))
@@ -451,8 +455,7 @@ class AccountMove(models.Model):
                         active_ids=[move.id],
                         default_move_id=move.id,
                     )
-                    return action   
-                
+                    return action
             # Generar las líneas de percepción/retención/renta antes de postear
             move.generar_asientos_retencion_compras()
 

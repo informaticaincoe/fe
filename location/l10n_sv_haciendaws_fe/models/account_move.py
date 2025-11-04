@@ -105,7 +105,7 @@ class AccountMove(models.Model):
     )
     hacienda_clasificaMsg = fields.Char(
         copy=False,
-        string="Cladificación",
+        string="Clasificación",
         readonly=True,
         states={"draft": [("readonly", False)]},
     )

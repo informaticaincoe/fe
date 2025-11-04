@@ -14,10 +14,12 @@ from odoo.tools import float_round
 
 try:
     from odoo.addons.common_utils.utils import constants
+    from odoo.addons.common_utils.utils import config_utils
     _logger.info("SIT Modulo constants [invoice_sv-account_move]")
 except ImportError as e:
     _logger.error(f"Error al importar 'constants': {e}")
     constants = None
+    config_utils = None
 
 class AccountMove(models.Model):
     _inherit = 'account.move'
@@ -194,7 +196,7 @@ class AccountMove(models.Model):
         for move in self:
             move.total_pagar_text = to_word(move.total_pagar)
 
-    @api.depends('apply_retencion_renta', 'apply_retencion_iva', 'amount_total')
+    @api.depends('apply_retencion_renta', 'apply_retencion_iva', 'apply_iva_percibido', 'amount_total')
     def _compute_retencion(self):
         for move in self:
             """Reinicia los montos de retención e IVA percibido a cero."""
@@ -224,27 +226,44 @@ class AccountMove(models.Model):
             _logger.info("base total %s", base_total)
             _logger.info(" move.retencion_renta_amount %s",  move.retencion_renta_amount)
 
+            # Retencion 1%
+            retencion = config_utils.get_config_value(self.env, constants.config_retencion_venta, move.company_id.id)
+            try:
+                retencion = float(retencion) / 100.0
+            except (TypeError, ValueError):
+                retencion = 0.0
+
+            # Retencion IVA
+            iva_retencion = config_utils.get_config_value(self.env, constants.config_iva_rete, move.company_id.id)
+            try:
+                iva_retencion = float(iva_retencion) / 100.0
+            except (TypeError, ValueError):
+                iva_retencion = 0.0
+
+            # IVA Percibido
+            iva_percibido = config_utils.get_config_value(self.env, constants.config_iva_percibido_venta, move.company_id.id)
+            try:
+                iva_percibido = float(iva_percibido) / 100.0
+            except (TypeError, ValueError):
+                iva_percibido = 0.0
+            _logger.info("SIT Retencion= %s, Retencion IVA= %s, IVA Percibido= %s", retencion, iva_retencion, iva_percibido)
+
             if move.apply_retencion_iva:
                 tipo_doc = move.journal_id.sit_tipo_documento.codigo
                 # if tipo_doc in ["01", "03"]:  # FCF y CCF
                 #     move.retencion_iva_amount = round(((move.sub_total_ventas / 1.13) - move.descuento_global) * 0.01, 2) #En FCF y CCF la retencion es del %
                 # else:
                 #     move.retencion_iva_amount = round(base_total * 0.13, 2)  # 13% general
-
-                if tipo_doc in ["14"]:  # FCF y CCF
+                if tipo_doc in [constants.COD_DTE_FSE]:  # FCF y CCF
                     # move.retencion_iva_amount = round(base_total * 0.13, 2)  # 13% general
-                    move.retencion_iva_amount = float_round(base_total * 0.13, precision_rounding=move.currency_id.rounding)
+                    move.retencion_iva_amount = float_round(base_total * iva_retencion, precision_rounding=move.currency_id.rounding)
                 else:
                     # move.retencion_iva_amount = round(((move.sub_total_ventas / 1.13) - move.descuento_global) * 0.01,2)  # En FCF y CCF la retencion es del %
-                    move.retencion_iva_amount = float_round(((move.sub_total_ventas / 1.13) - move.descuento_global) * 0.01, precision_rounding=move.currency_id.rounding)
+                    move.retencion_iva_amount = float_round(((move.sub_total_ventas / 1.13) - move.descuento_global) * retencion, precision_rounding=move.currency_id.rounding)
             if move.apply_iva_percibido:
                 tipo_doc = move.journal_id.sit_tipo_documento.codigo
                 # move.iva_percibido_amount = ((move.sub_total_ventas / 1.13) - move.descuento_global) * 0.01
-                move.iva_percibido_amount = float_round(((move.sub_total_ventas / 1.13) - move.descuento_global) * 0.01, precision_rounding=move.currency_id.rounding)
-
-    # def _post(self, soft=True):
-    #     self._create_retencion_renta_line()
-    #     return super()._post(soft=soft)
+                move.iva_percibido_amount = float_round(((move.sub_total_ventas / 1.13) - move.descuento_global) * iva_percibido, precision_rounding=move.currency_id.rounding)
 
     @api.depends('amount_total')
     def _amount_to_text(self):
@@ -303,66 +322,6 @@ class AccountMove(models.Model):
     def msg_error(self, campo):
         raise ValidationError("No puede emitir un documento si falta un campo Legal " \
                               "Verifique %s" % campo)
-
-    # def _post(self, soft=True):
-    #     '''validamos que partner cumple los requisitos basados en el tipo
-    #     de documento de la sequencia del diario selecionado'''
-    #     for invoice in self:
-    #         _logger.info("PRUEBA EN _POST accounT MOVE -------------- %s", invoice.move_type)
-    #         if invoice.move_type != 'entry':
-    #
-    #             type_report = invoice.journal_id.type_report
-    #             _logger.info("Tipo dte=%s", type_report)
-    #
-    #             _logger.info("invoice.company_id.sit_facturacion:=%s", invoice.company_id.sit_facturacion)
-    #             if invoice.company_id.sit_facturacion:
-    #                 if type_report == 'fcf':
-    #                     if not invoice.partner_id.parent_id:
-    #                         if not invoice.partner_id.vat:
-    #                             # invoice.msg_error("N.I.T.")
-    #                             pass
-    #                         if invoice.partner_id.company_type == 'person':
-    #                             if not invoice.partner_id.dui:
-    #                                 # invoice.msg_error("D.U.I.")
-    #                                 pass
-    #                     else:
-    #                         if not invoice.partner_id.parent_id.vat:
-    #                             # invoice.msg_error("N.I.T.")
-    #                             pass
-    #                         if invoice.partner_id.parent_id.company_type == 'person':
-    #                             if not invoice.partner_id.dui:
-    #                                 # invoice.msg_error("D.U.I.")
-    #                                 pass
-    #
-    #                 if type_report == 'exp':
-    #                     for l in invoice.invoice_line_ids:
-    #                         if l and l.product_id and not l.product_id.arancel_id:
-    #                             _logger.info("Producto: =%s", l)
-    #                             invoice.msg_error("Posicion Arancelaria del Producto %s" % l.product_id.name)
-    #
-    #                 # si es retificativa
-    #                 if type_report == 'ndc':
-    #                     if not invoice.partner_id.parent_id:
-    #                         if not invoice.partner_id.nrc:
-    #                             invoice.msg_error("N.R.C.")
-    #                         if not invoice.partner_id.vat:
-    #                             invoice.msg_error("N.I.T.")
-    #                         if not invoice.partner_id.codActividad:
-    #                             invoice.msg_error("Actividad Economica")
-    #                     else:
-    #                         if not invoice.partner_id.parent_id.nrc:
-    #                             invoice.msg_error("N.R.C.")
-    #                         if not invoice.partner_id.parent_id.vat:
-    #                             invoice.msg_error("N.I.T.")
-    #                         if not invoice.partner_id.parent_id.codActividad:
-    #                             invoice.msg_error("Actividad Economica")
-    #             else:
-    #                 #Flujo de facturas preimpresas
-    #                 if not invoice.name or invoice.name == '/':
-    #                     raise UserError("Debe asignar el número de la factura preimpresa.")
-    #
-    #
-    #     return super(AccountMove, self)._post()
 
     # ---------------------------------------------------------------------------------------------------------
     #No se esta utilizando
@@ -688,37 +647,16 @@ class AccountMove(models.Model):
         """
         return (
             'account.email_template_edi_credit_note'
-            if all(move.move_type == 'out_refund' for move in self)
+            if all(move.move_type == constants.OUT_REFUND for move in self)
             else 'l10n_invoice_sv.sit_email_template_edi_invoice'
             # else 'account.sit_email_template_edi_invoice'
         )
-
-    # -------Inicio Descuentos globales
-    # @api.depends('invoice_line_ids.precio_gravado', 'invoice_line_ids.precio_exento', 'invoice_line_ids.precio_no_sujeto')
-    # def _compute_totales_tipo_venta(self):
-    #     for move in self:
-    #         total_gravado = total_exento = total_no_sujeto = 0.0
-    #         for line in move.invoice_line_ids:
-    #             _logger.info("SIT Precio exento: %s, gravado: %s, no sujeto: %s", line.precio_exento, line.precio_gravado, line.precio_no_sujeto)
-    #
-    #             total_gravado += line.precio_gravado
-    #             total_exento += line.precio_exento
-    #             total_no_sujeto += line.precio_no_sujeto
-    #
-    #         move.total_gravado = total_gravado
-    #         move.total_exento = total_exento
-    #         move.total_no_sujeto = total_no_sujeto
 
     @api.depends('invoice_line_ids.price_unit', 'invoice_line_ids.quantity', 'invoice_line_ids.discount',
                  'invoice_line_ids.product_id.tipo_venta')
     def _compute_totales_sv(self):
         for move in self:
             move._calcular_totales_sv()
-
-    # @api.onchange('invoice_line_ids')
-    # def _onchange_invoice_line_ids(self):
-    #     for move in self:
-    #         move._calcular_totales_sv()
 
     def _calcular_totales_sv(self):
         for move in self:
@@ -753,11 +691,11 @@ class AccountMove(models.Model):
                     no_sujeto += float_round(line.precio_no_sujeto, precision_rounding=move.currency_id.rounding)  # round(line.precio_no_sujeto, 2)
 
                 # Total de la compra
-                if move.journal_id.sit_tipo_documento.codigo in ["14"]:
+                if move.journal_id.sit_tipo_documento.codigo in [constants.COD_DTE_FSE]:
                     compra += float_round(line.quantity * (line.price_unit - (line.price_unit * (line.discount / 100))), precision_rounding=move.currency_id.rounding)  # compra += round(line.quantity * (line.price_unit - (line.price_unit * (line.discount / 100))), 2)
 
             # Totales finales
-            if move.journal_id.sit_tipo_documento.codigo in ["14"]:
+            if move.journal_id.sit_tipo_documento.codigo in [constants.COD_DTE_FSE]:
                 move.total_gravado = float_round(compra, precision_rounding=move.currency_id.rounding)  # move.total_gravado = round(compra, 2)
             else:
                 move.total_gravado = max(gravado, 0.0)
@@ -1038,7 +976,7 @@ class AccountMove(models.Model):
                 lineas_a_borrar.unlink()
 
             # Detectar si es nota de crédito
-            es_nota_credito_o_sujeto_excluido = move.codigo_tipo_documento in ('05', '14')
+            es_nota_credito_o_sujeto_excluido = move.codigo_tipo_documento in (constants.COD_DTE_NC, constants.COD_DTE_FSE)
 
             # Retención de Renta
             if move.apply_retencion_renta and move.retencion_renta_amount > 0:
@@ -1074,8 +1012,8 @@ class AccountMove(models.Model):
                 monto = float_round(move.iva_percibido_amount,
                                     precision_rounding=move.currency_id.rounding)  # move.iva_percibido_amount  # Usa directamente el valor redondeado previamente
 
-                es_nota_credito = move.move_type == 'out_refund'
-                es_factura_venta = move.move_type == 'out_invoice'
+                es_nota_credito = move.move_type == constants.OUT_REFUND
+                es_factura_venta = move.move_type == constants.OUT_INVOICE
 
                 lineas.append((0, 0, {
                     'account_id': cuenta_iva.id,
