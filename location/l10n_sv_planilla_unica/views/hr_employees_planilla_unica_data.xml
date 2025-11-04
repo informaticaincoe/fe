@@ -1,0 +1,21 @@
+<odoo>
+    <data>
+        <record id="view_hr_employees_custom_data" model="ir.ui.view">
+            <field name="name">hr.employee.custom.data</field>
+            <field name="model">hr.employee</field>
+            <field name="inherit_id" ref="hr.view_employee_form"/>
+            <field name="arch" type="xml">
+                <xpath expr="//sheet/notebook" position="inside">
+                    <page string="Planilla Unica">
+                        <group string="Información personal">
+                            <field name="primer_nombre"/>
+                            <field name="segundo_nombre"/>
+                            <field name="primer_apellido"/>
+                            <field name="segundo_apellido"/>
+                        </group>
+                    </page>
+                </xpath>
+            </field>
+        </record>
+    </data>
+</odoo>
