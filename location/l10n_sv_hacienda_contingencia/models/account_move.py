@@ -20,9 +20,10 @@ except ImportError as e:
 
 class sit_account_move(models.Model):
     _inherit = 'account.move'
-    sit_tipo_contingencia = fields.Many2one('account.move.tipo_contingencia.field', string="Tipo de Contingencia")
-    sit_tipo_contingencia_otro = fields.Text(string="Especifique el Otro Tipo de Contingencia")
-    sit_tipo_contingencia_valores = fields.Char(related="sit_tipo_contingencia.valores", string="Tipo de contingiancia(nombre)")
+    # sit_tipo_contingencia = fields.Many2one('account.move.tipo_contingencia.field', string="Tipo de Contingencia")
+    sit_tipo_contingencia = fields.Many2one(related='sit_factura_de_contingencia.sit_tipo_contingencia', string="Tipo de Contingencia")
+    sit_tipo_contingencia_otro = fields.Text(related='sit_factura_de_contingencia.sit_tipo_contingencia_otro', string="Especifique el Otro Tipo de Contingencia")
+    sit_tipo_contingencia_valores = fields.Char(related="sit_factura_de_contingencia.sit_tipo_contingencia_valores", string="Tipo de contingiancia(nombre)")
     sit_factura_de_contingencia = fields.Many2one('account.contingencia1', string="Referencia de contingencia", ondelete="set null")
     sit_es_configencia = fields.Boolean('Contingencia',  copy=False,)
     sit_factura_por_lote = fields.Boolean('Facturado por lote ?',  copy=False, default=False)
@@ -30,15 +31,15 @@ class sit_account_move(models.Model):
     sit_lote_contingencia = fields.Many2one('account.lote', string="Factura asignada en el lote", ondelete="set null")
     sit_bloque_contingencia = fields.Many2one('account.contingencia.bloque', string='Bloque de Factura')
 
-    @api.onchange('sit_es_configencia')
-    def check_sit_es_configencia(self):
-        _logger.info("SIT revisando  si es o no sit_es_configencia  <---------------------------------------------")
-        if self.sit_es_configencia:
-            _logger.info("SIT sit_es_configencia")
-            #self.sit_block_hacienda = True
-        else:
-            _logger.info("SIT NO sit_es_configencia")                
-            #self.sit_block_hacienda = False
+    # @api.onchange('sit_es_configencia')
+    # def check_sit_es_configencia(self):
+    #     _logger.info("SIT revisando  si es o no sit_es_configencia  <---------------------------------------------")
+    #     if self.sit_es_configencia:
+    #         _logger.info("SIT sit_es_configencia")
+    #         #self.sit_block_hacienda = True
+    #     else:
+    #         _logger.info("SIT NO sit_es_configencia")
+    #         #self.sit_block_hacienda = False
 
 # ---------------------------------------------------------------------------------------------
 # LOTES DE CONTINGENCIA

@@ -6,7 +6,7 @@ class Partner(models.Model):
 
     munic_id = fields.Many2one('res.municipality', string='Municipality',ondelete='restrict')
     
-    #@api.onchange('state_id')
+    # @api.onchange('state_id')
     # def _onchange_state_id(self):
     #     if not self.country_id:
     #         self.country_id = self.state_id.country_id.id
@@ -14,10 +14,10 @@ class Partner(models.Model):
     #         return {'domain': {'munic_id': [('dpto_id', '=', self.state_id.id)]}}
     #     else:
     #         return {'domain': {'munic_id': []}}
-    
+    #
     # @api.onchange('munic_id')
     # def _onchange_munic_id(self):
     #     if not self.state_id:
     #         self.state_id = self.munic_id.dpto_id.id
-    #
+
     

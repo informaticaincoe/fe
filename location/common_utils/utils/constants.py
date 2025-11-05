@@ -133,6 +133,8 @@ TYPE_COMPRA = "purchase"
 TYPE_ENTRY = "entry"
 OUT_RECEIPT = "out_receipt"
 IN_RECEIPT = "in_receipt"
+TYPE_SALIDA = "outgoing"
+TYPE_RECEPCION = "incoming"
 
 # Identificacion documentos electronicos
 DTE_COD = 4
@@ -140,3 +142,6 @@ DTE_COD = 4
 #Clave de porcentajes configurados desde compañía
 config_percepcion = "percepcion"
 config_retencion_iva = "retencion_iva"
+config_iva_rete = "retencion_iva_venta"
+config_retencion_venta = "retencion_venta"
+config_iva_percibido_venta = "iva_percibido_venta"

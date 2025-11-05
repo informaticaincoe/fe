@@ -14,16 +14,26 @@
                         />
                     </header>
                     <field name="invoice_date" string="Fecha de Emisión"/>
-                    <field name="clase_documento"/>
-                    <field name="codigo_tipo_documento"/>
-                    <field name="numero_documento"/>
+                    <field name="clase_documento_display"/>
+                    <field name="codigo_tipo_documento_display"/>
+                    <field name="numero_documento" string="Número documento"/>
                     <field name="nit_o_nrc_anexo_contribuyentes"/>
                     <field name="razon_social"/>
-
-
-                    <field name="codigo_tipo_documento"/>
-                    <field name="name" string="Número de documento"/>
-
+                    <field name="compras_internas_total_excento"/>
+                    <field name="internaciones_exentas_no_sujetas"/>
+                    <field name="importaciones_exentas_no_sujetas"/>
+                    <field name="compras_internas_gravadas"/>
+                    <field name="internaciones_gravadas_bienes"/>
+                    <field name="importaciones_gravadas_bienes"/>
+                    <field name="importaciones_gravadas_servicio"/>
+                    <field name="credito_fiscal"/>
+                    <field name="total_compra"/>
+                    <field name="dui_cliente" string="DUI del proveedor"/>
+                    <field name="tipo_operacion_display"/>
+                    <field name="clasificacion_facturacion_display"/>
+                    <field name="sector_display"/>
+                    <field name="tipo_costo_gasto_display"/>
+                    <field name="numero_anexo"/>
                 </list>
             </field>
         </record>

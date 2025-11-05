@@ -274,13 +274,6 @@ class AccountMove(models.Model):
                 except Exception as e:
                     _logger.exception("SIT | Error durante anulación contable para %s: %s", invoice.name, str(e))
 
-                # --- 1) Establecer estado cancel a la factura (registro DTE) ---
-                try:
-                    invoice.write({'state': 'cancel'})
-                    _logger.info("SIT | Estado de factura %s actualizado a 'cancel'", invoice.name)
-                except Exception as e_write:
-                    _logger.exception("SIT | Error actualizando state a 'cancel' para %s: %s", invoice.name, str(e_write))
-
                 # --- 2) Generar devolución automática de stock (si aplica) ---
                 try:
                     _logger.info("SIT | Intentando generar devolución automática de stock para %s", invoice.name)
@@ -288,6 +281,13 @@ class AccountMove(models.Model):
                     # invoice._anular_movimientos_contables()
                 except Exception as e:
                     _logger.exception("SIT | Error durante la devolución automática de stock: %s", str(e))
+
+                # --- 1) Establecer estado cancel a la factura (registro DTE) ---
+                try:
+                    invoice.write({'state': 'cancel'})
+                    _logger.info("SIT | Estado de factura %s actualizado a 'cancel'", invoice.name)
+                except Exception as e_write:
+                    _logger.exception("SIT | Error actualizando state a 'cancel' para %s: %s", invoice.name, str(e_write))
 
             # Notificaciones
             if not resultado.get('exito'):
@@ -540,15 +540,15 @@ class AccountMove(models.Model):
         for move in self:
             try:
                 # --- Determinar si es venta o compra ---
-                if move.move_type in ('out_invoice', 'out_refund'):
+                if move.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND):
                     doc_type = 'venta'
-                    picking_code_target = 'outgoing'  # buscamos entregas
-                    picking_code_return = 'incoming'  # devolvemos como entrada
+                    picking_code_target = constants.TYPE_SALIDA  # buscamos entregas
+                    picking_code_return = constants.TYPE_RECEPCION  # devolvemos como entrada
                     origin_model = 'sale.order'
-                elif move.move_type in ('in_invoice', 'in_refund'):
+                elif move.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
                     doc_type = 'compra'
-                    picking_code_target = 'incoming'  # buscamos recepciones
-                    picking_code_return = 'outgoing'  # devolvemos como salida
+                    picking_code_target = constants.TYPE_RECEPCION  # buscamos recepciones('incoming')
+                    picking_code_return = constants.TYPE_SALIDA  # devolvemos como salida('outgoing')
                     origin_model = 'purchase.order'
                 else:
                     _logger.info(
@@ -675,30 +675,7 @@ class AccountMove(models.Model):
                             reconcile_id.unlink()
                             move.message_post(body=f"Se deshizo la conciliación contable {reconcile_id.display_name}.")
 
-                # 2 Buscar pagos relacionados a la factura
-                # payments = self.env['account.payment'].search([
-                #     ('invoice_ids', 'in', move.id),
-                # ])
-
-                # if not payments:
-                #     _logger.info("SIT | No se encontraron pagos relacionados a %s.", move.name)
-                #     move.message_post(body="No se encontraron pagos relacionados que cancelar.")
-                # else:
-                #     for payment in payments:
-                #         _logger.info("SIT | Cancelando pago %s vinculado a %s", payment.name, move.name)
-                #         # Deshacer todas las conciliaciones del pago
-                #         for line in payment.move_id.line_ids.filtered(lambda l: l.reconciled):
-                #             if line.full_reconcile_id:
-                #                 line.full_reconcile_id.unlink()
-                #             elif line.partial_reconcile_id:
-                #                 line.partial_reconcile_id.unlink()
-                #         # Poner el pago en borrador y cancelar
-                #         if payment.state == 'posted':
-                #             payment.button_draft()
-                #             payment.action_cancel()
-                #             move.message_post(body=f"💰 Pago {payment.name} cancelado automáticamente.")
-
-                # 3 Cancelar el asiento contable principal (de la factura)
+                # 2 Cancelar el asiento contable principal (de la factura)
                 if move.state == 'posted':
                     move.button_draft()
                     move.button_cancel()

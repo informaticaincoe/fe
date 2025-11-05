@@ -1,6 +1,5 @@
 <odoo>
     <data>
-
         <!-- Vista tipo lista -->
         <record id="view_hr_retencion_afp_tree" model="ir.ui.view">
             <field name="name">hr.retencion.afp.tree</field>

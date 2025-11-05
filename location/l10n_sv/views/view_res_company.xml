@@ -8,10 +8,12 @@
             <field name="arch" type="xml">
                 <field name="vat" position="after">
                     <xpath expr="//field[@name='vat']" position="after">
-                        <field name="nrc" string="NRC"/>
-                        <field name="giro" invisible="1"/>
-                        <field name="sit_uuid" string="NIT"/>
-                        <field name="nombre_comercial" string="Nombre comercial"/>
+                        <group>
+                            <field name="nrc" string="NRC"/>
+                            <field name="giro" invisible="1" string="Giro"/>
+                            <field name="sit_uuid" string="UUID"/>
+                            <field name="nombre_comercial" string="Nombre comercial"/>
+                        </group>
                     </xpath>
                 </field>
                 <!-- <xpath expr="//sheet" position="before">

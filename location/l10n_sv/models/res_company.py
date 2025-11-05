@@ -43,9 +43,6 @@ class Company(models.Model):
 
         return self.account_fiscal_country_id.code == "SV" or super()._localization_use_documents()
 
-
-
-
     def generar_uuid(self):
         import uuid
         if not self.sit_uuid:

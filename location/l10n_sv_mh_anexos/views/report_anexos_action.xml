@@ -1,23 +1,5 @@
 <odoo>
-
     <data>
-<!--        <record id="view_anexo_tree" model="ir.ui.view">-->
-<!--            <field name="name">anexo.tree</field>-->
-<!--            <field name="model">report.account.move.consumidor.final.agrupado</field>-->
-<!--            <field name="inherit_id" ref="TU_MODULO.view_anexo_tree_original"/>-->
-<!--            <field name="arch" type="xml">-->
-<!--                <xpath expr="//tree" position="attributes">-->
-<!--                    <attribute name="create">false</attribute>-->
-<!--                    &lt;!&ndash; opcionales &ndash;&gt;-->
-<!--                    &lt;!&ndash; <attribute name="edit">false</attribute> &ndash;&gt;-->
-<!--                    &lt;!&ndash; <attribute name="delete">false</attribute> &ndash;&gt;-->
-<!--                    &lt;!&ndash; <attribute name="import">false</attribute> &ndash;&gt;-->
-<!--                </xpath>-->
-<!--            </field>-->
-<!--        </record>-->
-
-
-        <!--*************************************** ACTIONS ***************************************-->
         <!-- Acción Consumidor final agrupado por dia -->
         <record id="action_report_account_move_consumidor_final_agrupado" model="ir.actions.act_window">
             <field name="name">Anexo de Ventas a Consumidor Final</field>
@@ -43,24 +25,36 @@
                 ('codigo_tipo_documento','in', ['03', '05', '06']),
                 ('hacienda_estado', '=', 'PROCESADO'),
                 ('hacienda_selloRecibido', '!=', ''),
-                ('has_sello_anulacion', '=', '')]</field>
+                ('has_sello_anulacion', '=', ''),
+                ('move_type', '!=', 'in_invoice')]
+            </field>
             <field name="context">{'numero_anexo': 1, 'anexo_action_id':'ANX_CONTRIBUYENTE'}</field>
         </record>
 
         <!-- Acción Crompas -->
         <record id="action_anexo_compras" model="ir.actions.act_window">
-            <field name="name">Anexo Detalles de compra</field>
+            <field name="name">Anexo detalles de compra</field>
             <field name="res_model">account.move</field>
             <field name="view_mode">list</field>
             <field name="view_id" ref="view_anexo_compras_list"/>
-            <!--            <field name="search_view_id" ref="view_anexos_fechas_search"/>-->
-            <!--            <field name="domain">[('codigo_tipo_documento', 'in', ['03', '05', '06', '11']), ('hacienda_estado', '=', 'PROCESADO'), ('hacienda_selloRecibido', '!=', '')]</field>-->
             <field name="domain">[
-                ('codigo_tipo_documento','in', ['01', '11', '03']),
-                ('hacienda_estado', '=', 'PROCESADO'),
+                ('state','=','posted'),
+                ('sit_tipo_documento','in',['03','05','06','11']),
+                ('move_type','=','in_invoice'),
+                ('has_sello_anulacion','=',False),
                 ('hacienda_selloRecibido', '!=', ''),
-                ('has_sello_anulacion', '=', '')]</field>
-            <field name="context">{'numero_anexo': 3, 'anexo_action_id': 'ANX_COMPRAS'}</field>
+                ]
+            </field>
+            <field name="context">
+                {
+                'numero_anexo': 5,
+                'anexo_action_id': 'ANX_COMPRAS',
+                'group_by': [],
+                'search_default_group_by_year': 0,
+                'search_default_group_by_semester': 0,
+                'search_default_group_by_month': 0
+                }
+            </field>
         </record>
 
         <!-- Acción Sujeto excluido -->
@@ -69,58 +63,82 @@
             <field name="res_model">account.move</field>
             <field name="view_mode">list</field>
             <field name="view_id" ref="view_anexo_sujeto_excluido_list"/>
-            <!--            <field name="search_view_id" ref="view_anexos_fechas_search"/>-->
-            <field name="domain">[('codigo_tipo_documento', 'in', ['14']),('has_sello_anulacion','=', False)]</field>
+            <field name="domain">[
+                ('codigo_tipo_documento', 'in', ['14']),
+                ('hacienda_estado', '=', 'PROCESADO'),
+                ('hacienda_selloRecibido', '!=', ''),
+                ('has_sello_anulacion', '=', False)]
+            </field>
             <field name="context">{'numero_anexo': 5, 'anexo_action_id': 'ANX_SE'}</field>
         </record>
-        <!--            <field name="domain">[('codigo_tipo_documento', 'in', ['14']), ('hacienda_estado', '=', 'PROCESADO'),-->
-        <!--                ('hacienda_selloRecibido', '!=', '')]-->
-        <!--            </field>-->
 
+        <!--  Acción retencion del 1% (casilla 162) -->
         <record id="action_anexo_casilla162" model="ir.actions.act_window">
-            <field name="name">Anexo Casilla 162 (Percepciones efectuadas)</field>
+            <field name="name">Retención IVA del 1% efectuada al declarante (Anexo Casilla 162</field>
             <field name="res_model">sv.dte.retencion.recibida1</field>
             <field name="view_mode">list</field>
             <field name="view_id" ref="view_anexo_casilla162_list"/>
+            <field name="domain">[('sello_recepcion', '!=', '')]</field>
             <field name="context">{'numero_anexo': 7, 'anexo_action_id': 'ANX_C162'}</field>
         </record>
 
+        <!-- Acción anexo anulados y extraviados -->
         <record id="action_anexo_anulados_y_extraviados" model="ir.actions.act_window">
             <field name="name">Anexo documentos extraviados y anulados</field>
             <field name="res_model">account.move</field>
             <field name="view_mode">list</field>
             <field name="view_id" ref="view_anexo_anulados_y_extraviado_list"/>
-            <!--            <field name="search_view_id" ref="view_anexos_fechas_search"/>-->
             <field name="domain">[('sit_evento_invalidacion', '!=', False),('has_sello_anulacion','=', True)]</field>
             <field name="context">{'numero_anexo': 7, 'anexo_action_id': 'ANX_ANULADOS'}</field>
         </record>
 
+        <!-- acción facturas menores a 25000  -->
         <record id="action_report_account_move_daily" model="ir.actions.act_window">
             <field name="name">Facturas Cliente menores</field>
             <field name="res_model">report.account.move.daily</field>
             <field name="view_mode">list</field>
             <field name="view_id" ref="view_report_account_move_daily_list"/>
-            <!--            <field name="search_view_id" ref="view_anexos_fechas_search"/>-->
             <field name="domain">[]</field>
-            <field name="context">{'numero_anexo': 5, 'anexo_action_id': 'ANX_CLIENTES_MENORES'}</field>
+            <field name="context">
+                {
+                'numero_anexo': 5,
+                'anexo_action_id': 'ANX_CLIENTES_MENORES',
+                'group_by': ['invoice_year_agrupado','invoice_semester_agrupado'],
+                'search_default_group_by_year': 1,
+                'search_default_group_by_semester': 1
+                }
+            </field>
         </record>
 
+        <!-- Acción facturas mayores a 25000 -->
         <record id="action_report_account_move_daily_mayores" model="ir.actions.act_window">
             <field name="name">Facturas de clientes mayores a 25000</field>
             <field name="res_model">account.move</field>
             <field name="view_mode">list</field>
-            <field name="view_id" ref="view_report_account_move_daily_mayores_list"/>
-            <!--            <field name="search_view_id" ref="view_anexos_fechas_search"/>-->
             <field name="domain">[
-                ('amount_total', '>', 25000),
+                '&amp;','&amp;',
                 ('hacienda_estado', '=', 'PROCESADO'),
+                ('has_sello_anulacion', '=', False),
+                ('move_type', '!=', 'in_invoice'),
                 ('hacienda_selloRecibido', '!=', ''),
-                ('has_sello_anulacion', '=', '')]</field>
-            <field name="context">{'numero_anexo': 4, 'anexo_action_id': 'ANX_CLIENTES_MAYORES'}</field>
+                '|',
+                ('amount_total', '>', 25000),
+                '&amp;','|',
+                ('partner_id.vat', '!=', False),
+                ('partner_id.dui', '!=', False),
+                ('amount_total', '&lt;=', 25000)
+                ]
+            </field>
+            <field name="context">{'numero_anexo': 4, 'anexo_action_id': 'ANX_CLIENTES_MAYORES', 'group_by':
+                ['invoice_year','invoice_semester'],
+                'search_default_group_by_year': 1,
+                'search_default_group_by_semester': 1}
+            </field>
+            <field name="search_view_id" ref="view_anexo_mayores_search"/>
+
         </record>
 
         <!--*************************************** MENUS ***************************************-->
-
         <menuitem
                 id="menu_hacienda_reports"
                 name="Anexos de Hacienda"
@@ -174,7 +192,7 @@
 
         <menuitem
                 id="menu_anexo_extraviados_y_anulados"
-                name="Anexo docuemntos extraviados y anulados"
+                name="Anexo documentos extraviados y anulados"
                 parent="menu_hacienda_reports"
                 action="action_anexo_anulados_y_extraviados"
                 sequence="30"/>

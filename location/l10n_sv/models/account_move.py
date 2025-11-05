@@ -220,10 +220,6 @@ class sit_account_move(models.Model):
     def create(self, vals_list):
         _logger.info("SIT | Iniciando create unificado para AccountMove. Vals_list: %s", vals_list)
 
-        # BYPASS para movimientos que no son factura/nota (nómina, asientos manuales, recibos)
-        # if any(v.get('move_type') in ('entry', 'out_receipt', 'in_receipt') for v in vals_list):
-        #     return super().create(vals_list)
-
         for vals in vals_list:
             move_type = vals.get('move_type')
             if not move_type:
@@ -249,11 +245,6 @@ class sit_account_move(models.Model):
                 else:
                     _logger.info("SIT | Diario sin secuencia, asignado name provisional '/'")
 
-        # --- Si ya viene move_type definido, usar create estándar ---
-        # if all(not v.get('move_type') or v.get('move_type') not in (None, '') for v in vals_list):
-        #     _logger.info("SIT | Todos los registros ya tienen move_type, se usa create estándar")
-        #     return super().create(vals_list)
-
         # BYPASS para movimientos que no son factura/nota (nómina, asientos manuales, recibos)
         if any(v.get('move_type') in (constants.TYPE_ENTRY, constants.OUT_RECEIPT, constants.IN_RECEIPT) for v in vals_list):
             _logger.info("SIT | Todos los movimientos son entry/receipts. Bypass completo al super().create()")
@@ -270,13 +261,6 @@ class sit_account_move(models.Model):
             journal = rec.journal_id
             company = rec.company_id
 
-            # if rec.name == '/' and rec.journal_id.sequence_id:
-            #     generated_name = rec.with_context(_dte_auto_generated=True)._generate_dte_name()
-            #     if generated_name:
-            #         rec.name = generated_name
-            #     else:
-            #         rec._ensure_name()
-
             # Verificamos si el nombre es correcto antes de guardar
             if not rec.name or rec.name == '/':
                 _logger.info("SIT | Asignando name secuencial %s para move_id=%s", rec.name, rec.id)
@@ -287,8 +271,6 @@ class sit_account_move(models.Model):
                     rec.name = rec.journal_id.sequence_id.next_by_id()
                     _logger.info("SIT | Secuencia asignada a move_id=%s: %s", rec.id, rec.name)
                 else:
-                    # Asignar un nombre predeterminado o manejar el caso si no hay secuencia
-                    # rec.name = '/'
                     _logger.warning("SIT | Diario sin secuencia, asignando nombre predeterminado a move_id=%s: %s", rec.id, rec.name)
 
             # Aplicar el nombre generado en la base de datos
@@ -328,11 +310,6 @@ class sit_account_move(models.Model):
                        vals in vals_list):
                 _logger.info(
                     "SIT-create: Ninguna factura pertenece a empresa con facturación activa, se usa create estándar.")
-                # Asignar name secuencial después
-                # for move in base_records:
-                # if (move.name in ('/', False)) and move.journal_id.sequence_id:
-                # move.name = move.journal_id.sequence_id.next_by_id()
-                # _logger.info("SIT-create: Asignado name secuencial %s para move_id=%s", move.name, move.id)
                 return base_records
 
             # --- Generación dinámica de nombre para venta/compra ---
@@ -357,7 +334,7 @@ class sit_account_move(models.Model):
                         break
                 if partner_id:
                     rec.partner_id = partner_id
-            if not rec.partner_id and journal.type == 'sale':
+            if not rec.partner_id and journal.type == constants.TYPE_VENTA:
                 raise UserError(_("No se pudo obtener el partner para move_id=%s") % rec.id)
 
             # --- Ajustes finales: logs, retenciones y seguro/flete ---
@@ -385,7 +362,7 @@ class sit_account_move(models.Model):
         _logger.info("SIT | Iniciando write unificado. Vals: %s", vals)
 
         # --- Evitar lógica personalizada para asientos contables simples (entry) ---
-        if all(inv.move_type == constants.TYPE_ENTRY for inv in self):
+        if all(inv.move_type in(constants.TYPE_ENTRY, constants.OUT_RECEIPT, constants.IN_RECEIPT) for inv in self):
             _logger.info("SIT | write bypass completo para move_type=entry")
 
             # Crear un diccionario temporal para asignar nombres de secuencia
@@ -434,13 +411,6 @@ class sit_account_move(models.Model):
         if not any(move.company_id.sit_facturacion for move in self):
             _logger.info("SIT-write: Ninguna factura pertenece a empresa con facturación activa. Usando write estándar.")
             res = super().write(vals)
-            # for move in self:
-            #     if not move.name or move.name == '/':
-            #         sequence = move.journal_id.sequence_id
-            #         if sequence:
-            #             move.name = sequence.next_by_id()
-            #             _logger.info("SIT | Asignado name estándar %s para move_id=%s", move.name, move.id)
-            # return res
             return super().write(vals)
 
         ctx = self.env.context.copy()
@@ -452,17 +422,6 @@ class sit_account_move(models.Model):
         for move in self:
             if not move.name or move.name == '/':
                 move.with_context(ctx)._ensure_name()
-
-        # asegurarnos que las facturas de venta sin nombre lo tengan
-        # to_name = self.filtered(
-        #     lambda m: (m.move_type not in (constants.IN_INVOICE, constants.IN_REFUND) or
-        #                (m.move_type in (
-        #                    constants.IN_INVOICE) and m.journal_id and m.journal_id.sit_tipo_documento and m.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FSE))
-        #               and (not m.name or m.name == '/')
-        # )
-        # if to_name:
-        #     _logger.info("[WRITE-pre haciendaws_fe] Asegurando name para facturas de venta sin nombre: %s", to_name.ids)
-        #     to_name.with_context(ctx, skip_sv_ensure_name=True)._ensure_name()
 
         # res = super(AccountMove, self.with_context(ctx)).write(vals)
         self = self.with_context(ctx)
@@ -485,14 +444,6 @@ class sit_account_move(models.Model):
                 k in vals for k in ['codigo_tipo_documento', 'reversed_entry_id', 'debit_origin_id']):
             facturas_aplican._copiar_retenciones_desde_documento_relacionado()
 
-        # Recalcular totales de percepción/retención/renta
-        # for move in self:
-        #     if move.line_ids:
-        #         move._compute_totales_retencion_percepcion()
-        #         _logger.info(
-        #             "SIT | Totales recalculados write move_id=%s -> Percepción=%.2f | Retención IVA=%.2f | Renta=%.2f",
-        #             move.id, move.percepcion_amount, move.retencion_iva_amount, move.retencion_renta_amount)
-
         # Manejo de descuentos
         campos_descuento = {'descuento_gravado', 'descuento_exento', 'descuento_no_sujeto', 'descuento_global_monto'}
         if any(c in vals for c in campos_descuento):
@@ -500,6 +451,3 @@ class sit_account_move(models.Model):
             self.agregar_lineas_seguro_flete()
 
         return res
-
-
-

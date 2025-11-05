@@ -90,8 +90,6 @@
                             <t t-set="report_utils" t-value="o.env['report.rrhh_base.report_helpers']"/>
 
                             <!-- Encabezado -->
-                            <!--<div style="position: absolute; top: 17%; left: 22%; z-index: -1; border-color: #fff;"><img id="marca-de-agua" class="watermark-img" t-att-src="'data:image/png;base64,%s' % company.logo_web.decode('utf-8')" style="width: 500px; border-color: #fff; "/></div>
-                                        -->
                             <table class="header-table" style="margin-bottom: 3%;">
                                 <tr>
                                     <td style="border-color: #fff;">
@@ -137,11 +135,10 @@
                                     </td>
                                 </tr>
                             </table>
+
                             <t t-set="dias_asistencia" t-value="sum((o.worked_days_line_ids.filtered(lambda l: l.name in ('Asistencia','Vacaciones'))).mapped('number_of_days')) or 0.0"/>
                             <t t-set="dias_faltas_injustificadas" t-value="sum((o.worked_days_line_ids.filtered(lambda l: l.name in ('Falta Injustificada'))).mapped('number_of_days')) or 0.0"/>
                             <t t-set="dias_trabajados" t-value="dias_asistencia - dias_faltas_injustificadas"/>
-
-
 
                             <!-- Sueldo base y días -->
                             <table style="margin-bottom: 3%; table-layout: auto; width: 100%;">
@@ -188,12 +185,10 @@
                                t-value="round(abs(o.line_ids.filtered(lambda l: l.code == 'BANCO')[0].total if o.line_ids.filtered(lambda l: l.code == 'BANCO') else 0), 2)"/>
                             <t t-set="total_descuentos"
                                t-value="round(isss + renta + afp + afp_conf + afp_IPSFA + fsv + otros + v_empleado + banco + prestamos - renta_dev, 2)"/>
-                            <!-- Ingresos -->
 
+                            <!-- Ingresos -->
                             <t t-set="hay_horas_extra"
                                t-value="o.line_ids.filtered(lambda l: l.code == 'OVERTIME') and o.line_ids.filtered(lambda l: l.code == 'OVERTIME')[0].total != 0"/>
-
-
                             <t t-set="base"
                                t-value="round(abs(o.line_ids.filtered(lambda l: l.code == 'BASIC')[0].total if o.line_ids.filtered(lambda l: l.code == 'BASIC') else 0), 2)"/>
                             <t t-set="viaticos"
@@ -251,6 +246,7 @@
                             <t t-set="pago_por_hora"
                                t-value="salario_mensual_base / horas_trabajadas_mensuales if horas_trabajadas_mensuales else 0.0"/>
 
+                            <!-- Pagos segun tipo de hora extra -->
                             <t t-set="pago_por_he_diurna"
                                t-value="round(he_diurna_cantidad * (pago_por_hora * (float(config_he_diurna.value_text) / 100)),2)"/>
                             <t t-set="pago_por_he_nocturna"

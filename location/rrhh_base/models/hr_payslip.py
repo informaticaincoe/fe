@@ -1,11 +1,8 @@
 from odoo import _, api, fields, models
-from odoo.exceptions import UserError
 import logging
-import base64
 from lxml import etree
 from datetime import date
 from email.utils import parseaddr, formataddr
-from odoo.tools.misc import ustr
 import base64, re
 try:
     import unicodedata
@@ -18,6 +15,7 @@ _logger = logging.getLogger(__name__)
 class HrPayslip(models.Model):
     _inherit = 'hr.payslip'
 
+    # Catálogo de meses para filtros
     PERIOD_MONTHS = [
         ('01', 'enero'), ('02', 'febrero'), ('03', 'marzo'),
         ('04', 'abril'), ('05', 'mayo'), ('06', 'junio'),
@@ -43,14 +41,14 @@ class HrPayslip(models.Model):
         string='Dias laborados',
         compute='_compute_worked_days_total',
         readonly=True,
-        store=False  # No se almacena en la base de datos
+        store=False
     )
 
     total_worked_hours = fields.Float(
         string='Horas laboradas',
         compute='_compute_worked_hours_total',
         readonly=True,
-        store=False  # No se almacena en la base de datos
+        store=False
     )
 
     basic_wage = fields.Float(
@@ -80,126 +78,126 @@ class HrPayslip(models.Model):
         string='Comisiones',
         compute='_compute_comisiones',
         readonly=True,
-        store=False  # No se almacena en la base de datos
+        store=False
     )
 
     total_overtime = fields.Float(
         string='Horas extras',
         compute='_compute_overtime_total',
         readonly=True,
-        store=False  # No se almacena en la base de datos
+        store=False
     )
 
     viaticos = fields.Float(
         string='Viaticos ordinarios',
         compute='_compute_viaticos',
         readonly=True,
-        store=False  # No se almacena en la base de datos
+        store=False
     )
 
     bonos = fields.Float(
         string='Bonos',
         compute='_compute_bonos',
         readonly=True,
-        store=False  # No se almacena en la base de datos
+        store=False
     )
 
     total_viaticos_a_pagar = fields.Float(
         string='Total viaticos',
         compute='_compute_total_viaticos_a_pagar',
         readonly=True,
-        store=False  # No se almacena en la base de datos
+        store=False
     )
 
     total_devengado = fields.Float(
         string='Total devengado',
         compute='_compute_total_devengado',
         readonly=True,
-        store=False  # No se almacena en la base de datos
+        store=False
     )
 
     isss = fields.Float(
         string='ISSS',
         compute='_compute_isss',
         readonly=True,
-        store=False  # No se almacena en la base de datos
+        store=False
     )
 
     isr = fields.Float(
         string='ISR',
         compute='_compute_isr',
         readonly=True,
-        store=False  # No se almacena en la base de datos
+        store=False
     )
 
     afp = fields.Float(
         string='AFP crecer',
         compute='_compute_afp',
         readonly=True,
-        store=False  # No se almacena en la base de datos
+        store=False
     )
 
     afp_confia = fields.Float(
         string='AFP Confia',
         compute='_compute_afp_confia',
         readonly=True,
-        store=False  # No se almacena en la base de datos
+        store=False
     )
 
     afp_IPSFA = fields.Float(
         string='INCAF',
         compute='_compute_afp_IPSFA',
         readonly=True,
-        store=False  # No se almacena en la base de datos
+        store=False
     )
 
     otros = fields.Float(
         string='Otros',
         compute='_compute_otros_ded',
         readonly=True,
-        store=False  # No se almacena en la base de datos
+        store=False
     )
 
     bancos = fields.Float(
         string='Bancos',
         compute='_compute_bancos_ded',
         readonly=True,
-        store=False  # No se almacena en la base de datos
+        store=False
     )
 
     venta_empleados = fields.Float(
         string='Venta a empleados',
         compute='_compute_venta_empleados',
         readonly=True,
-        store=False  # No se almacena en la base de datos
+        store=False
     )
 
     prestamos_incoe = fields.Float(
         string='Prestamos INCOE',
         compute='_compute_prestamos_incoe',
         readonly=True,
-        store=False  # No se almacena en la base de datos
+        store=False
     )
 
     fsv = fields.Float(
         string='Fondo social de la vivienda',
         compute='_compute_fsv',
         readonly=True,
-        store=False  # No se almacena en la base de datos
+        store=False
     )
 
     total_descuentos = fields.Float(
         string='Total descuentos',
         compute='_compute_total_descuentos',
         readonly=True,
-        store=False  # No se almacena en la base de datos
+        store=False
     )
 
     sueldo_liquido = fields.Float(
         string='Liquido a recibir',
         compute='_compute_sueldo_liquidido',
         readonly=True,
-        store=False  # No se almacena en la base de datos
+        store=False
     )
 
     quin1cena = fields.Selection(
@@ -218,12 +216,14 @@ class HrPayslip(models.Model):
 
     @api.depends('line_ids.amount')
     def _compute_vacaciones(self):
+        """Suma de importes de líneas con code='VACACIONES'"""
         for record in self:
             vacaciones_lines = record.line_ids.filtered(lambda l: l.code == 'VACACIONES')
             record.vacaciones = abs(sum(vacaciones_lines.mapped('amount')))
 
     @api.depends('date_from')
     def _compute_quincena(self):
+        """Determina si es la 1a o 2a quincena en base al día de date_from."""
         for record in self:
             if record.date_from:
                 record.quin1cena = '1' if record.date_from.day <= 15 else '2'
@@ -232,6 +232,7 @@ class HrPayslip(models.Model):
 
     @api.depends('worked_days_line_ids.number_of_days')
     def _compute_worked_days_total(self):
+        """Suma número de días trabajados o si es vacaciones el numero de dias de vacacion"""
         for record in self:
             asistencia_lines = record.worked_days_line_ids.filtered(
                 lambda l: l.name in ('Asistencia', 'Vacaciones')
@@ -242,6 +243,7 @@ class HrPayslip(models.Model):
 
     @api.depends('worked_days_line_ids.number_of_hours')
     def _compute_worked_hours_total(self):
+        """Suma horas de líneas 'Asistencia' o 'Vacaciones'."""
         for record in self:
             asistencia_lines = record.worked_days_line_ids.filtered(
                 lambda l: l.name == 'Asistencia' or l.name == 'Vacaciones')
@@ -251,6 +253,7 @@ class HrPayslip(models.Model):
 
     @api.depends('line_ids.amount', 'basic_wage')
     def _compute_salario_pagar(self):
+        """ Calcula salario a pagar: salario base - descuento por faltas/septimo """
         for record in self:
             descuento_falta = sum(record.line_ids.filtered(lambda l: l.code == 'DESC_FALTA_SEPTIMO').mapped('amount'))
             salario_base = record.basic_wage or 0.0
@@ -258,40 +261,51 @@ class HrPayslip(models.Model):
 
     @api.depends('line_ids.amount')
     def _compute_comisiones(self):
+        """ Suma importes de líneas con codigo 'COMISION' """
         for record in self:
             comisiones_lines = record.line_ids.filtered(lambda l: l.code == 'COMISION')
             record.comisiones = sum(comisiones_lines.mapped('amount'))
 
     @api.depends('line_ids.amount')
     def _compute_overtime_total(self):
+        """Suma importes de líneas con codigo 'OVERTIME' (horas extra)."""
         for record in self:
             overtime_lines = record.line_ids.filtered(lambda l: l.code == 'OVERTIME')
             record.total_overtime = sum(overtime_lines.mapped('amount'))
 
     @api.depends('line_ids.amount')
     def _compute_bonos(self):
+        """Suma importes de líneas con codigo 'BONO'."""
         for record in self:
             bonos_lines = record.line_ids.filtered(lambda l: l.code == 'BONO')
             record.bonos = sum(bonos_lines.mapped('amount'))
 
     @api.depends('line_ids.amount')
     def _compute_viaticos(self):
+        """Viáticos = VIATICO + BONO (acumulados)."""
         for record in self:
             viaticos_lines = record.line_ids.filtered(lambda l: l.code == 'VIATICO')
             record.viaticos = sum(viaticos_lines.mapped('amount')) + record.bonos
 
     @api.depends('viaticos', 'total_overtime')
     def _compute_total_viaticos_a_pagar(self):
+        """Total de viaticos -> Suma viáticos y horas extra."""
         for record in self:
             record.total_viaticos_a_pagar = record.viaticos + record.total_overtime
 
     @api.depends('viaticos', 'total_viaticos_a_pagar', 'salario_pagar', 'vacaciones')
     def _compute_total_devengado(self):
+        """Devengado total = viáticos + salario + comisiones + vacaciones."""
         for record in self:
             record.total_devengado = record.total_viaticos_a_pagar + float(record.salario_pagar) + record.comisiones + record.vacaciones
 
     @api.depends('line_ids.amount')
     def _compute_isr(self):
+        """
+           Calcula ISR con base en líneas:
+           - 'RENTA'  (descuento normal) -> valor positivo
+           - 'DEV_RENTA' (devolución)    -> valor negativo
+        """
         for record in self:
             lineas_renta = record.line_ids.filtered(lambda l: l.code == 'RENTA')
             lineas_dev_renta = record.line_ids.filtered(lambda l: l.code == 'DEV_RENTA')
@@ -305,12 +319,14 @@ class HrPayslip(models.Model):
 
     @api.depends('line_ids.amount')
     def _compute_afp(self):
+        """Suma importes de líneas con code='AFP' (empleado)."""
         for record in self:
             afp_lines = record.line_ids.filtered(lambda l: l.code == 'AFP')
             record.afp = abs(sum(afp_lines.mapped('amount')))
 
     @api.depends('line_ids.amount')
     def _compute_afp_confia(self):
+        """Suma importes de líneas con code='AFP_CONF' (Confía)."""
         for record in self:
             afp_confia_lines = record.line_ids.filtered(lambda l: l.code == 'AFP_CONF')
             record.afp_confia = abs(sum(afp_confia_lines.mapped('amount')))
@@ -320,11 +336,8 @@ class HrPayslip(models.Model):
         """Oculta la columna afp_incaf en lista si no hay ningún INCAF > 0 en las líneas de recibo."""
         res = super().fields_view_get(view_id=view_id, view_type=view_type, toolbar=toolbar, submenu=submenu)
 
-        # En Odoo 18, el parámetro sigue llegando como 'tree' para vistas de lista.
-        # Algunos devs usan <list> en el XML, pero internamente es lo mismo.
         if view_type in ('tree', 'list'):
-            # Como afp_incaf no es store, no podemos hacer search en hr.payslip por ese campo.
-            # En su lugar, miramos hr.payslip.line con code='INCAF' y amount>0.
+            # Consulta rápida para saber si hay INCAF en alguna boleta
             hay_incaf = bool(
                 self.env['hr.payslip.line'].sudo().search([
                     ('code', '=', 'INCAF'),
@@ -358,42 +371,49 @@ class HrPayslip(models.Model):
 
     @api.depends('line_ids.amount')
     def _compute_afp_IPSFA(self):
+        """Suma importes de líneas con code='IPSFA' (INCAF)."""
         for record in self:
             afp_ipsfa_lines = record.line_ids.filtered(lambda l: l.code == 'IPSFA')
             record.afp_IPSFA = abs(sum(afp_ipsfa_lines.mapped('amount')))
 
     @api.depends('line_ids.amount')
     def _compute_isss(self):
+        """Suma importes de líneas con code='ISSS'."""
         for record in self:
             overtime_lines = record.line_ids.filtered(lambda l: l.code == 'ISSS')
             record.isss = abs(sum(overtime_lines.mapped('amount')))
 
     @api.depends('line_ids.amount')
     def _compute_otros_ded(self):
+        """Suma importes de líneas con code='OTROS' (otras deducciones)."""
         for record in self:
             otros_lines = record.line_ids.filtered(lambda l: l.code == 'OTROS')
             record.otros = abs(sum(otros_lines.mapped('amount')))
 
     @api.depends('line_ids.amount')
     def _compute_bancos_ded(self):
+        """Suma importes de líneas con code='BANCO' (descuentos bancarios)."""
         for record in self:
             bancos_lines = record.line_ids.filtered(lambda l: l.code == 'BANCO')
             record.bancos = abs(sum(bancos_lines.mapped('amount')))
 
     @api.depends('line_ids.amount')
     def _compute_venta_empleados(self):
+        """Suma importes de líneas con code='VENTA_EMPLEADOS'."""
         for record in self:
             venta_empleados_lines = record.line_ids.filtered(lambda l: l.code == 'VENTA_EMPLEADOS')
             record.venta_empleados = abs(sum(venta_empleados_lines.mapped('amount')))
 
     @api.depends('line_ids.amount')
     def _compute_prestamos_incoe(self):
+        """Suma importes de líneas con code='PRESTAMOS'."""
         for record in self:
             prestamos_lines = record.line_ids.filtered(lambda l: l.code == 'PRESTAMOS')
             record.prestamos_incoe = abs(sum(prestamos_lines.mapped('amount')))
 
     @api.depends('line_ids.amount')
     def _compute_fsv(self):
+        """Suma importes de líneas con code='FSV'. (Fondo Social de la Vivienda)"""
         for record in self:
             fsv_lines = record.line_ids.filtered(lambda l: l.code == 'FSV')
             record.fsv = abs(sum(fsv_lines.mapped('amount')))
@@ -401,20 +421,21 @@ class HrPayslip(models.Model):
     @api.depends('isss', 'isr', 'afp', 'otros', 'bancos', 'fsv', 'prestamos_incoe', 'venta_empleados',
                  'total_viaticos_a_pagar')
     def _compute_total_descuentos(self):
+        """Suma total de deducciones principales (sin viáticos)."""
         for record in self:
             record.total_descuentos = record.isss + record.isr + record.afp + record.otros + record.bancos + record.fsv + record.prestamos_incoe + record.venta_empleados
 
     @api.depends('total_devengado', 'total_descuentos')
     def _compute_sueldo_liquidido(self):
+        """ Sueldo liquido = devengado - deducciones."""
         for record in self:
             record.sueldo_liquido = record.total_devengado - record.total_descuentos
 
-
-    from odoo import _, api, models
-    from odoo.exceptions import UserError
-    import base64
-
     def action_send_payslip_email(self):
+        """
+        Genera PDF y envía correo con la boleta al email laboral del empleado.
+        Valida remitente, adjunta el reporte.
+        """
         self.ensure_one()
 
         def _notify(msg, level='success', title='Boleta de pago', sticky=False):
@@ -424,15 +445,15 @@ class HrPayslip(models.Model):
                 'params': {'title': title, 'message': msg, 'type': level, 'sticky': sticky},
             }
 
-        lang_ctx = self.env.user.lang or 'en_US'
-
+        # Plantilla de correo (debes tenerla definida en datos XML)
         template = self.env.ref('rrhh_base.rrhh_email_template_payslip', raise_if_not_found=False)
         if not template:
             return _notify("No se encontró la plantilla de correo para la boleta de pago.", 'warning', sticky=True)
         if not self.employee_id.work_email:
             return _notify("El empleado no tiene un correo configurado.", 'warning', sticky=True)
 
-        # ===== VALIDAR REMITENTE DE BOLETAS (SIN FALLBACKS) =====
+        # ===== VALIDAR REMITENTE DE BOLETAS =====
+        # Se exige que la compañía tenga 'email_from_payslip' configurado.
         cfg_from = (self.company_id.email_from_payslip or '').strip()
         if not cfg_from:
             return _notify(
@@ -447,11 +468,13 @@ class HrPayslip(models.Model):
                 "Remitente de boletas inválido. Usa 'correo@dominio' o 'Nombre <correo@dominio>'.",
                 'danger', sticky=True
             )
+        # Validación: dirección ASCII pura (evitar tildes en el correo)
         try:
             addr.encode('ascii')
         except UnicodeEncodeError:
             return _notify(f"El correo remitente debe ser ASCII simple (sin tildes): {addr}", 'danger', sticky=True)
 
+        # Normaliza el "Nombre" para evitar caracteres raros en cabeceras
         def _sanitize(n):
             n = (n or '').replace('\r', ' ').replace('\n', ' ').strip()
             n = re.sub(r'\s+', ' ', n)
@@ -464,24 +487,19 @@ class HrPayslip(models.Model):
 
         email_from_norm = formataddr((_sanitize(name), addr)) if name else addr
 
-        # ===== (Opcional) exigir SMTP de boletas =====
-        # Descomenta si NO quieres enviar sin SMTP específico:
-        # if not self.company_id.smtp_payslip_id:
-        #     return _notify(
-        #         "Configura 'SMTP Boletas' en Ajustes → Compañías → Correos de envío.",
-        #         'warning', sticky=True
-        #     )
-
         # ===== Render PDF =====
+        # Busca la acción de reporte de boleta
         report_action = (self.env.ref('rrhh_base.hr_payslip_report', raise_if_not_found=False)
                          or self.env.ref('rrhh_base.report_payslip', raise_if_not_found=False))
         if not report_action:
             return _notify("No se encontró la acción de reporte de la boleta de pago.", 'warning', sticky=True)
 
-        pdf_content, _ = self.env['ir.actions.report'].with_context(lang=lang_ctx)._render_qweb_pdf(
+        # Renderiza QWeb a PDF para el registro actual
+        pdf_content, _ = self.env['ir.actions.report']._render_qweb_pdf(
             report_action.report_name, [self.id]
         )
         filename = f"Boleta_{self.employee_id.name.replace(' ', '_')}_{self.date_to}.pdf"
+        # Crea adjunto en el sistema (ir.attachment)
         attachment = self.env['ir.attachment'].create({
             'name': filename,
             'type': 'binary',
@@ -492,22 +510,24 @@ class HrPayslip(models.Model):
         })
 
         # ===== Enviar =====
+        # Prepara valores para el envío, incluyendo el adjunto y un remitente normalizado
         email_values = {
             'attachment_ids': [(6, 0, [attachment.id])],
             'email_from': email_from_norm,
         }
+        # Usar el servidor SMTP de la compañía dedicado para boletas
         if self.company_id.smtp_payslip_id:
             email_values['mail_server_id'] = self.company_id.smtp_payslip_id.id
 
         try:
-            template.with_context(lang=lang_ctx).send_mail(self.id, force_send=True, email_values=email_values)
+            template.send_mail(self.id, force_send=True, email_values=email_values)
         except Exception as e:
-            # si no quieres dejar adjunto huérfano cuando falla:
+            # En caso de fallo de envío, intenta limpiar el adjunto
             try:
                 attachment.unlink()
             except Exception:
                 pass
-            return _notify(f"No se pudo enviar el correo: {ustr(e)}", 'danger', sticky=True)
+            return _notify(f"No se pudo enviar el correo: {str(e)}", 'danger', sticky=True)
 
         self.message_post(body=f"Correo enviado a {self.employee_id.work_email} con el archivo {filename}.")
         return _notify(f"Correo enviado con éxito a {self.employee_id.work_email}", 'success')
@@ -534,6 +554,10 @@ class HrPayslip(models.Model):
 
     @api.depends('date_from', 'date_to')
     def _compute_period_fields(self):
+        """
+        Deriva año, mes (01..12) y quincena desde date_from.
+        Si no hay fecha, limpia los campos.
+        """
         for rec in self:
             if rec.date_from:
                 # Tomamos date_from como referencia de periodo

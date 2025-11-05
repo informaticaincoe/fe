@@ -18,49 +18,57 @@ class AccountMove(models.Model):
 
     name = fields.Char(string='Number', required=True, readonly=False, copy=False, default='/')
 
-
     def _get_sequence(self):
         """Resuelve la secuencia a usar respetando el core si FE está OFF."""
         self.ensure_one()
-        if (not self.env.company.sit_facturacion
-                or (self.move_type in (constants.IN_INVOICE, constants.IN_REFUND)
-                    and (not self.journal_id.sit_tipo_documento or self.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE))
-        ):
-            return super()._get_sequence()
-
         journal = self.journal_id
         # Si es normal o no hay refund_sequence -> principal
-        if self.move_type in (constants.TYPE_ENTRY, constants.OUT_INVOICE, constants.IN_INVOICE, 'out_receipt', 'in_receipt') or not journal.refund_sequence:
+        if self.move_type in (constants.TYPE_ENTRY, constants.OUT_RECEIPT, constants.IN_RECEIPT) or not journal.refund_sequence:
             return journal.sequence_id
+
+        if (self.move_type in (constants.IN_INVOICE, constants.IN_REFUND) and
+             (not self.journal_id.sit_tipo_documento or self.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE) ):
+            return super()._get_sequence()
+        if not self.env.company.sit_facturacion:
+            return super()._get_sequence()
+
         # Si es NC y existe refund_sequence -> refund
         if journal.refund_sequence_id:
             return journal.refund_sequence_id
         return journal.sequence_id  # fallback seguro
 
-
     @api.model
     def _get_standard_sequence(self):
         """Devuelve la secuencia estándar (no-DTE) para el diario."""
         self.ensure_one()
-        if (not self.env.company.sit_facturacion
-                or (self.move_type in (constants.IN_INVOICE, constants.IN_REFUND)
-                    and (not self.journal_id.sit_tipo_documento or self.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)) ):
+        if (self.move_type in (constants.IN_INVOICE, constants.IN_REFUND) and self.journal_id and
+                (not self.journal_id.sit_tipo_documento or self.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE) ):
             # respetar core; si no existe en tu versión, puedes retornar self.journal_id.sequence_id
             try:
                 return super()._get_standard_sequence()
             except AttributeError:
                 pass
-        journal = self.journal_id
-        if self.move_type in (constants.TYPE_ENTRY, constants.OUT_INVOICE, constants.IN_INVOICE, 'out_receipt', 'in_receipt') or not journal.refund_sequence:
-            return journal.sequence_id
-        return journal.refund_sequence_id or journal.sequence_id
 
+        journal = self.journal_id
+        if self.move_type in (constants.TYPE_ENTRY, constants.OUT_RECEIPT, constants.IN_RECEIPT) or not journal.refund_sequence:
+            return journal.sequence_id
+        if (not self.env.company.sit_facturacion):
+            # respetar core; si no existe en tu versión, puedes retornar self.journal_id.sequence_id
+            try:
+                return super()._get_standard_sequence()
+            except AttributeError:
+                pass
+
+        return journal.refund_sequence_id or journal.sequence_id
 
     def _post(self, soft=True):
 
-        if (not self.env.company.sit_facturacion
-                or (self.move_type in (constants.IN_INVOICE, constants.IN_REFUND)
-                    and (not self.journal_id.sit_tipo_documento or self.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE))):
+        if self.move_type in (constants.TYPE_ENTRY, constants.OUT_RECEIPT, constants.IN_RECEIPT):
+            return super()._post(soft=soft)
+        if (self.move_type in (constants.IN_INVOICE, constants.IN_REFUND) and self.journal_id and
+                (not self.journal_id.sit_tipo_documento or self.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)):
+            return super()._post(soft=soft)
+        if not self.env.company.sit_facturacion:
             return super()._post(soft=soft)
 
         # 1) Solo asigno la secuencia estándar para diarios NO sale

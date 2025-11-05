@@ -406,13 +406,19 @@ class AccountMove(models.Model):
                 _logger.info("SIT | Clase de documento no seleccionada.")
                 raise ValidationError("Debe seleccionar la Clase de documento.")
 
-            if not move.hacienda_selloRecibido:
+            if move.sit_tipo_documento_id and move.sit_tipo_documento_id.codigo != constants.COD_DTE_FEX and not move.hacienda_selloRecibido:
                 _logger.info("SIT | Sello Recepcion no agregado.")
-                raise ValidationError("Debe agregar el Sello de recepción.")
+                if move.clase_documento_id and move.clase_documento_id.codigo == DTE_COD:
+                    raise ValidationError("Debe agregar el Sello de recepción.")
+                else:
+                    raise ValidationError("Debe agregar el Número de serie.")
 
-            if not move.hacienda_codigoGeneracion_identificacion:
+            if move.sit_tipo_documento_id and move.sit_tipo_documento_id.codigo != constants.COD_DTE_FEX and not move.hacienda_codigoGeneracion_identificacion:
                 _logger.info("SIT | Codigo de generacion no agregado.")
-                raise ValidationError("Debe agregar el Codigo de generación.")
+                if move.clase_documento_id and move.clase_documento_id.codigo == DTE_COD:
+                    raise ValidationError("Debe agregar el Codigo de generación.")
+                else:
+                    raise ValidationError("Debe agregar el Correlativo.")
 
             if not move.sit_observaciones:
                 _logger.info("SIT | Descripcion no agregada.")
@@ -431,8 +437,12 @@ class AccountMove(models.Model):
             # Usa el mapeo persistente sv.move.tax.account.override que ya agregamos.
             if not self.env.context.get('sv_skip_tax_override') and move._sv_requires_tax_override():
                 taxes = move._sv_get_move_taxes()
+                _logger.info("SIT | Taxes obtenidos para override: %s", taxes.mapped('name'))
+
                 # ¿Qué impuestos aún no tienen mapeo de cuenta alternativa en ESTA factura?
                 missing = taxes.filtered(lambda t: not move.sv_override_ids.filtered(lambda r: r.tax_id == t))
+                _logger.info("SIT | Impuestos sin cuenta alternativa asignada: %s", ', '.join(missing.mapped('name')))
+
                 if missing:
                     _logger.info("SIT | Falta asignar cuentas alternativas para impuestos: %s",
                                  ', '.join(missing.mapped('name')))
@@ -445,8 +455,7 @@ class AccountMove(models.Model):
                         active_ids=[move.id],
                         default_move_id=move.id,
                     )
-                    return action   
-                
+                    return action
             # Generar las líneas de percepción/retención/renta antes de postear
             move.generar_asientos_retencion_compras()
 
@@ -515,8 +524,7 @@ class AccountMove(models.Model):
             _logger.info(f"SIT | [Move {move.id}] Inicio de generación de asientos ret./perc./renta")
 
             if (move.move_type not in (constants.IN_INVOICE, constants.IN_REFUND) or
-                    (
-                            move.move_type == constants.IN_INVOICE and move.journal_id and move.journal_id.sit_tipo_documento and move.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FSE)):
+                    (move.move_type == constants.IN_INVOICE and move.journal_id and move.journal_id.sit_tipo_documento and move.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FSE)):
                 _logger.info(f"SIT | [Move {move.id}] No aplica: solo compras o notas de crédito de compra.")
                 continue
 
@@ -577,12 +585,6 @@ class AccountMove(models.Model):
                     company.renta_purchase_id
                 ] if c
             }
-
-            # Eliminar líneas previas de este tipo
-            # previas = move.line_ids.filtered(lambda l: l.name in [company.percepcion_purchase_id.name, company.retencion_iva_purchase_id.name, company.renta_purchase_id.name])
-            # if previas:
-            #     _logger.info(f"SIT | [Move {move.id}] Eliminando {len(previas)} líneas previas de retención/percepción/renta")
-            #     previas.unlink()
 
             # Solo considerar líneas con esos nombres pero EXCLUIR líneas tipo receivable/payable
             previas = move.line_ids.filtered(
@@ -773,7 +775,7 @@ class AccountMove(models.Model):
         store=False,
     )
     duca_iva_importacion = fields.Monetary(
-        string="IVA importación (ref.)",
+        string="IVA",
         currency_field="duca_currency_id",
         compute="_compute_duca_fields",
         inverse="_inverse_duca_iva",

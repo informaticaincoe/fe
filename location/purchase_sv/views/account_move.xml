@@ -79,7 +79,7 @@
                             </div>
                             <!-- Campo visible si es DTE (codigo == '4') -->
                             <field name="hacienda_selloRecibido"
-                                   string="Sello recibido por Hacienda"
+                                   string="Sello recibido"
                                    placeholder="Ingrese el sello recibido"
                                    nolabel="0"
                                    readonly="False"

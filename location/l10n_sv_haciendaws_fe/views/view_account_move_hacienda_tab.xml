@@ -10,7 +10,7 @@
             <xpath expr="//field[@name='sit_qr_hacienda']" position="before" invisible="journal_code == 'SLR' or not sit_facturacion">
                 <field name="hacienda_estado"/>
                 <field name="hacienda_codigoGeneracion_identificacion"/>
-                <field name="hacienda_codigoGeneracion"/>
+<!--                <field name="hacienda_codigoGeneracion"/>-->
                 <field name="hacienda_selloRecibido"/>
                 <field name="fecha_facturacion_hacienda"/>
                 <field name="hacienda_clasificaMsg"/>
