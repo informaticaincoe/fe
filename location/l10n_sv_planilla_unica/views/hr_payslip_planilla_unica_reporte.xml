@@ -18,10 +18,16 @@
                     <field name="segundo_nombre" />
                     <field name="primer_apellido" />
                     <field name="segundo_apellido" />
+                    <field name="apellido_casada"/>
+                    <field name="salario_pagar"/>
+<!--                    <field name="pago_adicional"/>-->
+                    <field name="vacaciones"/>
+                    <field name="total_worked_days"/>
+                    <field name="total_worked_hours"/>
+
 
                 </list>
             </field>
         </record>
-
     </data>
 </odoo>

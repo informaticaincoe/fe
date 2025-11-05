@@ -12,6 +12,7 @@
                             <field name="segundo_nombre"/>
                             <field name="primer_apellido"/>
                             <field name="segundo_apellido"/>
+                            <field name="apellido_casada"/>
                         </group>
                     </page>
                 </xpath>
