@@ -34,19 +34,14 @@
                 <list string="Resumen mensual de nómina" create="false" edit="false" delete="false">
                     <field name="employee_id"/>
                     <field name="department_id"/>
-
                     <field name="total_worked_days"/>
                     <field name="total_worked_hours"/>
-
                     <field name="salario_pagar"/>
                     <field name="total_comisiones"/>
                     <field name="total_overtime"/>
-
                     <field name="viaticos"/>
                     <field name="total_viaticos_a_pagar"/>
-
                     <field name="total_devengado"/>
-
                     <field name="isss"/>
                     <field name="isr"/>
                     <field name="afp"/>
@@ -56,7 +51,6 @@
                     <field name="venta_empleados"/>
                     <field name="prestamos_incoe"/>
                     <field name="fsv"/>
-
                     <field name="total_descuentos"/>
                     <field name="sueldo_liquido"/>
                 </list>

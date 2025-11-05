@@ -9,23 +9,24 @@
                 <field name="vat" position="after">
                     <xpath expr="//field[@name='vat']" position="after">
                         <group>
-                            <field name="nrc" string="NRC"/>
                             <field name="giro" invisible="1" string="Giro"/>
                             <field name="sit_uuid" string="UUID"/>
                             <field name="nombre_comercial" string="Nombre comercial"/>
                         </group>
                     </xpath>
                 </field>
-                <!-- <xpath expr="//sheet" position="before">
-                    <header>
-                        <button name="generar_uuid"
-                            type="object"
-                            string="Generar uuid"
-                            class="oe_highlight"
-                            help="Genera el UUID de esta instancia, su valor debe ser único"
-                            />
-                    </header>
-                </xpath> -->
+            </field>
+        </record>
+         <record model="ir.ui.view" id="view_company_planilla_unica_form">
+            <field name="name">view_company_planilla_unica-form</field>
+            <field name="model">res.company</field>
+            <field name="inherit_id" ref="base.view_company_form"/>
+            <field name="arch" type="xml">
+                <field name="vat" position="after">
+                        <group string="Planilla única">
+                            <field name="isss_patronal"/>
+                        </group>
+                </field>
             </field>
         </record>
     </data>

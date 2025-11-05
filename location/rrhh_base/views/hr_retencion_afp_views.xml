@@ -1,6 +1,6 @@
 <odoo>
     <data>
-        <!-- Vista tipo lista -->
+        <!-- Vista tipo lista para montos de descuento afp -->
         <record id="view_hr_retencion_afp_tree" model="ir.ui.view">
             <field name="name">hr.retencion.afp.tree</field>
             <field name="model">hr.retencion.afp</field>
@@ -13,7 +13,7 @@
             </field>
         </record>
 
-        <!-- Vista tipo formulario -->
+        <!-- Vista tipo formulario para montos de descuento afp-->
         <record id="view_hr_retencion_afp_form" model="ir.ui.view">
             <field name="name">hr.retencion.afp.form</field>
             <field name="model">hr.retencion.afp</field>

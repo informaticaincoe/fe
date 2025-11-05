@@ -9,6 +9,8 @@ class Company(models.Model):
     
     company_registry = fields.Char(string="N.R.C.")
     giro = fields.Char(string="Giro")
+    isss_patronal = fields.Char(string="Número patronal ISSS")
+
     #Datos de contacto
     fax = fields.Char(string="Fax")
     pbx = fields.Char(string="PBX")
