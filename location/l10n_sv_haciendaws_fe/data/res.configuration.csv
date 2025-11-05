@@ -1,3 +1,4 @@
 id,company_id:id,pwd,value_type,value_text,description,active,clave
 config_dte_prefix,base.main_company,,text,DTE-,Prefijo correlativo para facturación electrónica,True,dte_prefix
 config_dte_limit_cons_final,base.main_company,,float,25000,Límite máximo para ventas a consumidor final sin DUI/NIT,True,dte_limit_cons_final
+config_dtes_limit_contin,base.main_company,,float,5000,Límite máximo de documentos electrónicos generados en contingencia,True,dte_limit_cont

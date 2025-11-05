@@ -9,6 +9,7 @@ class Company(models.Model):
 
     @api.onchange('state_id')
     def _onchange_state_id(self):
+        """Ajusta automáticamente el país según el estado seleccionado para mantener consistencia."""
         if not self.country_id:
             self.country_id = self.state_id.country_id.id
         if not self.country_id.id == self.state_id.country_id.id:
@@ -16,5 +17,6 @@ class Company(models.Model):
 
     @api.onchange('munic_id')
     def _onchange_munic_id(self):
+        """Ajusta automáticamente el estado (departamento) según el municipio seleccionado."""
         if not self.state_id or not self.munic_id.dpto_id.id == self.state_id.id:
             self.state_id = self.munic_id.dpto_id.id

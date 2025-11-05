@@ -5,7 +5,8 @@ class Partner(models.Model):
     _inherit = 'res.bank'
 
     munic_id = fields.Many2one('res.municipality', string='Municipality',ondelete='restrict')
-    
+
+    # Código inactivo
     # @api.onchange('state_id')
     # def _onchange_state_id(self):
     #     if not self.country_id:

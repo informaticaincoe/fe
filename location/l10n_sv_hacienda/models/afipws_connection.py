@@ -5,6 +5,15 @@ import logging
 
 _logger = logging.getLogger(__name__)
 
+try:
+    from odoo.addons.common_utils.utils import config_utils
+    from odoo.addons.common_utils.utils import constants
+    _logger.info("SIT Modulo config_utils sv hacienda-afipws_connection")
+except ImportError as e:
+    _logger.error(f"Error al importar 'config_utils': {e}")
+    config_utils = None
+    constants = None
+
 class AfipwsConnection(models.Model):
     _name = "afipws.connection"
     _description = "HACIENDA WS Connection"
@@ -27,6 +36,10 @@ class AfipwsConnection(models.Model):
 
     @api.depends("type", "afip_ws")
     def _compute_afip_urls(self):
+        """
+        Calcula las URLs de login y del webservice de AFIP según el tipo de ambiente y servicio.
+        Valida que el webservice sea soportado y asigna los valores a los campos correspondientes.
+        """
         for rec in self:
             rec.afip_login_url = rec.get_afip_login_url(rec.type)
             _logger.info("afip_ws: %s", rec.afip_ws)
@@ -37,18 +50,33 @@ class AfipwsConnection(models.Model):
             rec.afip_ws_url = afip_ws_url
 
     def get_afip_login_url(self, environment_type):
+        """Retorna la URL de autenticación de AFIP según el tipo de ambiente (producción o testing)."""
         # Modificación de URL para usar la API de autenticación correcta
-        if environment_type == "production":
-            return "http://192.168.2.87:8000/fe/autenticacion/"
+        url_afip = config_utils.get_config_value(self.env, 'afip_url_auth', self.company_id.id) if config_utils else 'http://192.168.2.87:8000/fe/autenticacion/'
+        if environment_type == constants.AMBIENTE_PROD:
+            return url_afip
         else:
-            return "http://192.168.2.87:8000/fe/autenticacion/"
+            return url_afip
 
     def get_afip_ws_url(self, hacienda_ws, environment_type):
+        """
+        Obtiene la URL del servicio web de Hacienda según el tipo de ambiente (producción o pruebas).
+        Retorna la URL configurada en parámetros del sistema o una predeterminada si no existe.
+        """
         hacienda_ws_url = False
         _logger.info("hacienda_ws: %s", hacienda_ws)
+
+        url_hacienda = None
+        if environment_type == constants.AMBIENTE_PROD:
+            url_hacienda = config_utils.get_config_value(self.env, 'url_prod_hacienda', self.company_id.id) \
+                if config_utils else 'https://api.dtes.mh.gob.sv/fesv/recepciondte'
+        else:
+            url_hacienda = config_utils.get_config_value(self.env, 'url_test_hacienda', self.company_id.id) \
+                if config_utils else 'https://apitest.dtes.mh.gob.sv/fesv/recepciondte'
+
         # Similar lógica a tu código anterior para obtener la URL
         if hacienda_ws == "ws_svr_uno_uno" or hacienda_ws == "ws_svr_consulta_dte":#if hacienda_ws == "ws_svr_uno_uno":
-            hacienda_ws_url = "https://api.dtes.mh.gob.sv/fesv/recepciondte" if environment_type == "production" else "https://apitest.dtes.mh.gob.sv/fesv/recepciondte"
+            hacienda_ws_url = url_hacienda
         _logger.info("hacienda_ws_url: %s", hacienda_ws_url)
         return hacienda_ws_url
 

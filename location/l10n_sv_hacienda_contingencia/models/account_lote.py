@@ -128,7 +128,7 @@ class sit_account_lote(models.Model):
 
     def action_ver_facturas(self):
         return {
-            'name': 'Facturas del Lote',
+            'name': 'Documentos Electrónicos del Lote',
             'type': 'ir.actions.act_window',
             'res_model': 'account.move',
             'view_mode': 'list,form',
@@ -175,7 +175,6 @@ class sit_account_lote(models.Model):
             raise UserError("La versión de lote no puede estar vacía.")
         estable = journal.sit_codestable
         punto_venta = journal.sit_codpuntoventa
-        # seq_code = 'LOT'
 
         # Armar patrón dinámico basado en prefix de la secuencia
         # Ejemplo: prefix="LOT-%(version)s-0000%(estable)s-" → se sustituye aquí
@@ -185,7 +184,6 @@ class sit_account_lote(models.Model):
             'estable': estable,
             'punto_venta': punto_venta,
         }
-        # pattern_prefix = prefix.replace('%(lote)s', version_str).replace('%(estable)s', estable)
         # Reemplazar todos los placeholders en el prefijo de la secuencia
         pattern_prefix = prefix
         for key, value in replacements.items():
@@ -194,9 +192,7 @@ class sit_account_lote(models.Model):
         _logger.info("Prefijo dinámico final lote: %s", pattern_prefix)
 
         # Buscar último nombre generado con formato LOT-version-0000estable-
-        ultimo = self.search([('journal_id', '=', journal.id), ('name', 'like', f'{pattern_prefix}%')],
-                             order='name desc', limit=1)
-
+        ultimo = self.search([('journal_id', '=', journal.id), ('name', 'like', f'{pattern_prefix}%')], order='name desc', limit=1)
         if ultimo:
             try:
                 ultima_parte = int(ultimo.name.split('-')[-1])
@@ -206,7 +202,6 @@ class sit_account_lote(models.Model):
         else:
             nuevo_numero = 1
 
-        # nuevo_name = f"LOT-{version_str}-0000{estable}-{str(nuevo_numero).zfill(15)}"
         # Generar el nuevo nombre con el prefix de la secuencia
         nuevo_name = f"{pattern_prefix}{str(nuevo_numero).zfill(15)}"
 
@@ -217,7 +212,6 @@ class sit_account_lote(models.Model):
         _logger.info("Nombre de lote generado dinámicamente con prefix: %s", nuevo_name)
 
         # Actualizar secuencia si es necesario
-        # sequence = self.env['ir.sequence'].search([('code', '=', seq_code)], limit=1)
         if actualizar_secuencia:
             next_num = nuevo_numero + 1
             if sequence.use_date_range:

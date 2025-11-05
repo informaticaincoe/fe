@@ -5,6 +5,13 @@ _logger = logging.getLogger(__name__)
 
 from odoo.exceptions import ValidationError
 
+try:
+    from odoo.addons.common_utils.utils import config_utils
+    _logger.info("SIT Modulo config_utils sv hacienda - res_configuration")
+except ImportError as e:
+    _logger.error(f"Error al importar 'config_utils': {e}")
+    config_utils = None
+
 class ResConfiguration(models.Model):
     _name = "res.configuration"
     _description = 'Service Configuration Parameters'
@@ -47,7 +54,10 @@ class ResConfiguration(models.Model):
               con el mensaje "Debe seleccionar hasta 3 diarios como máximo."
         """
         for record in self:
-            if len(record.journal_ids) > 3:
+            valor = config_utils.get_config_value(self.env, 'cant_diarios', record.company_id.id) if config_utils else 3
+            cantidad_diarios = int(valor or 3)
+
+            if len(record.journal_ids) > cantidad_diarios:
                 raise ValidationError("Debe seleccionar hasta 3 diarios como máximo.")
 
     def _compute_sit_journal_ids(self):

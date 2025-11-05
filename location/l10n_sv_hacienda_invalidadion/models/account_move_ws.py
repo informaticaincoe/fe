@@ -10,24 +10,26 @@ import pyqrcode
 import pytz
 import logging
 import uuid
+import os
 
 _logger = logging.getLogger(__name__)
 
 # Zona horaria El Salvador
 tz_el_salvador = pytz.timezone('America/El_Salvador')
-COD_FE = "01"
-COD_FSE = "14"
 from ..constantes_utils import get_constantes_anulacion
 from pytz import timezone, UTC
+from odoo.tools import float_round
 
 ZONA_HORARIA = timezone('America/El_Salvador')
 
 try:
     from odoo.addons.common_utils.utils import config_utils
+    from odoo.addons.common_utils.utils import constants
     _logger.info("SIT Modulo config_utils invalidacion ws")
 except ImportError as e:
     _logger.error(f"Error al importar 'config_utils': {e}")
     config_utils = None
+    constants = None
 
 class AccountMove(models.Model):
     _inherit = "account.move"
@@ -100,16 +102,15 @@ class AccountMove(models.Model):
 
         ambiente = None
         if config_utils:
-            ambiente = config_utils.compute_validation_type_2(self.env) #str(get_constantes_anulacion()['AMBIENTE']) #"00" if self._compute_validation_type_2() == 'homologation' else "01"
+            ambiente = config_utils.compute_validation_type_2(self.env)
         invoice_info["ambiente"] = ambiente
         if self.sit_codigoGeneracion_invalidacion:
             invoice_info["codigoGeneracion"] = self.sit_codigoGeneracion_invalidacion
         else:
-            invoice_info["codigoGeneracion"] = self.sit_generar_uuid()  # company_id.sit_uuid.upper()
+            invoice_info["codigoGeneracion"] = self.sit_generar_uuid()
 
-        import datetime, pytz, os
         os.environ["TZ"] = "America/El_Salvador"
-        fecha_actual = datetime.datetime.now(pytz.timezone("America/El_Salvador"))
+        fecha_actual = datetime.now(pytz.timezone("America/El_Salvador"))
         _logger.info("Fecha en sesion 1: %s", fecha_actual)
 
         if self.sit_evento_invalidacion.sit_fec_hor_Anula:
@@ -117,7 +118,7 @@ class AccountMove(models.Model):
             FechaHoraAnulacion = utc_dt.astimezone(ZONA_HORARIA)
             _logger.info("SIT campo fecha anulacion: =%s", FechaHoraAnulacion)
         else:
-            FechaHoraAnulacion = fecha_actual#datetime.now() - timedelta(hours=6)
+            FechaHoraAnulacion = fecha_actual
             _logger.info("SIT fecha anulacion: =%s", FechaHoraAnulacion)
 
         invoice_info["fecAnula"] = FechaHoraAnulacion.strftime('%Y-%m-%d')
@@ -133,7 +134,9 @@ class AccountMove(models.Model):
         _logger.info("SIT [INICIO] Emisor: self.id=%s", self.id)
 
         invoice_info = {}
-        nit = self.company_id.vat.replace("-", "")
+        nit = self.company_id.vat
+        if nit:
+            nit = nit.replace("-", "")
         invoice_info.update({
             "nit": nit,
             "nombre": self.company_id.name,
@@ -150,8 +153,6 @@ class AccountMove(models.Model):
         _logger.info("SIT Emisor: %s", invoice_info)
         return invoice_info
 
-    tz_el_salvador = pytz.timezone('America/El_Salvador')
-
     def sit_invalidacion_base_map_invoice_info_documento(self):
         _logger.info("SIT [INICIO] Documento: self.id=%s", self.id)
 
@@ -160,12 +161,8 @@ class AccountMove(models.Model):
             "codigoGeneracion": self.hacienda_codigoGeneracion_identificacion,
             "selloRecibido": self.hacienda_selloRecibido,
             "numeroControl": self.name,
-            "montoIva": round(self.amount_total, 2),
+            "montoIva": float_round(self.amount_total, precision_rounding=self.currency_id.rounding),
         }
-
-        # fecha_facturacion = (datetime.strptime(self.fecha_facturacion_hacienda, '%Y-%m-%d')
-        #                      if isinstance(self.fecha_facturacion_hacienda, str)
-        #                      else self.fecha_facturacion_hacienda)
 
         # --- Procesamiento robusto de fecha ---
         fecha_facturacion = None
@@ -209,37 +206,27 @@ class AccountMove(models.Model):
             _logger.error("fecha_facturacion no es datetime, es: %s, %s", type(fecha_facturacion), fecha_facturacion)
             raise ValueError("fecha_facturacion no es un datetime válido")
 
-        if self.sit_tipoAnulacion == '2':
+        if self.sit_tipoAnulacion == constants.INV_RESCINDIR:
             self.sit_codigoGeneracionR = None
 
         invoice_info["codigoGeneracionR"] = self.sit_codigoGeneracionR or None
 
         dui = None
         nit = None
-        if self.journal_id.sit_tipo_documento.codigo in [COD_FE, COD_FSE]:
-            #nit = self.partner_id.dui.replace("-", "") if isinstance(self.partner_id.dui,str) and self.partner_id.dui.strip() else None
+        if self.journal_id.sit_tipo_documento.codigo in [constants.COD_DTE_FE, constants.COD_DTE_FSE]:
             if isinstance(self.partner_id.dui,str) and self.partner_id.dui.strip():
                 dui = self.partner_id.dui.replace("-", "")
             elif isinstance(self.partner_id.vat,str) and self.partner_id.vat.strip():
                 nit = self.partner_id.vat.replace("-", "")
         else:
-            #nit = self.partner_id.vat.replace("-", "") if isinstance(self.partner_id.vat,str) and self.partner_id.vat.strip() else None
             if isinstance(self.partner_id.vat,str) and self.partner_id.vat.strip():
                 nit = self.partner_id.vat.replace("-", "")
             elif isinstance(self.partner_id.dui,str) and self.partner_id.dui.strip():
                 dui = self.partner_id.dui.replace("-", "")
         _logger.info("SIT Numero de documento: %s, %s", dui, nit)
-        #invoice_info["codigoGeneracionR"] = None  # ó self.sit_codigoGeneracionR
-
-        # Datos del receptor
-        #dui = self.partner_id.dui or ''
-        #nit = dui.replace("-", "") if isinstance(dui, str) else None
 
         if dui:
             nit = dui
-        # else:
-        #     nit_partner = self.partner_id.fax or ''
-        #     nit = nit_partner.replace("-", "") if isinstance(nit_partner, str) else ''
 
         invoice_info["numDocumento"] = nit
         invoice_info["tipoDocumento"] = (
@@ -258,7 +245,6 @@ class AccountMove(models.Model):
         _logger.info("SIT [INICIO] Motivo anulación: self.id=%s", self.id)
 
         _logger.info("SIT Empresa-Receptor: self.id=%s", self.partner_id)
-        #if self.journal_id.sit_tipo_documento.codigo == COD_FE:
         dui = None
         if self.partner_id:
             if self.partner_id.dui:
@@ -275,23 +261,21 @@ class AccountMove(models.Model):
         _logger.info("SIT Dui responsable de invalidacion: %s", dui)
 
         if not dui:
-            raise UserError(
-                _("No se encontró el DUI del responsable en la empresa. Por favor verifique el campo DUI en el partner de la compañía."))
+            raise UserError(_("No se encontró el DUI del responsable en la empresa. Por favor verifique el campo DUI en el partner de la compañía."))
 
         numDocumento = None
         tipoDocumento = None
         if self.company_id:
             if self.company_id.vat:
                 numDocumento = self.company_id.vat
-                tipoDocumento = "36"
+                tipoDocumento = constants.COD_TIPO_DOCU_NIT
             elif(self.company_id.sit_uuid):
                 numDocumento = self.company_id.sit_uuid
-                tipoDocumento = "36"
+                tipoDocumento = constants.COD_TIPO_DOCU_NIT
             elif(self.company_id.dui):
                 numDocumento = self.company_id.dui
-                tipoDocumento = "13"
+                tipoDocumento = constants.COD_TIPO_DOCU_DUI
 
-        #nit = self.company_id.partner_id.dui.replace("-", "")
         nit = dui.replace("-", "")
         if numDocumento:
             numDocumento = numDocumento.replace("-", "")
@@ -301,7 +285,7 @@ class AccountMove(models.Model):
 
         invoice_info = {
             "tipoAnulacion": int(self.sit_tipoAnulacion),
-            "motivoAnulacion": self.sit_motivoAnulacion,#self.sit_motivoAnulacion if self.sit_tipoAnulacion == 3 else None,
+            "motivoAnulacion": self.sit_motivoAnulacion,
             "nombreResponsable": self.partner_id.name,
             "tipDocResponsable": tipoDocumento, # "36",
             "numDocResponsable": numDocumento,

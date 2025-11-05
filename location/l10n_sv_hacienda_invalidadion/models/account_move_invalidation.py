@@ -24,14 +24,7 @@ from datetime import datetime, date, timedelta  # Importando directamente las fu
 import pytz
 import re
 
-# from datetime import datetime
-
 _logger = logging.getLogger(__name__)
-
-
-#EXTRA_ADDONS = r'C:\Users\Administrador\Documents\fe\location\mnt\src'
-#EXTRA_ADDONS = r'C:\Users\INCOE\Documents\GitHub\fe\location\mnt\extra-addons\src'
-
 # Ruta raíz del proyecto (donde está tu carpeta 'fe')
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 EXTRA_ADDONS = os.path.join(PROJECT_ROOT, "mnt", "extra-addons", "src")
@@ -113,7 +106,6 @@ class AccountMoveInvalidation(models.Model):
 
     sit_factura_a_reemplazar = fields.Many2one('account.move', string="Documento que reeemplaza", copy=False)
 
-    # sit_codigoGeneracionR = fields.Char(string="codigoGeneracion que Reemplaza" , copy=False, )
     sit_codigoGeneracionR = fields.Char(related="sit_factura_a_reemplazar.hacienda_codigoGeneracion_identificacion",
                                         string="codigoGeneracion que Reemplaza", copy=False, required=True, default=None, )
     sit_codigoGeneracion_reemplazo = fields.Char(string="Codigo de Generacion del documento que sustituye al dte invalidado", copy=False, )
@@ -122,20 +114,12 @@ class AccountMoveInvalidation(models.Model):
     sit_motivoAnulacion = fields.Char(string="Motivo de invalidacion", copy=False, )
     sit_nombreResponsable = fields.Many2one('res.partner',string="Nombre de la persona responsable de invalidar el DTE", copy=False)
 
-    # fields.Char(string="Nombre de la persona responsable de invalidar el DTE" , copy=False, )
     sit_tipDocResponsable = fields.Char(string="Tipo documento de identificación", copy=False, default="13")
-    # sit_numDocResponsable = fields.Char(related="sit_nombreResponsable.dui", string="Número de documento de identificación" , copy=False, )
-    sit_numDocResponsable = fields.Char(related="sit_nombreResponsable.vat",
-                                        string="Número de documento de identificación", copy=False, )
-    # sit_tipo_contingencia_valores = fields.Char(related="sit_tipo_contingencia.valores", string="Tipo de contingiancia(nombre)")
+    sit_numDocResponsable = fields.Char(related="sit_nombreResponsable.vat", string="Número de documento de identificación", copy=False, )
 
     sit_nombreSolicita = fields.Many2one('res.partner', string="Nombre de la persona que solicita invalidar el DTE", copy=False)
-    # sit_nombreSolicita = fields.Char(string="Nombre de la persona que solicita invalidar el DTE" , copy=False, )
     sit_tipDocSolicita = fields.Char(string="Tipo documento de identificación solicitante", copy=False, default="13")
-    # sit_numDocSolicita = fields.Char(string="Número de documento de identificación solicitante." , copy=False, )
-    # sit_numDocSolicita = fields.Char(related="sit_nombreSolicita.dui", string="Número de documento de identificación solicitante" , copy=False, )
-    sit_numDocSolicita = fields.Char(related="sit_nombreSolicita.vat",
-                                     string="Número de documento de identificación solicitante", copy=False, )
+    sit_numDocSolicita = fields.Char(related="sit_nombreSolicita.vat", string="Número de documento de identificación solicitante", copy=False, )
 
     sit_json_respuesta_invalidacion = fields.Text("Json de Respuesta Invalidacion", default="")
 
@@ -169,7 +153,6 @@ class AccountMoveInvalidation(models.Model):
     # ---------------------------------------------------------------------------------------------
     # ANULAR FACTURA
     # ---------------------------------------------------------------------------------------------
-
     @api.model
     def button_anul(self):
         '''Generamos la Anulación de la Factura'''
@@ -184,11 +167,7 @@ class AccountMoveInvalidation(models.Model):
             "mensaje": "",
             "resultado_mh": None,
         }
-        # MENSAJE="SIT Respuesta = button_anul"
-        # raise UserError(_(MENSAJE))
 
-        # NUMERO_FACTURA= super(AccountMove, self).action_post()
-        # _logger.info("SIT NUMERO FACTURA =%s", NUMERO_FACTURA)
         fh_procesamiento = None
         for invoice in self:
             documento_firmado = None
@@ -255,10 +234,6 @@ class AccountMoveInvalidation(models.Model):
                             else:
                                 _logger.warning("SIT No se pudo obtener una fecha válida para la factura.")
 
-                            # Validación de límite de anulación de 24h
-                            # fecha_factura_utc = pytz.timezone("America/El_Salvador").localize(fecha_factura_dt).astimezone(pytz.utc)
-                            # time_diff = datetime.now(pytz.utc) - fecha_factura_utc
-
                             if time_diff.total_seconds() > 24 * 3600:
                                 _logger.warning("SIT Factura excede el límite de invalidación de 24h")
                                 raise UserError(_("La invalidación no puede realizarse. La factura tiene más de 24 horas."))
@@ -320,14 +295,6 @@ class AccountMoveInvalidation(models.Model):
 
                         validation_type = config_utils.compute_validation_type_2(self.env)
                         _logger.info("SIT Validation type: %s", validation_type)
-
-                        # ambiente = "00"
-                        # if validation_type == 'homologation':
-                        #     ambiente = "00"
-                        #     _logger.info("SIT Factura de Prueba")
-                        # elif validation_type == 'production':
-                        #     _logger.info("SIT Factura de Producción")
-                        #     ambiente = "01"
                         _logger.info("SIT button_anul() SIT Ambiente: %s", validation_type)
 
                         # Generar json de Invalidación
@@ -415,11 +382,7 @@ class AccountMoveInvalidation(models.Model):
                                 dat_time = dat_time.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + '-06:00'
                             elif re.match(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}-\d{4}', dat_time):
                                 dat_time = dat_time[:-2] + ':' + dat_time[-2:]
-                            # else:
-                            # pass
 
-                            # fhProcesamiento = datetime.fromisoformat(dat_time).replace(tzinfo=None) + timedelta(hours=6)
-                            #fh_procesamiento = Resultado['fhProcesamiento']
                             fh_dt = None
                             if fh_procesamiento:
                                 try:
@@ -433,8 +396,7 @@ class AccountMoveInvalidation(models.Model):
 
                                 if fh_dt and not invoice.hacienda_fhProcesamiento_anulacion:
                                     invoice.hacienda_fhProcesamiento_anulacion = fh_dt
-                                    _logger.info("SIT Fecha invalidacion=%s",
-                                                 invoice.hacienda_fhProcesamiento_anulacion)
+                                    _logger.info("SIT Fecha invalidacion=%s", invoice.hacienda_fhProcesamiento_anulacion)
 
                             # Guardar archivo .json
                             file_name = 'Invalidacion ' + invoice.sit_factura_a_reemplazar.name.replace('/', '_') + '.json'
@@ -475,11 +437,8 @@ class AccountMoveInvalidation(models.Model):
                                 _logger.info("SIT Factura creada correctamente state =%s", invoice.state)
                                 payload_original['dteJson']['firmaElectronica'] = documento_firmado
                                 payload_original['dteJson']['selloRecibido'] = Resultado['selloRecibido']
-                                _logger.info("SIT Factura creada correctamente payload_original =%s",
-                                             str(json.dumps(payload_original)))
+                                _logger.info("SIT Factura creada correctamente payload_original =%s", str(json.dumps(payload_original)))
 
-                                # invoice.sit_json_respuesta = str(json.dumps(payload_original['dteJson']))
-                                # invoice.sit_json_respuesta_invalidacion = payload_original['dteJson']
                                 _logger.info("SIT JSON de Invalidacion=%s", invoice.sit_json_respuesta_invalidacion)
                                 json_str = json.dumps(payload_original['dteJson'])
                                 _logger.info("SIT JSON de respuesta guardado")
@@ -488,7 +447,6 @@ class AccountMoveInvalidation(models.Model):
                                 invoice.sit_nombreResponsable = invoice.sit_factura_a_reemplazar.partner_id
 
                                 # Actulizar json
-                                # Respuesta json
                                 json_response_data = {
                                     "jsonRespuestaMh": Resultado
                                 }
@@ -550,8 +508,7 @@ class AccountMoveInvalidation(models.Model):
                             resultado_final["mensaje"] = f"Ocurrió un error al procesar la respuesta de Hacienda: {e}"
                 else:
                     # Mostrar mensaje de error pero no interrumpir con excepción
-                    mensaje = Resultado.get(
-                        'descripcionMsg') or "Error en procesamiento MH" if Resultado else "Error desconocido"
+                    mensaje = Resultado.get('descripcionMsg') or "Error en procesamiento MH" if Resultado else "Error desconocido"
                     resultado_final["mensaje"] = f"Invalidación rechazada o error MH: {mensaje}"
                     resultado_final["resultado_mh"] = Resultado
             except Exception as e:
@@ -565,18 +522,18 @@ class AccountMoveInvalidation(models.Model):
     def firmar_documento_anu(self, enviroment_type, payload):
         _logger.info("SIT Firmando documento")
 
-        # 1 Validación de facturación electrónica
-        if not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion):
-            # raise UserError(_("Solo se pueden firmar documentos de empresas con facturación electrónica."))
-            _logger.info("SIT No aplica facturación electrónica. Se omite firma de documento.")
-            return False
-
-        # 2 Validación de compra normal (sin sujeto excluido)
+        # 1 Validación de compra normal (sin sujeto excluido)
         if self.sit_factura_a_reemplazar.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
             tipo_doc = self.sit_factura_a_reemplazar.journal_id.sit_tipo_documento
             if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE:
                 _logger.info("SIT Documento de compra normal (sin sujeto excluido). No se firma DTE.")
                 return False
+
+        # 2 Validación de facturación electrónica
+        if not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion):
+            # raise UserError(_("Solo se pueden firmar documentos de empresas con facturación electrónica."))
+            _logger.info("SIT No aplica facturación electrónica. Se omite firma de documento.")
+            return False
 
         _logger.info("SIT Documento a FIRMAR =%s", payload)
         # Firmado de documento
@@ -643,17 +600,17 @@ class AccountMoveInvalidation(models.Model):
     def generar_dte_invalidacion(self, enviroment_type, payload, payload_original, ambiente_test):
         _logger.info("SIT Generando DTE Invalidacion =%s, Sit Ambiente: %s", payload, enviroment_type)
 
-        # 1 Validación de facturación electrónica
-        if not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion):
-            _logger.info("SIT La empresa %s no aplica a facturación electrónica, se detiene la generación de DTE.", self.sit_factura_a_reemplazar.company_id.id if self.sit_factura_a_reemplazar.company_id else None,)
-            return False
-
-        # 2 Validación de compra normal (sin sujeto excluido)
+        # 1 Validación de compra normal (sin sujeto excluido)
         if self.sit_factura_a_reemplazar.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
             tipo_doc = self.sit_factura_a_reemplazar.journal_id.sit_tipo_documento
             if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE:
                 _logger.info("SIT Documento de compra normal (sin sujeto excluido). Se omite generación de DTE.")
                 return False
+
+        # 2 Validación de facturación electrónica
+        if not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion):
+            _logger.info("SIT La empresa %s no aplica a facturación electrónica, se detiene la generación de DTE.", self.sit_factura_a_reemplazar.company_id.id if self.sit_factura_a_reemplazar.company_id else None,)
+            return False
 
         host = None
         url = None
@@ -703,7 +660,6 @@ class AccountMoveInvalidation(models.Model):
         # status = json_response.get('status')
 
         if response.status_code in [400, 401]:
-            # MENSAJE_ERROR = "ERROR de conexión : " + str(response.text) + " ((( " + str(json.dumps(payload_original)) + " )))"
             MENSAJE_ERROR = (
                 f"ERROR de conexión (HTTP {response.status_code}):\n"
                 f"Respuesta: {response.text}\n\n"
@@ -715,7 +671,7 @@ class AccountMoveInvalidation(models.Model):
         if json_response['estado'] in ["RECHAZADO", 402]:
             status = json_response['estado']
             ambiente = json_response['ambiente']
-            if json_response['ambiente'] == '00':
+            if json_response['ambiente'] == constants.AMBIENTE_TEST:
                 ambiente = 'TEST'
             else:
                 ambiente = 'PROD'
@@ -748,17 +704,17 @@ class AccountMoveInvalidation(models.Model):
     def _autenticar(self, user, pwd, ):
         _logger.info("SIT self = %s", self)
 
-        # 1 Validación de facturación electrónica
-        if not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion):
-            _logger.info("SIT No aplica facturación electrónica. Se omite autenticación.")
-            return False
-
-        # 2 Validación de compra normal (sin sujeto excluido)
+        # 1 Validación de compra normal (sin sujeto excluido)
         if self.sit_factura_a_reemplazar.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
             tipo_doc = self.sit_factura_a_reemplazar.journal_id.sit_tipo_documento
             if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE:
                 _logger.info("SIT Documento de compra normal (sin sujeto excluido). Se omite autenticación para DTE.")
                 return False
+
+        # 2 Validación de facturación electrónica
+        if not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion):
+            _logger.info("SIT No aplica facturación electrónica. Se omite autenticación.")
+            return False
 
         _logger.info("SIT self = %s, %s", user, pwd)
 
@@ -768,11 +724,10 @@ class AccountMoveInvalidation(models.Model):
 
         # 4️ Determinar URL según el entorno
         url = None
-        if enviroment_type == 'homologation':
+        if enviroment_type == constants.HOMOLOGATION:
             url = config_utils.get_config_value(self.env, 'autenticar_test', self.company_id.id) if config_utils else 'https://apitest.dtes.mh.gob.sv/seguridad/auth'
         else:
             url = config_utils.get_config_value(self.env, 'autenticar_prod', self.company_id.id) if config_utils else 'https://api.dtes.mh.gob.sv/seguridad/auth'
-        # url = host + '/seguridad/auth'
 
         # 5 Validar parámetros de Hacienda
         self.check_hacienda_values()
@@ -804,25 +759,23 @@ class AccountMoveInvalidation(models.Model):
     def _generar_qr(self, ambiente, codGen, fechaEmi):
         _logger.info("SIT generando qr___ = %s", self)
 
-        # 1 Validación de facturación electrónica
+        # 1 Validación de compra normal (sin sujeto excluido)
+        if self.sit_factura_a_reemplazar.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
+            tipo_doc = self.sit_factura_a_reemplazar.journal_id.sit_tipo_documento
+            if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE:
+                _logger.info(
+                    "SIT Documento de compra normal (sin sujeto excluido). Se omite generación de QR para DTE.")
+                return False
+
+        # 2 Validación de facturación electrónica
         if not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion):
             _logger.info("SIT No aplica facturación electrónica. Se omite generación de QR(_generar_qr) en evento de invalidacion.")
             return False
 
-        # 2 Validación de compra normal (sin sujeto excluido)
-        if self.sit_factura_a_reemplazar.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
-            tipo_doc = self.sit_factura_a_reemplazar.journal_id.sit_tipo_documento
-            if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE:
-                _logger.info("SIT Documento de compra normal (sin sujeto excluido). Se omite generación de QR para DTE.")
-                return False
-
-        # enviroment_type = self._get_environment_type()
         # 3 Continuar con la generación de QR
         company = self.sit_factura_a_reemplazar.company_id
         if not company:
             raise UserError(_("No se encontró la compañía asociada a la factura a reemplazar."))
-        enviroment_type = company._get_environment_type()
-        # enviroment_type = 'homologation'
         host = config_utils.get_config_value(self.env, 'consulta_dte', self.company_id.id) if config_utils else 'https://admin.factura.gob.sv'
 
         # https://admin.factura.gob.sv/consultaPublica?ambiente=00&codGen=00000000-0000-00000000-000000000000&fechaEmi=2022-05-01
@@ -837,7 +790,6 @@ class AccountMoveInvalidation(models.Model):
             border=4,  # Ancho del borde del código QR
         )
         codigo_qr.add_data(texto_codigo_qr)
-        import os
 
         if os.name == 'nt':  # Windows
             os.chdir(EXTRA_ADDONS)
@@ -862,12 +814,7 @@ class AccountMoveInvalidation(models.Model):
     def generar_qr(self):
         _logger.info("SIT generando qr xxx= %s", self)
 
-        # 1 Validación: empresa y facturación electrónica activa
-        if not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion):
-            _logger.info("SIT No aplica facturación electrónica. Se omite generación de QR(generar_qr) en evento de invalidación.")
-            return False
-
-        # 2 Validación: compras normales sin sujeto excluido
+        # 1 Validación: compras normales sin sujeto excluido
         if self.sit_factura_a_reemplazar.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
             tipo_doc = self.sit_factura_a_reemplazar.journal_id.sit_tipo_documento
             if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE:
@@ -876,16 +823,21 @@ class AccountMoveInvalidation(models.Model):
                 )
                 return False
 
+        # 2 Validación: empresa y facturación electrónica activa
+        if not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion):
+            _logger.info("SIT No aplica facturación electrónica. Se omite generación de QR(generar_qr) en evento de invalidación.")
+            return False
+
         # 3 Continuación normal del flujo
         company = self.sit_factura_a_reemplazar.company_id
         if not company:
             raise UserError(_("No se encontró la compañía asociada a la factura a reemplazar."))
 
         enviroment_type = company._get_environment_type()
-        if enviroment_type == 'homologation':
-            ambiente = "00"
+        if enviroment_type == constants.HOMOLOGATION:
+            ambiente = constants.AMBIENTE_TEST
         else:
-            ambiente = "01"
+            ambiente = constants.PROD_AMBIENTE
 
         host = config_utils.get_config_value(self.env, 'consulta_dte', self.company_id.id) if config_utils else 'https://admin.factura.gob.sv'
         texto_codigo_qr = host + "/consultaPublica?ambiente=" + str(ambiente) + "&codGen=" + str(
@@ -900,7 +852,6 @@ class AccountMoveInvalidation(models.Model):
             border=1,  # Ancho del borde del código QR
         )
         codigo_qr.add_data(texto_codigo_qr)
-        import os
 
         if os.name == 'nt':  # Windows
             os.chdir(EXTRA_ADDONS)
@@ -968,7 +919,7 @@ class AccountMoveInvalidation(models.Model):
             return False
 
         # Validaciones básicas del documento
-        if self.sit_factura_a_reemplazar.move_type != 'in_invoice' and not self.sit_factura_a_reemplazar.journal_id.sit_tipo_documento.codigo:
+        if self.sit_factura_a_reemplazar.move_type != constants.IN_INVOICE and not self.sit_factura_a_reemplazar.journal_id.sit_tipo_documento.codigo:
             raise UserError(_('El Tipo de DTE no está definido.'))
         if not self.sit_factura_a_reemplazar.name:
             raise UserError(_('El Número de control no está definido.'))
@@ -993,8 +944,6 @@ class AccountMoveInvalidation(models.Model):
             raise UserError(_('El emisor no tiene MUNICIPIO configurado.'))
         if not self.sit_factura_a_reemplazar.company_id.email:
             raise UserError(_('El emisor no tiene CORREO configurado.'))
-        # Validaciones para el emisor (comunes para todos los tipos de DTE)
-        # ...
 
         # Validaciones específicas según el tipo de DTE
         tipo_dte = self.sit_factura_a_reemplazar.journal_id.sit_tipo_documento.codigo

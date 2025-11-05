@@ -59,6 +59,10 @@ class sit_account_move(models.Model):
 
     @api.depends('invoice_date')
     def _compute_invoice_month(self):
+        """
+        Calcula el mes de la factura a partir de `invoice_date` y lo almacena en `invoice_month`
+        en formato de dos dígitos; deja vacío si no hay fecha de factura.
+        """
         for record in self:
             if record.invoice_date:
                 # Solo número del mes con dos dígitos
@@ -66,9 +70,7 @@ class sit_account_move(models.Model):
             else:
                 record.invoice_month = ''
 
-
     sit_facturacion = fields.Boolean(
-        related='company_id.sit_facturacion',
         readonly=True,
         store=True,
     )
@@ -96,6 +98,10 @@ class sit_account_move(models.Model):
 
     @api.depends('partner_id')
     def _compute_get_tipo_documento(self):
+        """
+        Asigna automáticamente el número de documento del partner a `numero_documento`,
+        usando DUI si está disponible o VAT/NIT como alternativa; vacío si no existe.
+        """
         for record in self:
             if record.partner_id:
                 _logger.info("DUI: %s", record.partner_id.dui)
@@ -107,6 +113,10 @@ class sit_account_move(models.Model):
 
     @api.depends('partner_id')
     def _compute_get_tipo_documento(self):
+        """
+        Calcula automáticamente el tipo y número de documento de identificación del partner
+        asignando DUI ("01") o NIT/VAT ("03"), o vacío si no está disponible.
+        """
         for record in self:
             if record.partner_id and record.partner_id.dui:
                 record.tipo_documento_identificacion = "01"
@@ -117,7 +127,6 @@ class sit_account_move(models.Model):
             else:
                 record.tipo_documento_identificacion = ''
                 record.numero_documento = ''
-
 
     def _get_condiciones_pago_selection(self):
         return [
@@ -146,6 +155,10 @@ class sit_account_move(models.Model):
 
     @api.onchange('partner_id', 'company_id', 'move_type')
     def _onchange_partner_defaults_ventas(self):
+        """
+        Aplica automáticamente los valores por defecto de pagos y condiciones
+        para ventas al cambiar el partner, la empresa o el tipo de movimiento.
+        """
         # primero el onchange estándar de Odoo
         super(sit_account_move, self)._onchange_partner_id()
 
@@ -181,6 +194,10 @@ class sit_account_move(models.Model):
 
     @api.onchange('partner_id', 'company_id', 'move_type')
     def _onchange_partner_defaults_compras(self):
+        """
+        Establece automáticamente términos de pago, condición y forma de pago al seleccionar un proveedor,
+        considerando facturación electrónica y configuración del partner.
+        """
         # primero el onchange estándar de Odoo
         super(sit_account_move, self)._onchange_partner_id()
 
@@ -218,6 +235,10 @@ class sit_account_move(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
+        """
+        Crea registros de AccountMove con soporte para facturación electrónica, asignando nombres
+        secuenciales y aplicando lógicas de descuentos, retenciones, seguro/flete y defaults de partner.
+        """
         _logger.info("SIT | Iniciando create unificado para AccountMove. Vals_list: %s", vals_list)
 
         for vals in vals_list:
@@ -239,9 +260,7 @@ class sit_account_move(models.Model):
             if not vals.get('name') or not str(vals['name']).strip():
                 vals['name'] = '/'
                 if journal and journal.sequence_id.exists():
-                    _logger.info(
-                        "SIT | Diario con secuencia '%s', se deja name provisional '/' para generación automática",
-                        journal.sequence_id.name)
+                    _logger.info("SIT | Diario con secuencia '%s', se deja name provisional '/' para generación automática", journal.sequence_id.name)
                 else:
                     _logger.info("SIT | Diario sin secuencia, asignado name provisional '/'")
 
@@ -287,11 +306,8 @@ class sit_account_move(models.Model):
 
             # --- Lógica para compras (sin importar facturación activa) ---
             if move_type in (constants.IN_INVOICE, constants.IN_REFUND):
-                if journal and (
-                        not journal.sit_tipo_documento or journal.sit_tipo_documento.codigo != constants.COD_DTE_FSE):
-                    _logger.info(
-                        "SIT-haciendaws_fe | Documento de compra sin tipo DTE, omitiendo lógica DTE. move_id=%s",
-                        rec.id)
+                if journal and (not journal.sit_tipo_documento or journal.sit_tipo_documento.codigo != constants.COD_DTE_FSE):
+                    _logger.info("SIT-haciendaws_fe | Documento de compra sin tipo DTE, omitiendo lógica DTE. move_id=%s", rec.id)
                     rec.hacienda_codigoGeneracion_identificacion = None
                     tipo_documento_obj = self.env['account.journal.tipo_documento.field']
                     if move_type == constants.IN_REFUND:
@@ -301,29 +317,24 @@ class sit_account_move(models.Model):
                         doc = tipo_documento_obj.search([('codigo', '=', constants.COD_DTE_ND)], limit=1)
                         rec.sit_tipo_documento_id = doc
                 else:
-                    _logger.info(
-                        "SIT-haciendaws_fe | Documento de compra con tipo DTE FSE, procesando con lógica personalizada. move_id=%s",
-                        rec.id)
+                    _logger.info("SIT-haciendaws_fe | Documento de compra con tipo DTE FSE, procesando con lógica personalizada. move_id=%s", rec.id)
 
             # --- Validación de empresa con facturación activa ---
             if not any(vals.get('company_id') and self.env['res.company'].browse(vals['company_id']).sit_facturacion for
                        vals in vals_list):
-                _logger.info(
-                    "SIT-create: Ninguna factura pertenece a empresa con facturación activa, se usa create estándar.")
+                _logger.info("SIT-create: Ninguna factura pertenece a empresa con facturación activa, se usa create estándar.")
                 return base_records
 
             # --- Generación dinámica de nombre para venta/compra ---
-            if journal and (journal.type == 'sale' or move_type == 'in_invoice'):
+            if journal and (journal.type == constants.TYPE_VENTA or move_type == constants.IN_INVOICE):
                 if not rec.name or rec.name in ('/', False):
                     virtual_move = self.env['account.move'].new(vals)
                     generated_name = virtual_move.with_context(_dte_auto_generated=True)._generate_dte_name()
                     if generated_name:
                         rec.name = generated_name
-                        _logger.info("SIT-haciendaws_fe | Nombre generado dinámicamente: %s para move_id=%s", rec.name,
-                                     rec.id)
+                        _logger.info("SIT-haciendaws_fe | Nombre generado dinámicamente: %s para move_id=%s", rec.name, rec.id)
                     else:
-                        _logger.warning("SIT-haciendaws_fe | No se pudo generar nombre dinámicamente para move_id=%s",
-                                        rec.id)
+                        _logger.warning("SIT-haciendaws_fe | No se pudo generar nombre dinámicamente para move_id=%s", rec.id)
 
             # --- Reforzar partner obligatorio ---
             partner_id = rec.partner_id.id
@@ -359,6 +370,10 @@ class sit_account_move(models.Model):
     # MÉTODO WRITE UNIFICADO
     # -------------------------------
     def write(self, vals):
+        """
+        Sobrescribe el método write de AccountMove aplicando lógica personalizada para facturación electrónica,
+        descuentos, retenciones y asignación de nombres secuenciales, evitando interferencia con asientos simples o contextos especiales.
+        """
         _logger.info("SIT | Iniciando write unificado. Vals: %s", vals)
 
         # --- Evitar lógica personalizada para asientos contables simples (entry) ---
@@ -410,7 +425,6 @@ class sit_account_move(models.Model):
         # --- Validación de empresa ---
         if not any(move.company_id.sit_facturacion for move in self):
             _logger.info("SIT-write: Ninguna factura pertenece a empresa con facturación activa. Usando write estándar.")
-            res = super().write(vals)
             return super().write(vals)
 
         ctx = self.env.context.copy()

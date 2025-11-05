@@ -16,18 +16,18 @@ import logging
 
 import re
 import json
+from odoo.tools import float_round
 
 _logger = logging.getLogger(__name__)
 
 try:
     from odoo.addons.common_utils.utils import config_utils
     from odoo.addons.common_utils.utils import constants
-
     _logger.info("SIT Modulo config_utils hacienda ws")
 except ImportError as e:
     _logger.error(f"Error al importar 'config_utils': {e}")
     config_utils = None
-
+    constants = None
 
 class AccountMove(models.Model):
     _inherit = "account.move"
@@ -451,8 +451,8 @@ class AccountMove(models.Model):
         invoice_info["ivaPerci1"] = round(self.iva_percibido_amount, 2)
 
         monto_descu = 0.0
-        rete_iva = round(self.retencion_iva_amount or 0.0, 2)
-        rete_renta = round(self.retencion_renta_amount or 0.0, 2)
+        rete_iva = float_round(self.retencion_iva_amount or 0.0, precision_rounding=self.currency_id.rounding)
+        rete_renta = float_round(self.retencion_renta_amount or 0.0, precision_rounding=self.currency_id.rounding)
         _logger.warning("SIT  RENTA = %s", rete_renta)
 
         _logger.warning("SIT  TIENE RENTA = %s", self.apply_retencion_renta)
@@ -611,7 +611,6 @@ class AccountMove(models.Model):
             _logger.info("SIT FechaEmi seleccionada = %s", FechaEmi)
         else:
             # os.environ['TZ'] = 'America/El_Salvador'  # Establecer la zona horaria
-            # datetime.datetime.now()
             # salvador_timezone = pytz.timezone('America/El_Salvador')
             # FechaEmi = datetime.datetime.now(salvador_timezone)
             FechaEmi = config_utils.get_fecha_emi()

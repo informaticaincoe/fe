@@ -37,9 +37,6 @@ class HaciendaCertificate(models.Model):
         index=True,
         null=True
     )
-
-
-
     csr = fields.Text(
         "Request Certificate",
         readonly=True,
@@ -122,6 +119,7 @@ class HaciendaCertificate(models.Model):
     #             rec.request_file = False
 
     def action_to_draft(self):
+        """Pasa el registro a estado 'draft' solo si el alias del certificado está confirmado."""
         if self.alias_id.state != "confirmed":
         # if self.name.state != "confirmed":
             raise UserError(_("Certificate Alias must be confirmed first!"))
@@ -129,16 +127,21 @@ class HaciendaCertificate(models.Model):
         return True
 
     def action_cancel(self):
+        """Cancela el registro cambiando su estado a 'cancel'."""
         self.write({"state": "cancel"})
         return True
 
     def action_confirm(self):
-
+        """Confirma el registro y valida que el certificado sea correcto antes de cambiar el estado a 'confirmed'."""
         self.verify_crt()
         self.write({"state": "confirmed"})
         return True
 
     def verify_crt(self):
+        """
+        Verifica que el certificado sea válido y esté correctamente formado,
+        revisando su contenido y formato. Lanza UserError si es inválido.
+        """
         # _logger.info("SIT verificando certificado %s", self.certificate_file)
         # _logger.info('SIT certificado (%s)) ',self.certificate_file_original  )
         # _logger.info("SIT verificando certificado %s", type(self.certificate_file))
@@ -172,6 +175,10 @@ class HaciendaCertificate(models.Model):
         return True
 
     def sit_action_upload_certificate(self):
+        """
+        Abre un wizard para cargar el certificado asociado al registro actual.
+        Configura el contexto y retorna la acción tipo ventana para el formulario del wizard.
+        """
         _logger.info("SIT sit_action_upload_certificate: %s, %s, %s", self.id, self.ids, self)
 
         wizard = self.env['afipws.upload_certificate.wizard'].create({
@@ -238,7 +245,6 @@ class HaciendaCertificate(models.Model):
             _logger.error("Error al leer el certificado XML: %s", str(e))
             raise UserError(_("Error al procesar el certificado XML: %s") % str(e))
 
-
     @api.onchange('certificate_file')
     def _onchange_file(self):
         """
@@ -277,7 +283,6 @@ class HaciendaCertificate(models.Model):
         except Exception as e:
             _logger.error("Error al procesar el certificado: %s", str(e))
             raise UserError(_("Error al procesar el certificado: %s") % str(e))
-
 
     def _file_isvalid(self):
         """

@@ -41,6 +41,7 @@ try:
 except ImportError as e:
     _logger.error(f"Error al importar 'config_utils': {e}")
     config_utils = None
+    constants = None
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 EXTRA_ADDONS = os.path.join(PROJECT_ROOT, "mnt", "extra-addons", "src")
@@ -74,7 +75,6 @@ def _sanitize(obj):
     if isinstance(obj, (bytes, bytearray)):
         return base64.b64encode(obj).decode('ascii')
     return obj
-
 
 class AccountMove(models.Model):
     _inherit = "account.move"
@@ -202,7 +202,6 @@ class AccountMove(models.Model):
     invoice_time = fields.Char(string="Hora de Facturación", compute='_compute_invoice_time', store=True, readonly=True)
 
     sit_entorno_test = fields.Boolean(
-        related='company_id.sit_entorno_test',
         readonly=True,
         store=True,
     )
@@ -301,194 +300,6 @@ class AccountMove(models.Model):
                 _logger.info("El número de control ya ha sido asignado y no debe modificarse.")
                 return  # No permite la modificación si ya tiene un número de control asignado
 
-    # @api.model_create_multi
-    # def create(self, vals_list):
-    #     _logger.info("Company ID: %s", self.env.company.id)
-    #     _logger.info("SIT vals list: %s", vals_list)
-    #
-    #     for i, vals in enumerate(vals_list):
-    #
-    #         company = None
-    #         if vals.get('company_id'):
-    #             company = self.env['res.company'].browse(vals['company_id'])
-    #             _logger.info("SIT | Empresa encontrada: %s, DTE=%s", company.name, company.sit_facturacion)
-    #
-    #         if company and company.sit_facturacion:
-    #             continue
-    #
-    #     _logger.info("SIT | Fin del bucle vals_list, procede a crear registros base...")
-    #     # --- Primero crear los registros base para que el journal esté asignado ---
-    #     base_records = super().create(vals_list)
-    #     _logger.info("Registros base creados con éxito: %s", base_records.ids)
-    #     if isinstance(base_records, list):
-    #         base_records = self.browse([r.id for r in base_records])
-    #     _logger.info("Registros base creados: %s", base_records.ids)
-    #
-    #     new_vals_list = []
-    #     for rec in base_records:
-    #         # --- Obtener los vals actuales del record ---
-    #         vals = {k: v for k, v in rec._cache.items() if not isinstance(v, (list, tuple))}
-    #
-    #         move_type = rec.move_type
-    #         journal = rec.journal_id
-    #         _logger.info("SIT-haciendaws_fe | Diario seleccionado. Vals: %s, rec: %s", vals.get("journal_id"), rec.journal_id)
-    #
-    #         # --- Saltar lógica DTE excepto para compras con diario 'sujeto excluido' ---
-    #         if move_type in (constants.IN_INVOICE, constants.IN_REFUND) and journal and (
-    #                 not journal.sit_tipo_documento or journal.sit_tipo_documento.codigo != constants.COD_DTE_FSE):
-    #             _logger.info("SIT-haciendaws_fe | Documento de compra detectado (tipo=%s, diario=%s) sin tipo DTE, se omite lógica DTE.", move_type, journal.name if journal else "No asignado")
-    #             continue
-    #
-    #         _logger.info("[CREATE-DEBUG] (antes de DTE) move_type=%s, name=%s", move_type, rec.name)
-    #
-    #         # --- Evitar interferir con pagos (account.payment genera moves tipo 'entry') ---
-    #         context = self._context or {}
-    #         skip_dte = context.get('active_model') == 'account.payment' or rec.origin_payment_id
-    #         if skip_dte:
-    #             _logger.info("SIT | Creación desde pago detectada → se omite personalización DTE.")
-    #             # ew_vals_list.append(vals)
-    #             continue
-    #
-    #         # --- Empresa ---
-    #         company = rec.company_id
-    #         if not (company and company.sit_facturacion):
-    #             _logger.info("Empresa '%s' NO aplica a DTE → se usará flujo estándar.", company.name)
-    #             # new_vals_list.append(vals)
-    #             # Asignar secuencia estándar si no tiene nombre
-    #             if not vals.get('name') or vals['name'] == '/':
-    #                 journal = rec.journal_id or self.env['account.journal'].browse(vals.get('journal_id'))
-    #                 if journal and journal.sequence_id:
-    #                     vals['name'] = journal.sequence_id.next_by_id()
-    #                 else:
-    #                     vals['name'] = self.env['ir.sequence'].next_by_code('account.move') or '/'
-    #                 _logger.info("Asignado name desde flujo estándar: %s", vals['name'])
-    #
-    #             # new_vals_list.append(vals)  # <-- asegura que Odoo los cree normalmente
-    #             # Aquí no se debe crear un nuevo registro, solo actualizar el valor del record base
-    #             rec.write(vals)
-    #             continue
-    #
-    #         move_type = rec.move_type
-    #         _logger.info("SIT modulo detectado: %s", move_type)
-    #
-    #         # --- Extraer partner_id ---
-    #         partner_id = rec.partner_id.id
-    #         if not partner_id:
-    #             for line in rec.line_ids:
-    #                 if line.partner_id:
-    #                     partner_id = line.partner_id.id
-    #                     break
-    #         if partner_id:
-    #             rec.partner_id = partner_id
-    #         _logger.info("SIT Partner detectado: %s", partner_id)
-    #
-    #         # --- Solo diarios de venta (y compras): generar nombre desde secuencia (_generate_dte_name) ---
-    #         if (journal and journal.type == 'sale') or move_type == 'in_invoice':
-    #             name = rec.name
-    #             # Respetar si ya viene un nombre válido (cualquiera), solo generarlo si no hay o es '/'
-    #             if not name or name == '/':  # and name.startswith('DTE-')):
-    #                 # usar un record virtual para métodos que requieren ensure_one()
-    #                 virtual_move = self.env['account.move'].new(vals)
-    #                 # virtual_move._onchange_journal()  # por si depende del diario
-    #                 # Marcamos en el contexto que el DTE se genera automáticamente
-    #                 # generated_name = virtual_move._generate_dte_name()
-    #                 generated_name = virtual_move.with_context(_dte_auto_generated=True)._generate_dte_name()
-    #
-    #                 if generated_name:
-    #                     # rec.name = generated_name
-    #                     vals['name'] = generated_name
-    #                     _logger.info("SIT Nombre generado dinámicamente (venta/compra): %s", vals['name'])
-    #                 else:
-    #                     _logger.warning("SIT No se pudo generar el nombre dinámicamente.")
-    #             else:
-    #                 _logger.info("SIT Nombre provisto por el usuario/config: %s", name)
-    #
-    #             # partner obligatorio para DTE
-    #             if not rec.partner_id:
-    #                 raise UserError(_("No se pudo obtener el partner."))
-    #
-    #             # códigoGeneracion_identificación
-    #             if not vals.get('hacienda_codigoGeneracion_identificacion'):
-    #                 vals['hacienda_codigoGeneracion_identificacion'] = self.sit_generar_uuid()
-    #                 _logger.info("Código de generación asignado: %s", vals['hacienda_codigoGeneracion_identificacion'])
-    #
-    #         else:
-    #             _logger.info("Diario '%s' no es venta (o move_type no es in_invoice), omito generación DTE",
-    #                          journal.name if journal else "No asignado")
-    #
-    #         # ——— Para asientos contables (entry) ———
-    #         if move_type == 'entry':
-    #             # Si no viene nombre o viene como '/', asignarlo desde la secuencia del diario
-    #             if not vals.get('name') or vals['name'] == '/':
-    #                 j = journal or (
-    #                     self.env['account.journal'].browse(vals.get('journal_id')) if vals.get('journal_id') else None)
-    #                 if j and j.sequence_id:
-    #                     # Reservar siguiente número de la secuencia del diario
-    #                     vals['name'] = j.sequence_id.next_by_id()
-    #                 else:
-    #                     # Fallback genérico si el diario no tiene secuencia
-    #                     vals['name'] = self.env['ir.sequence'].next_by_code('account.move') or '/'
-    #                 _logger.info("SIT Asignado nombre de entry desde secuencia: %s", vals['name'])
-    #
-    #         # Validación de duplicados antes de la creación
-    #         existing_move = self.env['account.move'].search([('name', '=', vals.get('name'))], limit=1)
-    #         if existing_move:
-    #             _logger.warning("Documento duplicado detectado con el nombre: %s", vals.get('name'))
-    #             continue  # No crear el duplicado, pasa al siguiente
-    #
-    #         # Actualización del `name` para evitar duplicados en la creación
-    #         if vals.get('name') != '/':
-    #             rec.write({'name': vals.get('name')})
-    #
-    #         # Actualizar los valores de rec directamente
-    #         rec.write(vals)
-    #
-    #     _logger.info("Valores finales antes de super().create: %s", vals_list)
-    #     # no forzar name
-    #     # self._fields['name'].required = False
-    #     # Añadimos `_dte_auto_generated=True` en el contexto para marcar que el campo `name`, fue generado automáticamente por la lógica DTE. Esto es indispensable porque
-    #     # el constraint `_check_name_sales` valida que las facturas de venta no tengan modificaciones manuales en `name`.
-    #     # records = super().create(vals_list)
-    #     # records = super(AccountMove, self).create(new_vals_list)
-    #     # _logger.info("Registros creados: %s", getattr(records, 'ids', records))
-    #
-    #     _logger.info("Registros creados: %s", base_records.ids)
-    #
-    #     # --- Ajustes posteriores: logs, retenciones, seguro/flete ---
-    #     for move in base_records:
-    #         _logger.info("SIT: Movimiento creado con ID=%s y nombre: %s", move.id, move.name)
-    #
-    #         # Actualizar apply_retencion_iva según gran_contribuyente del partner
-    #         if move.partner_id:
-    #             if move.partner_id.gran_contribuyente:
-    #                 move.apply_retencion_iva = True
-    #                 _logger.info(
-    #                     "SIT: apply_retencion_iva activado (cliente gran contribuyente) para move ID=%s", move.id
-    #                 )
-    #             else:
-    #                 move.apply_retencion_iva = False
-    #                 _logger.info(
-    #                     "SIT: apply_retencion_iva desactivado (cliente NO gran contribuyente) para move ID=%s", move.id
-    #                 )
-    #
-    #         # Agregar líneas de seguro/flete
-    #         move.agregar_lineas_seguro_flete()
-    #
-    #         _logger.info("SIT: Después de agregar líneas de seguro/flete, nombre: %s", move.name)
-    #
-    #     # Refuerzo para name si quedó en '/'
-    #     for vals, rec in zip(new_vals_list, base_records):
-    #         if vals.get('name') and vals['name'] != '/' and rec.name == '/':
-    #             _logger.warning("Refuerzo name para rec ID %s: %s", rec.id, vals["name"])
-    #             rec.name = vals['name']
-    #             _logger.info("SIT Refuerzo name=%s", rec.name)
-    #
-    #         rec._copiar_retenciones_desde_documento_relacionado()
-    #         # new_vals_list.append(rec)
-    #
-    #     _logger.info("SIT FIN create records: %s", base_records)
-    #     return base_records
-
     def _inverse_name(self):
         for rec in self:
             # --- BYPASS total para movimientos que no son factura/nota ---
@@ -500,13 +311,10 @@ class AccountMove(models.Model):
                 _logger.info("[INVERSE-NAME] Compra normal con secuencia, no se modifica name")
                 continue
             # Solo aplicar si es movimiento de venta
-            # if rec.company_id.sit_facturacion and rec.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND, constants.IN_REFUND):
-            _logger.warning("[INVERSE-NAME] Evaluando name para move_id=%s: %s", rec.id, rec.name)
             _logger.warning("[INVERSE-NAME] DB name=%s", rec._origin.name)
 
             # Leemos directamente de la base de datos
             db_name = rec._origin.name if rec._origin else rec.name
-
             _logger.warning("[INVERSE-NAME] Evaluando name para move_id=%s: %s (DB: %s)", rec.id, rec.name, db_name)
 
             # Si ya tiene un nombre válido en la base de datos, no hacer nada
@@ -518,8 +326,6 @@ class AccountMove(models.Model):
             if not rec.name:
                 _logger.warning("[INVERSE-NAME] name vacío → se asigna '/' para move_id=%s", rec.id)
                 rec.name = '/'
-            # else:
-            #     _logger.info("[INVERSE-NAME] Move_id=%s no es venta (move_type=%s). No se modifica name.", rec.id, rec.move_type)
 
     @api.depends("move_type")
     def _compute_name(self):
@@ -557,7 +363,7 @@ class AccountMove(models.Model):
                         # if we are on homologation env and we dont have certificates
                         # we validate only locally
                         _logger.info("SIT validation_type =%s", validation_type)
-                        if validation_type == "homologation":
+                        if validation_type == constants.HOMOLOGATION:
                             try:
                                 rec.company_id.get_key_and_certificate(validation_type)
                             except Exception:
@@ -792,14 +598,11 @@ class AccountMove(models.Model):
                     _logger.info("SIT | Corrigiendo desfase date_range: estaba %s, ajustando a %s",
                                  date_range.number_next_actual, siguiente_dte)
                     date_range.number_next_actual = siguiente_dte
-                    # candidate_num = date_range.number_next_actual if date_range else sequence.number_next_actual
             else:
-                # if sequence.number_next_actual < nuevo_numero:
                 if sequence.number_next_actual < siguiente_dte:
                     _logger.info("SIT | Corrigiendo desfase sequence: estaba %s, ajustando a %s",
                                  sequence.number_next_actual, siguiente_dte)
                     sequence.number_next_actual = siguiente_dte
-            # candidate_num = sequence.number_next_actual
 
             # 1) obtener prefijo de la secuencia
             prefix_raw = (sequence.prefix or '').strip()
@@ -825,12 +628,8 @@ class AccountMove(models.Model):
                 if extra:
                     msg_parts.append(
                         "Hay parámetros configurados que no aparecen en el prefijo de la secuencia: %s" % extra)
-                # log informativo y raise para que el usuario corrija configuración/sequence
                 _logger.error("SIT Error coincidencia placeholders: %s", "; ".join(msg_parts))
                 raise UserError(_("Error en parámetros DTE: %s") % ("; ".join(msg_parts)))
-
-            # nuevo_name = journal.sequence_id.with_context(dte=tipo, estable=estable).next_by_id()
-            # Si queremos consumir/actualizar la secuencia -> usar next_by_id (esto YA actualiza ir.sequence)
 
             # ----------------------------
             # GENERACIÓN FINAL DEL NOMBRE
@@ -855,7 +654,6 @@ class AccountMove(models.Model):
 
             _logger.info("SIT Name generado: %s", nuevo_name)
             return nuevo_name
-
         else:
             return None  # <--- Omitir, que Odoo siga normal
 
@@ -888,15 +686,11 @@ class AccountMove(models.Model):
             _logger.warning("SIT El diario '%s' no tiene secuencia configurada", self.journal_id.display_name)
             return
 
-        #tipo = self.journal_id.sit_tipo_documento.codigo
-        #estable = self.journal_id.sit_codestable
-        #seq_code = f'dte.{tipo}'
         numero_control = self.name
         try:
             secuencia_actual = int(numero_control.split("-")[-1])
         except Exception:
             secuencia_actual = 0
-        #sequence = self.env['ir.sequence'].search([('code', '=', seq_code)], limit=1)
 
         next_num = secuencia_actual + 1
         if sequence.use_date_range:
@@ -992,7 +786,7 @@ class AccountMove(models.Model):
                 # —————————————————————————————————————————————
                 # A) DIARIOS NO-VENTA/COMPRA: saltar lógica DTE
                 # —————————————————————————————————————————————
-                if journal.type not in (constants.TYPE_VENTA, constants.TYPE_COMPRA):  # or invoice.move_type not in ('out_invoice', 'out_refund'):
+                if journal.type not in (constants.TYPE_VENTA, constants.TYPE_COMPRA):
                     _logger.info("Diario '%s' no aplica, omito DTE en _post", journal.name)
                     continue # Dejar que Odoo asigne su name normal en el super al final
 
@@ -1002,7 +796,7 @@ class AccountMove(models.Model):
                 # 1) Número de control DTE
                 prefix = (config_utils.get_config_value(self.env, 'dte_prefix', self.company_id.id) or "DTE-").lower()
                 if doc_electronico and not (invoice.name and invoice.name.startswith(prefix)):
-                    numero_control = invoice.with_context(_dte_auto_generated=True)._generate_dte_name() # invoice._generate_dte_name()
+                    numero_control = invoice.with_context(_dte_auto_generated=True)._generate_dte_name()
                     if not numero_control:
                         raise UserError(_("No se pudo generar número de control DTE para la factura %s.") % invoice.id)
                     invoice.name = numero_control
@@ -1094,11 +888,10 @@ class AccountMove(models.Model):
                             _logger.warning("SIT DTE rechazado por número de control duplicado. Generando nuevo número.")
 
                             # Generar nuevo número de control
-                            nuevo_nombre = invoice.with_context(_dte_auto_generated=True)._generate_dte_name(actualizar_secuencia=True) # invoice._generate_dte_name(actualizar_secuencia=True)
+                            nuevo_nombre = invoice.with_context(_dte_auto_generated=True)._generate_dte_name(actualizar_secuencia=True)
                             # Verifica si el nuevo nombre es diferente antes de actualizar
                             if nuevo_nombre != invoice.name:
                                 _logger.info("SIT Actualizando nombre DTE: %s a %s", invoice.name, nuevo_nombre)
-                                # invoice.write({'name': nuevo_nombre})  # Actualiza el nombre
                                 invoice.with_context(_dte_auto_generated=True).write({'name': nuevo_nombre})
                                 invoice.sequence_number = int(nuevo_nombre.split("-")[-1])
                                 _logger.info("SIT name actualizado: %s | sequence number: %s", invoice.name, invoice.sequence_number)
@@ -1114,8 +907,7 @@ class AccountMove(models.Model):
                             # Volver a firmar con el nuevo número
                             documento_firmado = invoice.firmar_documento(ambiente, payload)
                             if not documento_firmado:
-                                raise UserError(
-                                    _('SIT Documento NO Firmado después de reintento con nuevo número de control'))
+                                raise UserError(_('SIT Documento NO Firmado después de reintento con nuevo número de control'))
 
                             # Intentar nuevamente generar el DTE
                             payload_dte = invoice.sit_obtener_payload_dte_info(ambiente, documento_firmado)
@@ -1152,7 +944,6 @@ class AccountMove(models.Model):
 
                         _logger.info("SIT Resultado DTE | Estado DTE: %s", estado)
                         # Fecha de procesamiento
-                        #fh_procesamiento = Resultado['fhProcesamiento'] if Resultado and Resultado['fhProcesamiento'] and not ambiente_test else self.invoice_time
                         fh_procesamiento = None
                         if Resultado and Resultado.get('fhProcesamiento') and not ambiente_test:
                             fh_procesamiento = Resultado.get('fhProcesamiento')
@@ -1176,8 +967,6 @@ class AccountMove(models.Model):
                                 'hacienda_observaciones': str(Resultado.get('observaciones', '')),
                                 'state': 'posted',  # <-- ¡Actualizamos el estado!
                             })
-                            # Si no manejas el caso de éxito para el entorno de prueba, la ejecución continúa,
-                            # pero el estado ya está actualizado. Puedes agregar un `return` para salir aquí si es el final de la ejecución.
 
                         # Procesar la respuesta de Hacienda
                         if not ambiente_test:
@@ -1243,10 +1032,14 @@ class AccountMove(models.Model):
                                 'hacienda_observaciones': str(Resultado.get('observaciones', '')),
                                 'state': 'posted',
                                 'recibido_mh': True,
+                                'sit_facturacion': invoice.company_id.sit_facturacion,
+                                'sit_entorno_test': invoice.company_id.sit_entorno_test
                             })
                         else:
                             invoice.write({
                                 'state': 'posted',
+                                'sit_facturacion': invoice.company_id.sit_facturacion,
+                                'sit_entorno_test': invoice.company_id.sit_entorno_test
                             })
                         _logger.info("SIT Estado registro= %s.", invoice.state)
 
@@ -1304,8 +1097,6 @@ class AccountMove(models.Model):
                     'state': 'draft',
                     'sit_es_configencia': False,
                 })
-                # errores_dte.append("Factura %s: %s" % (invoice.name or invoice.id, str(e)))
-                # UserError(_("Error al procesar la factura %s:\n%s") % (invoice.name or invoice.id, str(e)))
         _logger.info("SIT Fin _post Facturacion")
 
         # Solo llamar al super si quedan invoices sin postear
@@ -1315,20 +1106,6 @@ class AccountMove(models.Model):
         return True
         # return super(AccountMove, self)._post(soft=soft)
 
-    # def _compute_validation_type_2(self):
-    #     environment_type = False
-    #     for rec in self:
-    #         # Validar si la empresa aplica facturación electrónica
-    #         if not (rec.company_id and rec.company_id.sit_facturacion):
-    #             _logger.info("SIT No aplica facturación electrónica.")
-    #             return False
-    #
-    #         parameter_env_type = self.env["ir.config_parameter"].sudo().get_param("afip.ws.env.type")
-    #         if parameter_env_type == "production":
-    #             environment_type = "01"
-    #         else:
-    #             environment_type = "00"
-    #     return environment_type
     # FIMAR FIMAR FIRMAR =======
 
     # ======================== FIRMA ===========================
@@ -1412,8 +1189,6 @@ class AccountMove(models.Model):
             for intento in range(1, max_intentos + 1):
                 _logger.info("Intento %s de %s para firmar el documento", intento, max_intentos)
                 try:
-                    # Usa json=... para que requests ponga Content-Type y encodee;
-                    # igual ya sanitizamos, así que no habrá problema con fechas/Decimal
                     response = requests.post(url, headers=headers, json=payload_firma, timeout=30)
                     txt = response.text
                     _logger.info("SIT firmar_documento response.status=%s body=%s", response.status_code, txt)
@@ -1546,16 +1321,7 @@ class AccountMove(models.Model):
         url_receive = None
         dte_json = None
         # ——— 1) Selección de URL de Hacienda ———
-        # url rest = "https://apitest.dtes.mh.gob.sv"
-        # url prod = "https://api.dtes.mh.gob.sv"
         _logger.info("SIT Tipo de entorno[Ambiente]: %s", ambiente_test)
-
-        # Validar y parsear dteJson si es string
-        # dte_json_raw = payload_original.get("dteJson")
-
-        # if not dte_json_raw or not str(dte_json_raw).strip():
-        #     _logger.error("El JSON del DTE está vacío o inválido")
-        #     raise UserError("El JSON del DTE está vacío o inválido")
 
         # Obtener el JSON real del DTE
         if "dteJson" in payload_original and payload_original["dteJson"]:
@@ -1592,7 +1358,6 @@ class AccountMove(models.Model):
             _logger.warning(f"dteJson no es un diccionario: {dte_json}")
             raise UserError(_("Error interno: dteJson debe ser un diccionario."))
 
-        url_receive = None
         if not ambiente_test:
             url_receive = (
                 config_utils.get_config_value(self.env, 'url_test_hacienda', self.company_id.id)
@@ -1647,7 +1412,6 @@ class AccountMove(models.Model):
                     resp_sign.raise_for_status()
                     data_sign = resp_sign.json()
                     if data_sign.get("status") != "OK":
-                        # raise UserError(_("Firma rechazada: %s – %s") % (data_sign.get("status"), data_sign.get("message", "")))
                         return data_sign
                     jwt_token = data_sign["body"]
                 except Exception as e:
@@ -1726,7 +1490,6 @@ class AccountMove(models.Model):
             try:
                 resp = requests.post(url_receive, headers=headers, json=send_payload, timeout=30)
             except Exception as e:
-                # raise UserError(_("Error de conexión con Hacienda: %s") % e)
                 if intento == max_intentos:
                     raise UserError(_("Error de conexión con Hacienda tras %s intentos: %s") % (max_intentos, e))
                 _logger.warning("Error de conexión con Hacienda: %s", e)
@@ -1858,7 +1621,7 @@ class AccountMove(models.Model):
         enviroment_type = self._get_environment_type()
         _logger.info("SIT Modo = %s", enviroment_type)
         url = None
-        if enviroment_type == 'homologation':
+        if enviroment_type == constants.HOMOLOGATION:
             url = config_utils.get_config_value(self.env, 'autenticar_test', self.company_id.id) if config_utils else 'https://apitest.dtes.mh.gob.sv/seguridad/auth'
         else:
             url = config_utils.get_config_value(self.env, 'autenticar_prod', self.company_id.id) if config_utils else 'https://api.dtes.mh.gob.sv/seguridad/auth'
@@ -1880,7 +1643,6 @@ class AccountMove(models.Model):
                 raise UserError(_(MENSAJE_ERROR))
             else:
                 raise UserError(_(error))
-        resultado = []
         json_response = response.json()
 
     def _generar_qr(self, ambiente, codGen, fechaEmi):
@@ -1916,8 +1678,6 @@ class AccountMove(models.Model):
             border=4,  # Ancho del borde del código QR
         )
         codigo_qr.add_data(texto_codigo_qr)
-        # os.chdir('C:/Users/INCOE/PycharmProjects/fe/location/mnt/src')
-        # os.chdir('C:/Users/admin/Documents/GitHub/fe/location/mnt/certificado')
         os.chdir(EXTRA_ADDONS)
         directory = os.getcwd()
         _logger.info("SIT directory =%s", directory)
@@ -1952,11 +1712,12 @@ class AccountMove(models.Model):
             _logger.info("SIT No aplica facturación electrónica. Se omite generación de QR (generar_qr) para move_id=%s", self.id)
             return False
 
-        enviroment_type = 'homologation'
-        if enviroment_type == 'homologation':
-            ambiente = "00"
+        # enviroment_type = 'homologation'
+        enviroment_type = self._get_environment_type()
+        if enviroment_type == constants.HOMOLOGATION:
+            ambiente = constants.AMBIENTE_TEST
         else:
-            ambiente = "01"
+            ambiente = constants.PROD_AMBIENTE
         host = config_utils.get_config_value(self.env, 'consulta_dte', self.company_id.id) if config_utils else 'https://admin.factura.gob.sv'
         texto_codigo_qr = host + "/consultaPublica?ambiente=" + str(ambiente) + "&codGen=" + str(self.hacienda_codigoGeneracion_identificacion) + "&fechaEmi=" + str(self.fecha_facturacion_hacienda)
         codigo_qr = qrcode.QRCode(
@@ -2118,13 +1879,13 @@ class AccountMove(models.Model):
         contingencia_model = self.env['account.move.tipo_contingencia.field']
 
         if status_code in [500, 502, 503, 504, 408]:
-            contingencia = contingencia_model.search([('codigo', '=', '01')], limit=1)
+            contingencia = contingencia_model.search([('codigo', '=', constants.SISTEMA_MH_NO_DISP)], limit=1)
         elif status_code in [408, 499]:
-            contingencia = contingencia_model.search([('codigo', '=', '02')], limit=1)
+            contingencia = contingencia_model.search([('codigo', '=', constants.SISTEMA_EMISOR_NO_DISP)], limit=1)
         elif status_code in [503, 504]:
-            contingencia = contingencia_model.search([('codigo', '=', '04')], limit=1)
+            contingencia = contingencia_model.search([('codigo', '=', constants.FALLO_ENERGIA)], limit=1)
         else:
-            contingencia = contingencia_model.search([('codigo', '=', '05')], limit=1)
+            contingencia = contingencia_model.search([('codigo', '=', constants.MOT_CONTIN_OTRO)], limit=1)
             motivo_otro = True
             mensaje = f"Error grave en el envío ({origen}) - Código HTTP: {status_code}"
 
@@ -2151,8 +1912,7 @@ class AccountMove(models.Model):
 
         # Solo crear si no tiene sello y no está ya en contingencia
         if self.hacienda_selloRecibido or self.sit_factura_de_contingencia:
-            _logger.info("Factura %s no entra a contingencia: sello=%s, contingencia=%s", self.name,
-                         self.hacienda_selloRecibido, self.sit_factura_de_contingencia)
+            _logger.info("Factura %s no entra a contingencia: sello=%s, contingencia=%s", self.name, self.hacienda_selloRecibido, self.sit_factura_de_contingencia)
             return
 
         journal_contingencia = self.env['account.journal'].search([
@@ -2160,16 +1920,19 @@ class AccountMove(models.Model):
             ('company_id', '=', self.company_id.id),
         ], limit=1)
         if not journal_contingencia:
-            raise UserError(_("No se encontró el diario de contingencia."))
+            raise UserError(_("Verifique la existencia de un diario con el código 'CONT'; de lo contrario, proceda a crearlo"))
 
         journal_lote = self.env['account.journal'].search([
             ('code', '=', 'LOTE'),
             ('company_id', '=', self.company_id.id),
         ], limit=1)
         if not journal_lote:
-            raise UserError(_("No se encontró el diario de lotes."))
+            raise UserError(_("Verifique la existencia de un diario con el código 'LOTE'; de lo contrario, proceda a crearlo"))
 
         max_intentos = 3
+        dte_x_lote = int(config_utils.get_config_value(self.env, 'cantidad_factura', self.company_id.id)) if config_utils else 100
+        dtes_x_contingencia = int(config_utils.get_config_value(self.env, 'dte_limit_cont', self.company_id.id)) if config_utils else 5000
+        lotes_x_contin = int(config_utils.get_config_value(self.env, 'cantidad_lote', self.company_id.id)) if config_utils else 400
         if not data:
             data = {}
 
@@ -2189,8 +1952,7 @@ class AccountMove(models.Model):
             'sit_es_configencia': True,
             'sit_tipo_contingencia': tipo_contingencia.id if tipo_contingencia else False,
         })
-        _logger.info("Guardando DTE en contingencia (%s): %s", tipo_contingencia.codigo if tipo_contingencia else "",
-                     self.name)
+        _logger.info("Guardando DTE en contingencia (%s): %s", tipo_contingencia.codigo if tipo_contingencia else "", self.name)
 
         _logger.info("Buscando contingencia activa para empresa: %s", self.company_id.name)
         Contingencia = self.env['account.contingencia1']
@@ -2206,7 +1968,7 @@ class AccountMove(models.Model):
         ], limit=1)
 
         lote_asignado = None
-        bloque_asignado = None  # Variable para el bloque
+        bloque_asignado = None
         usar_lotes = self.company_id.sit_usar_lotes_contingencia
 
         if contingencia_activa:
@@ -2221,9 +1983,8 @@ class AccountMove(models.Model):
                 ])
                 _logger.info("Facturas en contingencia %s: %d", contingencia_activa.name, num_facturas_contingencia)
 
-                if num_facturas_contingencia >= 5000:
-                    _logger.warning("Contingencia %s alcanzó el máximo de 5000 facturas. Se creará nueva contingencia.",
-                                    contingencia_activa.name)
+                if num_facturas_contingencia >= dtes_x_contingencia:
+                    _logger.warning("Contingencia %s alcanzó el máximo de 5000 documentos electrónicos. Se creará nueva contingencia.", contingencia_activa.name)
                     contingencia_activa.write({'contingencia_activa': False})
                     contingencia_activa = None
 
@@ -2248,7 +2009,7 @@ class AccountMove(models.Model):
                     ])
 
                     for lote in lotes_validos:
-                        if len(lote.move_ids) < 100:  # 100
+                        if len(lote.move_ids) < dte_x_lote:  # 100
                             self.write({'sit_lote_contingencia': lote.id})
                             lote_asignado = lote
                             _logger.info("Factura asignada a lote existente: %s", lote.id)
@@ -2265,17 +2026,14 @@ class AccountMove(models.Model):
                             ('company_id', '=', self.company_id.id),
                         ])
                         if lotes_vacios:
-                            _logger.warning("Se eliminarán lotes vacíos sin nombre antes de crear uno nuevo: %s",
-                                            lotes_vacios.ids)
+                            _logger.warning("Se eliminarán lotes vacíos sin nombre antes de crear uno nuevo: %s", lotes_vacios.ids)
                             lotes_vacios.unlink()
 
                         num_lotes = Lote.search_count([('sit_contingencia', '=', contingencia_activa.id)])
-                        _logger.info("Cantidad lotes existentes en contingencia %s: %d", contingencia_activa.name,
-                                     num_lotes)
+                        _logger.info("Cantidad lotes existentes en contingencia %s: %d", contingencia_activa.name, num_lotes)
 
-                        if num_lotes < 400:
-                            nuevo_nombre_lote = self.env['account.lote'].generar_nombre_lote(journal=journal_lote,
-                                                                                             actualizar_secuencia=True)
+                        if num_lotes < lotes_x_contin:
+                            nuevo_nombre_lote = self.env['account.lote'].generar_nombre_lote(journal=journal_lote, actualizar_secuencia=True)
                             if not nuevo_nombre_lote or not nuevo_nombre_lote.strip():
                                 raise UserError(_("El nombre generado para el lote es inválido, no puede ser vacío."))
                             lote_asignado = Lote.create({
@@ -2292,15 +2050,13 @@ class AccountMove(models.Model):
                             contingencia_activa = None  # Forzar nueva contingencia
 
                     elif not lote_asignado and self.sit_lote_contingencia:
-                        _logger.info("Factura ya tenía un lote asignado, no se crea nuevo lote: %s",
-                                     self.sit_lote_contingencia.name)
+                        _logger.info("Factura ya tenía un lote asignado, no se crea nuevo lote: %s", self.sit_lote_contingencia.name)
         else:
             _logger.info("No se encontró contingencia activa. Creando nueva.")
 
         # Si no hay contingencia activa o válida, crear una nueva
         if not contingencia_activa:
-            nuevo_name = Contingencia._generate_contingencia_name(journal=journal_contingencia,
-                                                                  actualizar_secuencia=True)
+            nuevo_name = Contingencia._generate_contingencia_name(journal=journal_contingencia, actualizar_secuencia=True)
             contingencia_activa = Contingencia.create({
                 'name': nuevo_name,
                 'company_id': self.company_id.id,
@@ -2369,9 +2125,10 @@ class AccountMove(models.Model):
             return
 
         # ——— Buscar bloque con menos de 100 facturas ———
+        dte_x_lote = int(config_utils.get_config_value(self.env, 'cantidad_factura', self.company_id.id)) if config_utils else 100
         bloque = self.env['account.contingencia.bloque'].search([
             ('contingencia_id', '=', contingencia_activa.id),
-            ('cantidad', '<', 100),
+            ('cantidad', '<', dte_x_lote),
         ], limit=1)
 
         if not bloque:
@@ -2419,15 +2176,13 @@ class AccountMove(models.Model):
             if inv.company_id and not inv.company_id.sit_facturacion:
                 _logger.info("SIT No aplica facturación electrónica para la factura %s. Se omiten validaciones iniciales.",
                     inv.name)
-                # return super().action_post()
                 continue
 
             # Validación de compras FSE (sujeto excluido)
             if inv.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
                 tipo_doc = inv.journal_id.sit_tipo_documento if inv.journal_id else None
                 if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE:  # Sujeto excluido
-                    _logger.info("Factura de tipo compra con documento FSE. Se omiten validaciones de DTE para %s.",
-                                 inv.name)
+                    _logger.info("Factura de tipo compra con documento FSE. Se omiten validaciones de DTE para %s.", inv.name)
                     continue
 
             if config_utils:
@@ -2448,7 +2203,6 @@ class AccountMove(models.Model):
                             "Formato esperado: DTE-<tipo_documento>-<codigo_establecimiento+punto_de_venta>-<correlativo de 15 dígitos> \n"
                             "Por ejemplo: DTE-00-E001P001-000000000000001."
                         ) % inv.name)
-                    # raise ValidationError(_("Número de control DTE inválido para la factura %s.") % inv.name)
 
                 if not inv.invoice_date:
                     _logger.warning("SIT | Fecha del documento no seleccionada.")
@@ -2471,25 +2225,19 @@ class AccountMove(models.Model):
                     raise ValidationError("El documento relacionado aún no cuenta con el sello de Hacienda.")
 
                 if (inv.company_id.sit_facturacion or doc_electronico) and not inv.tipo_ingreso_id and inv.journal_id and inv.journal_id.sit_tipo_documento and inv.journal_id.sit_tipo_documento.codigo in (
-                        constants.COD_DTE_FE, constants.COD_DTE_FEX, constants.COD_DTE_CCF, constants.COD_DTE_NC,
-                        constants.COD_DTE_ND):
+                        constants.COD_DTE_FE, constants.COD_DTE_FEX, constants.COD_DTE_CCF, constants.COD_DTE_NC, constants.COD_DTE_ND):
                     _logger.warning("SIT | No se ha seleccionado el tipo de ingreso para el documento electrónico %s.", inv.name)
-                    raise ValidationError(
-                        "Debe seleccionar un tipo de ingreso antes de validar el documento electrónico.")
+                    raise ValidationError("Debe seleccionar un tipo de ingreso antes de validar el documento electrónico.")
 
                 if (inv.company_id.sit_facturacion or doc_electronico) and not inv.tipo_operacion and inv.journal_id and inv.journal_id.sit_tipo_documento and inv.journal_id.sit_tipo_documento.codigo in (
-                        constants.COD_DTE_FE, constants.COD_DTE_FEX, constants.COD_DTE_CCF, constants.COD_DTE_NC,
-                        constants.COD_DTE_ND):
-                    _logger.warning(
-                        "SIT | No se ha seleccionado el tipo de operación para el documento electrónico %s.", inv.name)
-                    raise ValidationError(
-                        "Debe seleccionar un tipo de operación antes de validar el documento electrónico.")
+                        constants.COD_DTE_FE, constants.COD_DTE_FEX, constants.COD_DTE_CCF, constants.COD_DTE_NC, constants.COD_DTE_ND):
+                    _logger.warning("SIT | No se ha seleccionado el tipo de operación para el documento electrónico %s.", inv.name)
+                    raise ValidationError("Debe seleccionar un tipo de operación antes de validar el documento electrónico.")
 
                 if ((inv.company_id.sit_facturacion or doc_electronico) and
                         inv.journal_id and inv.journal_id.sit_tipo_documento and
                         inv.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FSE and
-                        (
-                                not inv.tipo_costo_gasto_id or not inv.tipo_operacion or not inv.clasificacion_facturacion or not inv.sector)):
+                        (not inv.tipo_costo_gasto_id or not inv.tipo_operacion or not inv.clasificacion_facturacion or not inv.sector)):
                     _logger.warning("SIT | Faltan datos requeridos en factura de sujeto excluido (%s).", inv.name)
                     raise ValidationError(
                         "Debe completar todos los campos requeridos para facturas de sujeto excluido:\n"
@@ -2515,8 +2263,7 @@ class AccountMove(models.Model):
                     },
                 }
             elif ambiente_test and inv.hacienda_estado and inv.hacienda_estado.lower() == 'procesado' and inv.state != 'draft':
-                _logger.info("SIT El documento electrónico ha sido procesado correctamente %s, estado: %s", inv.name,
-                             inv.state)
+                _logger.info("SIT El documento electrónico ha sido procesado correctamente %s, estado: %s", inv.name, inv.state)
                 return {
                     'type': 'ir.actions.client',
                     'tag': 'display_notification',
@@ -2631,7 +2378,6 @@ class AccountMove(models.Model):
                         invoice.with_context(from_automatic=True, from_invalidacion=es_invalidacion).sudo().sit_action_send_mail()
                         correo_enviado = True
                         # Si el correo fue enviado desde el botón de la interfaz, notificar al usuario
-                        # if from_button:
                         _logger.info("SIT | Correo enviado correctamente desde el botón para la factura %s", invoice.name)
                         return {
                             'type': 'ir.actions.client',
@@ -2655,7 +2401,6 @@ class AccountMove(models.Model):
                 try:
                     invoice.with_context(from_automatic=True, from_invalidacion=es_invalidacion).sudo().sit_action_send_mail()
                     correo_enviado = True
-                    # if from_button:
                     _logger.info("SIT | Correo enviado correctamente desde el botón para la factura %s", invoice.name)
                     return {
                         'type': 'ir.actions.client',
@@ -2760,8 +2505,7 @@ class AccountMove(models.Model):
         total_lines = len(self.invoice_line_ids)
         lines = self.invoice_line_ids.filtered(lambda l: l.product_id and not l.display_type and l.quantity > 0)
         _logger.info("IVA13CHK ▶ líneas totales=%s | líneas evaluadas=%s | fiscal_position=%s",
-                     total_lines, len(lines),
-                     self.fiscal_position_id and self.fiscal_position_id.display_name or "None")
+                     total_lines, len(lines), self.fiscal_position_id and self.fiscal_position_id.display_name or "None")
 
         missing_products = self.env["product.product"]
 
@@ -2828,7 +2572,7 @@ class AccountMove(models.Model):
         return missing_products
 
     def _ensure_name(self):
-        """Asigna un name automáticamente si no tiene nombre, para ventas o compras sin FE."""
+        """Asigna un name automáticamente si no tiene nombre, para ventas o compras FSE."""
         for move in self:
             # Evitar recursión infinita
             if self.env.context.get('skip_ensure_name'):
@@ -2848,12 +2592,10 @@ class AccountMove(models.Model):
             # Verificar secuencia del diario
             seq = move.journal_id.sequence_id
             if not seq:
-                _logger.warning("SIT | move_id=%s journal_id=%s no tiene secuencia configurada", move.id,
-                                move.journal_id.id)
+                _logger.warning("SIT | move_id=%s journal_id=%s no tiene secuencia configurada", move.id, move.journal_id.id)
                 continue
 
-            _logger.info("SIT | move_id=%s tipo=%s journal=%s secuencia=%s", move.id, move.move_type,
-                         move.journal_id.name, seq.name)
+            _logger.info("SIT | move_id=%s tipo=%s journal=%s secuencia=%s", move.id, move.move_type, move.journal_id.name, seq.name)
 
             ctx = self.env.context.copy()
             ctx['_dte_auto_generated'] = True
@@ -2862,22 +2604,9 @@ class AccountMove(models.Model):
 
             # Generar nuevo name desde secuencia
             new_name = seq.with_context(ctx).next_by_id() or '/'
-
             _logger.info("SIT | move_id=%s: Asignando name automático (sin write) -> %s", move.id, new_name)
-
-            # 🔒 Asignación directa al campo sin usar write/update
-            # move._cache['name'] = new_name
-            # O más limpio: move._set_value('name', new_name)
-            # Esta llamada no dispara write() ni recomputes
-
-            # Confirmar cambio en memoria sin ejecutar ORM write
-            _logger.debug("SIT | move_id=%s: Name actualizado en cache (sin write)", move.id)
-
-            # Utilizar write() para persistir el cambio
-            _logger.info("SIT | move_id=%s: name antes de escribir: %s", move.id, move.name)
 
             # Forzar la actualización sin usar _cache
             move.write({'name': new_name})
-
             # Log para confirmar que el name se ha persistido correctamente
             _logger.info("SIT | move_id=%s: Name confirmado y persistido en base de datos: %s", move.id, move.name)
