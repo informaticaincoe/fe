@@ -1,0 +1,27 @@
+<odoo>
+    <data>
+        <record id="view_hr_planilla_list_custom" model="ir.ui.view">
+            <field name="name">hr.payslip.planilla.unica.list.custom</field>
+            <field name="model">hr.payslip.planilla.unica</field>
+            <field name="priority" eval="20"/>
+            <field name="arch" type="xml">
+                <list string="Planilla unica">
+                    <field name="nit_empresa"/>
+                    <field name="numero_isss_empresa"/>
+                    <field name="periodo_planilla"/>
+                    <field name="num_documento"/>
+                    <field name="tipo_documento"/>
+                    <field name="numero_isss_empleado"/>
+                    <field name="afp_id"/>
+
+                    <field name="primer_nombre" />
+                    <field name="segundo_nombre" />
+                    <field name="primer_apellido" />
+                    <field name="segundo_apellido" />
+
+                </list>
+            </field>
+        </record>
+
+    </data>
+</odoo>

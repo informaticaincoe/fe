@@ -1,5 +1,6 @@
 <odoo>
     <data>
+        <!-- Boton para envio de nomina-->
         <record id="rrhh_payslip_form_inherit_send_email" model="ir.ui.view">
             <field name="name">rrhh.payslip.form.inherit.send.email</field>
             <field name="model">hr.payslip</field>

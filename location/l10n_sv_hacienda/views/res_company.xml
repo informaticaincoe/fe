@@ -7,15 +7,23 @@
         <field name="inherit_id" ref="base.view_company_form"/>
         <field name="arch" type="xml">
             <xpath expr="//page/group[1]" position="after">
-                <group>
-                    <separator string="Información para Hacienda" class="mt32 o_group_col_12" colspan="4"/>
+                <group col="2">
                     <group>
-                        <field name="sit_facturacion" string="Genera Facturación Electrónica?" readonly="0"/>
-                        <field name="sit_entorno_test" readonly="0"/>
-                        <field name="codActividad" string="codActividad" readonly="0"/>
-                        <field name="tipoEstablecimiento" string="tipoEstablecimiento" readonly="0"/>
+                        <separator string="Información para Hacienda" class="mt32 o_group_col_12" colspan="4"/>
+                        <group class="w-100">
+                            <field name="sit_facturacion" string="Genera Facturación Electrónica?" readonly="0"/>
+                            <field name="sit_entorno_test" readonly="0"/>
+                            <field name="codActividad" string="codActividad" readonly="0"/>
+                            <field name="tipoEstablecimiento" string="tipoEstablecimiento" readonly="0"/>
+                        </group>
                     </group>
-                </group>
+                 <group>
+                    <separator string="Planilla única"/>
+                    <group col="1" class="w-100">
+                      <field name="isss_patronal"/>
+                    </group>
+                 </group>
+            </group>
             </xpath>
             <xpath expr="//sheet" position="before">
                 <header>
@@ -31,7 +39,8 @@
                         <group>
                             <field name="sit_token_user" string="Usuario (NIT)"/>
                             <field name="sit_token_pass" string="Password (Contraseña de API)" password="True"/>
-                            <field name="sit_passwordPri" string="Password Firmado (contraseña Privada)" password="True"/>
+                            <field name="sit_passwordPri" string="Password Firmado (contraseña Privada)"
+                                   password="True"/>
                             <field name="certificate_type"/>
                         </group>
                         <separator string="Certificados Cargados" class="mt32 o_group_col_12" colspan="4"/>
@@ -61,7 +70,8 @@
             <xpath expr="//page[@name='general_info']" position="after">
                 <page string="Configuración Empresa" name="configuracion_empresa">
                     <group>
-                        <field name="configuration_ids" context="{'default_company_id': id}" nolabel="1" mode="list,form">
+                        <field name="configuration_ids" context="{'default_company_id': id}" nolabel="1"
+                               mode="list,form">
                             <list string="Configuraciones">
                                 <field name="clave"/>
                                 <field name="value_text"/>
