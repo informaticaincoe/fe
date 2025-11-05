@@ -1,6 +1,15 @@
 # -*- coding: utf-8 -*-
 from odoo import fields, models
 
+import logging
+_logger = logging.getLogger(__name__)
+try:
+    from odoo.addons.common_utils.utils import constants
+    _logger.info("SIT Modulo constants [purchase-account_move_override]")
+except ImportError as e:
+    _logger.error(f"Error al importar 'constants': {e}")
+    constants = None
+
 class SvMoveTaxAccountOverride(models.Model):
     _name = 'sv.move.tax.account.override'
     _description = 'Override de cuenta de impuesto por factura'
@@ -27,7 +36,7 @@ class AccountMove(models.Model):
         """Vence > Contable y es compra."""
         self.ensure_one()
         return (
-            self.move_type in ('in_invoice', 'in_refund')
+            self.move_type in (constants.IN_INVOICE, constants.IN_REFUND)
             and self.invoice_date and self.invoice_date_due
             and self.invoice_date_due > self.invoice_date
         )

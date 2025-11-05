@@ -10,7 +10,12 @@ except Exception:
     unicodedata = None
 
 _logger = logging.getLogger(__name__)
-
+try:
+    from odoo.addons.common_utils.utils import constants
+    _logger.info("SIT Modulo constants [rrhh_base-hr_payslip]")
+except ImportError as e:
+    _logger.error(f"Error al importar 'constants': {e}")
+    constants = None
 
 class HrPayslip(models.Model):
     _inherit = 'hr.payslip'
@@ -218,7 +223,7 @@ class HrPayslip(models.Model):
     def _compute_vacaciones(self):
         """Suma de importes de líneas con code='VACACIONES'"""
         for record in self:
-            vacaciones_lines = record.line_ids.filtered(lambda l: l.code == 'VACACIONES')
+            vacaciones_lines = record.line_ids.filtered(lambda l: l.code == constants.SUM_VACACIONES.upper())
             record.vacaciones = abs(sum(vacaciones_lines.mapped('amount')))
 
     @api.depends('date_from')
@@ -235,7 +240,7 @@ class HrPayslip(models.Model):
         """Suma número de días trabajados o si es vacaciones el numero de dias de vacacion"""
         for record in self:
             asistencia_lines = record.worked_days_line_ids.filtered(
-                lambda l: l.name in ('Asistencia', 'Vacaciones')
+                lambda l: l.name in (constants.SUM_ASISTENCIA, constants.SUM_VACACIONES)
             )
 
             total_days = sum(asistencia_lines.mapped('number_of_days'))
@@ -246,7 +251,7 @@ class HrPayslip(models.Model):
         """Suma horas de líneas 'Asistencia' o 'Vacaciones'."""
         for record in self:
             asistencia_lines = record.worked_days_line_ids.filtered(
-                lambda l: l.name == 'Asistencia' or l.name == 'Vacaciones')
+                lambda l: l.name == constants.SUM_ASISTENCIA or l.name == constants.SUM_VACACIONES)
 
             total_hours = sum(asistencia_lines.mapped('number_of_hours'))
             record.total_worked_hours = total_hours
@@ -255,7 +260,7 @@ class HrPayslip(models.Model):
     def _compute_salario_pagar(self):
         """ Calcula salario a pagar: salario base - descuento por faltas/septimo """
         for record in self:
-            descuento_falta = sum(record.line_ids.filtered(lambda l: l.code == 'DESC_FALTA_SEPTIMO').mapped('amount'))
+            descuento_falta = sum(record.line_ids.filtered(lambda l: l.code == constants.REGLASAL_DESC_SEPTIMO).mapped('amount'))
             salario_base = record.basic_wage or 0.0
             record.salario_pagar = round(salario_base - abs(descuento_falta), 2)
 
@@ -263,28 +268,28 @@ class HrPayslip(models.Model):
     def _compute_comisiones(self):
         """ Suma importes de líneas con codigo 'COMISION' """
         for record in self:
-            comisiones_lines = record.line_ids.filtered(lambda l: l.code == 'COMISION')
+            comisiones_lines = record.line_ids.filtered(lambda l: l.code == constants.ASIGNACION_COMISIONES.upper())
             record.comisiones = sum(comisiones_lines.mapped('amount'))
 
     @api.depends('line_ids.amount')
     def _compute_overtime_total(self):
         """Suma importes de líneas con codigo 'OVERTIME' (horas extra)."""
         for record in self:
-            overtime_lines = record.line_ids.filtered(lambda l: l.code == 'OVERTIME')
+            overtime_lines = record.line_ids.filtered(lambda l: l.code == constants.ASIGNACION_HORAS_EXTRA.upper())
             record.total_overtime = sum(overtime_lines.mapped('amount'))
 
     @api.depends('line_ids.amount')
     def _compute_bonos(self):
         """Suma importes de líneas con codigo 'BONO'."""
         for record in self:
-            bonos_lines = record.line_ids.filtered(lambda l: l.code == 'BONO')
+            bonos_lines = record.line_ids.filtered(lambda l: l.code == constants.ASIGNACION_BONOS.upper())
             record.bonos = sum(bonos_lines.mapped('amount'))
 
     @api.depends('line_ids.amount')
     def _compute_viaticos(self):
         """Viáticos = VIATICO + BONO (acumulados)."""
         for record in self:
-            viaticos_lines = record.line_ids.filtered(lambda l: l.code == 'VIATICO')
+            viaticos_lines = record.line_ids.filtered(lambda l: l.code == constants.ASIGNACION_VIATICOS.upper())
             record.viaticos = sum(viaticos_lines.mapped('amount')) + record.bonos
 
     @api.depends('viaticos', 'total_overtime')
@@ -307,8 +312,8 @@ class HrPayslip(models.Model):
            - 'DEV_RENTA' (devolución)    -> valor negativo
         """
         for record in self:
-            lineas_renta = record.line_ids.filtered(lambda l: l.code == 'RENTA')
-            lineas_dev_renta = record.line_ids.filtered(lambda l: l.code == 'DEV_RENTA')
+            lineas_renta = record.line_ids.filtered(lambda l: l.code == constants.RENTA)
+            lineas_dev_renta = record.line_ids.filtered(lambda l: l.code == constants.DEVOLUCION_RENTA_CODE)
 
             total_renta = record.isr = abs(sum(lineas_renta.mapped('amount')))
             total_dev_renta =  record.isr = abs(sum(lineas_dev_renta.mapped('amount')))
@@ -321,14 +326,14 @@ class HrPayslip(models.Model):
     def _compute_afp(self):
         """Suma importes de líneas con code='AFP' (empleado)."""
         for record in self:
-            afp_lines = record.line_ids.filtered(lambda l: l.code == 'AFP')
+            afp_lines = record.line_ids.filtered(lambda l: l.code == constants.TIPO_DED_AFP.upper())
             record.afp = abs(sum(afp_lines.mapped('amount')))
 
     @api.depends('line_ids.amount')
     def _compute_afp_confia(self):
         """Suma importes de líneas con code='AFP_CONF' (Confía)."""
         for record in self:
-            afp_confia_lines = record.line_ids.filtered(lambda l: l.code == 'AFP_CONF')
+            afp_confia_lines = record.line_ids.filtered(lambda l: l.code == constants.SUM_AFP.upper())
             record.afp_confia = abs(sum(afp_confia_lines.mapped('amount')))
 
     @api.model
@@ -340,7 +345,7 @@ class HrPayslip(models.Model):
             # Consulta rápida para saber si hay INCAF en alguna boleta
             hay_incaf = bool(
                 self.env['hr.payslip.line'].sudo().search([
-                    ('code', '=', 'INCAF'),
+                    ('code', '=', constants.DEDUCCION_INCAF.upper()),
                     ('amount', '>', 0),
                 ], limit=1)
             )
@@ -373,49 +378,49 @@ class HrPayslip(models.Model):
     def _compute_afp_IPSFA(self):
         """Suma importes de líneas con code='IPSFA' (INCAF)."""
         for record in self:
-            afp_ipsfa_lines = record.line_ids.filtered(lambda l: l.code == 'IPSFA')
+            afp_ipsfa_lines = record.line_ids.filtered(lambda l: l.code == constants.AFP_IPSFA.upper())
             record.afp_IPSFA = abs(sum(afp_ipsfa_lines.mapped('amount')))
 
     @api.depends('line_ids.amount')
     def _compute_isss(self):
         """Suma importes de líneas con code='ISSS'."""
         for record in self:
-            overtime_lines = record.line_ids.filtered(lambda l: l.code == 'ISSS')
+            overtime_lines = record.line_ids.filtered(lambda l: l.code == constants.TIPO_DED_ISSS.upper())
             record.isss = abs(sum(overtime_lines.mapped('amount')))
 
     @api.depends('line_ids.amount')
     def _compute_otros_ded(self):
         """Suma importes de líneas con code='OTROS' (otras deducciones)."""
         for record in self:
-            otros_lines = record.line_ids.filtered(lambda l: l.code == 'OTROS')
+            otros_lines = record.line_ids.filtered(lambda l: l.code == constants.SUM_OTRAS_DED.upper())
             record.otros = abs(sum(otros_lines.mapped('amount')))
 
     @api.depends('line_ids.amount')
     def _compute_bancos_ded(self):
         """Suma importes de líneas con code='BANCO' (descuentos bancarios)."""
         for record in self:
-            bancos_lines = record.line_ids.filtered(lambda l: l.code == 'BANCO')
+            bancos_lines = record.line_ids.filtered(lambda l: l.code == constants.SUM_BANCOS.upper())
             record.bancos = abs(sum(bancos_lines.mapped('amount')))
 
     @api.depends('line_ids.amount')
     def _compute_venta_empleados(self):
         """Suma importes de líneas con code='VENTA_EMPLEADOS'."""
         for record in self:
-            venta_empleados_lines = record.line_ids.filtered(lambda l: l.code == 'VENTA_EMPLEADOS')
+            venta_empleados_lines = record.line_ids.filtered(lambda l: l.code == constants.SUM_VENTA_EMPLEADOS)
             record.venta_empleados = abs(sum(venta_empleados_lines.mapped('amount')))
 
     @api.depends('line_ids.amount')
     def _compute_prestamos_incoe(self):
         """Suma importes de líneas con code='PRESTAMOS'."""
         for record in self:
-            prestamos_lines = record.line_ids.filtered(lambda l: l.code == 'PRESTAMOS')
+            prestamos_lines = record.line_ids.filtered(lambda l: l.code == constants.SUM_PRESTAMOS.upper())
             record.prestamos_incoe = abs(sum(prestamos_lines.mapped('amount')))
 
     @api.depends('line_ids.amount')
     def _compute_fsv(self):
         """Suma importes de líneas con code='FSV'. (Fondo Social de la Vivienda)"""
         for record in self:
-            fsv_lines = record.line_ids.filtered(lambda l: l.code == 'FSV')
+            fsv_lines = record.line_ids.filtered(lambda l: l.code == constants.SUM_FSV.upper())
             record.fsv = abs(sum(fsv_lines.mapped('amount')))
 
     @api.depends('isss', 'isr', 'afp', 'otros', 'bancos', 'fsv', 'prestamos_incoe', 'venta_empleados',

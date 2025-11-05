@@ -110,12 +110,6 @@ class HrPayslip(models.Model):
 
             if self.es_nomina_de_vacacion(payslip):
                 _logger.info("Detectada nómina de vacaciones %s → preparando inputs antes del cálculo", payslip.name)
-
-                # if not payslip.struct_id.is_vacation:
-                #     raise UserError(
-                #         "La estructura seleccionada (%s) no está configurada como de vacaciones. "
-                #         "Por favor, seleccione una estructura válida." % (payslip.struct_id.name or "N/A")
-                #     )
                 payslip._agregar_regla_vacaciones(payslip)
             contract = payslip.contract_id
             _logger.info("Procesando nómina normal: %s para contrato %s", payslip.name, contract.name if contract else "N/A")
@@ -139,9 +133,9 @@ class HrPayslip(models.Model):
             self._crear_inputs_deducciones(payslip, contract, base_imponible)
             _logger.info("period_quincena = %s", payslip.period_quincena)
             #Obtener la nomina de la primera quincena
-            if payslip.period_quincena == '2' :
+            if payslip.period_quincena == constants.PERIODO_SEG_QUINCENA:
                 primera_quincena = self.env['hr.payslip'].search(
-                    [('employee_id', '=', payslip.employee_id.id), ('period_quincena', '=', '1'),
+                    [('employee_id', '=', payslip.employee_id.id), ('period_quincena', '=', constants.PERIODO_PRI_QUINCENA),
                     ('period_month', '=', payslip.period_month), ('company_id', '=', payslip.company_id.id), ], limit=1)
 
                 _logger.info(">>>  %s primera_quincena", primera_quincena)
@@ -229,8 +223,7 @@ class HrPayslip(models.Model):
         else:
             # === Ajuste clave: si hay devolución, anular RENTA e inyectar DEV_RENTA ===
             if devolucion_renta and devolucion_renta > 0:
-                _logger.info("Se detectó DEVOLUCIÓN de renta=%.2f → anular RENTA en 2Q y crear DEV_RENTA",
-                             devolucion_renta)
+                _logger.info("Se detectó DEVOLUCIÓN de renta=%.2f → anular RENTA en 2Q y crear DEV_RENTA", devolucion_renta)
                 variables['renta'] = 0.0  # ← anula RENTA para que BASE_DEDUCCIONES no descuente
             # -------------------------------------------------------------------------
 
@@ -262,7 +255,6 @@ class HrPayslip(models.Model):
             valores += afp_vals
             _logger.info("Deducciones AFP: %s", afp_vals)
 
-
         # EXTRA: crear input de asignación por devolución (positivo)
         if devolucion_renta and devolucion_renta > 0:
             valores.append((constants.DEVOLUCION_RENTA_CODE, float_round(abs(devolucion_renta), 2)))
@@ -280,11 +272,9 @@ class HrPayslip(models.Model):
                     'input_type_id': tipo.id,
                     #'company_id': slip.company_id.id,  # <-- agregamos la empresa
                 })
-                _logger.info("Input agregado: código=%s, nombre=%s, monto=%.2f, nómina ID=%d", code, tipo.name, valor,
-                             slip.id)
+                _logger.info("Input agregado: código=%s, nombre=%s, monto=%.2f, nómina ID=%d", code, tipo.name, valor, slip.id)
             else:
                 _logger.warning("Tipo de input para código %s no encontrado, no se creó input", code)
-
 
     # ==========FALTAS INJUSTIFICADAS
     def _aplicar_descuento_septimo_por_faltas(self):
@@ -313,7 +303,7 @@ class HrPayslip(models.Model):
             quincenas = []
 
             # Si es mensual → dividir en dos quincenas
-            if contract.schedule_pay == 'monthly':
+            if contract.schedule_pay == constants.SALARIO_MENSUAL:
                 primera_quincena_fin = slip.date_from + relativedelta(days=14)
                 segunda_quincena_ini = primera_quincena_fin + relativedelta(days=1)
 
@@ -458,9 +448,6 @@ class HrPayslip(models.Model):
         # Obtener días tomados desde ausencias aprobadas
         dias_tomados = self._get_dias_vacaciones_tomados(slip)
 
-        # Primero ajusta las líneas worked_days según work_entries reales
-        #self._ajustar_lineas_vacaciones()
-
         # NUEVO: obtener el importe real ya calculado en worked_days_line_ids para vacaciones
         base_vacaciones = sum(
             slip.worked_days_line_ids.filtered(
@@ -520,19 +507,6 @@ class HrPayslip(models.Model):
             contract = slip.contract_id
             if not contract:
                 continue
-
-            # Buscar si hay alguna ausencia (tiempo personal) en el período del slip
-            # leave = self.env['hr.leave'].search([
-            #     ('employee_id', '=', slip.employee_id.id),
-            #     ('date_from', '<=', slip.date_to),
-            #     ('date_to', '>=', slip.date_from),
-            #     ('holiday_status_id.is_vacation', '=', True),  # solo vacaciones
-            # ], limit=1)
-
-            # Si tiene vacation_full = True, NO ajustamos
-            # if leave and leave.vacation_full:
-            #     _logger.info("Vacaciones registradas como COMPLETAS (vacation_full=True) → NO se ajusta importe para %s", slip.name)
-            #     continue
 
             # --- SOLO sigue si no es vacation_full ---
             _logger.info("=== Ajustando línea de asistencia SOLO para vacaciones parciales en %s ===", slip.name)
@@ -612,8 +586,4 @@ class HrPayslip(models.Model):
             if leave_type:
                 return True
         return False
-
-
-
-
 ########################################################################################################################

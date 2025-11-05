@@ -64,8 +64,6 @@ class AccountMove(models.Model):
             raise UserError("Selecciona una sola factura para depurar el JSON.")
 
         invoice_json = self.sit__ccf_base_map_invoice_info_dtejson()
-
-        import json
         pretty_json = json.dumps(invoice_json, indent=4, ensure_ascii=False)
         _logger.info("📄 JSON DTE FSE generado:\n%s", pretty_json)
         print("📄 JSON DTE FSE generado:\n", pretty_json)
@@ -88,12 +86,6 @@ class AccountMove(models.Model):
         invoice_info["nit"] = nit
         invoice_info["activo"] = True
         invoice_info["passwordPri"] = self.company_id.sit_passwordPri
-        # if not self.hacienda_selloRecibido and self.sit_factura_de_contingencia and self.sit_json_respuesta:
-        #     _logger.info("SIT sit_base_map_invoice_info ccf")
-        #     invoice_info["dteJson"] = self.sit_json_respuesta
-        # else:
-        #     _logger.info("SIT sit_base_map_invoice_info dte ccf")
-        #     invoice_info["dteJson"] = self.sit__ccf_base_map_invoice_info_dtejson()
         invoice_info["dteJson"] = self.sit__ccf_base_map_invoice_info_dtejson()
         return invoice_info
 
@@ -157,11 +149,11 @@ class AccountMove(models.Model):
         # ——————————————————————
         # Ajustes finales
         if invoice_info["tipoOperacion"] == constants.TRANSMISION_NORMAL:
-            invoice_info["tipoModelo"] = 1
+            invoice_info["tipoModelo"] = constants.MODELO_PREVIO
             invoice_info["tipoContingencia"] = None
             invoice_info["motivoContin"] = None
         else:
-            invoice_info["tipoModelo"] = 2
+            invoice_info["tipoModelo"] = constants.MODELO_DIFERIDO
             if invoice_info["tipoContingencia"] != constants.TIPO_CONTIN_OTRO:
                 invoice_info["motivoContin"] = None
 
@@ -188,6 +180,9 @@ class AccountMove(models.Model):
         invoice_info["nit"] = nit
 
         nrc = self.company_id.company_registry if self.company_id and self.company_id.company_registry else None
+        if not nrc and self.company_id.nrc:
+            nrc = self.company_id.nrc
+
         if nrc:
             nrc = nrc.replace("-", "")
         invoice_info["nrc"] = nrc
@@ -289,47 +284,64 @@ class AccountMove(models.Model):
             uniMedida = int(line.product_id.uom_hacienda.codigo)
             line_temp["uniMedida"] = uniMedida
 
-            # line_temp["precioUni"] = round(line.price_unit, 4)
-            line_temp["montoDescu"] = round(line_temp["cantidad"] * (line.price_unit * (line.discount / 100)),
-                                            2) or 0.0  # round(line_temp["cantidad"] * (line.price_unit * (line.discount / 100)) / 1.13 ,2) or 0.0
+            line_temp["montoDescu"] = round(line_temp["cantidad"] * (line.price_unit * (line.discount / 100)), 2) or 0.0
             line_temp["ventaNoSuj"] = round(line.precio_no_sujeto, 2)  # 0.0
             line_temp["ventaExenta"] = round(line.precio_exento, 2)  # 0.0
-
-            # ventaGravada = round(line_temp["cantidad"] * (line.price_unit - (line.price_unit * (line.discount / 100))),2)
-            # line_temp["ventaGravada"] = ventaGravada
 
             # ------ Validar que se haya colocado impuesto de IVA ------
             iva_tax_found = False
             tributo_found = False
-            iva_tax_name = "IVA 13% Ventas Bienes"
-            iva_exc_name = "(Copia)IVA 13% Ventas Bienes"
+            # iva_tax_name = "IVA 13% Ventas Bienes"
+            # iva_exc_name = "(Copia)IVA 13% Ventas Bienes"
+            impuesto_sv = config_utils.get_config_value(self.env, 'impuesto_sv', self.company_id.id) if config_utils else 13
+            _logger.info("SIT: Impuesto SV: %s, Type: %s, Tipo de venta: %s", float(impuesto_sv), type(impuesto_sv), line.product_id.tipo_venta)
 
-            for line_tax in line.tax_ids:
-                _logger.info("SIT: Evaluando impuesto '%s' en la línea del producto %s", line_tax.name, line.product_id.name)
+            aplica_impuesto = bool(line.product_id.tipo_venta == constants.TIPO_VENTA_PROD_GRAV) if line.product_id.tipo_venta else False
+            _logger.info("SIT: Aplica impuesto?: %s, Tipo de venta: %s", aplica_impuesto, line.product_id.tipo_venta)
+            if aplica_impuesto:
+                for line_tax in line.tax_ids:
+                    _logger.info("SIT: Evaluando impuesto '%s' en la línea del producto %s", line_tax.name, line.product_id.name)
+                    _logger.info("SIT: Tipo de impuesto: '%s', Importe: %s", line_tax.type_tax_use, line_tax.amount)
 
-                # Verificamos si es el impuesto de IVA obligatorio
-                if line_tax.name == iva_tax_name or line_tax.name == iva_exc_name:
-                    iva_tax_found = True
-                    if line_tax.tributos_hacienda:
-                        tributo_found = True
+                    # Verificamos si es el impuesto de IVA obligatorio
+                    # if line_tax.name == iva_tax_name or line_tax.name == iva_exc_name:
+                    #     iva_tax_found = True
+                    #     if line_tax.tributos_hacienda:
+                    #         tributo_found = True
+
+                    if line_tax.type_tax_use == constants.TYPE_VENTA and line_tax.amount > 0 and float(line_tax.amount) == float(impuesto_sv):
+                        iva_tax_found = True
+                        if line_tax.tributos_hacienda:
+                            tributo_found = True
 
                 # --- Validaciones impuesto de IVa ---
-            if not iva_tax_found:
-                _logger.info("SIT: Validación fallida. No se encontró el impuesto '%s'.", iva_tax_name)
-                raise UserError(_(
-                    "El impuesto '%s' es obligatorio para la emisión de DTE. "
-                    "Por favor, revise y agregue el impuesto correspondiente a las líneas de la factura."
-                ) % iva_tax_name)
+                if not iva_tax_found:
+                    _logger.info("SIT: Validación fallida. No se encontró el impuesto del País '%s'.", impuesto_sv)
+                    # raise UserError(_(
+                    #     "El impuesto '%s' es obligatorio para la emisión de DTE. "
+                    #     "Por favor, revise y agregue el impuesto correspondiente a las líneas de la factura."
+                    # ) % iva_tax_name)
+
+                    raise UserError(_(
+                        "El impuesto '%s%%' es obligatorio para la emisión de DTE '%s'. "
+                        "Por favor, revise y agregue el impuesto correspondiente a las líneas de la factura."
+                    ) % (impuesto_sv, line.with_context(lang='es_ES').name))
 
                 # --- Validaciones tributo de IVA ---
-            if not tributo_found:  # Si el IVA se encontró, pero el tributo no.
-                _logger.info("SIT: Validación fallida. Impuesto '%s' encontrado, pero sin tributo asignado.",
-                              iva_tax_name)
-                raise UserError(_(
-                    "Falta la configuración del tributo en el impuesto de IVA. "
-                    "\n\nEl impuesto '%s' no tiene configurado un 'Tributo de Hacienda' asociado. "
-                    "Por favor, edite la ficha del impuesto y asigne el tributo correspondiente."
-                ) % iva_tax_name)
+                if not tributo_found:  # Si el IVA se encontró, pero el tributo no.
+                    # _logger.info("SIT: Validación fallida. Impuesto '%s' encontrado, pero sin tributo asignado.", iva_tax_name)
+                    # raise UserError(_(
+                    #     "Falta la configuración del tributo en el impuesto de IVA. "
+                    #     "\n\nEl impuesto '%s' no tiene configurado un 'Tributo de Hacienda' asociado. "
+                    #     "Por favor, edite la ficha del impuesto y asigne el tributo correspondiente."
+                    # ) % iva_tax_name)
+
+                    _logger.info("SIT: Validación fallida. Impuesto encontrado, pero sin tributo asignado.")
+                    raise UserError(_(
+                        "Falta la configuración del tributo en el impuesto de IVA '%s' del documento '%s'. "
+                        "\n\nEl impuesto no tiene configurado un 'Tributo de Hacienda' asociado. "
+                        "Por favor, edite la ficha del impuesto y asigne el tributo correspondiente."
+                    ) % (line.with_context(lang='es_ES').name, self.with_context(lang='es_ES').name))
 
             #---------------------------------------------------------------------------------------------------#
 
@@ -339,8 +351,7 @@ class AccountMove(models.Model):
                 codigo_tributo_codigo = line_tributo.tributos_hacienda.codigo
                 lines_tributes.append(codigo_tributo_codigo)
 
-                _logger.info("SIT: Evaluando impuesto '%s' con código de tributo '%s'", line_tributo.name,
-                              codigo_tributo_codigo)
+                _logger.info("SIT: Evaluando impuesto '%s' con código de tributo '%s'", line_tributo.name, codigo_tributo_codigo)
 
             # Cálculo de IVA
             vat_taxes_amounts = line.tax_ids.compute_all(
@@ -370,8 +381,7 @@ class AccountMove(models.Model):
                 price_unit = 0.00
             line_temp["precioUni"] = round(line.precio_unitario, 2)
 
-            ventaGravada = round(line.precio_gravado,
-                                 2)  # round((sit_amount_base - (line.price_unit * (line.discount / 100))), 2)
+            ventaGravada = round(line.precio_gravado, 2)
             total_Gravada += ventaGravada
             line_temp["ventaGravada"] = ventaGravada
 
@@ -389,10 +399,10 @@ class AccountMove(models.Model):
             # Tributos según tipo de item
             if ventaGravada == 0.0:
                 line_temp["tributos"] = None
-            elif tipoItem == 4:
-                line_temp["uniMedida"] = 99
+            elif tipoItem == constants.ITEM_OTROS:
+                line_temp["uniMedida"] = constants.UNI_MEDIDA_OTRA
                 line_temp["codTributo"] = codTributo
-                line_temp["tributos"] = [20]
+                line_temp["tributos"] = [constants.TRIBUTO_IVA]
             else:
                 line_temp["codTributo"] = None
                 line_temp["tributos"] = lines_tributes
@@ -414,8 +424,8 @@ class AccountMove(models.Model):
         for line in self.invoice_line_ids.filtered(lambda x: x.price_unit < 0):
             total_des += (line.precio_unitario * -1 / self.get_valor_iva_divisor_config())
             _logger.info(
-                "Linea %s: precio_unitario=%s, parcial calculado=%s, total_des acumulado=%s",
-                line.id, line.precio_unitario, parcial, total_des
+                "Linea %s: precio_unitario=%s, total_des acumulado=%s",
+                line.id, line.precio_unitario, total_des
             )
         if total_des:
             total_gral = self.amount_total + total_des
@@ -435,7 +445,7 @@ class AccountMove(models.Model):
         invoice_info["subTotalVentas"] = round(self.sub_total_ventas, 2)
         invoice_info["descuNoSuj"] = round(self.descuento_no_sujeto, 2)  # 0
         invoice_info["descuExenta"] = round(self.descuento_exento, 2)  # 0
-        invoice_info["descuGravada"] = round(total_des, 2)
+        invoice_info["descuGravada"] = round(self.descuento_gravado, 2)
         invoice_info["porcentajeDescuento"] = self.descuento_global_monto
         invoice_info["totalDescu"] = round(self.total_descuento, 2)  # 0
         _logger.info("SIT  identificacion[tipoDte] = %s", identificacion['tipoDte'])
@@ -444,10 +454,10 @@ class AccountMove(models.Model):
 
         tributos["codigo"] = total_tributos.tributos_hacienda.codigo
         tributos["descripcion"] = total_tributos.tributos_hacienda.valores
-        tributos["valor"] = round(self.amount_tax, 2)  # round(totalIva -(total_des*0.13),2)
+        tributos["valor"] = round(self.amount_tax, 2)
         invoice_info["tributos"] = [tributos]
         _logger.info("tributos = %s", [tributos])
-        invoice_info["subTotal"] = round(self.sub_total, 2)  # round(total_Gravada - total_des, 2 )
+        invoice_info["subTotal"] = round(self.sub_total, 2)
         invoice_info["ivaPerci1"] = round(self.iva_percibido_amount, 2)
 
         monto_descu = 0.0
@@ -482,7 +492,7 @@ class AccountMove(models.Model):
         pagos["montoPago"] = round(self.total_pagar, 2)
         pagos["referencia"] = self.sit_referencia
 
-        if int(self.condiciones_pago) in [2]:
+        if int(self.condiciones_pago) in [constants.PAGO_CREDITO]:
             pagos["plazo"] = self.sit_plazo.codigo
             pagos["periodo"] = self.sit_periodo
             invoice_info["pagos"] = [pagos]
@@ -497,7 +507,7 @@ class AccountMove(models.Model):
             invoice_info["ivaPerci1"] = 0.0
             invoice_info["ivaRete1"] = 0.0
         if invoice_info["totalPagar"] == 0.0:
-            invoice_info["condicionOperacion"] = 1
+            invoice_info["condicionOperacion"] = constants.PAGO_CONTADO
         return invoice_info
 
     def sit_ccf_base_map_invoice_info_extension(self):
@@ -520,7 +530,7 @@ class AccountMove(models.Model):
             invoice_info["docuRecibe"] = nit
         invoice_info["observaciones"] = self.sit_observaciones
         invoice_info["placaVehiculo"] = None
-        invoice_info = None
+        # invoice_info = None
         return invoice_info
 
     ###--------FE-FACTURA ELECTRONICA-----------##
@@ -534,7 +544,6 @@ class AccountMove(models.Model):
             return {}
 
         nit = None
-
         if self.company_id and self.company_id.vat:
             nit = self.company_id.vat.replace("-", "")
 
@@ -542,27 +551,6 @@ class AccountMove(models.Model):
         invoice_info["activo"] = True
         invoice_info["passwordPri"] = self.company_id.sit_passwordPri
         invoice_info["dteJson"] = self.sit_base_map_invoice_info_dtejson()
-        # if self.sit_json_respuesta and not self.hacienda_selloRecibido:
-        #     try:
-        #         # Intentamos convertir el sit_json_respuesta a un diccionario Python
-        #         json_data = json.loads(self.sit_json_respuesta)
-        #
-        #         # Verificamos si el campo ambiente existe y es igual a "00"
-        #         ambiente = json_data.get("identificacion", {}).get("ambiente", None)
-        #
-        #         if ambiente == "00":
-        #             _logger.info("SIT Ambiente 00 detectado. Sobreescribiendo JSON.")
-        #             invoice_info["dteJson"] = self.sit_base_map_invoice_info_dtejson()
-        #     except json.JSONDecodeError as e:
-        #         _logger.error(f"SIT Error al procesar el JSON: {e}")
-        #         invoice_info["dteJson"] = self.sit_json_respuesta  # En caso de error en la conversión, mantenemos el JSON original
-        #
-        # if not self.hacienda_selloRecibido and self.sit_factura_de_contingencia and self.sit_json_respuesta:
-        #     _logger.info("SIT sit_base_map_invoice_info contingencia")
-        #     invoice_info["dteJson"] = self.sit_json_respuesta
-        # else:
-        #     _logger.info("SIT sit_base_map_invoice_info dte")
-        #     invoice_info["dteJson"] = self.sit_base_map_invoice_info_dtejson()
         return invoice_info
 
     def sit_base_map_invoice_info_dtejson(self):
@@ -597,7 +585,7 @@ class AccountMove(models.Model):
         invoice_info["ambiente"] = ambiente
         invoice_info["tipoDte"] = self.journal_id.sit_tipo_documento.codigo
         invoice_info["numeroControl"] = self.name
-        invoice_info["codigoGeneracion"] = self.hacienda_codigoGeneracion_identificacion  # self.sit_generar_uuid()
+        invoice_info["codigoGeneracion"] = self.hacienda_codigoGeneracion_identificacion
         invoice_info["tipoModelo"] = int(self.journal_id.sit_modelo_facturacion)
         invoice_info["tipoOperacion"] = int(self.journal_id.sit_tipo_transmision)
 
@@ -610,9 +598,6 @@ class AccountMove(models.Model):
             FechaEmi = self.invoice_date
             _logger.info("SIT FechaEmi seleccionada = %s", FechaEmi)
         else:
-            # os.environ['TZ'] = 'America/El_Salvador'  # Establecer la zona horaria
-            # salvador_timezone = pytz.timezone('America/El_Salvador')
-            # FechaEmi = datetime.datetime.now(salvador_timezone)
             FechaEmi = config_utils.get_fecha_emi()
             _logger.info("SIT FechaEmi none = %s", FechaEmi)
         _logger.info("SIT FechaEmi = %s (%s): HoraEmi = %s", FechaEmi, type(FechaEmi), self.invoice_date)
@@ -620,11 +605,11 @@ class AccountMove(models.Model):
         invoice_info["horEmi"] = self.invoice_time
         invoice_info["tipoMoneda"] = self.currency_id.name
         if invoice_info["tipoOperacion"] == constants.TRANSMISION_NORMAL:  # 1:
-            invoice_info["tipoModelo"] = 1  # Transmision normal
+            invoice_info["tipoModelo"] = constants.TRANSMISION_NORMAL  # Transmision normal
             invoice_info["tipoContingencia"] = None
             invoice_info["motivoContin"] = None
         else:
-            invoice_info["tipoModelo"] = 2  # Transmision por contingencia
+            invoice_info["tipoModelo"] = constants.TRANSMISION_CONTINGENCIA  # Transmision por contingencia
         if invoice_info["tipoOperacion"] == constants.TRANSMISION_CONTINGENCIA:
             invoice_info["tipoContingencia"] = None
         return invoice_info
@@ -635,6 +620,9 @@ class AccountMove(models.Model):
         nit = self.company_id.vat.replace("-", "") if self.company_id and self.company_id.vat else None
         invoice_info["nit"] = nit
         nrc = self.company_id.company_registry if self.company_id and self.company_id.company_registry else None
+        if not nrc and self.company_id.nrc:
+            nrc = self.company_id.nrc
+
         if nrc:
             nrc = nrc.replace("-", "")
         invoice_info["nrc"] = nrc
@@ -702,10 +690,7 @@ class AccountMove(models.Model):
         # 3) limpio sólo dígitos
         cleaned = re.sub(r'\D', '', raw_doc)
         if not cleaned or not tipo_doc:
-            raise UserError(_(
-                "Receptor sin documento válido para DTE %s:\nraw=%r, tipo=%r") %
-                            (tipo_dte, raw_doc, tipo_doc)
-                            )
+            raise UserError(_("Receptor sin documento válido para DTE %s:\nraw=%r, tipo=%r") % (tipo_dte, raw_doc, tipo_doc))
 
         # # 4) si es DTE 13, poner guión xxxxxxxx-x
         num_doc = raw_doc  # None
@@ -779,35 +764,34 @@ class AccountMove(models.Model):
 
             line_temp["descripcion"] = line.name
             line_temp["precioUni"] = round(line.precio_unitario, 2)
-            line_temp["montoDescu"] = round( (
-                    line_temp["cantidad"] * (line.price_unit * (line.discount / 100))
-                    or 0.0
-            ), 2)
+            line_temp["montoDescu"] = round( (line_temp["cantidad"] * (line.price_unit * (line.discount / 100)) or 0.0), 2)
 
             line_temp["ventaNoSuj"] = round(line.precio_no_sujeto, 2)  # 0.0
 
             iva_tax_found = False
             tributo_found = False
-            iva_tax_name = "IVA 13% Ventas Bienes"
+            # iva_tax_name = "IVA 13% Ventas Bienes"
+            impuesto_sv = config_utils.get_config_value(self.env, 'impuesto_sv', self.company_id.id) if config_utils else 13
 
-            for line_tax in line.tax_ids:
-                _logger.debug("SIT: Evaluando impuesto '%s' en la línea del producto %s", line_tax.name,
-                              line.product_id.name)
+            aplica_impuesto = bool(line.product_id.tipo_venta == constants.TIPO_VENTA_PROD_GRAV) if line.product_id.tipo_venta else False
+            if aplica_impuesto:
+                for line_tax in line.tax_ids:
+                    _logger.debug("SIT: Evaluando impuesto '%s' en la línea del producto %s", line_tax.name, line.product_id.name)
 
-                # Verificamos si es el impuesto de IVA obligatorio
-                if line_tax.name == iva_tax_name:
-                    iva_tax_found = True
-                    if line_tax.tributos_hacienda:
-                        tributo_found = True
+                    # Verificamos si es el impuesto de IVA obligatorio
+                    # if line_tax.name == iva_tax_name:
+                    if line_tax.type_tax_use == constants.TYPE_VENTA and line_tax.amount > 0 and float(line_tax.amount) == float(impuesto_sv):
+                        iva_tax_found = True
+                        if line_tax.tributos_hacienda:
+                            tributo_found = True
 
                 # --- Validaciones impuesto de IVa ---
-            if not iva_tax_found:
-                _logger.debug("SIT: Validación fallida. No se encontró el impuesto '%s'.", iva_tax_name)
-                raise UserError(_(
-                    "El impuesto '%s' es obligatorio para la emisión de DTE. "
-                    "Por favor, revise y agregue el impuesto correspondiente a las líneas de la factura."
-                ) % iva_tax_name)
-
+                if not iva_tax_found:
+                    _logger.info("SIT-FE: Validación fallida. No se encontró el impuesto del País '%s'.", impuesto_sv)
+                    raise UserError(_(
+                        "El impuesto '%s%%' es obligatorio para la emisión de DTE '%s'. "
+                        "Por favor, revise y agregue el impuesto correspondiente a las líneas de la factura."
+                    ) % (impuesto_sv, line.with_context(lang='es_ES').name))
 
             codigo_tributo_codigo = 0
             for line_tributo in line.tax_ids:
@@ -840,16 +824,12 @@ class AccountMove(models.Model):
 
             line_temp["ivaItem"] = round(
                 ((ventaGravada / self.get_valor_iva_divisor_config()) * self.valor_iva_config()),
-                2)  # round(vat_taxes_amount - ((((line.price_unit *line.quantity)* (line.discount / 100))/1.13)*0.13),2)
+                2)
             _logger.info("SIT Iva item= %s", line_temp["ivaItem"])
             _logger.info("SIT  RENTA = %s", self.retencion_renta_amount)
 
             if line_temp["ivaItem"] == 0.0:
                 ventaGravada = 0.0
-                ventaExenta = round(line.precio_exento, 2)
-            # else:
-            # ventaGravada = line_temp["cantidad"] * (line.price_unit - (line.price_unit * (line.discount / 100)))
-            # ventaExenta = 0.0  # O lo que corresponda en caso de que haya IVA
             ventaExenta = round(line.precio_exento, 2)
             total_Gravada += ventaGravada
             line_temp["ventaGravada"] = round(ventaGravada, 2)
@@ -868,10 +848,9 @@ class AccountMove(models.Model):
 
             if ventaGravada == 0.0:
                 line_temp["tributos"] = None
-            if tipoItem == 4:
-                line_temp["uniMedida"] = 99
+            if tipoItem == constants.ITEM_OTROS:
+                line_temp["uniMedida"] = constants.UNI_MEDIDA_OTRA
                 line_temp["codTributo"] = codTributo
-                # line_temp["codTributo"] = None  # <------------- Temporal
                 line_temp["tributos"] = None
             else:
                 line_temp["codTributo"] = None
@@ -890,10 +869,9 @@ class AccountMove(models.Model):
         por_des = 0
         for line in self.invoice_line_ids.filtered(lambda x: x.price_unit < 0):
             total_des += (line.precio_unitario * -1)
-            total_des += parcial
             _logger.info(
-                "Linea %s: precio_unitario=%s, parcial=%s, total_des acumulado=%s",
-                line.id, line.precio_unitario, parcial, total_des
+                "Linea %s: precio_unitario=%s, total_des acumulado=%s",
+                line.id, line.precio_unitario, total_des
             )
 
         total_gral = self.amount_total + total_des
@@ -930,8 +908,6 @@ class AccountMove(models.Model):
 
             monto_descu += round(line.quantity * (line.price_unit * (line.discount / 100)), 2)
 
-            # por_des = 100 - round(((total_gral - total_des) / total_gral) * 100)
-
         subtotal = sum(line.price_subtotal for line in self.invoice_line_ids)
         total = self.amount_total
 
@@ -940,10 +916,10 @@ class AccountMove(models.Model):
         pagos = {}
         invoice_info["totalNoSuj"] = round(self.total_no_sujeto, 2)  # 0
         invoice_info["totalExenta"] = round(self.total_exento, 2)  # 0
-        invoice_info["subTotalVentas"] = round(self.sub_total_ventas, 2)  # round (self.amount_total + total_des , 2 )
+        invoice_info["subTotalVentas"] = round(self.sub_total_ventas, 2)
         invoice_info["descuNoSuj"] = round(self.descuento_no_sujeto, 2)  # 0
         invoice_info["descuExenta"] = round(self.descuento_exento, 2)  # 0
-        invoice_info["descuGravada"] = round(total_des, 2)
+        invoice_info["descuGravada"] = round(self.descuento_gravado, 2)
         invoice_info["porcentajeDescuento"] = round(self.descuento_global_monto, 2)
         invoice_info["totalDescu"] = round(self.total_descuento, 2)  # 0
         if identificacion['tipoDte'] != constants.COD_DTE_FE:
@@ -959,7 +935,7 @@ class AccountMove(models.Model):
             invoice_info["tributos"] = tributos
         else:
             invoice_info["tributos"] = None
-        invoice_info["subTotal"] = round(self.sub_total, 2)  # round(self.amount_total, 2 )
+        invoice_info["subTotal"] = round(self.sub_total, 2)
         invoice_info["ivaRete1"] = rete_iva
         invoice_info["reteRenta"] = rete_renta
 
@@ -968,24 +944,23 @@ class AccountMove(models.Model):
         if tributo_hacienda:
             valor_tributo = tributos.get("valor", 0) or 0  # Accede al valor del diccionario
 
-        invoice_info["montoTotalOperacion"] = round(self.total_operacion, 2)  # round(self.amount_total, 2 )
+        invoice_info["montoTotalOperacion"] = round(self.total_operacion, 2)
         invoice_info["totalNoGravado"] = 0
         invoice_info["totalPagar"] = round(self.total_pagar, 2)
         invoice_info["totalLetras"] = self.amount_text
         _logger.info("SIT total descuentos = %s, iva= %s", total_des, totalIva)
-        invoice_info["totalIva"] = round(totalIva, 2)  # round(totalIva - (total_des - (total_des / 1.13)), 2 )
+        invoice_info["totalIva"] = round(totalIva, 2)
         if invoice_info["totalIva"] == 0.0:
             invoice_info["totalGravada"] = 0.0
             invoice_info["totalExenta"] = round(self.total_exento, 2)
         else:
-            invoice_info["totalGravada"] = round(self.total_gravado, 2)  # round(self.total_gravado + total_des, 2 )
-            # invoice_info["totalExenta"] = 0.0
+            invoice_info["totalGravada"] = round(self.total_gravado, 2)
         invoice_info["saldoFavor"] = 0
         invoice_info["condicionOperacion"] = int(self.condiciones_pago)
         pagos["codigo"] = self.forma_pago.codigo
         pagos["montoPago"] = round(self.total_pagar, 2)
         pagos["referencia"] = self.sit_referencia
-        if int(self.condiciones_pago) in [2, 3]:
+        if int(self.condiciones_pago) in [constants.PAGO_CREDITO, constants.PAGO_OTRO]:
             pagos["periodo"] = self.sit_periodo
             pagos["plazo"] = self.sit_plazo.codigo
             invoice_info["pagos"] = [pagos]
@@ -1037,7 +1012,7 @@ class AccountMove(models.Model):
             invoice_info["documento"] = doc_firmado
         else:
             invoice_info["documento"] = None
-        invoice_info["codigoGeneracion"] = self.hacienda_codigoGeneracion_identificacion  # self.sit_generar_uuid()
+        invoice_info["codigoGeneracion"] = self.hacienda_codigoGeneracion_identificacion
         return invoice_info
 
     def sit_generar_uuid(self) -> Any:
@@ -1063,12 +1038,6 @@ class AccountMove(models.Model):
         invoice_info["nit"] = nit
         invoice_info["activo"] = True
         invoice_info["passwordPri"] = self.company_id.sit_passwordPri
-        # if not self.hacienda_selloRecibido and self.sit_factura_de_contingencia and self.sit_json_respuesta:
-        #     _logger.info("SIT sit_base_map_invoice_info ndc")
-        #     invoice_info["dteJson"] = self.sit_json_respuesta
-        # else:
-        #     _logger.info("SIT sit_base_map_invoice_info dte ndc")
-        #     invoice_info["dteJson"] = self.sit_base_map_invoice_info_ndc_dtejson()
         invoice_info["dteJson"] = self.sit_base_map_invoice_info_ndc_dtejson()
         return invoice_info
 
@@ -1105,13 +1074,11 @@ class AccountMove(models.Model):
         invoice_info["ambiente"] = ambiente
         invoice_info["tipoDte"] = self.journal_id.sit_tipo_documento.codigo
         invoice_info["numeroControl"] = self.name
-        invoice_info[
-            "codigoGeneracion"] = self.hacienda_codigoGeneracion_identificacion  # self.sit_generar_uuid()          #  company_id.sit_uuid.upper()
+        invoice_info["codigoGeneracion"] = self.hacienda_codigoGeneracion_identificacion
         invoice_info["tipoModelo"] = int(self.journal_id.sit_modelo_facturacion)
         invoice_info["tipoOperacion"] = int(self.journal_id.sit_tipo_transmision)
 
         # Contingencia
-
         tipoContingencia = int(self.sit_tipo_contingencia) or 0
         invoice_info["tipoContingencia"] = tipoContingencia
         motivoContin = str(self.sit_tipo_contingencia_otro) or ""
@@ -1128,11 +1095,11 @@ class AccountMove(models.Model):
         invoice_info["horEmi"] = self.invoice_time
         invoice_info["tipoMoneda"] = self.currency_id.name
         if invoice_info["tipoOperacion"] == constants.TRANSMISION_NORMAL:
-            invoice_info["tipoModelo"] = 1
+            invoice_info["tipoModelo"] = constants.MODELO_PREVIO
             invoice_info["tipoContingencia"] = None
             invoice_info["motivoContin"] = None
         else:
-            invoice_info["tipoModelo"] = 2
+            invoice_info["tipoModelo"] = constants.MODELO_DIFERIDO
         if invoice_info["tipoOperacion"] != constants.TRANSMISION_NORMAL:
             invoice_info["tipoContingencia"] = tipoContingencia
         if invoice_info["tipoContingencia"] == constants.TIPO_CONTIN_OTRO:
@@ -1157,8 +1124,7 @@ class AccountMove(models.Model):
                 line_temp["numItem"] = item_numItem
                 tipoItem = int(line.product_id.tipoItem.codigo or line.product_id.product_tmpl_id.tipoItem.codigo)
                 line_temp["tipoItem"] = tipoItem
-                _logger.info(
-                    f"Procesando línea de factura: {line.product_id.name}, tipoItem: {tipoItem}.")  # Log en cada línea.
+                _logger.info(f"Procesando línea de factura: {line.product_id.name}, tipoItem: {tipoItem}.")  # Log en cada línea.
 
                 if self.inv_refund_id:
                     line_temp["numeroDocumento"] = self.inv_refund_id.hacienda_codigoGeneracion_identificacion
@@ -1182,13 +1148,10 @@ class AccountMove(models.Model):
                     uniMedida = int(line.product_id.uom_hacienda.codigo)
 
                 line_temp["uniMedida"] = int(uniMedida)
-                # line_temp["precioUni"] = round(line.price_unit, 4)
-                line_temp["montoDescu"] = (
-                        round(line_temp["cantidad"] * (line.price_unit * (line.discount / 100)), 2) or 0.0)
+                line_temp["montoDescu"] = (round(line_temp["cantidad"] * (line.price_unit * (line.discount / 100)), 2) or 0.0)
                 line_temp["ventaNoSuj"] = round(line.precio_no_sujeto, 2)  # 0.0
                 line_temp["ventaExenta"] = round(line.precio_exento, 2)  # 0.0
-                ventaGravada = round(line.precio_gravado,
-                                     2)  # line_temp["cantidad"] * (line.price_unit * (line.discount / 100))
+                ventaGravada = round(line.precio_gravado, 2)
                 line_temp["ventaGravada"] = round(ventaGravada, 2)
 
                 _logger.debug(
@@ -1198,34 +1161,39 @@ class AccountMove(models.Model):
                 iva_tax_found = False
                 tributo_found = False
                 iva_tax_name = "IVA 13% Ventas Bienes"
+                impuesto_sv = config_utils.get_config_value(self.env, 'impuesto_sv', self.company_id.id) if config_utils else 13
+                _logger.info("SIT-NDC: Impuesto SV: %s, Type: %s, Tipo de venta: %s", float(impuesto_sv), type(impuesto_sv), line.product_id.tipo_venta)
 
-                for line_tax in line.tax_ids:
-                    _logger.info("SIT: Evaluando impuesto '%s' en la línea del producto %s", line_tax.name,
-                                 line.product_id.name)
+                aplica_impuesto = bool(line.product_id.tipo_venta == constants.TIPO_VENTA_PROD_GRAV) if line.product_id.tipo_venta else False
+                _logger.info("SIT: Aplica impuesto?: %s, Tipo de venta: %s", aplica_impuesto, line.product_id.tipo_venta)
 
-                    # Verificamos si es el impuesto de IVA obligatorio
-                    if line_tax.name == iva_tax_name:
-                        iva_tax_found = True
-                        if line_tax.tributos_hacienda:
-                            tributo_found = True
+                if aplica_impuesto:
+                    for line_tax in line.tax_ids:
+                        _logger.info("SIT: Evaluando impuesto '%s' en la línea del producto %s", line_tax.name,
+                                     line.product_id.name)
+
+                        # Verificamos si es el impuesto de IVA obligatorio
+                        if line_tax.type_tax_use == constants.TYPE_VENTA and line_tax.amount > 0 and float(line_tax.amount) == float(impuesto_sv): # if line_tax.name == iva_tax_name:
+                            iva_tax_found = True
+                            if line_tax.tributos_hacienda:
+                                tributo_found = True
 
                     # --- Validaciones impuesto de IVa ---
-                if not iva_tax_found:
-                    _logger.info("SIT: Validación fallida. No se encontró el impuesto '%s'.", iva_tax_name)
-                    raise UserError(_(
-                        "El impuesto '%s' es obligatorio para la emisión de DTE. "
-                        "Por favor, revise y agregue el impuesto correspondiente a las líneas de la factura."
-                    ) % iva_tax_name)
+                    if not iva_tax_found:
+                        _logger.info("SIT: Validación fallida. No se encontró el impuesto del País '%s'.", impuesto_sv)
+                        raise UserError(_(
+                            "El impuesto '%s%%' es obligatorio para la emisión de DTE '%s'. "
+                            "Por favor, revise y agregue el impuesto correspondiente a las líneas de la factura."
+                        ) % (impuesto_sv, line.with_context(lang='es_ES').name))
 
                     # --- Validaciones tributo de IVA ---
-                if not tributo_found:  # Si el IVA se encontró, pero el tributo no.
-                    _logger.info("SIT: Validación fallida. Impuesto '%s' encontrado, pero sin tributo asignado.",
-                                 iva_tax_name)
-                    raise UserError(_(
-                        "Falta la configuración del tributo en el impuesto de IVA. "
-                        "\n\nEl impuesto '%s' no tiene configurado un 'Tributo de Hacienda' asociado. "
-                        "Por favor, edite la ficha del impuesto y asigne el tributo correspondiente."
-                    ) % iva_tax_name)
+                    if not tributo_found:  # Si el IVA se encontró, pero el tributo no.
+                        _logger.info("SIT: Validación fallida. Impuesto encontrado, pero sin tributo asignado.")
+                        raise UserError(_(
+                            "Falta la configuración del tributo en el impuesto de IVA '%s' del documento '%s'. "
+                            "\n\nEl impuesto no tiene configurado un 'Tributo de Hacienda' asociado. "
+                            "Por favor, edite la ficha del impuesto y asigne el tributo correspondiente."
+                        ) % (line.with_context(lang='es_ES').name, self.with_context(lang='es_ES').name))
 
                 for line_tributo in line.tax_ids:
                     codigo_tributo_codigo = line_tributo.tributos_hacienda.codigo
@@ -1251,18 +1219,9 @@ class AccountMove(models.Model):
                     sit_amount_base = round(vat_taxes_amounts['taxes'][0]['base'], 2) if vat_taxes_amounts['taxes'] and \
                                                                                          vat_taxes_amounts[
                                                                                              'taxes'] != "" else 0
-                price_unit_mas_iva = round(line.price_unit, 4)
-
-                price_unit = 0.0
-                if line_temp["cantidad"] > 0:
-                    price_unit = round(sit_amount_base / line_temp["cantidad"], 4)
-                else:
-                    price_unit = round(0.00, 4)
 
                 line_temp["precioUni"] = round(line.precio_unitario, 2)
-                # ventaGravada = line_temp["cantidad"] * line_temp["precioUni"] - line_temp["montoDescu"]
                 total_Gravada += round(ventaGravada, 4)
-                # line_temp["ventaGravada"] = round(ventaGravada, 4)
 
                 _logger.debug(f"Total gravada acumulado: {total_Gravada}.")  # Log del total gravado.
                 if line.product_id and line.product_id.tipo_venta:
@@ -1282,9 +1241,9 @@ class AccountMove(models.Model):
                     line_temp["tributos"] = lines_tributes
 
                 if tipoItem == constants.COD_TIPO_ITEM:
-                    line_temp["uniMedida"] = 99
+                    line_temp["uniMedida"] = constants.UNI_MEDIDA_OTRA
                     line_temp["codTributo"] = codTributo
-                    line_temp["tributos"] = [20]
+                    line_temp["tributos"] = [constants.TRIBUTO_IVA]
                 else:
                     line_temp["codTributo"] = None
                     line_temp["tributos"] = lines_tributes
@@ -1326,14 +1285,14 @@ class AccountMove(models.Model):
             invoice_info["tributos"] = [tributos]
         else:
             invoice_info["tributos"] = None
-        invoice_info["subTotal"] = round(self.sub_total, 2)  # self.             amount_untaxed
+        invoice_info["subTotal"] = round(self.sub_total, 2)
         invoice_info["ivaPerci1"] = round(self.inv_refund_id.iva_percibido_amount, 2)
         invoice_info["ivaRete1"] = round(self.retencion_iva_amount or 0.0, 2)
         invoice_info["reteRenta"] = round(self.retencion_renta_amount or 0.0, 2)
         invoice_info["montoTotalOperacion"] = round(self.amount_total, 2)
         invoice_info["totalLetras"] = self.amount_text
         invoice_info["condicionOperacion"] = int(self.condiciones_pago)
-        pagos["codigo"] = self.forma_pago.codigo  # '01'   # CAT-017 Forma de Pago    01 = bienes
+        pagos["codigo"] = self.forma_pago.codigo
         pagos["montoPago"] = round(self.total_pagar, 2)
         pagos["referencia"] = self.sit_referencia  # Un campo de texto llamado Referencia de pago
         if invoice_info["totalGravada"] == 0.0:
@@ -1348,6 +1307,9 @@ class AccountMove(models.Model):
         invoice_info["nit"] = nit
 
         nrc = self.company_id.company_registry if self.company_id and self.company_id.company_registry else None
+        if not nrc and self.company_id.nrc:
+            nrc = self.company_id.nrc
+
         if nrc:
             nrc = nrc.replace("-", "")
         invoice_info["nrc"] = nrc
@@ -1393,15 +1355,9 @@ class AccountMove(models.Model):
         lines = []
         lines_temp = {}
         lines_temp['tipoDocumento'] = self.reversed_entry_id.journal_id.sit_tipo_documento.codigo  # '03'
-        lines_temp['tipoGeneracion'] = int(
-            constants.COD_TIPO_DOC_GENERACION_DTE)  # Cat-007 Tipo de generacion del documento
+        lines_temp['tipoGeneracion'] = int(constants.COD_TIPO_DOC_GENERACION_DTE)  # Cat-007 Tipo de generacion del documento
         lines_temp['numeroDocumento'] = self.inv_refund_id.hacienda_codigoGeneracion_identificacion
-
-        # invoice_date = self.inv_refund_id.invoice_date
-        # if invoice_date:
-        # new_date = invoice_date + timedelta(hours=20)
-        lines_temp['fechaEmision'] = self.inv_refund_id.invoice_date.strftime(
-            '%Y-%m-%d') if self.inv_refund_id.invoice_date else None  # self.inv_refund_id.invoice_date
+        lines_temp['fechaEmision'] = self.inv_refund_id.invoice_date.strftime('%Y-%m-%d') if self.inv_refund_id.invoice_date else None
         lines.append(lines_temp)
         return lines
 
@@ -1425,12 +1381,6 @@ class AccountMove(models.Model):
             'passwordPri': self.company_id.sit_passwordPri,
             'dteJson': self.sit_base_map_invoice_info_ndd_dtejson(),
         }
-        # if not self.hacienda_selloRecibido and self.sit_factura_de_contingencia and self.sit_json_respuesta:
-        #     _logger.info("SIT sit_base_map_invoice_info ndd")
-        #     invoice_info["dteJson"] = self.sit_json_respuesta
-        # else:
-        #     _logger.info("SIT sit_base_map_invoice_info dte ndd")
-        #     invoice_info["dteJson"] = self.sit_base_map_invoice_info_ndd_dtejson()
         return invoice_info
 
     def sit_base_map_invoice_info_ndd_dtejson(self):
@@ -1479,8 +1429,7 @@ class AccountMove(models.Model):
                 line_temp["numItem"] = item_numItem
                 tipoItem = int(line.product_id.tipoItem.codigo or line.product_id.product_tmpl_id.tipoItem.codigo)
                 line_temp["tipoItem"] = tipoItem
-                _logger.debug(
-                    f"Procesando línea de factura: {line.product_id.name}, tipoItem: {tipoItem}.")  # Log en cada línea.
+                _logger.debug(f"Procesando línea de factura: {line.product_id.name}, tipoItem: {tipoItem}.")  # Log en cada línea.
 
                 _logger.info("Numero de documento:=%s ", self.debit_origin_id)
                 if self.debit_origin_id:
@@ -1505,19 +1454,50 @@ class AccountMove(models.Model):
                     uniMedida = int(line.product_id.uom_hacienda.codigo)
 
                 line_temp["uniMedida"] = int(uniMedida)
-                # line_temp["precioUni"] = round(line.price_unit, 4)
-                line_temp["montoDescu"] = (
-                        round(line_temp["cantidad"] * (line.price_unit * (line.discount / 100)), 2) or 0.0)
+                line_temp["montoDescu"] = (round(line_temp["cantidad"] * (line.price_unit * (line.discount / 100)), 2) or 0.0)
                 line_temp["ventaNoSuj"] = round(line.precio_no_sujeto, 2)  # 0.0
                 line_temp["ventaExenta"] = round(line.precio_exento, 2)  # 0.0
-                ventaGravada = round(line.precio_gravado,
-                                     2)  # line_temp["cantidad"] * (line.price_unit * (line.discount / 100))
+                ventaGravada = round(line.precio_gravado, 2)
                 line_temp["ventaGravada"] = ventaGravada
 
                 _logger.debug(
                     f"Venta gravada: {ventaGravada}, cantidad: {line_temp['cantidad']}, precio unitario: {line.price_unit}.")  # Log sobre cálculos.
 
-                for line_tributo in line.tax_ids:
+                iva_tax_found = False
+                tributo_found = False
+                impuesto_sv = config_utils.get_config_value(self.env, 'impuesto_sv', self.company_id.id) if config_utils else 13
+
+                aplica_impuesto = bool(line.product_id.tipo_venta == constants.TIPO_VENTA_PROD_GRAV) if line.product_id.tipo_venta else False
+                _logger.info("SIT-NDD: Aplica impuesto?: %s, Tipo de venta: %s", aplica_impuesto, line.product_id.tipo_venta)
+                if aplica_impuesto:
+                    for line_tax in line.tax_ids:
+                        _logger.info("SIT-NDD: Evaluando impuesto '%s' en la línea del producto %s", line_tax.name, line.product_id.name)
+                        _logger.info("SIT-NDD: Tipo de impuesto: '%s', Importe: %s", line_tax.type_tax_use, line_tax.amount)
+
+                        if line_tax.type_tax_use == constants.TYPE_VENTA and line_tax.amount > 0 and float(line_tax.amount) == float(impuesto_sv):
+                            iva_tax_found = True
+                            if line_tax.tributos_hacienda:
+                                tributo_found = True
+
+                    # --- Validaciones impuesto de IVa ---
+                    if not iva_tax_found:
+                        _logger.info("SIT-NDD: Validación fallida. No se encontró el impuesto del País '%s'.", impuesto_sv)
+                        raise UserError(_(
+                            "El impuesto '%s%%' es obligatorio para la emisión de DTE '%s'. "
+                            "Por favor, revise y agregue el impuesto correspondiente a las líneas de la factura."
+                        ) % (impuesto_sv, line.with_context(lang='es_ES').name))
+
+                    # --- Validaciones tributo de IVA ---
+                    if not tributo_found:  # Si el IVA se encontró, pero el tributo no.
+                        _logger.info("SIT-NDD: Validación fallida. Impuesto encontrado, pero sin tributo asignado.")
+                        raise UserError(_(
+                            "Falta la configuración del tributo en el impuesto de IVA '%s' del documento '%s'. "
+                            "\n\nEl impuesto no tiene configurado un 'Tributo de Hacienda' asociado. "
+                            "Por favor, edite la ficha del impuesto y asigne el tributo correspondiente."
+                        ) % (line.with_context(lang='es_ES').name, self.with_context(lang='es_ES').name))
+
+                # Calcular tributos y verificar el IVA
+                for line_tributo in line.tax_ids.filtered(lambda x: x.tributos_hacienda):
                     codigo_tributo_codigo = line_tributo.tributos_hacienda.codigo
                     codigo_tributo = line_tributo.tributos_hacienda  # Asignamos el valor de `codigo_tributo`
                     lines_tributes.append(codigo_tributo_codigo)
@@ -1536,17 +1516,9 @@ class AccountMove(models.Model):
                 if vat_taxes_amounts and vat_taxes_amounts.get('taxes') and len(vat_taxes_amounts['taxes']) > 0:
                     vat_taxes_amount = vat_taxes_amounts['taxes'][0]['amount']
                     sit_amount_base = round(vat_taxes_amounts['taxes'][0]['base'], 2)
-                price_unit_mas_iva = round(line.price_unit, 4)
-
-                if line_temp["cantidad"] > 0:
-                    price_unit = round(sit_amount_base / line_temp["cantidad"], 4)
-                else:
-                    price_unit = round(0.00, 4)
 
                 line_temp["precioUni"] = round(line.precio_unitario, 2)
-                # ventaGravada = line_temp["cantidad"] * line_temp["precioUni"] - line_temp["montoDescu"]
                 total_Gravada += round(ventaGravada, 4)
-                # line_temp["ventaGravada"] = round(ventaGravada, 4)
 
                 _logger.debug(f"Total gravada acumulado: {total_Gravada}.")  # Log del total gravado.
                 if line.product_id and line.product_id.tipo_venta:
@@ -1566,9 +1538,9 @@ class AccountMove(models.Model):
                     line_temp["tributos"] = lines_tributes
 
                 if tipoItem == constants.COD_TIPO_ITEM:
-                    line_temp["uniMedida"] = 99
+                    line_temp["uniMedida"] = constants.UNI_MEDIDA_OTRA
                     line_temp["codTributo"] = codTributo
-                    line_temp["tributos"] = [20]
+                    line_temp["tributos"] = [constants.TRIBUTO_IVA]
                 else:
                     line_temp["codTributo"] = None
                     line_temp["tributos"] = lines_tributes
@@ -1618,15 +1590,10 @@ class AccountMove(models.Model):
         invoice_info["reteRenta"] = self.retencion_renta_amount
         # invoice_info["montoTotalOperacion"] = round(self.total_operacion + retencion, 2)
         invoice_info["montoTotalOperacion"] = round(self.total_pagar, 2)
-
-        # invoice_info["totalNoGravado"] = 0
-        # invoice_info["totalPagar"] = round(self.amount_total, 2)
         invoice_info["totalLetras"] = self.amount_text
         invoice_info["condicionOperacion"] = int(self.condiciones_pago)
         pagos["codigo"] = self.forma_pago.codigo  # '01'   # CAT-017 Forma de Pago    01 = bienes
-        pagos["montoPago"] = round(self.total_pagar,
-
-                                   2)
+        pagos["montoPago"] = round(self.total_pagar, 2)
         pagos["referencia"] = self.sit_referencia  # Un campo de texto llamado Referencia de pago
         if invoice_info["totalGravada"] == 0.0:
             invoice_info["ivaPerci1"] = 0.0
@@ -1674,11 +1641,11 @@ class AccountMove(models.Model):
         invoice_info['tipoMoneda'] = self.currency_id.name
         # ajustes según operación
         if invoice_info['tipoOperacion'] == constants.TRANSMISION_NORMAL:  # 1:
-            invoice_info['tipoModelo'] = 1
+            invoice_info['tipoModelo'] = constants.MODELO_PREVIO
             invoice_info['tipoContingencia'] = None
             invoice_info['motivoContin'] = None
         elif invoice_info['tipoOperacion'] != constants.TRANSMISION_NORMAL:
-            invoice_info['tipoModelo'] = 2
+            invoice_info['tipoModelo'] = constants.MODELO_DIFERIDO
         if invoice_info['tipoContingencia'] == constants.TIPO_CONTIN_OTRO:
             invoice_info['motivoContin'] = invoice_info['motivoContin']
         return invoice_info
