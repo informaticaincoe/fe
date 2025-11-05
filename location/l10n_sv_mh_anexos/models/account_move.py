@@ -4,6 +4,7 @@ import logging
 import base64
 from datetime import date
 import re
+from .report_account_move_daily import *
 
 _logger = logging.getLogger(__name__)
 
@@ -1383,11 +1384,9 @@ class account_move(models.Model):
     def _compute_periods(self):
         for r in self:
             if r.invoice_date:
-                r.invoice_year_agrupado = str(r.invoice_date.year)
                 r.invoice_semester_agrupado = '1' if r.invoice_date.month <= 6 else '2'
                 r.invoice_month_agrupado = f'{r.invoice_date.month:02d}'
             else:
-                r.invoice_year_agrupado = False
                 r.invoice_semester_agrupado = False
                 r.invoice_month_agrupado = False
 
