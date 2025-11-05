@@ -5,5 +5,5 @@ config_url_contingencia_hacienda,base.main_company,,text,https://api.dtes.mh.gob
 config_urltest_contingencia_hacienda,base.main_company,,text,https://apitest.dtes.mh.gob.sv/fesv/contingencia,URL de conexión al entorno de pruebas de Hacienda para el de eventos de contingencia,True,url_test_contingencia
 config_url_lotes_hacienda,base.main_company,,text,https://api.dtes.mh.gob.sv/fesv/recepcionlote/,URL de conexión al entorno de producción de Hacienda para el envío de lotes en eventos de contingencia,True,url_prod_lotes
 config_cantidad_lotes,base.main_company,,int,400,Cantidad de lotes por evento de contingencia,True,cantidad_lote
-config_cantidad_facturas,base.main_company,,int,100,Cantidad de facturas por lote en el evento de contingencia,True,cantidad_factura
+config_cantidad_facturas,base.main_company,,int,100,Cantidad de documentos electrónicos por lote en el evento de contingencia,True,cantidad_factura
 config_urltest_lotes_hacienda,base.main_company,,text,https://apitest.dtes.mh.gob.sv/fesv/recepcionlote/,URL de conexión al entorno de pruebas de Hacienda para el envío de lotes en eventos de contingencia,True,url_test_lotes

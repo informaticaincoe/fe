@@ -1,13 +1,19 @@
+#_________________Contingencia
 TRANSMISION_NORMAL = 1
 TRANSMISION_CONTINGENCIA = 2
 TIPO_CONTIN_OTRO = 5
 MOT_CONTIN_OTRO = "05"
+SISTEMA_MH_NO_DISP = "01"
+SISTEMA_EMISOR_NO_DISP = "02"
+FALLO_ENERGIA = "04"
+#_________________Tipos de documentos electronicos
 COD_DTE_FE = "01"
 COD_DTE_CCF = "03"
 COD_DTE_NC = "05"
 COD_DTE_ND = "06"
 COD_DTE_FEX = "11"
 COD_DTE_FSE = "14"
+#_________________
 COD_TIPO_DOCU_DUI = "13"
 COD_TIPO_DOCU_NIT = "36"
 COD_TIPO_ITEM = "4"

@@ -3,6 +3,7 @@ from odoo.exceptions import UserError
 import logging
 
 _logger = logging.getLogger(__name__)
+from odoo.tools import float_round
 
 try:
     from odoo.addons.common_utils.utils import constants
@@ -80,10 +81,10 @@ class AccountDebitNote(models.TransientModel):
             move_type = None
             tipo_documento_compra = None
 
-            if move.move_type == 'out_invoice': # Credito fiscal en el modulo de ventas
-                move_type = 'out_invoice' # Nota de debito (out_debit)
-            elif move.move_type == 'in_invoice': # Credito fiscal en el modulo de compras
-                move_type = 'in_invoice' # Nota de debito (in_debit) #in_invoice
+            if move.move_type == constants.OUT_INVOICE: # Credito fiscal en el modulo de ventas
+                move_type = constants.OUT_INVOICE # Nota de debito (out_debit)
+            elif move.move_type == constants.IN_INVOICE: # Credito fiscal en el modulo de compras
+                move_type = constants.IN_INVOICE # Nota de debito (in_debit) #in_invoice
                 tipo_documento_compra = self.env['account.journal.tipo_documento.field'].search([
                     ('codigo', '=', constants.COD_DTE_ND)
                 ], limit=1)
@@ -135,7 +136,7 @@ class AccountDebitNote(models.TransientModel):
             # Total real simulado desde líneas temporales
             total_debit = sum(line.debit for line in temp_move.line_ids)
             total_credit = sum(line.credit for line in temp_move.line_ids)
-            diferencia = round(total_credit - total_debit, 2)
+            diferencia = float_round(total_credit - total_debit, precision_rounding=move.currency_id.rounding)
 
             _logger.warning("SIT: total_debit: %s", total_debit)
             _logger.warning("SIT: total_credit: %s", total_credit)
@@ -208,6 +209,6 @@ class AccountDebitNote(models.TransientModel):
             'res_id': new_moves.id if len(new_moves) == 1 else False,
             'domain': [('id', 'in', new_moves.ids)],
             'context': {
-                'default_move_type': new_moves[0].move_type if new_moves else 'out_invoice',
+                'default_move_type': new_moves[0].move_type if new_moves else constants.OUT_INVOICE,
             },
         }
