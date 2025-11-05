@@ -1,20 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <odoo>
-    <record id="view_account_incoterms_form_inherit" model="ir.ui.view">
-        <field name="name">account.incoterms.form.inherit</field>
-        <field name="model">account.incoterms</field>
-        <field name="inherit_id" ref="account.view_incoterms_tree"/>
-        <field name="arch" type="xml">
-            <xpath expr="//list" position="inside">
-                <header>
-                    <button name="actualizar_codigo_mh"
-                            string="Actualizar Código MH"
-                            type="object"
-                            display="always"
-                            class="btn-primary"/>
-                </header>
-            </xpath>
-        </field>
+    <record id="view_incoterms_form_add_button_mh" model="ir.ui.view">
+    <field name="name">account.incoterms.form.add.button.mh</field>
+    <field name="model">account.incoterms</field>
+    <field name="inherit_id" ref="account.account_incoterms_form"/>
+    <field name="arch" type="xml">
+        <xpath expr="//form/header" position="inside">
+        <button name="actualizar_codigo_mh"
+                string="Actualizar Código MH"
+                type="object"
+                class="btn-primary"/>
+        </xpath>
+    </field>
     </record>
 
     <!-- Heredar vista form de incoterms -->
