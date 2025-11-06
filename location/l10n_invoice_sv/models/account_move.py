@@ -1215,6 +1215,10 @@ class AccountMove(models.Model):
         - Crea o actualiza las líneas de Seguro y Flete según los montos definidos en la factura.
         - Omite líneas si el monto es cero.
         """
+        if self._is_dte_json_import():
+            _logger.info("[DTE-IMPORT] Saltando agregar_lineas_seguro_flete por import desde JSON.")
+            return
+        
         for move in self:
             # Solo procesar si es factura de exportación
             if move.codigo_tipo_documento != constants.COD_DTE_FEX:  # Ajusta según tu código real de exportación
