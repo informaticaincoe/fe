@@ -139,6 +139,7 @@ class sit_account_contingencia(models.Model):
 
     ultima_actualizacion_task = fields.Datetime(string="Última actualización del cron")
     sit_usar_lotes = fields.Boolean(string="Usar Lotes", default=False)
+    sit_bloque = fields.Boolean(string="Usar Bloques de contingencia", default=False)
     bloque_ids = fields.One2many("account.contingencia.bloque", "contingencia_id", string="Bloques de Facturas")
 
     fechaHoraTransmision = fields.Datetime(

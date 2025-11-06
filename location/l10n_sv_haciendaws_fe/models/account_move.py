@@ -1969,7 +1969,10 @@ class AccountMove(models.Model):
 
         lote_asignado = None
         bloque_asignado = None
+        usar_bloque = False
         usar_lotes = self.company_id.sit_usar_lotes_contingencia
+        if not usar_lotes:
+            usar_bloque = True
 
         if contingencia_activa:
             _logger.info("Contingencia activa encontrada: %s", contingencia_activa.name)
@@ -2063,11 +2066,15 @@ class AccountMove(models.Model):
                 'journal_id': journal_contingencia.id,
                 'sit_tipo_contingencia': tipo_contingencia.id if tipo_contingencia else False,
                 'contingencia_activa': True,
-                'sit_usar_lotes': usar_lotes,
                 'hacienda_codigoGeneracion_identificacion': self.sit_generar_uuid(),
                 'fechaHoraTransmision': fields.Datetime.now(),
                 'sit_fInicio_hInicio': fields.Datetime.now(),
             })
+
+            if usar_lotes:
+                contingencia_activa.sit_usar_lotes = usar_lotes
+            else:
+                contingencia_activa.sit_bloque = usar_bloque
 
             if usar_lotes:
                 nuevo_nombre_lote = Lote.generar_nombre_lote(journal=journal_lote, actualizar_secuencia=True)
