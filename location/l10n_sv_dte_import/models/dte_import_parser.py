@@ -63,6 +63,8 @@ class DTEImportParser(models.TransientModel):
             "total_iva": float(resumen.get("totalIva") or resumen.get("ivaPerci1") or 0.0),
             "total_gravada": float(resumen.get("totalGravada") or 0.0),
             "total_pagar": float(resumen.get("totalPagar") or 0.0),
+            "condicion_operacion": resumen.get("condicionOperacion"),
+            "dias_credito": resumen.get("plazo") or resumen.get("diasCredito"),
 
             "items": items,
         }

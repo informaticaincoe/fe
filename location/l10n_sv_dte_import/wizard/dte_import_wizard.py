@@ -4,6 +4,7 @@ import json
 import logging
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError
+from datetime import timedelta
 
 _logger = logging.getLogger(__name__)
 
@@ -14,6 +15,10 @@ MH_UOM_MAP = {
     # "58": "uom.product_uom_kgm",    # Kilogramo
     # "57": "uom.product_uom_litre",  # Litro
 }
+
+
+
+
 
 class DTEImportWizardLine(models.TransientModel):
     _name = "dte.import.wizard.line"
@@ -45,6 +50,21 @@ class DTEImportWizard(models.TransientModel):
         default=True,
         help="Evita disparar lógicas propias de envío/validación durante el post."
     )
+
+    def _compute_due_date(self, parsed):
+        fecha = parsed["fecha_emision"].date() if parsed["fecha_emision"] else False
+        if not fecha:
+            return False
+        cond = str(parsed.get("condicion_operacion") or "").strip()
+        if cond in ("1", "contado", "CONTADO"):
+            return fecha
+        # crédito: usar días si vienen; si no, misma fecha
+        dias = 0
+        try:
+            dias = int(parsed.get("dias_credito") or 0)
+        except Exception:
+            dias = 0
+        return fecha + timedelta(days=dias)
 
     def action_import(self):
         if not self.lines:
@@ -121,6 +141,7 @@ class DTEImportWizard(models.TransientModel):
         ctx = dict(self.env.context)
         if self.skip_mh_flow:
             ctx.update({
+                "sit_import_dte_json": True,
                 "sit_skip_mh_send": True,
                 "skip_sequence_on_post": True,
             })
@@ -130,7 +151,8 @@ class DTEImportWizard(models.TransientModel):
             "journal_id": journal.id,
             "partner_id": partner.id,
             "invoice_date": parsed["fecha_emision"].date() if parsed["fecha_emision"] else False,
-
+            "invoice_date_due": self._compute_due_date(parsed),   # <- NUEVO
+            
             # Tus campos existentes:
             "name": parsed.get("numero_control") or "/",  # Número de Control
             "hacienda_codigoGeneracion_identificacion": parsed.get("codigo_generacion") or "",
