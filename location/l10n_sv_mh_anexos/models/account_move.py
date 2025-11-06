@@ -4,6 +4,7 @@ import logging
 import base64
 from datetime import date
 import re
+from .report_account_move_daily import *
 
 _logger = logging.getLogger(__name__)
 
@@ -1338,17 +1339,17 @@ class account_move(models.Model):
         store=True, index=True
     )
 
-    @api.depends('invoice_date')
-    def _compute_semester(self):
-        for m in self:
-            if m.invoice_date:
-                m.semester_year = m.invoice_date.year
-                m.semester = 'S1' if m.invoice_date.month <= 6 else 'S2'
-                m.semester_label = f"{m.semester_year}-{m.semester}"
-            else:
-                m.semester_year = False
-                m.semester = False
-                m.semester_label = False
+    # @api.depends('invoice_date')
+    # def _compute_semester(self):
+    #     for m in self:
+    #         if m.invoice_date:
+    #             m.semester_year = m.invoice_date.year
+    #             m.semester = 'S1' if m.invoice_date.month <= 6 else 'S2'
+    #             m.semester_label = f"{m.semester_year}-{m.semester}"
+    #         else:
+    #             m.semester_year = False
+    #             m.semester = False
+    #             m.semester_label = False
 
     invoice_year = fields.Char(compute='_compute_periods', store=True, index=True)
     invoice_semester = fields.Selection(
@@ -1378,6 +1379,19 @@ class account_move(models.Model):
                 m.semester_year = False
                 m.semester = False
                 m.semester_label = False
+
+    @api.depends('invoice_date')
+    def _compute_periods(self):
+        for m in self:
+            if m.invoice_date:
+                # Año y mes en texto, semestre como '1' o '2'
+                m.invoice_year = str(m.invoice_date.year)
+                m.invoice_month = f'{m.invoice_date.month:02d}'
+                m.invoice_semester = '1' if m.invoice_date.month <= 6 else '2'
+            else:
+                m.invoice_year = False
+                m.invoice_month = False
+                m.invoice_semester = False
 
     @api.depends('invoice_date')
     def _compute_periods_sel(self):
