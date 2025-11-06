@@ -42,10 +42,10 @@
 
         <separator string="Archivos JSON"/>
         <field name="lines" colspan="4">
-          <tree editable="bottom">
+          <list editable="bottom">
             <field name="filename"/>
             <field name="file" filename="filename"/>
-          </tree>
+          </list>
         </field>
 
         <footer>
