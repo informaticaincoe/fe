@@ -52,6 +52,17 @@ DEDUCCION_IPSFA_EMPLEADO = "ipsfa_empleado"
 DEDUCCION_IPSFA_EMPLEADOR = "ipsfa_empleador"
 DEDUCCION_AFP_CONF_EMPLEADO = "empleado_conf"
 DEDUCCION_AFP_CONF_EMPLEADOR = "patron_conf"
+PERIODO_PRI_QUINCENA = "1"
+PERIODO_SEG_QUINCENA = "2"
+
+SUM_VACACIONES = "Vacaciones"
+SUM_ASISTENCIA = "Asistencia"
+SUM_AFP = "afp_conf"
+SUM_OTRAS_DED = "otros"
+SUM_BANCOS = "banco"
+SUM_VENTA_EMPLEADOS = "venta_empleados"
+SUM_PRESTAMOS = "prestamos"
+SUM_FSV = "fsv"
 # Deducciones comunes a todos menos servicios profesionales
 BASE_DEDUCCIONES = [
     ('RENTA', 'renta', -1),
@@ -139,6 +150,7 @@ DIAS_PROMEDIO_TRABAJADOS = "dias_promedio_salario"
 ITEM_SERVICIOS = "2"
 COD_TD_DUI = "13"
 
+RENTA = "RENTA"
 DEVOLUCION_RENTA_CODE = 'DEV_RENTA'
 
 TYPE_REPORT_CCF = "ccf"
@@ -170,10 +182,13 @@ config_iva_percibido_venta = "iva_percibido_venta"
 # Tipos de item en ventas
 ITEM_BIEN = 1
 ITEM_SERVICIO = 2
+ITEM_OTROS = 4
 
 ITEM_EXP_BIEN = 1
 ITEM_EXP_SERVICIOS = 2
 ITEM_EXP_BIEN_SERVICIO = 3
+
+TRIBUTO_IVA = 20
 
 PERSONA_JURIDICA = "company"
 PERSONA_NATURAL = "person"

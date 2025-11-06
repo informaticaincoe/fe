@@ -134,7 +134,14 @@ class AccountMoveLine(models.Model):
                 for tax in line.tax_ids:
                     _logger.info("Revisando impuesto: %s, tipo: %s, amount: %s", tax.name, tax.amount_type, tax.amount)
                     if 'IVA' in tax.name and tax.amount_type == 'percent':
-                        vat_amount += ((line.price_subtotal * tax.amount) / 100.0) / line.quantity
+                        if line.quantity and line.quantity != 0:
+                            vat_amount += ((line.price_subtotal * tax.amount) / 100.0) / line.quantity
+                        else:
+                            _logger.warning(
+                                "SIT _compute_iva_unitario | Línea con cantidad 0. Se omite cálculo de IVA unitario. "
+                                "Line ID: %s, Move ID: %s, Producto: %s, Subtotal: %s",
+                                line.id, line.move_id.id, line.product_id.display_name, line.price_subtotal
+                            )
             line.iva_unitario = vat_amount
             _logger.info("IVA unitario final para la línea: %s", line.iva_unitario)
             _logger.info("=====================================")
@@ -213,14 +220,14 @@ class AccountMoveLine(models.Model):
                     line.precio_unitario = line.price_unit
                     _logger.info("Precio unitario estándar: %s", line.precio_unitario)
 
-                # Asignar según tipo_venta
-                if tipo_venta == constants.TIPO_VENTA_PROD_GRAV:
-                    if line.journal_id.code == 'FCF' and line.tax_ids.price_include_override == 'tax_excluded':
-                        line.precio_gravado = precio_total + line.total_iva
-                    else:
-                        line.precio_gravado = precio_total
-                    _logger.info("Precio gravado asignado: %s", line.precio_gravado)
-
+            # Asignar según tipo_venta
+            _logger.info("Tipo de venta: %s", tipo_venta)
+            if tipo_venta == constants.TIPO_VENTA_PROD_GRAV:
+                if line.journal_id.code == 'FCF' and line.tax_ids.price_include_override == 'tax_excluded':
+                    line.precio_gravado = precio_total + line.total_iva
+                else:
+                    line.precio_gravado = precio_total
+                _logger.info("Precio gravado asignado: %s", line.precio_gravado)
             elif tipo_venta == constants.TIPO_VENTA_PROD_EXENTO:
                 line.precio_exento = precio_total
                 _logger.info("Precio exento asignado: %s", line.precio_exento)

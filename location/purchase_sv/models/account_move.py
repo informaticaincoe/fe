@@ -53,17 +53,17 @@ class AccountMove(models.Model):
         store=False,  # explícito para dejar claro que NO se guarda
     )
 
-    sit_condicion_plazo = fields.Selection(
-        [
-            ('desde_fecha_doc', "Plazo Crédito desde Fecha Documento"),
-            ('no_genera_cxp', "No genera Cuenta por Pagar"),
-            ('no_genera_asiento', "No genera Partida Contable"),
-            ('ya_provisionada', "Ya provisionada en Contabilidad"),
-            ('contabilizar_indep', "Contabilizar en Partida independiente"),
-        ],
-        string="Condición del Plazo Crédito",
-        help="Selecciona la opción que aplica para este documento",
-    )
+    # sit_condicion_plazo = fields.Selection(
+    #     [
+    #         ('desde_fecha_doc', "Plazo Crédito desde Fecha Documento"),
+    #         ('no_genera_cxp', "No genera Cuenta por Pagar"),
+    #         ('no_genera_asiento', "No genera Partida Contable"),
+    #         ('ya_provisionada', "Ya provisionada en Contabilidad"),
+    #         ('contabilizar_indep', "Contabilizar en Partida independiente"),
+    #     ],
+    #     string="Condición del Plazo Crédito",
+    #     help="Selecciona la opción que aplica para este documento",
+    # )
 
     # Campo name editable
     name = fields.Char(
@@ -350,7 +350,7 @@ class AccountMove(models.Model):
         """True si es compra y el vencimiento es mayor que la fecha contable."""
         self.ensure_one()
         return (
-            self.move_type in ('in_invoice', 'in_refund')
+            self.move_type in (constants.IN_INVOICE, constants.IN_REFUND)
             and self.invoice_date and self.invoice_date_due
             and self.invoice_date_due > self.invoice_date
         )
@@ -423,14 +423,6 @@ class AccountMove(models.Model):
             if not move.sit_observaciones:
                 _logger.info("SIT | Descripcion no agregada.")
                 raise ValidationError("Se requiere una descripción.")
-
-            # Validación de Condición/Plazo solo para ventas
-            # payment_term_id = move.invoice_payment_term_id.id if move.invoice_payment_term_id else None
-            # _logger.info("Termino de pago seleccionado: %s", move.invoice_payment_term_id.name if move.invoice_payment_term_id else None)
-
-            # if payment_term_id and payment_term_id != IMMEDIATE_PAYMENT and not move.sit_condicion_plazo:
-            #     _logger.info("Debe seleccionar el campo 'Condición del Plazo Crédito' si el término de pago no es 'Pago inmediato'.")
-            #     raise ValidationError(_("Debe seleccionar el campo 'Condición del Plazo Crédito' si el término de pago no es 'Pago inmediato'."))
 
             # Verificar si se necesita ajuste de cuentas de impuesto
             # --- REGLA: vencimiento > contable en compras -> pedir cuentas alternativas por impuesto ---
@@ -573,8 +565,7 @@ class AccountMove(models.Model):
                 company.retencion_iva_purchase_id,
                 company.renta_purchase_id
             ]):
-                _logger.info(
-                    f"SIT | [Move {move.id}] No se configuraron cuentas de retención/percepción/renta en {company.name}, se omite.")
+                _logger.info(f"SIT | [Move {move.id}] No se configuraron cuentas de retención/percepción/renta en {company.name}, se omite.")
                 continue
 
             # --- Eliminar líneas previas seguras ---

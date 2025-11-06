@@ -1,7 +1,7 @@
 id,company_id:id,pwd,value_type,value_text,description,active,clave
 config_version_invalidacion,base.main_company,,int,2,Versión vigente para el evento de invalidación,True,version_invalidacion
 config_iva_divisor,base.main_company,,int,1.13,Factor para dividir y obtener base sin IVA,True,iva_divisor
-config_iva,base.main_company,,float,0.13,Porcentaje de IVA expresado en decimal,True,valor_iva
+config_iva,base.main_company,,float,0.13,Porcentaje de IVA expresado en decimal. Impuesto de El Salvador,True,valor_iva
 config_content_type,base.main_company,,text,application/json,Tipo de contenido,True,content_type
 config_url_firma,base.main_company,,text,http://192.168.2.49:8113/firmardocumento/,URL del firmador,True,url_firma
 config_url_test_hacienda,base.main_company,,text,https://apitest.dtes.mh.gob.sv/fesv/recepciondte,Acceso a entorno de pruebas de Hacienda,True,url_test_hacienda
