@@ -51,6 +51,35 @@ class DTEImportWizard(models.TransientModel):
         help="Evita disparar lógicas propias de envío/validación durante el post."
     )
 
+
+    def _normalize_maturity(self, move):
+        """
+        Regla Odoo: TODA línea en cuenta por cobrar/pagar debe tener date_maturity.
+        Y ninguna línea de otra cuenta debe tener date_maturity.
+        Forzamos eso antes del post.
+        """
+        ar_ap_lines = move.line_ids.filtered(lambda l: l.account_id and l.account_id.internal_type in ('receivable', 'payable'))
+        other_lines = move.line_ids - ar_ap_lines
+        due = move.invoice_date_due or move.invoice_date
+
+        # 1) Poner date_maturity en TODAS las receivable/payable
+        if due:
+            ar_ap_lines.write({'date_maturity': due})
+
+        # 2) Quitar date_maturity en las demás líneas
+        if other_lines:
+            other_lines.write({'date_maturity': False})
+
+    def _strip_payment_terms(self, move_vals):
+        """
+        Si el partner te está rellenando términos de pago vía onchange,
+        Odoo genera N vencimientos. Para importar igual que el JSON,
+        quitamos términos de pago y dejamos una sola fecha: invoice_date_due.
+        """
+        move_vals.pop('invoice_payment_term_id', None)
+        return move_vals
+
+
     def _compute_due_date(self, parsed):
         fecha = parsed["fecha_emision"].date() if parsed["fecha_emision"] else False
         if not fecha:
@@ -167,6 +196,8 @@ class DTEImportWizard(models.TransientModel):
 
         move = self.env["account.move"].with_context(ctx).create(move_vals)
 
+        self._normalize_maturity(move)
+        
         if self.post_moves:
             move.with_context(ctx).action_post()
 
