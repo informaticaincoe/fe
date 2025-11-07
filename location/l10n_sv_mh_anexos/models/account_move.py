@@ -1370,6 +1370,7 @@ class account_move(models.Model):
     @api.depends('invoice_date')
     def _compute_semester(self):
         for m in self:
+
             if m.invoice_date:
                 m.semester_year = m.invoice_date.year
                 m.semester = 'S1' if m.invoice_date.month <= 6 else 'S2'
@@ -1382,14 +1383,16 @@ class account_move(models.Model):
     @api.depends('invoice_date')
     def _compute_periods(self):
         for r in self:
-            if r.invoice_date:
-                r.invoice_year_agrupado = str(r.invoice_date.year)
-                r.invoice_semester_agrupado = '1' if r.invoice_date.month <= 6 else '2'
-                r.invoice_month_agrupado = f'{r.invoice_date.month:02d}'
-            else:
-                r.invoice_year_agrupado = False
-                r.invoice_semester_agrupado = False
-                r.invoice_month_agrupado = False
+            _logger.info("rrrrr %s", r.move_type)
+            if(r.move_type in ["in_invoice", "out_invoice", "in_refund", "out_refund"]):
+                if r.invoice_date:
+                    r.invoice_year_agrupado = str(r.invoice_date.year)
+                    r.invoice_semester_agrupado = '1' if r.invoice_date.month <= 6 else '2'
+                    r.invoice_month_agrupado = f'{r.invoice_date.month:02d}'
+                else:
+                    r.invoice_year_agrupado = False
+                    r.invoice_semester_agrupado = False
+                    r.invoice_month_agrupado = False
 
     @api.depends('invoice_date')
     def _compute_periods_sel(self):

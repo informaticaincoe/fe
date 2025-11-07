@@ -1,29 +1,37 @@
 <odoo>
     <data>
-        <record id="view_hr_planilla_list_custom" model="ir.ui.view">
-            <field name="name">hr.payslip.planilla.unica.list.custom</field>
+        <record id="view_hr_planilla_list_min" model="ir.ui.view">
+            <field name="name">hr.payslip.planilla.unica.list.min</field>
             <field name="model">hr.payslip.planilla.unica</field>
-            <field name="priority" eval="20"/>
             <field name="arch" type="xml">
-                <list string="Planilla unica">
+                <list string="Planilla Única (mensual)">
+                    <header>
+                        <button name="get_action_planilla_unica"
+                                string="Actualizar"
+                                type="object"
+                                class="btn-primary"
+                                display="always"/>
+                    </header>
                     <field name="nit_empresa"/>
                     <field name="numero_isss_empresa"/>
                     <field name="periodo_planilla"/>
-                    <field name="num_documento"/>
-                    <field name="tipo_documento"/>
-                    <field name="numero_isss_empleado"/>
-                    <field name="afp_id"/>
-
-                    <field name="primer_nombre" />
+                    <field name="tipo_documento_empleado"/>
+                    <field name="num_documento_empleado"/>
+                    <field name="num_isss" string="Número afiliación al ISSS"/>
+                    <field name="afp_tipo"/>
+                    <field name="primer_nombre"/>
                     <field name="segundo_nombre" />
                     <field name="primer_apellido" />
                     <field name="segundo_apellido" />
-                    <field name="apellido_casada"/>
-                    <field name="salario_pagar"/>
-<!--                    <field name="pago_adicional"/>-->
-                    <field name="vacaciones"/>
-                    <field name="total_worked_days"/>
-                    <field name="total_worked_hours"/>
+                    <field name="apellido_casada" />
+                    <field name="salario_pagar" />
+                    <field name="pago_adicional" />
+                    <field name="vacaciones" />
+                    <field name="total_worked_days" />
+                    <field name="total_worked_hours" />
+                    <field name="vacaciones_days" />
+                    <field name="codigo_observacion_1" />
+                    <field name="codigo_observacion_2" />
 
 
                 </list>
