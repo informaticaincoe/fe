@@ -288,7 +288,14 @@ class HrPayslipPlanillaUnica(models.TransientModel):
                      period_year, period_month, company_id)
 
         # 1) Borrar previos (TransientModel)
-        del_dom = []
+        del_dom = [
+            ('company_id', '=', company_id),
+            ('period_year', '=', str(period_year)),
+            ('period_month', '=', period_month),
+            ('create_uid', '=', self.env.uid),
+        ]
+        self.search(del_dom).unlink()
+
         if company_id:
             del_dom.append(('company_id', '=', company_id))
         prev = self.search(del_dom)
@@ -453,20 +460,99 @@ class HrPayslipPlanillaUnica(models.TransientModel):
         _logger.info("PU | Creadas %s filas TMP. t=%.3fs", len(created), time.time() - t0)
         return len(created)
 
+    # ----------------------------------------------
+    # Helpers de periodo/empresa (internos del modelo)
+    # ----------------------------------------------
+    def _pu_get_period_company(self):
+        """
+        Resuelve (year, month, company_id) a usar:
+        - Si hay un registro en self y trae period_year/period_month/company_id, usa esos.
+        - Si no, usa hoy + self.env.company.
+        """
+        today = fields.Date.context_today(self)
+        y = str(today.year)
+        m = f"{today.month:02d}"
+        cid = self.env.company.id
+
+        if self:
+            rec = self[0]
+            if rec.period_year:
+                y = str(rec.period_year)
+            if rec.period_month:
+                m = rec.period_month
+            if rec.company_id:
+                cid = rec.company_id.id
+        return y, m, cid
+
+    # ----------------------------------------------
+    # Actualizar datos temporales y recargar UI
+    # ----------------------------------------------
+    def action_refresh_tmp(self):
+        # periodo desde algún registro / defaults; ignora la compañía aquí
+        y, m, _ = self._pu_get_period_company()
+
+        # todas las compañías activas en el switcher (no solo env.company)
+        companies = self.env.companies or self.env.company
+
+        for c in companies:
+            # importante: tu rebuild ya borra por company_id; mantenlo así
+            self.rebuild_from_payslips(y, m, c.id)
+
+        return {'type': 'ir.actions.client', 'tag': 'reload'}
+
     # -----------------------------------------------------------------------
     # Acción: construir mes actual y abrir lista
     # -----------------------------------------------------------------------
     def get_action_planilla_unica(self):
-        today = fields.Date.context_today(self)
-        y = today.year
-        m = f"{today.month:02d}"
-        cid = self.env.company.id
-        _logger.info("PU | get_action_planilla_unica %s-%s company=%s", y, m, cid)
-        self.rebuild_from_payslips(str(y), m, cid)
-        return {
-            'type': 'ir.actions.act_window',
-            'name': 'Planilla Única',
-            'res_model': 'hr.payslip.planilla.unica',
-            'view_mode': 'list',
-            # 'domain': [('period_month', '=', m), ('period_year', '=', str(y)), ('company_id', '=', cid)],
-        }
+        return self.action_refresh_tmp()
+
+
+
+    @api.model
+    def year_selection(self):
+        """
+        Años dinámicos tomados de hr.payslip vía ORM (read_group), respetando
+        compañías permitidas. Si no hay datos, cae al rango y-5..y+1.
+        """
+        # compañías permitidas (multicompañía)
+        allowed = self.env.context.get('allowed_company_ids') or [self.env.company.id]
+        if isinstance(allowed, int):
+            allowed = [allowed]
+
+        domain = [('company_id', 'in', allowed)]
+
+        years = set()
+
+        # 1) Agrupar por año de date_from
+        rows_from = self.env['hr.payslip'].read_group(
+            domain=domain,
+            fields=['id'],
+            groupby=['date_from:year'],
+            lazy=False,
+        )
+        for r in rows_from:
+            y = r.get('date_from:year')
+            if y:
+                years.add(str(int(y)))
+
+        # 2) (Opcional/robusto) agregar años de date_to por si algún slip no tiene date_from
+        rows_to = self.env['hr.payslip'].read_group(
+            domain=domain,
+            fields=['id'],
+            groupby=['date_to:year'],
+            lazy=False,
+        )
+        for r in rows_to:
+            y = r.get('date_to:year')
+            if y:
+                years.add(str(int(y)))
+
+        # Fallback si no hay ningún slip
+        if not years:
+            today = fields.Date.context_today(self)
+            base = today.year
+            years = {str(v) for v in range(base - 5, base + 2)}
+
+        # Devuelve en formato selection (value, label)
+        return [(y, y) for y in sorted(years, reverse=True)]
+
