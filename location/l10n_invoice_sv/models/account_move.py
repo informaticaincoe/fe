@@ -82,8 +82,11 @@ class AccountMove(models.Model):
     total_descuento = fields.Float(string='Total descuento', default=0.00, store=True,
                                    compute='_compute_total_descuento', )
 
+    # descuento_global = fields.Float(string='Monto Desc. Global', default=0.00, store=True,
+    #                                 compute='_compute_descuento_global', inverse='_inverse_descuento_global')
+
     descuento_global = fields.Float(string='Monto Desc. Global', default=0.00, store=True,
-                                    compute='_compute_descuento_global', inverse='_inverse_descuento_global')
+                                    compute='_compute_descuento_global')
 
     descuento_global_monto = fields.Float(
         string='Descuento global',
@@ -886,36 +889,50 @@ class AccountMove(models.Model):
                 move.descuento_global = float_round((move.sub_total_ventas or 0.0) * (move.descuento_global_monto or 0.0) / 100, precision_rounding=move.currency_id.rounding)
                 _logger.info("SIT descuento_global: %.2f aplicado sobre sub_total %.2f (%.2f%%)", move.descuento_global, move.sub_total_ventas, move.descuento_global_monto)
 
-    def _inverse_descuento_global(self):
-        """
-        Calcula el porcentaje de descuento global en función del subtotal de ventas.
-        Este método es el inverso del cálculo principal y se usa al modificar el valor del descuento en monto.
-        Omite asientos contables, ventas sin facturación y compras normales o sujeto excluido sin facturación.
-        """
-        for move in self:
-            move.descuento_global_monto = 0.0
-            tipo_doc = move.journal_id.sit_tipo_documento
-
-            # Omitir asientos contables
-            if move.move_type in (constants.TYPE_ENTRY, constants.OUT_RECEIPT, constants.IN_RECEIPT):
-                _logger.info("SIT _inverse_descuento_global | Asiento -> move_id: %s, no se calcula descuento_global_monto", move.id)
-                continue
-
-            # Omitir ventas sin facturación
-            if move.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND) and not move.company_id.sit_facturacion:
-                _logger.info("SIT _inverse_descuento_global | Venta sin facturación -> move_id: %s, no se calcula descuento_global_monto", move.id)
-                continue
-            # Omitir compras normales o sujeto excluido sin facturación
-            if move.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
-                if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE or (
-                        tipo_doc.codigo == constants.COD_DTE_FSE and not move.company_id.sit_facturacion):
-                    _logger.info("SIT _inverse_descuento_global | Compra normal o sujeto excluido sin facturación -> move_id: %s, no se calcula descuento_global_monto", move.id)
-                    continue
-
-            if move.sub_total_ventas:
-                move.descuento_global_monto = float_round((move.descuento_global / move.sub_total_ventas) * 100, precision_rounding=move.currency_id.rounding)
-            else:
-                move.descuento_global_monto = 0.0
+    # def _inverse_descuento_global(self):
+    #     """
+    #     Calcula el porcentaje de descuento global en función del subtotal de ventas.
+    #     Este método es el inverso del cálculo principal y se usa al modificar el valor del descuento en monto.
+    #     Omite asientos contables, ventas sin facturación y compras normales o sujeto excluido sin facturación.
+    #     """
+    #     _logger.info("[INVERSE] Iniciando _inverse_descuento_global para %s registros", len(self))
+    #     for move in self:
+    #         _logger.info("Valores iniciales -> sub_total_ventas=%s | descuento_global=%s | descuento_global_monto=%s",
+    #             move.sub_total_ventas, move.descuento_global, move.descuento_global_monto)
+    #
+    #         move.descuento_global_monto = 0.0
+    #         tipo_doc = move.journal_id.sit_tipo_documento
+    #         _logger.info("Tipo documento: %s", tipo_doc and tipo_doc.codigo)
+    #
+    #         # Omitir asientos contables
+    #         if move.move_type in (constants.TYPE_ENTRY, constants.OUT_RECEIPT, constants.IN_RECEIPT):
+    #             _logger.info("Asiento contable detectado, se omite cálculo -> move_id=%s", move.id)
+    #             continue
+    #
+    #         # Omitir ventas sin facturación
+    #         if move.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND) and not move.company_id.sit_facturacion:
+    #             _logger.info("Venta sin facturación, se omite cálculo -> move_id=%s", move.id)
+    #             continue
+    #
+    #         # Omitir compras normales o sujeto excluido sin facturación
+    #         if move.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
+    #             if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE or (
+    #                     tipo_doc.codigo == constants.COD_DTE_FSE and not move.company_id.sit_facturacion):
+    #                 _logger.info("Compra normal o sujeto excluido sin facturación, se omite cálculo -> move_id=%s", move.id)
+    #                 continue
+    #
+    #         # Cálculo del porcentaje
+    #         if move.sub_total_ventas:
+    #             move.descuento_global_monto = float_round(
+    #                 (move.descuento_global / move.sub_total_ventas) * 100,
+    #                 precision_rounding=move.currency_id.rounding
+    #             )
+    #             _logger.info("Calculado descuento_global_monto = %.2f (desc_global=%.2f / sub_total=%.2f)", move.descuento_global_monto, move.descuento_global, move.sub_total_ventas)
+    #         else:
+    #             move.descuento_global_monto = 0.0
+    #             _logger.info("sub_total_ventas es 0, se asigna descuento_global_monto = 0.0")
+    #
+    #     _logger.info("[INVERSE] Finalizado _inverse_descuento_global")
 
     @api.depends(
         'invoice_line_ids.precio_gravado', 'invoice_line_ids.precio_exento', 'invoice_line_ids.precio_no_sujeto',

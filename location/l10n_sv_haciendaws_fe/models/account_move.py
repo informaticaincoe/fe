@@ -2155,7 +2155,8 @@ class AccountMove(models.Model):
         return bloque
 
     def action_post(self):
-        _logger.info("SIT Action post dte. %s", self)
+        skip_import_json = self.env.context.get('skip_import_json', False)
+        _logger.info("SIT Action post dte. %s | skip_import_json=%s", self, skip_import_json)
 
         # Filtrar solo facturas de venta o compra
         invoices = self.filtered(
@@ -2231,17 +2232,17 @@ class AccountMove(models.Model):
                     _logger.warning("SIT | El documento relacionado aún no tiene el sello de Hacienda.")
                     raise ValidationError("El documento relacionado aún no cuenta con el sello de Hacienda.")
 
-                if (inv.company_id.sit_facturacion or doc_electronico) and not inv.tipo_ingreso_id and inv.journal_id and inv.journal_id.sit_tipo_documento and inv.journal_id.sit_tipo_documento.codigo in (
+                if not skip_import_json and (inv.company_id.sit_facturacion or doc_electronico) and not inv.tipo_ingreso_id and inv.journal_id and inv.journal_id.sit_tipo_documento and inv.journal_id.sit_tipo_documento.codigo in (
                         constants.COD_DTE_FE, constants.COD_DTE_FEX, constants.COD_DTE_CCF, constants.COD_DTE_NC, constants.COD_DTE_ND):
                     _logger.warning("SIT | No se ha seleccionado el tipo de ingreso para el documento electrónico %s.", inv.name)
                     raise ValidationError("Debe seleccionar un tipo de ingreso antes de validar el documento electrónico.")
 
-                if (inv.company_id.sit_facturacion or doc_electronico) and not inv.tipo_operacion and inv.journal_id and inv.journal_id.sit_tipo_documento and inv.journal_id.sit_tipo_documento.codigo in (
+                if not skip_import_json and (inv.company_id.sit_facturacion or doc_electronico) and not inv.tipo_operacion and inv.journal_id and inv.journal_id.sit_tipo_documento and inv.journal_id.sit_tipo_documento.codigo in (
                         constants.COD_DTE_FE, constants.COD_DTE_FEX, constants.COD_DTE_CCF, constants.COD_DTE_NC, constants.COD_DTE_ND):
                     _logger.warning("SIT | No se ha seleccionado el tipo de operación para el documento electrónico %s.", inv.name)
                     raise ValidationError("Debe seleccionar un tipo de operación antes de validar el documento electrónico.")
 
-                if ((inv.company_id.sit_facturacion or doc_electronico) and
+                if not skip_import_json and ((inv.company_id.sit_facturacion or doc_electronico) and
                         inv.journal_id and inv.journal_id.sit_tipo_documento and
                         inv.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FSE and
                         (not inv.tipo_costo_gasto_id or not inv.tipo_operacion or not inv.clasificacion_facturacion or not inv.sector)):
