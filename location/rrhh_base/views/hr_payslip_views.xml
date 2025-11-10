@@ -8,7 +8,7 @@
             <field name="arch" type="xml">
                 <header position="inside">
                     <button name="action_send_payslip_email" type="object" string="Enviar" icon="fa-envelope"
-                            class="btn-primary" invisible="state != 'done'"/>
+                            class="btn-primary" invisible="state != 'paid'"/>
                 </header>
             </field>
         </record>

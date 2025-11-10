@@ -21,7 +21,8 @@
         "report/report.xml",
         "report/report_payslip_incoe.xml",
         "views/hr_payslip_views.xml",
-        'data/mail_template_payslip.xml'
+        'data/mail_template_payslip.xml',
+        "views/hr_payslips_send_lotes.xml"
     ],
     'installable': True,
 }

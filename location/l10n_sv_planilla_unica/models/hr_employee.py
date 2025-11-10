@@ -36,3 +36,8 @@ class HrEmployee(models.Model):
         string='Segundo apellido',
         store=True
     )
+
+    apellido_casada = fields.Char(
+        string='Apellido de casada',
+        store=True
+    )

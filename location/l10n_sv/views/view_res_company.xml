@@ -17,18 +17,6 @@
                 </field>
             </field>
         </record>
-         <record model="ir.ui.view" id="view_company_planilla_unica_form">
-            <field name="name">view_company_planilla_unica-form</field>
-            <field name="model">res.company</field>
-            <field name="inherit_id" ref="base.view_company_form"/>
-            <field name="arch" type="xml">
-                <field name="vat" position="after">
-                        <group string="Planilla única">
-                            <field name="isss_patronal"/>
-                        </group>
-                </field>
-            </field>
-        </record>
     </data>
 </odoo>
     

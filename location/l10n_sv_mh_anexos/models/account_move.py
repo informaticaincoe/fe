@@ -1067,42 +1067,23 @@ class account_move(models.Model):
         compute="_compute_importaciones_exentas_no_sujetas"
     )
 
-    @api.depends('amount_exento', 'partner_id.country_id', 'sit_tipo_documento_id')
+    @api.depends('amount_exento', 'partner_id.country_id')
     def _compute_compras_internas_exento(self):
         for rec in self:
             code = rec.partner_id.country_id.code or ''
-            doc = rec.sit_tipo_documento_id.codigo
-            val = 0.0
-            if code == 'SV':
-                val = rec.amount_exento or 0.0
-            rec.compras_internas_total_excento = val
+            rec.compras_internas_total_excento = rec.amount_exento or 0.0 if code == 'SV' else 0.0
 
-    @api.depends('amount_exento', 'partner_id.country_id', 'sit_tipo_documento_id')
+    @api.depends('amount_exento', 'partner_id.country_id')
     def _compute_internaciones_exentas_no_sujetas(self):
         for rec in self:
             code = rec.partner_id.country_id.code or ''
-            doc = rec.sit_tipo_documento_id.codigo
-            val = 0.0
-            # Internaciones: compras desde CA (≠ SV) o salidas de regímenes especiales según tu modelado
-            if code in (CA_CODES - {'SV'}):  # ajusta a tus reglas
-                val = rec.amount_exento or 0.0
-            rec.internaciones_exentas_no_sujetas = val  # ← ASIGNA SU PROPIO CAMPO
+            rec.internaciones_exentas_no_sujetas = rec.amount_exento or 0.0 if code in (CA_CODES - {'SV'}) else 0.0
 
-    @api.depends('amount_exento', 'partner_id.country_id', 'sit_tipo_documento_id')
+    @api.depends('amount_exento', 'partner_id.country_id')
     def _compute_importaciones_exentas_no_sujetas(self):
         for rec in self:
             code = rec.partner_id.country_id.code or ''
-            doc = rec.sit_tipo_documento_id.codigo
-            val = 0.0
-            # Importaciones (fuera de CA)
-            if code not in CA_CODES:
-                val = rec.amount_exento or 0.0
-            rec.importaciones_exentas_no_sujetas = val  # ← ASIGNA SU PROPIO CAMPO
-
-    compras_internas_gravadas = fields.Float(
-        "Compras internas gravadas",
-        compute="_compute_compras_internas_gravadas"
-    )
+            rec.importaciones_exentas_no_sujetas = rec.amount_exento or 0.0 if (code and code not in CA_CODES) else 0.0
 
     @api.depends('total_gravado', 'partner_id.country_id', 'sit_tipo_documento_id')
     def _compute_compras_internas_gravadas(self):
@@ -1371,6 +1352,7 @@ class account_move(models.Model):
     @api.depends('invoice_date')
     def _compute_semester(self):
         for m in self:
+
             if m.invoice_date:
                 m.semester_year = m.invoice_date.year
                 m.semester = 'S1' if m.invoice_date.month <= 6 else 'S2'

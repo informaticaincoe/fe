@@ -1,196 +1,558 @@
-from odoo import _, api, fields, models, tools
-import logging
-from lxml import etree
-from datetime import date
-from email.utils import parseaddr, formataddr
-import base64, re
+# -*- coding: utf-8 -*-
+from datetime import date, datetime, timedelta
 
-try:
-    import unicodedata
-except Exception:
-    unicodedata = None
+from odoo import api, fields, models, _, tools, SUPERUSER_ID
+import logging
+import re
 
 _logger = logging.getLogger(__name__)
+try:
+    from odoo.addons.common_utils.utils import constants
+    from odoo.addons.common_utils.utils import config_utils
+
+    _logger.info("SIT Modulo constants [invoice_sv-account_move]")
+except ImportError as e:
+    _logger.error(f"Error al importar 'constants': {e}")
+    constants = None
+    config_utils = None
+# ---------------------------------------------------------------------------
+# Helpers puros (fuera de clase)
+# ---------------------------------------------------------------------------
+def normalize_doc(num):
+    """
+    Normaliza documento de identificación (DUI/pasaporte/carné):
+    - Quita espacios/símbolos
+    - Mantiene A-Z0-9 en upper-case
+    """
+    s = (num or '').strip()
+    return re.sub(r'[^A-Za-z0-9]+', '', s).upper()
 
 
-class HrPayslipPlanillaUnica(models.Model):
+def _norm_codes(val, fallback_list):
+    """
+    Normaliza códigos:
+      - None -> fallback_list
+      - 'str' -> ['STR']
+      - [a,b] -> ['A','B']
+    Devuelve lista en upper().
+    """
+    try:
+        if isinstance(val, (list, tuple, set)):
+            out = [str(x).upper() for x in val if x]
+            return out or [x.upper() for x in fallback_list]
+        if val:
+            return [str(val).upper()]
+    except Exception:
+        pass
+    return [x.upper() for x in fallback_list]
+
+
+# ---------------------------------------------------------------------------
+# Modelo Transient
+# ---------------------------------------------------------------------------
+class HrPayslipPlanillaUnica(models.TransientModel):
     _name = 'hr.payslip.planilla.unica'
-    _description = 'Reporte de planilla unica'
-    _auto = False  # es una vista SQL, no tabla física
-    _check_company_auto = True  # respeta reglas multi-compañía automáticamente
+    _description = 'Reporte de planilla única'
+    _check_company_auto = True
 
-    # Catálogo de meses para filtros
+    # -----------------------------------------------------------------------
+    # Constantes de clase
+    # -----------------------------------------------------------------------
     PERIOD_MONTHS = [
         ('01', 'enero'), ('02', 'febrero'), ('03', 'marzo'), ('04', 'abril'),
         ('05', 'mayo'), ('06', 'junio'), ('07', 'julio'), ('08', 'agosto'),
         ('09', 'septiembre'), ('10', 'octubre'), ('11', 'noviembre'), ('12', 'diciembre'),
     ]
 
+    # -----------------------------------------------------------------------
+    # Selecciones dinámicas
+    # -----------------------------------------------------------------------
     @api.model
     def year_selection(self):
+        """Rango de años (y-5 .. y+1)."""
         y = date.today().year
         return [(str(v), str(v)) for v in range(y - 5, y + 2)]
 
-    # campos base
-    company_id = fields.Many2one('res.company', string='Empresa', readonly=True, index=True)
-    period_year = fields.Selection(selection=year_selection, string='Año', readonly=True, index=True)
-    period_month = fields.Selection(selection=PERIOD_MONTHS, string='Mes', readonly=True, index=True)
-    employee_id = fields.Many2one('hr.employee', string='Empleado', readonly=True, index=True)
-    department_id = fields.Many2one('hr.department', string='Departamento', readonly=True)
+    # -----------------------------------------------------------------------
+    # Campos base / filtros
+    # -----------------------------------------------------------------------
+    payslip_id = fields.Many2one('hr.payslip', string='Nómina Origen', ondelete='cascade', index=True)
+    company_id = fields.Many2one('res.company', string='Empresa', index=True)
+    period_year = fields.Selection(selection=year_selection, string='Año', index=True)
+    period_month = fields.Selection(selection=PERIOD_MONTHS, string='Mes', index=True)
+    employee_id = fields.Many2one('hr.employee', string='Empleado', index=True)
 
-    nit_empresa = fields.Char(related='company_id.vat', string='Nit empresa', readonly=True, index=True)
-    numero_isss_empresa = fields.Char(related='company_id.isss_patronal', string='ISSS patronal', readonly=True,
-                                      index=True)
+    # -----------------------------------------------------------------------
+    # Datos de empresa
+    # -----------------------------------------------------------------------
+    nit_empresa = fields.Char(related='company_id.vat', string='NIT empresa')
+    numero_isss_empresa = fields.Char(related='company_id.isss_patronal', string='ISSS patronal')
 
-    periodo_planilla = fields.Char('periodo_planilla', readonly=True)
+    # -----------------------------------------------------------------------
+    # Datos del empleado (related/compute, no persistentes)
+    # -----------------------------------------------------------------------
+    primer_nombre = fields.Char(string="Primer nombre", related='employee_id.primer_nombre', readonly=True, store=False)
+    segundo_nombre = fields.Char(string="Segundo nombre", related='employee_id.segundo_nombre', readonly=True, store=False)
+    primer_apellido = fields.Char(string="Primer apellido", related='employee_id.primer_apellido', readonly=True, store=False)
+    segundo_apellido = fields.Char(string="Segundo apellido", related='employee_id.segundo_apellido', readonly=True, store=False)
+    apellido_casada = fields.Char(string="Apellido de casada", related='employee_id.apellido_casada', readonly=True, store=False)
 
-    num_documento = fields.Char('Nùmero documento', readonly=True)
-    tipo_documento = fields.Char('Tipo documento', readonly=True)
-    numero_isss_empleado = fields.Char('Nùmero ISSS empleado ', readonly=True)
-    institucion_previsional = fields.Char('Institucion Previsional', readonly=True)
-    afp_id = fields.Char(string='AFP', readonly=True)
+    tipo_documento_empleado = fields.Char(
+        string="Tipo de documento",
+        compute='_compute_tipo_documento_empleado',
+        readonly=True, store=False,
+    )
+    num_documento_empleado = fields.Char(
+        string="Número de documento del trabajador",
+        compute="_compute_num_documento_empleado",
+        readonly=True, store=False,
+    )
+    num_isss = fields.Char(string="Número afiliación al ISSS", related='employee_id.ssnid', readonly=True, store=False)
 
-    primer_nombre = fields.Char(related='employee_id.primer_nombre', readonly=True)
-    segundo_nombre = fields.Char(related='employee_id.segundo_nombre', readonly=True)
-    primer_apellido = fields.Char(related='employee_id.primer_apellido', readonly=True)
-    segundo_apellido = fields.Char(related='employee_id.segundo_apellido', readonly=True)
+    # -----------------------------------------------------------------------
+    # AFP (desde contrato activo)
+    # -----------------------------------------------------------------------
+    afp_id = fields.Char(string='AFP', compute='_compute_afp_id', store=False, readonly=True)
+    afp_tipo = fields.Char(string='Tipo AFP', compute='_compute_tipo_afp', store=False, readonly=True)
+
+    # -----------------------------------------------------------------------
+    # Totales planilla / métricas
+    # -----------------------------------------------------------------------
+    periodo_planilla = fields.Char('Periodo planilla (MMYYYY)', readonly=True)
 
     total_worked_days = fields.Float('Días laborados', readonly=True)
-    total_worked_hours = fields.Float('Horas laboradas', readonly=True)
+    total_worked_hours = fields.Float('Horas laboradas', readonly=True)  # total (no promedio)
 
-    salario_pagar = fields.Float('Salario a pagar', readonly=True)
-    comisiones = fields.Float('Comisiones', readonly=True)
-    total_comisiones = fields.Float('Total comisiones', readonly=True)
-    total_overtime = fields.Float('Horas extras', readonly=True)
+    quincena1_gross = fields.Float('Q1 gross', readonly=True)
+    quincena2_gross = fields.Float('Q2 gross', readonly=True)
+    salario_pagar = fields.Float('Salario a pagar (Q1+Q2)', readonly=True)
 
-    viaticos = fields.Float('Viáticos ordinarios', readonly=True)
-    total_viaticos_a_pagar = fields.Float('Total viáticos', readonly=True)
-    vacaciones = fields.Float('Vacaciones', readonly=True)
+    pago_adicional = fields.Float('Pago adicional (Bonos+Comisiones)', readonly=True)
+    vacaciones = fields.Float('Vacaciones (monto)', readonly=True)
+    vacaciones_days = fields.Float('Días de vacaciones', readonly=True)
+    vacaciones_hours = fields.Float('Horas de vacaciones', readonly=True)
 
-    total_devengado = fields.Float('Total devengado', readonly=True)
+    # -----------------------------------------------------------------------
+    # Códigos observación
+    # -----------------------------------------------------------------------
+    codigo_observacion_1 = fields.Char(
+        string='Código observación 1', compute='_compute_codigos_observacion', store=False, readonly=True)
+    codigo_observacion_2 = fields.Char(
+        string='Código observación 2', compute='_compute_codigos_observacion', store=False, readonly=True)
 
-    isss = fields.Float('ISSS', readonly=True)
-    isr = fields.Float('ISR', readonly=True)
-    afp = fields.Float('AFP Crecer', readonly=True)
-    afp_confia = fields.Float('AFP Confia', readonly=True)
-    afp_ipsfa = fields.Float('IPSFA', readonly=True)
-    otros = fields.Float('Otros', readonly=True)
-    bancos = fields.Float('Bancos', readonly=True)
-    venta_empleados = fields.Float('Venta empleados', readonly=True)
-    prestamos_incoe = fields.Float('Préstamos INCOE', readonly=True)
-    fsv = fields.Float('FSV', readonly=True)
+    # -----------------------------------------------------------------------
+    # Cómputos de identificación
+    # -----------------------------------------------------------------------
+    @api.depends('employee_id', 'period_year', 'period_month')
+    def _compute_tipo_documento_empleado(self):
+        """Determina tipo de documento: 01=DUI, 02=Pasaporte."""
+        for rec in self:
+            emp = rec.employee_id
+            tipo = ''
+            if emp:
+                if (emp.identification_id or '').strip():
+                    tipo = '01'
+                elif (emp.passport_id or '').strip():
+                    tipo = '02'
+            rec.tipo_documento_empleado = tipo
 
-    total_descuentos = fields.Float('Total descuentos', readonly=True)
-    sueldo_liquido = fields.Float('Líquido a recibir', readonly=True)
+    @api.depends('employee_id', 'period_year', 'period_month', 'tipo_documento_empleado')
+    def _compute_num_documento_empleado(self):
+        """Normaliza número de documento según tipo."""
+        for rec in self:
+            emp = rec.employee_id
+            if not emp:
+                rec.num_documento_empleado = ''
+                continue
+            if rec.tipo_documento_empleado == '02':
+                rec.num_documento_empleado = (emp.passport_id or '').strip()
+            else:
+                rec.num_documento_empleado = normalize_doc(emp.identification_id)
 
-    @api.model
-    def _select(self):
-        return """
-            WITH wd AS (
-                SELECT wd.payslip_id,
-                       COALESCE(SUM(wd.number_of_days), 0)  AS worked_days,
-                       COALESCE(SUM(wd.number_of_hours), 0) AS worked_hours
-                FROM hr_payslip_worked_days wd
-                GROUP BY wd.payslip_id
-            ),
-            pl AS (
-                SELECT l.slip_id,
-                       COALESCE(SUM(CASE WHEN l.code='COMISION'   THEN l.amount ELSE 0 END),0) AS comisiones,
-                       COALESCE(SUM(CASE WHEN l.code='OVERTIME'   THEN l.amount ELSE 0 END),0) AS overtime,
-                       COALESCE(SUM(CASE WHEN l.code='VIATICO'    THEN l.amount ELSE 0 END),0) AS viaticos,
-                       COALESCE(SUM(CASE WHEN l.code='VACACIONES' THEN l.amount ELSE 0 END),0) AS vacaciones,
-                       COALESCE(SUM(CASE WHEN l.code='DESC_FALTA_SEPTIMO' THEN l.amount ELSE 0 END),0) AS desc_falta
-                FROM hr_payslip_line l
-                GROUP BY l.slip_id
+    # -----------------------------------------------------------------------
+    # Contrato activo y AFP
+    # -----------------------------------------------------------------------
+    def _get_active_contract(self, employee, period_year, period_month):
+        """
+        Retorna el contrato ACTIVO del empleado dentro del mes (más reciente).
+        """
+        first_day = datetime(int(period_year), int(period_month), 1).date()
+        last_day_dt = (datetime(int(period_year), int(period_month), 28) + timedelta(days=4))
+        last_day = (last_day_dt.replace(day=1) - timedelta(days=1)).date()
+        Contract = self.env['hr.contract']
+        return Contract.search([
+            ('employee_id', '=', employee.id),
+            ('state', '=', 'open'),
+            ('date_start', '<=', last_day),
+            '|', ('date_end', '=', False), ('date_end', '>=', first_day),
+        ], order='date_start desc', limit=1)
+
+    @api.depends('employee_id', 'period_year', 'period_month')
+    def _compute_afp_id(self):
+        """Obtiene nombre/código AFP desde contrato activo (afp_id o afp Char)."""
+        for rec in self:
+            afp_txt = ''
+            try:
+                if rec.employee_id and rec.period_year and rec.period_month:
+                    c = self._get_active_contract(rec.employee_id, rec.period_year, rec.period_month)
+                    if c:
+                        if hasattr(c, 'afp_id') and getattr(c, 'afp_id') is not None:
+                            v = c.afp_id
+                            if hasattr(v, 'id'):
+                                name = getattr(v, 'name', '') or ''
+                                code = getattr(v, 'code', '') or ''
+                                afp_txt = (name or code or '').strip()
+                            else:
+                                afp_txt = str(v).strip()
+                        elif hasattr(c, 'afp') and c.afp:
+                            afp_txt = str(c.afp).strip()
+            except Exception:
+                _logger.exception("PU | _compute_afp_id: error obteniendo AFP emp=%s",
+                                  rec.employee_id.id if rec.employee_id else None)
+            rec.afp_id = afp_txt
+
+    @api.depends('afp_id')
+    def _compute_tipo_afp(self):
+        """
+        Mapea AFP textual a código:
+          - CRECER/MAX -> 'MAX'
+          - CONFIA     -> 'COF'
+          - IPSFA      -> 'IPSFA'
+          - otro/vacío -> ''
+        """
+        for rec in self:
+            val = (rec.afp_id or '').strip().lower()
+            crec = getattr(constants, 'AFP_CRECER', 'crecer').lower() if constants else 'crecer'
+            conf = getattr(constants, 'AFP_CONFIA', 'confia').lower() if constants else 'confia'
+            if val in (crec, 'max'):
+                rec.afp_tipo = 'MAX'
+            elif val in (conf, 'confía', 'cof'):
+                rec.afp_tipo = 'COF'
+            elif 'ipsfa' in val:
+                rec.afp_tipo = 'IPSFA'
+            else:
+                rec.afp_tipo = ''
+
+    # -----------------------------------------------------------------------
+    # Códigos observación
+    # -----------------------------------------------------------------------
+    @api.depends('pago_adicional', 'vacaciones_days', 'afp_tipo')
+    def _compute_codigos_observacion(self):
+        """
+        Reglas y prioridad:
+          - default                         '00'
+          - pago_adicional > 0              '02'
+          - vacaciones_days > 1             '09'
+          - pagos + vacaciones              '10'
+          - afp_tipo == 'IPSFA'             '04'
+        Orden obs1/obs2: 10, 04, 02, 09 ; completar con '00'.
+        """
+        for rec in self:
+            pagos = float(rec.pago_adicional or 0.0)
+            vacdias = float(rec.vacaciones_days or 0.0)
+            is_ipsfa = (rec.afp_tipo or '').upper() == 'IPSFA'
+
+            has_pagos = pagos > 0.0
+            has_vacas = vacdias > 1.0
+
+            codes = []
+            if has_pagos and has_vacas:
+                codes.append('10')
+            if is_ipsfa and '04' not in codes:
+                codes.append('04')
+            if has_pagos and '10' not in codes:
+                codes.append('02')
+            if has_vacas and '10' not in codes:
+                codes.append('09')
+
+            while len(codes) < 2:
+                codes.append('00')
+
+            rec.codigo_observacion_1 = codes[0]
+            rec.codigo_observacion_2 = codes[1]
+
+    # -----------------------------------------------------------------------
+    # Motor: reconstrucción del dataset
+    # -----------------------------------------------------------------------
+    def rebuild_from_payslips(self, period_year: str, period_month: str, company_id: int = None):
+        """
+        Reconstruye registros (uno por empleado) para (año, mes, empresa):
+          - Q1/Q2 (gross), salario (Q1+Q2)
+          - pagos adicionales (bonos+comisiones)
+          - vacaciones (monto + días/horas)
+          - totales de días y horas trabajadas
+        """
+        import time
+        t0 = time.time()
+        _logger.info("PU | rebuild_from_payslips(y=%s, m=%s, company_id=%s) - INICIO",
+                     period_year, period_month, company_id)
+
+        # 1) Borrar previos (TransientModel)
+        del_dom = [
+            ('company_id', '=', company_id),
+            ('period_year', '=', str(period_year)),
+            ('period_month', '=', period_month),
+            ('create_uid', '=', self.env.uid),
+        ]
+        self.search(del_dom).unlink()
+
+        if company_id:
+            del_dom.append(('company_id', '=', company_id))
+        prev = self.search(del_dom)
+        if prev:
+            _logger.info("PU | Borrando previos: %s (dom=%s)", len(prev), del_dom)
+            prev.unlink()
+
+        # 2) Buscar nóminas del mes (si tienes period_year/period_month en hr.payslip,
+        #    puedes descomentar filtros para precisión/velocidad)
+        dom_mes = []
+        if company_id:
+            dom_mes.append(('company_id', '=', company_id))
+        # dom_mes += [('period_year', '=', str(period_year)), ('period_month', '=', period_month)]
+        slips_mes = self.env['hr.payslip'].search(dom_mes)
+        _logger.info("PU | Slips del mes: %s (dom=%s)", len(slips_mes), dom_mes)
+        if not slips_mes:
+            _logger.warning("PU | No hay nóminas para %s-%s", period_year, period_month)
+            return 0
+
+        # 3) Acumuladores
+        q_map = {}               # emp_id -> {'q1': float, 'q2': float}
+        days_hours_by_emp = {}   # emp_id -> {'d': float, 'h': float} (totales)
+        vac_dias_por_emp = {}    # emp_id -> float
+        vac_horas_por_emp = {}   # emp_id -> float
+
+        # WD codes que representan vacaciones
+        vac_wd_defaults = ['VAC', 'VACACIONES', 'VAC_PAY']
+        VAC_WD_CODES = {c.upper() for c in getattr(constants, 'WD_CODES_VACACIONES', vac_wd_defaults)}
+
+        # 3.1) Recorrer slips: Q1/Q2 + días/horas + vacaciones(días/horas)
+        for ps in slips_mes:
+            emp_id = ps.employee_id.id
+
+            # Quincena
+            quin_raw = getattr(ps, 'quin1cena', 0) or 0
+            try:
+                quin = int(str(quin_raw).strip())
+            except Exception:
+                quin = 0
+
+            # Gross (preferir gross_wage; fallback BASIC)
+            try:
+                gw = ps.read(['gross_wage'])[0].get('gross_wage') or 0.0
+            except Exception:
+                lines_basic = self.env['hr.payslip.line'].search([
+                    ('slip_id', '=', ps.id),
+                    ('category_id.code', '=', 'BASIC')
+                ])
+                gw = sum(lines_basic.mapped('total') or [0.0])
+
+            # Días/horas totales del slip (todas las lines worked_days)
+            d = sum(ps.worked_days_line_ids.mapped('number_of_days') or [0.0])
+            h = sum(ps.worked_days_line_ids.mapped('number_of_hours') or [0.0])
+
+            # Vacaciones (días/horas) desde worked_days_line_ids
+            for wd in ps.worked_days_line_ids:
+                code_wd = (wd.code or wd.work_entry_type_id.code or '').upper()
+                if code_wd in VAC_WD_CODES:
+                    vac_dias_por_emp[emp_id] = vac_dias_por_emp.get(emp_id, 0.0) + float(wd.number_of_days or 0.0)
+                    vac_horas_por_emp[emp_id] = vac_horas_por_emp.get(emp_id, 0.0) + float(wd.number_of_hours or 0.0)
+
+            # Acumular Q1/Q2
+            bucket = q_map.setdefault(emp_id, {'q1': 0.0, 'q2': 0.0})
+            if quin == 1:
+                bucket['q1'] += float(gw)
+            elif quin == 2:
+                bucket['q2'] += float(gw)
+
+            # Acumular días/horas (totales)
+            agg = days_hours_by_emp.setdefault(emp_id, {'d': 0.0, 'h': 0.0})
+            agg['d'] += float(d or 0.0)
+            agg['h'] += float(h or 0.0)
+
+            _logger.debug("PU | slip=%s emp=%s quin=%s gross=%.2f dias=%.2f horas=%.2f",
+                          ps.id, emp_id, quin, gw, d, h)
+
+        _logger.info("PU | Empleados con Q1/Q2: %s | con días/horas: %s", len(q_map), len(days_hours_by_emp))
+
+        # 4) Pagos adicionales (bonos+comisiones) y vacaciones (monto) desde hr.payslip.line
+        bono_codes = _norm_codes(getattr(constants, 'ASIGNACION_BONOS', 'bono'), ['BONO'])
+        comi_codes = _norm_codes(getattr(constants, 'ASIGNACION_COMISIONES', 'comision'), ['COMISION'])
+        vac_codes = _norm_codes(getattr(constants, 'CODES_VACACIONES', ['VAC', 'VACACIONES']), ['VACACIONES'])
+        _logger.info("PU | Codes -> BONO=%s | COMISION=%s | VACACIONES=%s", bono_codes, comi_codes, vac_codes)
+
+        lines = self.env['hr.payslip.line'].search([
+            ('slip_id', 'in', slips_mes.ids),
+            ('code', 'in', bono_codes + comi_codes + vac_codes),
+        ])
+        _logger.info("PU | Líneas encontradas (BONO/COMISION/VAC): %s", len(lines))
+
+        # Conteo diagnóstico (opcional)
+        counts_by_code = {}
+        for ln in lines:
+            c = (ln.code or '').upper()
+            counts_by_code[c] = counts_by_code.get(c, 0) + 1
+        if counts_by_code:
+            _logger.info("PU | Conteo por código: %s", counts_by_code)
+
+        pago_adic_por_emp = {}  # bono+comision (monto)
+        vac_por_emp = {}        # vacaciones (monto)
+        for ln in lines:
+            emp_id = ln.slip_id.employee_id.id
+            code = (ln.code or '').upper()
+            amt = float(ln.total or 0.0)
+
+            if code in vac_codes:
+                vac_por_emp[emp_id] = vac_por_emp.get(emp_id, 0.0) + amt
+            elif code in bono_codes or code in comi_codes:
+                pago_adic_por_emp[emp_id] = pago_adic_por_emp.get(emp_id, 0.0) + amt
+
+        _logger.info("PU | Empleados con pago_adicional: %s | con vacaciones(monto): %s",
+                     len(pago_adic_por_emp), len(vac_por_emp))
+
+        # 5) Crear registros (uno por empleado)
+        to_create = []
+        emp_ids = set(q_map.keys()) | set(pago_adic_por_emp.keys()) | set(vac_por_emp.keys()) | set(days_hours_by_emp.keys())
+
+        for emp_id in sorted(emp_ids):
+            qvals = q_map.get(emp_id, {'q1': 0.0, 'q2': 0.0})
+            q1 = float(qvals.get('q1') or 0.0)
+            q2 = float(qvals.get('q2') or 0.0)
+            salario_total = q1 + q2
+
+            pago_adic = float(pago_adic_por_emp.get(emp_id, 0.0))
+            vac_monto = float(vac_por_emp.get(emp_id, 0.0))
+
+            dh = days_hours_by_emp.get(emp_id, {'d': 0.0, 'h': 0.0})
+            total_days = float(dh.get('d') or 0.0)
+            total_hours = float(dh.get('h') or 0.0) / total_days if total_days > 0 else 0.0  # total horas por dia
+
+            vac_dias = float(vac_dias_por_emp.get(emp_id, 0.0))
+            vac_horas = float(vac_horas_por_emp.get(emp_id, 0.0))
+
+            # Inferir compañía
+            sample = slips_mes.filtered(lambda s: s.employee_id.id == emp_id)[:1]
+            comp = (company_id and self.env['res.company'].browse(company_id)) or \
+                   (sample and sample.company_id) or self.env.company
+
+            vals = {
+                'company_id': comp.id,
+                'employee_id': emp_id,
+                'period_year': str(period_year),
+                'period_month': period_month,
+                'periodo_planilla': f"{period_month}{period_year}",
+                'quincena1_gross': q1,
+                'quincena2_gross': q2,
+                'salario_pagar': salario_total,
+                'pago_adicional': pago_adic,
+                'vacaciones': vac_monto,
+                'total_worked_days': total_days,
+                'total_worked_hours': total_hours,
+                'vacaciones_days': vac_dias,
+                'vacaciones_hours': vac_horas,
+            }
+            _logger.debug(
+                "PU | create TMP emp=%s q1=%.2f q2=%.2f salario=%.2f pago_adic=%.2f vac=%.2f d=%.2f h=%.2f",
+                emp_id, q1, q2, salario_total, pago_adic, vac_monto, total_days, total_hours
             )
-            SELECT
-                MIN(ps.id)                         AS id,
-                ps.company_id                      AS company_id,
-                ps.employee_id                     AS employee_id,
-                emp.department_id                  AS department_id,
+            to_create.append(vals)
 
-                -- periodos como texto (para selections del modelo)
-                ps.period_year::text               AS period_year,
-                LPAD(ps.period_month::text, 2, '0') AS period_month,
+        created = self.create(to_create) if to_create else self.browse()
+        _logger.info("PU | Creadas %s filas TMP. t=%.3fs", len(created), time.time() - t0)
+        return len(created)
 
-                -- concatenación MM-YYYY calculada en SQL
-                (LPAD(ps.period_month::text, 2, '0') || ps.period_year::text) AS periodo_planilla,
-
-                -- DUI o Pasaporte -> num_documento
-                MAX(
-                  CASE
-                    WHEN COALESCE(NULLIF(emp.identification_id::text, ''), '') <> '' THEN
-                         regexp_replace(emp.identification_id::text, '\D', '', 'g')   -- solo dígitos
-                    WHEN COALESCE(NULLIF(emp.passport_id::text, ''), '') <> '' THEN
-                         UPPER(translate(emp.passport_id::text, ' ', ''))             -- quita espacios
-                    ELSE NULL
-                  END
-                ) AS num_documento,
-                
-                -- Tipo de documento: 01 = DUI, 02 = Pasaporte (prioriza DUI si hay ambos)
-                MAX(
-                  CASE
-                    WHEN COALESCE(NULLIF(emp.identification_id::text, ''), '') <> '' THEN '01'
-                    WHEN COALESCE(NULLIF(emp.passport_id::text, ''), '') <> '' THEN '02'
-                    ELSE NULL  -- o '00' si quieres marcar “sin documento”
-                  END
-                ) AS tipo_documento,
-
-                -- numero ISSS
-                MAX(emp.ssnid)::text AS numero_isss_empleado,
-                
-                -- institucion previsional
-                MAX(c.afp_id) AS afp_id,
-
-
-                -- necesarios porque existen en el modelo
-                COALESCE(SUM(wd.worked_days), 0)   AS total_worked_days,
-                COALESCE(SUM(wd.worked_hours), 0)  AS total_worked_hours,
-
-                -- métricas solicitadas
-                SUM(COALESCE(ps.basic_wage,0) - ABS(COALESCE(pl.desc_falta,0)))      AS salario_pagar,
-                SUM(COALESCE(pl.comisiones,0))                                        AS comisiones,
-                SUM(COALESCE(pl.viaticos,0))                                          AS viaticos,
-                SUM(COALESCE(pl.vacaciones,0))                                        AS vacaciones,
-                SUM(COALESCE(pl.overtime,0))                                          AS total_overtime
+    # ----------------------------------------------
+    # Helpers de periodo/empresa (internos del modelo)
+    # ----------------------------------------------
+    def _pu_get_period_company(self):
         """
+        Resuelve (year, month, company_id) a usar:
+        - Si hay un registro en self y trae period_year/period_month/company_id, usa esos.
+        - Si no, usa hoy + self.env.company.
+        """
+        today = fields.Date.context_today(self)
+        y = str(today.year)
+        m = f"{today.month:02d}"
+        cid = self.env.company.id
+
+        if self:
+            rec = self[0]
+            if rec.period_year:
+                y = str(rec.period_year)
+            if rec.period_month:
+                m = rec.period_month
+            if rec.company_id:
+                cid = rec.company_id.id
+        return y, m, cid
+
+    # ----------------------------------------------
+    # Actualizar datos temporales y recargar UI
+    # ----------------------------------------------
+    def action_refresh_tmp(self):
+        # periodo desde algún registro / defaults; ignora la compañía aquí
+        y, m, _ = self._pu_get_period_company()
+
+        # todas las compañías activas en el switcher (no solo env.company)
+        companies = self.env.companies or self.env.company
+
+        for c in companies:
+            # importante: tu rebuild ya borra por company_id; mantenlo así
+            self.rebuild_from_payslips(y, m, c.id)
+
+        return {'type': 'ir.actions.client', 'tag': 'reload'}
+
+    # -----------------------------------------------------------------------
+    # Acción: construir mes actual y abrir lista
+    # -----------------------------------------------------------------------
+    def get_action_planilla_unica(self):
+        return self.action_refresh_tmp()
+
+
 
     @api.model
-    def _from(self):
-        return """
-            FROM hr_payslip ps
-            JOIN hr_employee emp ON emp.id = ps.employee_id
-            LEFT JOIN wd ON wd.payslip_id = ps.id
-            LEFT JOIN pl ON pl.slip_id = ps.id
-            LEFT JOIN hr_contract c ON c.id = ps.contract_id
-            JOIN hr_payroll_structure s ON s.id = ps.struct_id
+    def year_selection(self):
         """
-
-    @api.model
-    def _where(self):
-        return """
-            WHERE s.code IN ('INCOE', 'PLAN_VAC')
-              AND ps.struct_id IS NOT NULL
+        Años dinámicos tomados de hr.payslip vía ORM (read_group), respetando
+        compañías permitidas. Si no hay datos, cae al rango y-5..y+1.
         """
+        # compañías permitidas (multicompañía)
+        allowed = self.env.context.get('allowed_company_ids') or [self.env.company.id]
+        if isinstance(allowed, int):
+            allowed = [allowed]
 
-    @api.model
-    def _group_by(self):
-        return """
-            GROUP BY
-                ps.company_id,
-                ps.employee_id,
-                emp.department_id,
-                ps.period_year,
-                ps.period_month
-        """
+        domain = [('company_id', 'in', allowed)]
 
-    def init(self):
-        tools.drop_view_if_exists(self._cr, 'hr_payslip_planilla_unica')
-        self._cr.execute(f"""
-            CREATE OR REPLACE VIEW hr_payslip_planilla_unica AS
-            {self._select()}
-            {self._from()}
-            {self._where()}
-            {self._group_by()}
-        """)
+        years = set()
+
+        # 1) Agrupar por año de date_from
+        rows_from = self.env['hr.payslip'].read_group(
+            domain=domain,
+            fields=['id'],
+            groupby=['date_from:year'],
+            lazy=False,
+        )
+        for r in rows_from:
+            y = r.get('date_from:year')
+            if y:
+                years.add(str(int(y)))
+
+        # 2) (Opcional/robusto) agregar años de date_to por si algún slip no tiene date_from
+        rows_to = self.env['hr.payslip'].read_group(
+            domain=domain,
+            fields=['id'],
+            groupby=['date_to:year'],
+            lazy=False,
+        )
+        for r in rows_to:
+            y = r.get('date_to:year')
+            if y:
+                years.add(str(int(y)))
+
+        # Fallback si no hay ningún slip
+        if not years:
+            today = fields.Date.context_today(self)
+            base = today.year
+            years = {str(v) for v in range(base - 5, base + 2)}
+
+        # Devuelve en formato selection (value, label)
+        return [(y, y) for y in sorted(years, reverse=True)]
 
