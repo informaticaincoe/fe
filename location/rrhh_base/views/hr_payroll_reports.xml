@@ -6,7 +6,7 @@
             <field name="model">hr.payslip</field>
             <field name="priority" eval="20"/>
             <field name="arch" type="xml">
-                <list string="Planilla quincenal">
+                <list string="Planilla quincenal" create="false">
                     <field name="name" string="Empleado"/>
                     <field name="complete_name" string="Departamento"/>
                     <field name="total_worked_days" string="Dias laborados"/>
@@ -63,7 +63,7 @@
             <field name="model">hr.payslip</field>
             <field name="priority" eval="20"/>
             <field name="arch" type="xml">
-                <list string="Planilla vacaciones">
+                <list string="Planilla vacaciones" create="false" >
                     <field name="name" string="Empleado"/>
                     <field name="complete_name" string="Departamento"/>
                     <field name="total_worked_days" string="Dias laborados"/>

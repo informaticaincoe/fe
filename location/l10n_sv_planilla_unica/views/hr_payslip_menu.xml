@@ -9,7 +9,7 @@
         <menuitem
                 id="menu_planilla_unica"
                 name="Reporte planilla única"
-                parent="hr_payroll.menu_hr_payroll_report"
+                parent="rrhh_base.submenu_hr_reportes"
                 action="action_planilla_unica"
                 sequence="100"
                 groups="base.group_system"
