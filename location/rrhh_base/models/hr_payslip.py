@@ -431,6 +431,10 @@ class HrPayslip(models.Model):
         for record in self:
             record.sueldo_liquido = record.total_devengado - record.total_descuentos
 
+    def action_send_lote_payslip(self):
+        for record in self:
+            _logger.info("RECORD : %s", record)
+
     def action_send_payslip_email(self):
         """
         Genera PDF y envía correo con la boleta al email laboral del empleado.
