@@ -70,7 +70,6 @@
             </field>
         </record>
 
-
         <record id="rule_pu_multicompany" model="ir.rule">
             <field name="name">PU multi company</field>
             <field name="model_id" ref="l10n_sv_planilla_unica.model_hr_payslip_planilla_unica"/>

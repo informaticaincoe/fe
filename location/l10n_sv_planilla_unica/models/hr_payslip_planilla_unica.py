@@ -76,11 +76,11 @@ class HrPayslipPlanillaUnica(models.TransientModel):
     # -----------------------------------------------------------------------
     # Campos base / filtros
     # -----------------------------------------------------------------------
-    payslip_id = fields.Many2one('hr.payslip', string='Nómina Origen', ondelete='cascade', index=True)
     company_id = fields.Many2one('res.company', string='Empresa', index=True)
     period_year = fields.Selection(selection=year_selection, string='Año', index=True)
     period_month = fields.Selection(selection=PERIOD_MONTHS, string='Mes', index=True)
     employee_id = fields.Many2one('hr.employee', string='Empleado', index=True)
+    contract_id = fields.Many2one('hr.contract', string='Nómina Origen', index=True)
 
     # -----------------------------------------------------------------------
     # Datos de empresa
@@ -131,6 +131,7 @@ class HrPayslipPlanillaUnica(models.TransientModel):
     vacaciones = fields.Float('Vacaciones (monto)', readonly=True)
     vacaciones_days = fields.Float('Días de vacaciones', readonly=True)
     vacaciones_hours = fields.Float('Horas de vacaciones', readonly=True)
+    has_incapacidad = fields.Boolean('Tiene incapacidad', readonly=True)
 
     # -----------------------------------------------------------------------
     # Códigos observación
@@ -139,6 +140,19 @@ class HrPayslipPlanillaUnica(models.TransientModel):
         string='Código observación 1', compute='_compute_codigos_observacion', store=False, readonly=True)
     codigo_observacion_2 = fields.Char(
         string='Código observación 2', compute='_compute_codigos_observacion', store=False, readonly=True)
+
+    # -----------------------------------------------------------------------
+    # Cómputo de contrato
+    # -----------------------------------------------------------------------
+    def _get_active_contract(self, employee, period_year, period_month):
+        """
+        Retorna el contrato ACTIVO del empleado dentro del mes (más reciente).
+        """
+        # ... cálculo de first_day y last_day del período ...
+        Contract = self.env['hr.contract']
+        return Contract.search([
+            ('employee_id', '=', employee.id),
+        ], order='date_start desc', limit=1)
 
     # -----------------------------------------------------------------------
     # Cómputos de identificación
@@ -170,23 +184,8 @@ class HrPayslipPlanillaUnica(models.TransientModel):
                 rec.num_documento_empleado = normalize_doc(emp.identification_id)
 
     # -----------------------------------------------------------------------
-    # Contrato activo y AFP
+    # AFP
     # -----------------------------------------------------------------------
-    def _get_active_contract(self, employee, period_year, period_month):
-        """
-        Retorna el contrato ACTIVO del empleado dentro del mes (más reciente).
-        """
-        first_day = datetime(int(period_year), int(period_month), 1).date()
-        last_day_dt = (datetime(int(period_year), int(period_month), 28) + timedelta(days=4))
-        last_day = (last_day_dt.replace(day=1) - timedelta(days=1)).date()
-        Contract = self.env['hr.contract']
-        return Contract.search([
-            ('employee_id', '=', employee.id),
-            ('state', '=', 'open'),
-            ('date_start', '<=', last_day),
-            '|', ('date_end', '=', False), ('date_end', '>=', first_day),
-        ], order='date_start desc', limit=1)
-
     @api.depends('employee_id', 'period_year', 'period_month')
     def _compute_afp_id(self):
         """Obtiene nombre/código AFP desde contrato activo (afp_id o afp Char)."""
@@ -240,30 +239,40 @@ class HrPayslipPlanillaUnica(models.TransientModel):
     def _compute_codigos_observacion(self):
         """
         Reglas y prioridad:
-          - default                         '00'
-          - pago_adicional > 0              '02'
-          - vacaciones_days > 1             '09'
-          - pagos + vacaciones              '10'
-          - afp_tipo == 'IPSFA'             '04'
-        Orden obs1/obs2: 10, 04, 02, 09 ; completar con '00'.
+          - default                                         '00'
+          - pago_adicional > 0                              '02'
+          - vacaciones_days > 1                             '09'
+          - pagos + vacaciones                              '10'
+          - afp_tipo == 'IPSFA'                             '04'
+          - aprendiz - tipo de contrato == practicas        '03'
+        Orden obs1/obs2: 10, 04, 02, 09 ; completar con     '00'.
         """
         for rec in self:
             pagos = float(rec.pago_adicional or 0.0)
             vacdias = float(rec.vacaciones_days or 0.0)
+
             is_ipsfa = (rec.afp_tipo or '').upper() == 'IPSFA'
+            has_incap = bool(rec.has_incapacidad)
 
             has_pagos = pagos > 0.0
             has_vacas = vacdias > 1.0
+            _logger.info("HAS INCAPACIDAD %s ", has_incap)
 
             codes = []
             if has_pagos and has_vacas:
                 codes.append('10')
+            if has_incap and '06' not in codes:
+                codes.append('06')
             if is_ipsfa and '04' not in codes:
                 codes.append('04')
             if has_pagos and '10' not in codes:
                 codes.append('02')
             if has_vacas and '10' not in codes:
                 codes.append('09')
+            if rec.contract_id.contract_type_id.code == 'Apprenticeship'  not in codes:
+                codes.append('03')
+            # if has_incapacidad  not in codes:
+            #     codes.append('06')
 
             while len(codes) < 2:
                 codes.append('00')
@@ -320,10 +329,12 @@ class HrPayslipPlanillaUnica(models.TransientModel):
         days_hours_by_emp = {}   # emp_id -> {'d': float, 'h': float} (totales)
         vac_dias_por_emp = {}    # emp_id -> float
         vac_horas_por_emp = {}   # emp_id -> float
+        empleados_con_incap = set()
 
         # WD codes que representan vacaciones
         vac_wd_defaults = ['VAC', 'VACACIONES', 'VAC_PAY']
         VAC_WD_CODES = {c.upper() for c in getattr(constants, 'WD_CODES_VACACIONES', vac_wd_defaults)}
+        INCAP_WD_CODES = {c.upper() for c in getattr(constants, 'WD_CODES_INCAPACIDAD', ['LEAVE110'])}
 
         # 3.1) Recorrer slips: Q1/Q2 + días/horas + vacaciones(días/horas)
         for ps in slips_mes:
@@ -357,6 +368,8 @@ class HrPayslipPlanillaUnica(models.TransientModel):
                     vac_dias_por_emp[emp_id] = vac_dias_por_emp.get(emp_id, 0.0) + float(wd.number_of_days or 0.0)
                     vac_horas_por_emp[emp_id] = vac_horas_por_emp.get(emp_id, 0.0) + float(wd.number_of_hours or 0.0)
 
+                if code_wd in INCAP_WD_CODES:
+                    empleados_con_incap.add(emp_id)
             # Acumular Q1/Q2
             bucket = q_map.setdefault(emp_id, {'q1': 0.0, 'q2': 0.0})
             if quin == 1:
@@ -434,9 +447,13 @@ class HrPayslipPlanillaUnica(models.TransientModel):
             comp = (company_id and self.env['res.company'].browse(company_id)) or \
                    (sample and sample.company_id) or self.env.company
 
+            employee = self.env['hr.employee'].browse(emp_id)
+            active_contract = self._get_active_contract(employee, period_year, period_month)
+
             vals = {
                 'company_id': comp.id,
                 'employee_id': emp_id,
+                'contract_id': active_contract.id if active_contract else False,
                 'period_year': str(period_year),
                 'period_month': period_month,
                 'periodo_planilla': f"{period_month}{period_year}",
@@ -449,6 +466,7 @@ class HrPayslipPlanillaUnica(models.TransientModel):
                 'total_worked_hours': total_hours,
                 'vacaciones_days': vac_dias,
                 'vacaciones_hours': vac_horas,
+                'has_incapacidad': emp_id in empleados_con_incap,
             }
             _logger.debug(
                 "PU | create TMP emp=%s q1=%.2f q2=%.2f salario=%.2f pago_adic=%.2f vac=%.2f d=%.2f h=%.2f",

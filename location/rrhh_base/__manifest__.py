@@ -17,7 +17,6 @@
         'views/hr_retencion_renta_tramos_views.xml',
         'views/hr_payroll_reports.xml',
         'views/menu_rrhh_base.xml',
-        "views/hr_payslip_month_summary_views.xml",
         "report/report.xml",
         "report/report_payslip_incoe.xml",
         "views/hr_payslip_views.xml",
