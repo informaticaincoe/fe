@@ -6,6 +6,7 @@ class AccountIncoterms(models.Model):
     codigo_mh = fields.Char("Código Hacienda")
 
     def actualizar_codigo_mh(self):
+        """Actualiza el campo 'codigo_mh' según el código INCOTERM establecido."""
         codigos = {
             'EXW': '01',
             'FCA': '02',

@@ -54,6 +54,14 @@ class AccountMoveLine(models.Model):
 
     @api.depends('product_id', 'quantity', 'price_unit', 'discount', 'tax_ids', 'move_id.journal_id')
     def _compute_total_iva(self):
+        """
+        Calcula el total de IVA por línea de factura.
+
+        - Se omite el cálculo para asientos contables y movimientos de recibo (entrada/salida).
+        - Para ventas y compras FSE, solo se calcula si la empresa tiene facturación electrónica activa.
+        - Considera únicamente impuestos cuyo nombre contenga 'IVA' y cuyo tipo sea porcentaje.
+        - El resultado se almacena en el campo `total_iva` de la línea.
+        """
         for line in self:
             vat_amount = 0.0
             line.total_iva = 0.0
@@ -63,17 +71,17 @@ class AccountMoveLine(models.Model):
                 _logger.info("[SIT] Se omite _compute_total_iva para movimiento tipo '%s' (ID: %s)", line.move_id.move_type, line.move_id.id)
                 continue
 
-            # Ventas → solo si hay facturación electrónica
-            # if line.move_id.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND) and not line.move_id.company_id.sit_facturacion:
-            #     _logger.info("SIT _compute_total_iva | Venta detectada sin facturación -> move_id: %s, se omite cálculo de IVA", line.move_id.id)
-            #     continue
-
             # Verificamos si es una factura de compra
             if line.move_id.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
                 if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE or (
                         tipo_doc.codigo == constants.COD_DTE_FSE and not line.move_id.company_id.sit_facturacion):
                     _logger.info("SIT _compute_total_iva | Compra normal o sujeto excluido sin facturación -> move_id: %s, se omite cálculo de IVA", line.move_id.id)
                     continue
+
+            # Ventas → solo si hay facturación electrónica
+            if not line.move_id.company_id.sit_facturacion:
+                _logger.info("SIT _compute_total_iva | Venta detectada sin facturación -> move_id: %s, se omite cálculo de IVA", line.move_id.id)
+                continue
 
             # Si no es una compra, procedemos con el cálculo del IVA
             if line.tax_ids:
@@ -90,6 +98,14 @@ class AccountMoveLine(models.Model):
 
     @api.depends('product_id', 'quantity', 'price_unit', 'discount', 'tax_ids', 'move_id.journal_id')
     def _compute_iva_unitario(self):
+        """
+        Calcula el IVA unitario por línea de factura.
+
+        - Se omite el cálculo para asientos contables y movimientos de recibo (entrada/salida).
+        - Para ventas, solo se calcula si la empresa tiene facturación electrónica activa.
+        - Considera únicamente impuestos cuyo nombre contenga 'IVA' y cuyo tipo sea porcentaje.
+        - El resultado se almacena en el campo `iva_unitario` de la línea, calculado como IVA total dividido entre la cantidad de productos.
+        """
         for line in self:
             vat_amount = 0.0
             line.iva_unitario = 0.0
@@ -118,19 +134,37 @@ class AccountMoveLine(models.Model):
                 for tax in line.tax_ids:
                     _logger.info("Revisando impuesto: %s, tipo: %s, amount: %s", tax.name, tax.amount_type, tax.amount)
                     if 'IVA' in tax.name and tax.amount_type == 'percent':
-                        vat_amount += ((line.price_subtotal * tax.amount) / 100.0) / line.quantity
+                        if line.quantity and line.quantity != 0:
+                            vat_amount += ((line.price_subtotal * tax.amount) / 100.0) / line.quantity
+                        else:
+                            _logger.warning(
+                                "SIT _compute_iva_unitario | Línea con cantidad 0. Se omite cálculo de IVA unitario. "
+                                "Line ID: %s, Move ID: %s, Producto: %s, Subtotal: %s",
+                                line.id, line.move_id.id, line.product_id.display_name, line.price_subtotal
+                            )
             line.iva_unitario = vat_amount
             _logger.info("IVA unitario final para la línea: %s", line.iva_unitario)
             _logger.info("=====================================")
 
     @api.depends('move_id.journal_id.sit_tipo_documento.codigo')
     def _compute_codigo_tipo_documento(self):
+        """
+        Toma el código desde el diario de la factura (`move_id.journal_id.sit_tipo_documento.codigo`).
+        - Se almacena en el campo `codigo_tipo_documento` de la línea.
+        """
         for line in self:
             line.codigo_tipo_documento = line.move_id.journal_id.sit_tipo_documento.codigo or False
             _logger.info("SIT Tipo de documento(dte): %s", line.codigo_tipo_documento)
 
     @api.depends('product_id', 'quantity', 'price_unit', 'discount', 'tax_ids', 'move_id.journal_id')
     def _compute_precios_tipo_venta(self):
+        """
+        Calcula los precios por tipo de venta (gravado, exento, no sujeto) para cada línea de factura.
+
+        - Considera si la factura es de venta o compra y si aplica facturación electrónica.
+        - Para ventas, ajusta el precio según el IVA incluido o excluido.
+        - Se omite el cálculo para: Asientos contables, Ventas sin facturación electrónica y Compras normales o sujeto excluido sin facturación
+        """
         for line in self:
             line.precio_gravado = 0.0
             line.precio_exento = 0.0
@@ -170,18 +204,15 @@ class AccountMoveLine(models.Model):
             cantidad = line.quantity
             descuento = line.discount or 0.0
             base_price_unit = line.price_unit
-            _logger.info("Valores base -> price_unit: %s, quantity: %s, discount: %s", base_price_unit, cantidad,
-                         descuento)
+            _logger.info("Valores base -> price_unit: %s, quantity: %s, discount: %s", base_price_unit, cantidad, descuento)
 
             subtotal_linea_con_descuento = base_price_unit * cantidad * (1 - descuento / 100.0)
             precio_total = currency.round(subtotal_linea_con_descuento)
-            _logger.info("Subtotal con descuento: %s, precio_total redondeado: %s", subtotal_linea_con_descuento,
-                         precio_total)
+            _logger.info("Subtotal con descuento: %s, precio_total redondeado: %s", subtotal_linea_con_descuento, precio_total)
 
             # Ajuste para ventas
             if line.move_id.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND):
-                _logger.info("Ventas detectadas -> move_type: %s, journal_code: %s", line.move_id.move_type,
-                             line.journal_id.code)
+                _logger.info("Ventas detectadas -> move_type: %s, journal_code: %s", line.move_id.move_type, line.journal_id.code)
                 if line.journal_id.code == 'FCF' and line.tax_ids.price_include_override == 'tax_excluded':
                     line.precio_unitario = line.price_unit + line.iva_unitario
                     _logger.info("Precio unitario FCF con IVA incluido: %s", line.precio_unitario)
@@ -189,14 +220,14 @@ class AccountMoveLine(models.Model):
                     line.precio_unitario = line.price_unit
                     _logger.info("Precio unitario estándar: %s", line.precio_unitario)
 
-                # Asignar según tipo_venta
-                if tipo_venta == constants.TIPO_VENTA_PROD_GRAV:
-                    if line.journal_id.code == 'FCF' and line.tax_ids.price_include_override == 'tax_excluded':
-                        line.precio_gravado = precio_total + line.total_iva
-                    else:
-                        line.precio_gravado = precio_total
-                    _logger.info("Precio gravado asignado: %s", line.precio_gravado)
-
+            # Asignar según tipo_venta
+            _logger.info("Tipo de venta: %s", tipo_venta)
+            if tipo_venta == constants.TIPO_VENTA_PROD_GRAV:
+                if line.journal_id.code == 'FCF' and line.tax_ids.price_include_override == 'tax_excluded':
+                    line.precio_gravado = precio_total + line.total_iva
+                else:
+                    line.precio_gravado = precio_total
+                _logger.info("Precio gravado asignado: %s", line.precio_gravado)
             elif tipo_venta == constants.TIPO_VENTA_PROD_EXENTO:
                 line.precio_exento = precio_total
                 _logger.info("Precio exento asignado: %s", line.precio_exento)
@@ -204,6 +235,5 @@ class AccountMoveLine(models.Model):
                 line.precio_no_sujeto = precio_total
                 _logger.info("Precio no sujeto asignado: %s", line.precio_no_sujeto)
 
-            _logger.info("Precio final -> gravado: %s, exento: %s, no_sujeto: %s",
-                         line.precio_gravado, line.precio_exento, line.precio_no_sujeto)
+            _logger.info("Precio final -> gravado: %s, exento: %s, no_sujeto: %s", line.precio_gravado, line.precio_exento, line.precio_no_sujeto)
             _logger.info("==== FIN LINEA ID: %s ====", line.id)

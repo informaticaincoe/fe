@@ -138,8 +138,8 @@ class HrSalaryAssignment(models.Model):
 
     def _calcular_monto_horas_extras(self, empleado, horas_dict):
         try:
-            dias_mes = 30
-            horas_laboradas = 8
+            # dias_mes = 30
+            # horas_laboradas = 8
 
             contrato = empleado.contract_id
             if not contrato:
@@ -210,7 +210,7 @@ class HrSalaryAssignment(models.Model):
             ]
 
             # Determinar si es un viático con horas extras
-            es_viatico_con_horas_extras = vals.get('tipo') == 'VIATICO' and any(vals.get(campo) for campo in horas_campos)
+            es_viatico_con_horas_extras = vals.get('tipo') == constants.ASIGNACION_VIATICOS.upper() and any(vals.get(campo) for campo in horas_campos)
 
             # calcular comp_id una sola vez
             comp_id = vals.get('company_id') or (
@@ -228,7 +228,7 @@ class HrSalaryAssignment(models.Model):
 
             # Solo agregar la condición de 'mostrar_horas_extras' si el tipo es VIATICO
             # y ese campo está presente en vals
-            if vals.get('tipo') == 'VIATICO':
+            if vals.get('tipo') == constants.ASIGNACION_VIATICOS.upper():
                 if 'mostrar_horas_extras' in vals:
                     domain.append(('mostrar_horas_extras', '=', vals['mostrar_horas_extras']))
                 else:
@@ -236,10 +236,9 @@ class HrSalaryAssignment(models.Model):
 
             existing = self.search(domain, limit=1)
 
-            _logger.info("Tipo de asignación: %s, mostrar_horas_extras: %s", vals.get('tipo'),
-                         vals.get('mostrar_horas_extras'))
+            _logger.info("Tipo de asignación: %s, mostrar_horas_extras: %s", vals.get('tipo'), vals.get('mostrar_horas_extras'))
             # Asegurar valor por defecto si no se define mostrar_horas_extras
-            if vals.get('tipo') == 'VIATICO' and 'mostrar_horas_extras' not in vals:
+            if vals.get('tipo') == constants.ASIGNACION_VIATICOS.upper() and 'mostrar_horas_extras' not in vals:
                 vals['mostrar_horas_extras'] = es_viatico_con_horas_extras
 
             # Convertir horas en vals a float decimal usando _parse_horas para compararlas bien
@@ -348,15 +347,6 @@ class HrSalaryAssignment(models.Model):
                     })
                     _logger.info("Actualizando asignación consolidando diferencias en ID %s ", existing.id)
 
-                    # Reemplazar horas solo si hay nuevas
-                    # if horas_nuevas and any(v > 0 for v in horas_nuevas.values()):
-                    #     existing.horas_extras_ids.unlink()
-                    #     self.env['hr.horas.extras'].create({
-                    #         'salary_assignment_id': existing.id,
-                    #         **horas_dict,
-                    #         'descripcion': descripcion_final,
-                    #     })
-
                     if existing.horas_extras_ids:
                         existing.horas_extras_ids.unlink()
                         self.env['hr.horas.extras'].create({
@@ -448,7 +438,7 @@ class HrSalaryAssignment(models.Model):
                 empleado = None
                 _logger.info("Creando asignación con datos: %s", vals)
 
-                if vals.get("tipo") == "COMISION":
+                if vals.get("tipo") == constants.ASIGNACION_COMISIONES.upper():
                     for k, v in vals.items():
                         _logger.info("Campo: %s - Tipo: %s - Valor: %s", k, type(v), v)
                 try:
@@ -463,21 +453,6 @@ class HrSalaryAssignment(models.Model):
                     tipo = tipo_map.get(tipo_raw, tipo_raw.upper())
                     vals["tipo"] = tipo
                     _logger.info("Procesando asignación tipo: %s", tipo)
-
-                    # Validación correcta de horas extras
-                    # if tipo == constants.ASIGNACION_HORAS_EXTRA.upper():
-                    #     horas_validas = False
-                    # for cmd in vals.get('horas_extras_ids', []):
-                    #     if cmd[0] == 0 and isinstance(cmd[2], dict):
-                    #         if any(float(cmd[2].get(campo, 0) or 0) > 0 for campo in [
-                    #             constants.HORAS_DIURNAS, constants.HORAS_NOCTURNAS,
-                    #             constants.HORAS_DIURNAS_DESCANSO, constants.HORAS_NOCTURNAS_DESCANSO,
-                    #             constants.HORAS_DIURNAS_ASUETO, constants.HORAS_NOCTURNAS_ASUETO
-                    #         ]):
-                    #             horas_validas = True
-                    #             break
-                    # if not horas_validas:
-                    #     raise UserError("No puede guardar una asignación de horas extras sin ingresar al menos una hora.")
 
                     # Buscar empleado por código o ID
                     codigo_empleado = vals.get('codigo_empleado')
@@ -540,7 +515,7 @@ class HrSalaryAssignment(models.Model):
                     _logger.info("=== Hay horas extras: %s ===", hay_horas)
 
                     # Asignar mostrar_horas_extras según tipo y horas
-                    if tipo == "VIATICO":
+                    if tipo == constants.ASIGNACION_VIATICOS.upper():
                         vals["mostrar_horas_extras"] = bool(hay_horas)
                     else:
                         vals.setdefault("mostrar_horas_extras", False)
@@ -580,16 +555,11 @@ class HrSalaryAssignment(models.Model):
                         monto_total = self._calcular_monto_horas_extras(empleado, horas_dict)
                         vals['monto'] = float_round(monto_total, precision_digits=2)
 
-                        # Validar que el monto sea mayor que cero
-                        # if not vals['monto'] or vals['monto'] <= 0:
-                        #     raise ValidationError(_("El monto de horas extras debe ser mayor que cero."))
                         # También guarda la descripción en las horas extras
                         if 'horas_extras_ids' in vals and horas_dict:
                             for cmd in vals['horas_extras_ids']:
                                 if cmd[0] == 0:
                                     cmd[2]['descripcion'] = vals.get('description', '')
-                        # Guardar horas calculadas en vals para luego crear o actualizar
-                        # vals.update(horas_dict)
 
                     # Validar para tipo COMISION, VIATICO o BONO que monto sea positivo
                     if tipo in [constants.ASIGNACION_COMISIONES, constants.ASIGNACION_VIATICOS, constants.ASIGNACION_BONOS]:
@@ -621,22 +591,6 @@ class HrSalaryAssignment(models.Model):
         except Exception as e:
             _logger.error("Error procesando descripción: %s", traceback.format_exc())
             raise
-
-
-    # def _validar_asignacion(self, vals, record=None):
-    #     """
-    #     Valida que:
-    #     - Exista empleado
-    #     - Exista tipo de asignacion
-    #     """
-    #     empleado_id = vals.get('employee_id') or (record and record.employee_id.id)
-    #     tipo = vals.get('tipo') or (record and record.tipo)
-    #
-    #     if not empleado_id:
-    #         raise ValidationError(_("Debe seleccionar un empleado."))
-    #
-    #     if not tipo:
-    #         raise ValidationError(_("Debe seleccionar el tipo de asignación."))
 
     def action_descargar_plantilla(self):
         """

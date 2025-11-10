@@ -37,11 +37,11 @@ class AccountMove(models.Model):
 
             con_pag = record.invoice_payment_term_id.condiciones_pago
             if con_pag:
-                if con_pag == "1":
+                if con_pag == str(constants.PAGO_CONTADO):
                     record.condiciones_pago = con_pag
                     record.sit_plazo = False
                     record.sit_periodo = False
-                if con_pag == "2":
+                if con_pag == str(constants.PAGO_CREDITO):
                     record.condiciones_pago = con_pag
                     record.sit_plazo = record.invoice_payment_term_id.sit_plazo or False
                     record.sit_periodo = record.invoice_payment_term_id.sit_periodo or False

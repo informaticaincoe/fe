@@ -26,6 +26,10 @@ except ImportError as e:
     constants = None
 
 def _default_fecha_hora_sv(self):
+    """
+    Devuelve la fecha y hora actual convertida a la zona horaria de El Salvador,
+    sin información de zona (naive datetime), para usar como valor por defecto en campos datetime.
+    """
     tz = pytz.timezone('America/El_Salvador')
     dt_with_tz = pytz.utc.localize(datetime.utcnow()).astimezone(tz)
     return dt_with_tz.replace(tzinfo=None)
@@ -39,10 +43,7 @@ class sit_account_contingencia(models.Model):
         string='Number',
         compute='_compute_name', 
         required=True,
-        # readonly=False, 
         store=True,
-        # copy=False,
-        # tracking=True,
     )
     state = fields.Selection(
         selection=[
@@ -54,7 +55,6 @@ class sit_account_contingencia(models.Model):
         string='Estado',
         required=True,
         readonly=True,
-        # copy=False,
         tracking=True,
         default='draft',
     )
@@ -63,12 +63,8 @@ class sit_account_contingencia(models.Model):
         index=True,
         compute='_compute_date', 
         store=True, 
-        required=True, 
-        # readonly=False, 
+        required=True,
         precompute=True,
-        # states={'posted': [('readonly', True)], 'cancel': [('readonly', True)]},
-        # copy=False,
-        # tracking=True,
     )
     invoice_user_id = fields.Many2one(
         string='Responsable',
@@ -86,11 +82,7 @@ class sit_account_contingencia(models.Model):
     journal_id = fields.Many2one(
         'account.journal',
         string='Diario',
-        # compute='_compute_journal_id', store=True, readonly=False, precompute=True,
         required=True,
-        # states={'draft': [('readonly', False)]},
-        # check_company=True,
-        # domain="[('id', 'in', suitable_journal_ids)]",
     )
     sit_fInicio_hInicio = fields.Datetime("Fecha de Inicio de Contingencia - Hacienda", required=True, help="Asignación de Fecha manual para registrarse en Hacienda", default=_default_fecha_hora_sv)
     fecha_hora_creacion = fields.Datetime(string="Fecha y hora (El Salvador)", readonly=True)
@@ -103,9 +95,6 @@ class sit_account_contingencia(models.Model):
         'account.move',
         'sit_factura_de_contingencia',
         string='Facturas relacionadas',
-    #     copy=True,
-    #     # readonly=True,
-    #     states={'draft': [('readonly', False)]},
     )
 
     sit_estado = fields.Text(string="Estado - Hacienda", default="")
@@ -150,6 +139,7 @@ class sit_account_contingencia(models.Model):
 
     ultima_actualizacion_task = fields.Datetime(string="Última actualización del cron")
     sit_usar_lotes = fields.Boolean(string="Usar Lotes", default=False)
+    sit_bloque = fields.Boolean(string="Usar Bloques de contingencia", default=False)
     bloque_ids = fields.One2many("account.contingencia.bloque", "contingencia_id", string="Bloques de Facturas")
 
     fechaHoraTransmision = fields.Datetime(
@@ -202,14 +192,18 @@ class sit_account_contingencia(models.Model):
     # ---------------------------------------------------------------------------------------------    POST LOTE
     @api.depends('lote_ids.lote_recibido_mh')
     def _compute_mostrar_boton_lote(self):
+        """Calcula si debe mostrarse el botón de envío de lote. Se muestra solo cuando existen lotes activos que aún no han sido recibidos por Hacienda."""
         for rec in self:
             # Lógica de ejemplo: mostrar solo si está en 'posted' y aún no tiene lote
             rec.boton_lote = any(not lote.lote_recibido_mh and lote.lote_activo for lote in rec.lote_ids)
 
     def action_lote_generate(self): # Generacion de lotes en contingencia(envio de lotes a MH)
-        # after validate, send invoice data to external system via http post
+        """
+        Genera y envía lotes de facturas electrónicas en contingencia a Hacienda.
+        Valida el estado de la contingencia, firma las facturas, genera el payload del lote,
+        y registra la respuesta de Hacienda, actualizando los campos del lote correspondiente.
+        """
         facturas_firmadas = []
-        # nro_factura = 0
         payload = None
         facturas_no_asignadas = []
         version = None
@@ -256,14 +250,13 @@ class sit_account_contingencia(models.Model):
             ])
 
             for invoice in facturas:
-                validation_type = self.company_id._get_environment_type()#self._compute_validation_type_2()
-                ambiente = "00"
-                if validation_type == 'homologacioin':
-                    ambiente = "00"
+                validation_type = self.company_id._get_environment_type()
+                ambiente = constants.AMBIENTE_TEST
+                if validation_type == constants.HOMOLOGATION:
                     _logger.info("SIT Factura de Prueba")
-                elif validation_type == 'production':
+                elif validation_type == constants.AMBIENTE_PROD:
                     _logger.info("SIT Factura de Producción")
-                    ambiente = "01"
+                    ambiente = constants.PROD_AMBIENTE
                 emisor = self.company_id.vat
                 emisor = emisor.replace("-", "").replace(".", "")
 
@@ -273,7 +266,7 @@ class sit_account_contingencia(models.Model):
                 if not invoice.sit_json_respuesta or invoice.sit_json_respuesta.strip() in ['', '{}', '[]']:
                     _logger.info("SIT Creando json factura relacionada(contingencia)")
                     sit_tipo_documento = invoice.journal_id.sit_tipo_documento.codigo
-                    payload = invoice.obtener_payload('production', sit_tipo_documento)
+                    payload = invoice.obtener_payload(constants.AMBIENTE_PROD, sit_tipo_documento)
                 else:
                     payload = invoice.sit_json_respuesta
 
@@ -300,7 +293,7 @@ class sit_account_contingencia(models.Model):
                 _logger.info("SIT payload: %s", payload_dte_firma)
 
                 if not ambiente_test:
-                    firmando = self.firmar_documento('production', payload_dte_firma)
+                    firmando = self.firmar_documento(constants.AMBIENTE_PROD, payload_dte_firma)
                     if firmando:
                         facturas_firmadas.append(firmando)
                     else:
@@ -373,11 +366,8 @@ class sit_account_contingencia(models.Model):
                 if lote.exists():
                     lote.write(lote_vals)
                     lote_record = lote
-                # else:
-                #     lote_record = self.env['account.lote'].create(lote_vals)
 
                 # Asignar lote a todas las facturas del lote procesado
-                # facturas.write({'sit_lote_contingencia': lote_record.id})
                 _logger.info("Registro de lote creado con ID %s y asignado a facturas %s", lote_record.id, facturas.ids)
 
                 if lote.hacienda_estado_lote and lote.hacienda_estado_lote.strip().upper() == "RECIBIDO":
@@ -385,8 +375,7 @@ class sit_account_contingencia(models.Model):
 
                 # Verificar cuántas facturas se han asignado a este lote y si se excede el límite de lotes
                 if len(facturas_firmadas) >= cant_lotes * cant_facturas:
-                    _logger.info(
-                        "Se ha alcanzado el límite de 400 lotes. Facturas restantes para próxima contingencia.")
+                    _logger.info("Se ha alcanzado el límite de 400 lotes. Facturas restantes para próxima contingencia.")
                     break  # Salir del ciclo, ya no se añaden más facturas a la contingencia actual
 
             # Verificar que se hayan creado los lotes y no se hayan excedido
@@ -411,137 +400,125 @@ class sit_account_contingencia(models.Model):
         # Caso en que no hubo mensajes → retornar None explícitamente
         return None
 
-    def generar_dte_lote(self, enviroment_type, payload_envio_mh, lotes_firmados, ambiente_test): # Url para el envio de lotes a MH
-        _logger.info("SIT  Generando DTE")
-        url = None
-        response = None
+    def generar_dte_lote(self, enviroment_type, payload_envio_mh, lotes_firmados, ambiente_test):
+        """
+        Envía el lote DTE a Hacienda según el entorno configurado (producción o pruebas).
+        Retorna la respuesta de Hacienda o una simulación si está en ambiente de prueba.
+        """
+        _logger.info("SIT Generando DTE (env=%s)", enviroment_type)
+        url = response = None
 
+        # Simulación en ambiente de pruebas
         if ambiente_test:
-            _logger.info("SIT Ambiente de pruebas, se omite envío del lote a Hacienda y se simula respuesta exitosa.")
+            _logger.info("SIT Ambiente de pruebas, simulando respuesta exitosa.")
             return {
                 "codigoMsg": "000",
                 "descripcionMsg": "Ambiente de pruebas, no se envió a MH",
                 "observaciones": ["Simulación de éxito en pruebas"],
-                "es_test": True,  # indica que fue ambiente de prueba
+                "es_test": True,
                 "estado": "RECIBIDO",
             }
 
-        if enviroment_type == 'homologation':
-            host = 'https://apitest.dtes.mh.gob.sv'
-            url = host + '/fesv/recepcionlote/'
-        else: # https://apitest.dtes.mh.gob.sv/fesv/recepcionlote/
-            # host = 'https://api.dtes.mh.gob.sv'
-            url = config_utils.get_config_value(self.env, 'url_prod_lotes', self.company_id.id)
-        _logger.info("SIT Url: %s", url)
+        # Determinar URL según ambiente
+        if enviroment_type == constants.HOMOLOGATION:
+            url = config_utils.get_config_value(self.env, "url_test_lotes", self.company_id.id) if config_utils else "https://apitest.dtes.mh.gob.sv/fesv/recepcionlote/"
+        else:
+            url = config_utils.get_config_value(self.env, "url_prod_lotes", self.company_id.id) if config_utils else "https://api.dtes.mh.gob.sv/fesv/recepcionlote/"
+        _logger.info("SIT URL envío lote: %s", url)
 
         headers = {
             'Content-Type': 'application/json',
             'User-Agent': 'Odoo',
-            'Authorization': f"Bearer {self.company_id.sit_token}"
+            'Authorization': f"Bearer {self.company_id.sit_token}",
         }
 
-        _logger.info("SIT = requests.request(POST, %s, headers=%s, data=%s)", url, headers,
-                     json.dumps(payload_envio_mh))
-        # response = requests.request("POST", url, headers=headers, data=payload)
-        # _logger.info("SIT response generacion DTE = %s", response)
-        # _logger.info("SIT response.text generacion DTE = %s", response.text)
-
-        # MENSAJE = "SIT response = requests.request( POST , " + str(url) + ", headers=" + str(headers) + ", data= " + str(json.dumps(payload))
-        # raise UserError(_(MENSAJE))
-
+        _logger.info("SIT = requests.request(POST, %s, headers=%s, data=%s)", url, headers, json.dumps(payload_envio_mh))
+        # Intentar envío del lote
         try:
             response = requests.post(url, headers=headers, json=payload_envio_mh)
             _logger.info("SIT DTE response =%s", response)
             _logger.info("SIT DTE response =%s", response.status_code)
             _logger.info("SIT DTE response.text =%s", response.text)
         except Exception as error:
-            try:
-                _logger.info('SIT error= %s, ', error)
-                status = error.response.status_code if hasattr(error, 'response') and error.response else 'N/A'
-                mensaje = str(error)
-                MENSAJE_ERROR = str(status) + ", " + mensaje
-            except Exception as e:
-                MENSAJE_ERROR = "Error desconocido: " + str(error)
-                    # raise UserError(_(error))
-                raise UserError("Error al generar DTE lote:\n" + MENSAJE_ERROR)
+            status = getattr(getattr(error, 'response', None), 'status_code', 'N/A')
+            mensaje_error = f"{status}, {str(error)}"
+            _logger.error("SIT Error al enviar lote: %s", mensaje_error)
+            raise UserError(_("Error al generar DTE lote:\n%s") % mensaje_error)
+
+        # Intentar parsear JSON
         try:
             json_response = response.json()
-            _logger.info("SIT json_responset =%s", json_response)
-            #self.write({'sit_json_respuesta': json_response})
+            _logger.info("SIT JSON Response: %s", json_response)
         except Exception as e:
-            _logger.error('SIT error parseando JSON: %s', e)
+            _logger.error("SIT Error parseando JSON: %s", e)
             return {
                 'estado': 'ERROR',
                 'descripcionMsg': 'Respuesta inválida JSON',
                 'lotes_firmados': lotes_firmados
             }
 
-        resultado = []
+        # Manejo de errores HTTP
         _logger.info("SIT DTE decodificando respuestas")
-
         if response.status_code in [400, 401]:
-            MENSAJE_ERROR = "ERROR de conexión : " + str(response.text) + ", FACTURAS=" + str(
-                lotes_firmados) + ",  PAYLOAD = " + str(json.dumps(payload_envio_mh))
-            # raise UserError(_(MENSAJE_ERROR))
             return {
-                'estado': response.status.code,
+                'estado': response.status_code,
                 'descripcionMsg': response.text,
                 'lotes_firmados': lotes_firmados
             }
 
-        if json_response['estado'] in ["RECHAZADO", 402]:
-            status = json_response['estado']
-            ambiente = json_response['ambiente']
-            if json_response['ambiente'] == '00':
-                ambiente = 'TEST'
-            else:
-                ambiente = 'PROD'
-            clasificaMsg = json_response['clasificaMsg']
-            message = json_response['descripcionMsg']
-            observaciones = json_response['observaciones']
-            MENSAJE_ERROR = "Código de Error..:" + str(
-                status) + ", Ambiente:" + ambiente + ", ClasificaciónMsje:" + str(
-                clasificaMsg) + ", Descripcion:" + str(message) + ", Detalle:" + str(observaciones) + ", DATA:  " + str(
-                json.dumps(payload_envio_mh))
-            self.hacienda_estado = status
-
-            # MENSAJE_ERROR = "Código de Error:" + str(status) + ", Ambiente:" + ambiente + ", ClasificaciónMsje:" + str(clasificaMsg) +", Descripcion:" + str(message) +", Detalle:" +  str(observaciones)
-            # raise UserError(_(MENSAJE_ERROR))
+        # Manejo de respuestas de Hacienda
+        estado = json_response.get('estado') or json_response['estado']
+        if estado in ["RECHAZADO", 402]:
+            ambiente = 'TEST' if json_response.get('ambiente') == constants.AMBIENTE_TEST else 'PROD'
+            MENSAJE_ERROR = (
+                f"Código de Error: {estado}, Ambiente: {ambiente}, "
+                f"Clasificación: {json_response.get('clasificaMsg')}, "
+                f"Descripción: {json_response.get('descripcionMsg')}, "
+                f"Detalle: {json_response.get('observaciones')},"
+                f"DATA: {json.dumps(payload_envio_mh)}"
+            )
+            self.hacienda_estado = estado
+            _logger.warning("SIT Lote rechazado: %s", MENSAJE_ERROR)
             return MENSAJE_ERROR
 
-        # if json_response['status'] in [  400, 401, 402 ] :
-        #     _logger.info("SIT Error 40X  =%s", json_response['status'])
-        #     status=json_response['status']
-        #     error=json_response['error']
-        #     message=json_response['message']
-        #     MENSAJE_ERROR = "Código de Error:" + str(status) + ", Error:" + str(error) +", Detalle:" +  str(message)
-        #     raise UserError(_(MENSAJE_ERROR))
-        # return json_response
+        # Errores genéricos (400-402 en JSON)
         status = json_response.get('status')
         if status and status in [400, 401, 402]:
-            _logger.info("SIT Error 40X  =%s", status)
-            error = json_response.get('error', 'Error desconocido')  # Si 'error' no existe, devuelve 'Error desconocido'
-            message = json_response.get('message', 'Mensaje no proporcionado')  # Si 'message' no existe, devuelve 'Mensaje no proporcionado'
-            MENSAJE_ERROR = "Código de Error:" + str(status) + ", Error:" + str(error) + ", Detalle:" + str(message)
-            # raise UserError(_(MENSAJE_ERROR))
+            MENSAJE_ERROR = (
+                f"Código de Error: {status}, "
+                f"Error: {json_response.get('error', 'Desconocido')}, "
+                f"Detalle: {json_response.get('message', 'No proporcionado')}"
+            )
+            _logger.warning("SIT Error 40X: %s", MENSAJE_ERROR)
             return MENSAJE_ERROR
 
-        if json_response['estado'] in ["RECIBIDO"]: #if json_response['estado'] in ["PROCESADO"]:
-            _logger.info("SIT Estado RECIBIDO=%s", json_response)
+        # Éxito
+        if estado == "RECIBIDO":  # if json_response['estado'] in ["PROCESADO"]:
+            _logger.info("SIT Estado RECIBIDO: %s", json_response)
             return json_response
+
+        # Caso no esperado
+        _logger.warning("SIT Estado desconocido: %s", json_response)
+        return {'estado': 'DESCONOCIDO', 'descripcionMsg': 'Respuesta no reconocida', 'json': json_response}
 
     ##################################### GENERAR JSON LOTE
     def sit_obtener_payload_lote_dte_info(self, ambiente, doc_firmado, nitEmisor, version):
+        """
+        Construye el payload JSON para el envío de un lote DTE a Hacienda.
+        Incluye ambiente, versión, NIT emisor y documentos firmados.
+        """
         invoice_info = {}
         invoice_info["ambiente"] = ambiente
         invoice_info["idEnvio"] = self.sit_generar_uuid()
-        invoice_info["version"] = 3
+        version = int(config_utils.get_config_value(self.env, 'version_lote', self.company_id.id)) if config_utils else 3
+        invoice_info["version"] = version
         invoice_info["nitEmisor"] = nitEmisor
         invoice_info["documentos"] = doc_firmado
 
         return invoice_info
 
     def sit_obtener_payload_lote_dte_firma(self, nitEmisor, llavePrivada, doc_firmado):
+        """Genera el payload para firmar un DTE en lote, incluyendo NIT, llave privada y JSON del documento."""
         invoice_info = {}
         invoice_info["nit"] = nitEmisor
         invoice_info["activo"] = True
@@ -552,18 +529,18 @@ class sit_account_contingencia(models.Model):
             invoice_info["dteJson"] = doc_firmado
         else:
             invoice_info["dteJson"] = json.loads(doc_firmado)
-
         return invoice_info
 
     # ---------------------------------------------------------------------------------------------    POST CONTINGENCIA
-
     @api.depends('contingencia_recibida_mh')
     def _compute_mostrar_boton_contingencia(self):
+        """Controla la visibilidad del botón de contingencia. Se muestra solo si la contingencia está activa y aún no ha sido recibida por MH."""
         for rec in self:
             # Lógica de ejemplo: mostrar solo si está en 'posted' y aún no tiene lote
             rec.boton_contingencia = not rec.contingencia_recibida_mh and rec.contingencia_activa
 
     def _compute_company_id(self):
+        """Asigna la compañía actual al registro si difiere de la existente y garantiza coherencia entre el entorno activo y el registro."""
         _logger.info("SIT calculando company_id")
         for move in self:
             company_id = self.env.company
@@ -571,6 +548,10 @@ class sit_account_contingencia(models.Model):
                 move.company_id = company_id
 
     def _compute_date(self):
+        """
+        Asigna la fecha actual al registro si no tiene una definida.
+        Asegura que todos los movimientos tengan una fecha válida.
+        """
         _logger.info("SIT calculando date")
         for move in self:
             if not move.date:
@@ -579,13 +560,10 @@ class sit_account_contingencia(models.Model):
     def _compute_name(self):
         _logger.info("SIT asignando name")
         for record in self:
-
-            import datetime
             FechaEventoContingencia = datetime.datetime.now()
             _logger.info("SIT FechaEventoContingencia = %s (%s)", FechaEventoContingencia, type(FechaEventoContingencia))
             FECHA_EVENTO_CONTINGENCIA = FechaEventoContingencia.strftime('%Y-%m-%d_%H%M%S')
             _logger.info("SIT sit_ccf_ FECHA_EVENTO_CONTINGENCIA = %s", FECHA_EVENTO_CONTINGENCIA)
-
             NAME = "EVENTO_CONTINGENCIA_" + str(FECHA_EVENTO_CONTINGENCIA)
             record.name = NAME
 
@@ -594,25 +572,23 @@ class sit_account_contingencia(models.Model):
         de documento de la sequencia del diario selecionado
         FACTURA ELECTRONICAMENTE
         '''
-        # NUMERO_FACTURA= super(AccountMove, self).action_post()
-        # _logger.info("SIT NUMERO FACTURA =%s", NUMERO_FACTURA)
         _logger.info("SIT Iniciando Validación de Contingencia (account_contingencia_lote)")
         mensajes = []
         for invoice in self:
             ambiente_test = False
+            ambiente = None
+            documento_firmado = ""
+
             try:
-                validation_type = self.company_id._get_environment_type()  # self._compute_validation_type_2()
+                validation_type = self.company_id._get_environment_type()
                 _logger.info("SIT action_post validation_type = %s", validation_type)
 
-                ambiente = "00"
-                if validation_type == 'homologacioin':
-                    ambiente = "00"
+                if validation_type == constants.HOMOLOGATION:
+                    ambiente = constants.AMBIENTE_TEST
                     _logger.info("SIT Factura de Prueba")
-                elif validation_type == 'production':
+                elif validation_type == constants.AMBIENTE_PROD:
                     _logger.info("SIT Factura de Producción")
-                    ambiente = "01"
-                # Firmado de documento
-                documento_firmado = ""
+                    ambiente = constants.PROD_AMBIENTE
 
                 payload_contingencia = invoice.obtener_payload_contingencia(validation_type)
 
@@ -636,7 +612,7 @@ class sit_account_contingencia(models.Model):
                 if Resultado:
                     dat_time = None
                     fechaHora = None
-                    if not ambiente_test and Resultado['fechaHora']:  # .....
+                    if not ambiente_test and Resultado['fechaHora']:
                         dat_time = Resultado['fechaHora']
 
                     try:
@@ -645,7 +621,6 @@ class sit_account_contingencia(models.Model):
                         if not fechaHora:
                             # fallback final: usar fecha de creación de Odoo
                             fechaHora = self.create_date
-                        # _logger.info("Fecha de procesamiento asignada: %s", fechaHora)
                     except Exception as e:
                         _logger.warning("No se pudo obtener fechaHora de Resultado: %s", e)
                         fechaHora = None
@@ -657,14 +632,9 @@ class sit_account_contingencia(models.Model):
                         invoice.sit_fechaHora = fechaHora
 
                     _logger.info("SIT Fecha de procesamiento (%s)%s", type(dat_time), dat_time)
-                    # fechaHora = datetime.strptime(dat_time, '%d/%m/%Y %H:%M:%S')
-                    _logger.info("SIT Fecha de procesamiento (%s)%s", type(fechaHora), fechaHora)
-                    _logger.info("SIT Fecha de sit_fechaHora (%s)%s", type(invoice.sit_fechaHora),
-                                 invoice.sit_fechaHora)
-                    # MENSAJE = "Resultado = " + str(Resultado)
+                    _logger.info("SIT Fecha de sit_fechaHora (%s)%s", type(invoice.sit_fechaHora), invoice.sit_fechaHora)
                     invoice.sit_estado = Resultado['estado']
                     invoice.hacienda_estado = Resultado['estado']
-                    # invoice.sit_fechaHora = fechaHora
                     invoice.sit_mensaje = Resultado['mensaje']
                     invoice.sit_selloRecibido = Resultado.get('selloRecibido', None)
                     invoice.sit_observaciones = Resultado['observaciones']
@@ -675,8 +645,7 @@ class sit_account_contingencia(models.Model):
                         now_sv = datetime.now(tz).replace(tzinfo=None)  # Convertir a naive
                         invoice.fechaHoraTransmision = now_sv
                     except pytz.UnknownTimeZoneError:
-                        raise UserError(
-                            "No se pudo determinar la zona horaria 'America/El_Salvador'. Verifique su configuración.")
+                        raise UserError("No se pudo determinar la zona horaria 'America/El_Salvador'. Verifique su configuración.")
                     except Exception as e:
                         raise UserError(f"Ocurrió un error al asignar la fecha y hora actual: {str(e)}")
 
@@ -727,7 +696,6 @@ class sit_account_contingencia(models.Model):
                     'state': 'draft',
                 })
                 raise e
-                # raise UserError(_(MENSAJE))
 
         # Notificar al usuario si hubo alguna factura con sello o estado RECIBIDO
         if mensajes:
@@ -741,18 +709,12 @@ class sit_account_contingencia(models.Model):
                     'sticky': False,
                 }
             }
-
         # Caso en que no hubo mensajes → retornar None explícitamente
         return None
 
     # FIMAR FIMAR FIRMAR =====================================================================================================
     def firmar_documento(self, enviroment_type, payload):
-        _logger.info("SIT  Firmando de documento")
         _logger.info("SIT Documento a FIRMAR =%s", payload)
-        # host = 'http://service-it.com.ar:8113'
-        # host = 'http://svfe-api-firmador:8113'
-        #host = 'http://192.168.2.25:8113'
-        #url = host + '/firmardocumento/'
         url = config_utils.get_config_value(self.env, 'url_firma', self.company_id.id)
         if not url:
             _logger.error("SIT | No se encontró 'url_firma' en la configuración para la compañía ID %s", self.company_id.id)
@@ -804,7 +766,6 @@ class sit_account_contingencia(models.Model):
             error = json_response['error']
             message = json_response['message']
             MENSAJE_ERROR = "Código de Error:" + str(status) + ", Error:" + str(error) + ", Detalle:" + str(message)
-            # raise UserError(_(MENSAJE_ERROR))
             _logger.warning("Error:%s", MENSAJE_ERROR)
             return False
 
@@ -818,7 +779,6 @@ class sit_account_contingencia(models.Model):
             resultado.append(codigo)
             resultado.append(message)
             MENSAJE_ERROR = "Código de Error:" + str(status) + ", Codigo:" + str(codigo) + ", Detalle:" + str(message)
-            # raise UserError(_(MENSAJE_ERROR))
             _logger.warning("Error:%s", MENSAJE_ERROR)
             return False
         elif json_response['status'] == 'OK':
@@ -844,17 +804,14 @@ class sit_account_contingencia(models.Model):
     def generar_dte_contingencia(self, enviroment_type, payload, payload_original, ambiente_test):
         _logger.info("SIT  Generando DTE___contingencia, ambiente: %s", enviroment_type)
         url = None
-        if enviroment_type == 'homologation':
-            host = 'https://apitest.dtes.mh.gob.sv'
-            url = host + '/fesv/contingencia'
+        if enviroment_type == constants.HOMOLOGATION:
+            url = config_utils.get_config_value(self.env, 'url_test_contingencia', self.company_id.id) if config_utils else "https://apitest.dtes.mh.gob.sv/fesv/contingencia"
         else:
-            url = config_utils.get_config_value(self.env, 'url_prod_contingencia', self.company_id.id)
-        # url = host + '/fesv/contingencia'
+            url = config_utils.get_config_value(self.env, 'url_prod_contingencia', self.company_id.id) if config_utils else "https://api.dtes.mh.gob.sv/fesv/contingencia"
 
         # Regregsar al post si es test
         if ambiente_test:
-            _logger.info(
-                "SIT Ambiente de pruebas contingencia, se omite envío a Hacienda y se simula respuesta exitosa.")
+            _logger.info("SIT Ambiente de pruebas contingencia, se omite envío a Hacienda y se simula respuesta exitosa.")
             return {
                 "codigoMsg": "000",
                 "mensaje": "Ambiente de pruebas, no se envió a MH",
@@ -936,22 +893,10 @@ class sit_account_contingencia(models.Model):
                 mensaje) + ", selloRecibido:" + str(selloRecibido) + ", observaciones:" + str(
                 observaciones) + ", DATA:  " + str(json.dumps(payload_original))
             self.hacienda_estado = status
-
-            # MENSAJE_ERROR = "Código de Error:" + str(status) + ", Ambiente:" + ambiente + ", ClasificaciónMsje:" + str(clasificaMsg) +", Descripcion:" + str(message) +", Detalle:" +  str(observaciones)
             raise UserError(_(MENSAJE_ERROR))
-
-        # if json_response['status'] in [  400, 401, 402 ] :
-        #     _logger.info("SIT Error 40X  =%s", json_response['status'])
-        #     status=json_response['status']
-        #     error=json_response['error']
-        #     message=json_response['message']
-        #     MENSAJE_ERROR = "Código de Error:" + str(status) + ", Error:" + str(error) +", Detalle:" +  str(message)
-        #     raise UserError(_(MENSAJE_ERROR))
-        # return json_response
         if response.status_code in [400]:
             _logger.info("SIT Contingencia Error 40X  =%s", response.status_code)
-            message = json_response.get('mensaje',
-                                        'Mensaje no proporcionado')  # Si 'message' no existe, devuelve 'Mensaje no proporcionado'
+            message = json_response.get('mensaje', 'Mensaje no proporcionado')  # Si 'message' no existe, devuelve 'Mensaje no proporcionado'
             estado = json_response.get('estado', 'Estado no proporcionado')
             MENSAJE_ERROR = "Código de Error:" + str(response.status_code) + ", Detalle:" + str(
                 message) + ", DATA REQUEST = " + str(json.dumps(payload))
@@ -960,10 +905,8 @@ class sit_account_contingencia(models.Model):
         status = json_response.get('status')
         if status and status in [400, 401, 402]:
             _logger.info("SIT Error 40X  =%s", status)
-            error = json_response.get('error',
-                                      'Error desconocido')  # Si 'error' no existe, devuelve 'Error desconocido'
-            message = json_response.get('message',
-                                        'Mensaje no proporcionado')  # Si 'message' no existe, devuelve 'Mensaje no proporcionado'
+            error = json_response.get('error', 'Error desconocido')  # Si 'error' no existe, devuelve 'Error desconocido'
+            message = json_response.get('message', 'Mensaje no proporcionado')  # Si 'message' no existe, devuelve 'Mensaje no proporcionado'
             MENSAJE_ERROR = "Código de Error:" + str(status) + ", Error:" + str(error) + ", Detalle:" + str(message)
             raise UserError(_(MENSAJE_ERROR))
         _logger.info("SIT  json_response('estado) =%s", json_response['estado'])
@@ -973,20 +916,15 @@ class sit_account_contingencia(models.Model):
 
     def _autenticar(self, user, pwd, ):
         _logger.info("SIT self = %s", self)
-        _logger.info("SIT self = %s, %s", user, pwd)
         enviroment_type = self._get_environment_type()
         _logger.info("SIT Modo = %s", enviroment_type)
         url = None
-        if enviroment_type == 'homologation':
-            host = 'https://apitest.dtes.mh.gob.sv'
-            url = host + '/seguridad/auth'
+        if enviroment_type == constants.HOMOLOGATION:
+            url = config_utils.get_config_value(self.env, 'autenticar_test', self.company_id.id) if config_utils else 'https://apitest.dtes.mh.gob.sv/seguridad/auth'
         else:
-            url = config_utils.get_config_value(self.env, 'url_auth_prod_hacienda',
-                                                self.company_id.id)  # host = 'https://api.dtes.mh.gob.sv'
-        # url = host + '/seguridad/auth'
+            url = config_utils.get_config_value(self.env, 'autenticar_prod', self.company_id.id)  if config_utils else 'https://apitest.dtes.mh.gob.sv/seguridad/auth'
 
         self.check_hacienda_values()
-
         try:
             payload = "user=" + user + "&pwd=" + pwd
             # 'user=06140902221032&pwd=D%237k9r%402mP1!b'
@@ -1004,7 +942,6 @@ class sit_account_contingencia(models.Model):
                 raise UserError(_(MENSAJE_ERROR))
             else:
                 raise UserError(_(error))
-        resultado = []
         json_response = response.json()
 
     def check_parametros_contingencia(self):
@@ -1013,11 +950,10 @@ class sit_account_contingencia(models.Model):
             raise UserError(_('El Nombre de la compañía no definido'))
 
         _logger.info("SIT-Usuario: %s", self.invoice_user_id)
-        if not self.invoice_user_id.partner_id.name:  # if not self.company_id.partner_id.user_id.partner_id.name:
+        if not self.invoice_user_id.partner_id.name:
             raise UserError(_('El Nombre de Responsable no definido'))
         if not self.invoice_user_id.partner_id.vat and not self.invoice_user_id.partner_id.dui:
-            raise UserError(
-                _('El Número de Documento de Responsable no definido'))  # raise UserError(_('El Número de RFC no definido'))
+            raise UserError(_('El Número de Documento de Responsable no definido'))  # raise UserError(_('El Número de RFC no definido'))
         if not self.company_id.tipoEstablecimiento.codigo:
             raise UserError(_('El tipoEstablecimiento no definido'))
         if not self.sit_tipo_contingencia:
@@ -1068,8 +1004,6 @@ class sit_account_contingencia(models.Model):
             raise UserError(_('El receptor no tiene NOMBRE configurado.'))
         if not self.partner_id.codActividad:
             raise UserError(_('El receptor no tiene CODIGO DE ACTIVIDAD configurado.'))
-        # if not self.partner_id.tipoEstablecimiento:
-        # raise UserError(_('El receptor no tiene TIPO DE ESTABLECIMIENTO configurado.'))
         if not self.partner_id.state_id:
             raise UserError(_('El receptor no tiene DEPARTAMENTO configurado.'))
         if not self.partner_id.munic_id:
@@ -1082,8 +1016,7 @@ class sit_account_contingencia(models.Model):
     def check_parametros_dte(self, generacion_dte, ambiente_test):
         _logger.info("SIT-Contingencia Validaciones check_parametros_dte")
         if not (self.company_id and self.company_id.sit_facturacion):
-            _logger.info(
-                "SIT No aplica facturación electrónica. Se omite validación de parámetros DTE en modulo de Contingencia.")
+            _logger.info("SIT No aplica facturación electrónica. Se omite validación de parámetros DTE en modulo de Contingencia.")
             return False
 
         if not generacion_dte["idEnvio"]:
@@ -1123,7 +1056,7 @@ class sit_account_contingencia(models.Model):
             raise UserError(_("Configure una secuencia de contingencia en el diario '%s'.") % journal.name)
 
         # Obtener secuencia configurada para actualizar el número, no para generar el nombre
-        sequence = journal.sequence_id  # self.env['ir.sequence'].search([('code', '=', seq_code)], limit=1)
+        sequence = journal.sequence_id
         if not sequence or not sequence.exists():
             raise UserError(_("El diario '%s' no tiene una secuencia configurada para contingencia.") % journal.name)
 
@@ -1136,7 +1069,6 @@ class sit_account_contingencia(models.Model):
             raise UserError("La versión de contingencia no puede estar vacía.")
         estable = journal.sit_codestable
         punto_venta = journal.sit_codpuntoventa
-        # seq_code = 'CONT'
 
         # Diccionario para reemplazar los placeholders dinámicamente
         replacements = {
@@ -1153,19 +1085,16 @@ class sit_account_contingencia(models.Model):
         _logger.info("Prefijo dinámico final contingencia: %s", pattern_prefix)
 
         # Buscar el último nombre generado que coincida con el patrón
-        ultimo = self.search([('journal_id', '=', journal.id), ('name', 'like', f'{pattern_prefix}%')],
-                             order='name desc', limit=1)
+        ultimo = self.search([('journal_id', '=', journal.id), ('name', 'like', f'{pattern_prefix}%')], order='name desc', limit=1)
         if ultimo:
             try:
                 ultima_parte = int(ultimo.name.split('-')[-1])
             except ValueError:
-                raise UserError(
-                    _("No se pudo interpretar el número del último nombre de contingencia: %s") % ultimo.name)
+                raise UserError(_("No se pudo interpretar el número del último nombre de contingencia: %s") % ultimo.name)
             nuevo_numero = ultima_parte + 1
         else:
             nuevo_numero = 1
 
-        # nuevo_name = f"CON-{version_str}-0000{estable}-{str(nuevo_numero).zfill(15)}"
         # Generar el nuevo nombre con el prefix de la secuencia
         nuevo_name = f"{pattern_prefix}{str(nuevo_numero).zfill(15)}"
 
@@ -1196,19 +1125,21 @@ class sit_account_contingencia(models.Model):
         return nuevo_name
 
     # ---------------------------------------------------------------------------------------------
-
     def _compute_validation_type_2(self):
+        """Determina el tipo de validación (entorno) si no existe código AFIP."""
         for rec in self:
-            if  not rec.afip_auth_code:
+            if not rec.afip_auth_code:
                 validation_type = self.env["res.company"]._get_environment_type()
-                if validation_type == "homologation":
+                if validation_type == constants.HOMOLOGATION:
                     try:
                         rec.company_id.get_key_and_certificate(validation_type)
-                    except Exception:
+                    except Exception as e:
+                        _logger.warning("Error obteniendo certificado: %s", e)
                         validation_type = False
-                return validation_type
+
+                rec.validation_type = validation_type
             else:
-                return False
+                rec.validation_type = False
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -1245,16 +1176,11 @@ class sit_account_contingencia(models.Model):
                 facturas_en_contingencia_count = len(facturas_en_contingencia)
                 _logger.info("SIT | Facturas encontradas en contingencia: %s", facturas_en_contingencia_count)
 
-                # Verificar si las facturas no superan los 400 lotes de 100 facturas por lote
-                # max_lotes = 400  # 400
-                # facturas_por_lote = 100  # 100
-
                 total_lotes = ((facturas_en_contingencia_count // cant_facturas) +
                                (1 if facturas_en_contingencia_count % cant_facturas != 0 else 0))
 
                 if total_lotes > cant_lotes:
-                    _logger.info(
-                        "La cantidad de facturas excede el límite de lotes permitidos. Solo se asignarán los primeros 400 lotes.")
+                    _logger.info("La cantidad de facturas excede el límite de lotes permitidos. Solo se asignarán los primeros 400 lotes.")
                     facturas_a_incluir = facturas_en_contingencia[:cant_lotes * cant_facturas]
                     facturas_en_contingencia = facturas_a_incluir  # Solo trabajar con las primeras 40,000 facturas
 
@@ -1306,8 +1232,7 @@ class sit_account_contingencia(models.Model):
             # --- Validación de contingencia (24h) ---
             if inicio and hora_actual - inicio >= timedelta(hours=24):  # if hora_actual - inicio >= timedelta(hours=1):
                 contingencia.contingencia_activa = False
-                _logger.info("Contingencia %s desactivada por vencimiento de 24h desde creación o rechazo",
-                             contingencia.id)
+                _logger.info("Contingencia %s desactivada por vencimiento de 24h desde creación o rechazo", contingencia.id)
 
         # --- 2. Validar lotes o bloques (72h desde sello MH), aunque la contingencia esté desactivada ---
         contingencias_con_sello = self.search([
@@ -1326,16 +1251,10 @@ class sit_account_contingencia(models.Model):
                 for lote in contingencia.lote_ids.filtered(lambda l: l.lote_activo):
                     if hora_actual - sello_evento >= timedelta(hours=72):
                         lote.lote_activo = False
-                        _logger.info(
-                            "Lote %s de contingencia %s desactivado por vencimiento de 72h desde sello MH",
-                            lote.id, contingencia.id
-                        )
+                        _logger.info("Lote %s de contingencia %s desactivado por vencimiento de 72h desde sello MH", lote.id, contingencia.id)
             else:
                 # Validar bloques activos
                 for bloque in contingencia.bloque_ids.filtered(lambda b: b.bloque_activo):
                     if hora_actual - sello_evento >= timedelta(hours=72):
                         bloque.bloque_activo = False
-                        _logger.info(
-                            "Bloque %s de contingencia %s desactivado por vencimiento de 72h desde sello MH",
-                            bloque.id, contingencia.id
-                        )
+                        _logger.info("Bloque %s de contingencia %s desactivado por vencimiento de 72h desde sello MH", bloque.id, contingencia.id)

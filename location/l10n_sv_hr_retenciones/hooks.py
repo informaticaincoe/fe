@@ -24,12 +24,6 @@ def ejecutar_hooks_post_init(env):
     post_init_configuracion_reglas(env)
     cargar_archivo_excel(env)
 
-    # Mapeo de estructuras origen -> destino
-    # mapping = {
-    #     'INCOE': ['PLAN_VAC', 'PLAN_PRO']
-    # }
-    # copiar_reglas_a_estructuras(env, constants.STRUCTURE_MAPPING)
-
 def post_init_configuracion_reglas(env):
     """
     Hook que se ejecuta automáticamente después de instalar o actualizar el módulo.

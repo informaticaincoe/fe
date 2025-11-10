@@ -13,7 +13,6 @@ class sit_CAT_002_tipo_documento(models.Model):
     valores = fields.Char("Valores")
     version = fields.Integer("Versión")
 
-
 class sit_CAT_003_tipo_modelo(models.Model):
     _name = "account.journal.tipo_modelo.field"
     _description = "HACIENDA tipo de Modelo"
@@ -28,7 +27,6 @@ class sit_CAT_005_tipo_contingencia(models.Model):
     codigo = fields.Char("Código")
     valores = fields.Char("Valores")   
 
-
 class sit_CAT_009_tipo_establecimiento(models.Model):
     _name = "account.move.tipo_establecimiento.field"
     _description = "HACIENDA tpo de establecimiento"
@@ -36,15 +34,12 @@ class sit_CAT_009_tipo_establecimiento(models.Model):
     codigo = fields.Char("Código")
     valores = fields.Char("Valores")
 
- 
-
 class sit_CAT_011_tipo_item(models.Model):
     _name = "account.move.tipo_item.field"
     _description = "HACIENDA tpo de Item"
     _rec_name = "valores"
     codigo = fields.Char("Código")
     valores = fields.Char("Valores")
-
 
 class sit_CAT_014_unidad_medida_Field(models.Model):
     _name = "account.move.unidad_medida.field"
@@ -70,23 +65,12 @@ class sit_CAT_015_tributos_Field(models.Model):
             ('3', 'al resumen del documento'),
         ]
 
-
-
-
-
-
-
-
-
-
-
 class sit_CAT_017_forma_pago_Field(models.Model):
     _name = "account.move.forma_pago.field"
     _description = "HACIENDA Forma de Pago"
     _rec_name = "valores"
     codigo = fields.Char("Código")
     valores = fields.Char("Valores")
-
 
 class sit_CAT_018_plazo_Field(models.Model):
     _name = "account.move.plazo.field"
@@ -144,7 +128,6 @@ class sit_CAT_025_titulo_rem_bienes_Field(models.Model):
     codigo = fields.Char("Código")
     valores = fields.Char("Valores")        
 
-
 class sit_CAT_026_tipo_donacion_Field(models.Model):
     _name = "account.move.tipo_donacion.field"
     _description = "HACIENDA Tipo de Donación"
@@ -193,7 +176,6 @@ class sit_CAT_031_incoterms_Field(models.Model):
     codigo = fields.Char("Código")
     valores = fields.Char("Valores")        
 
-
 class sit_CAT_032_domicilio_fiscal_Field(models.Model):
     _name = "account.move.domicilio_fiscal.field"
     _description = "HACIENDA Domicilio Fiscal"
@@ -209,4 +191,3 @@ class SitCatTipoOperacion(models.Model):
 
     codigo = fields.Char(string='Código')
     valores = fields.Char("Valores")
-

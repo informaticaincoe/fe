@@ -1,20 +1,36 @@
+#_________________Contingencia
 TRANSMISION_NORMAL = 1
 TRANSMISION_CONTINGENCIA = 2
 TIPO_CONTIN_OTRO = 5
 MOT_CONTIN_OTRO = "05"
+SISTEMA_MH_NO_DISP = "01"
+SISTEMA_EMISOR_NO_DISP = "02"
+FALLO_ENERGIA = "04"
+#_________________Tipos de documentos electronicos
 COD_DTE_FE = "01"
 COD_DTE_CCF = "03"
 COD_DTE_NC = "05"
 COD_DTE_ND = "06"
 COD_DTE_FEX = "11"
 COD_DTE_FSE = "14"
+#_________________
 COD_TIPO_DOCU_DUI = "13"
+COD_TIPO_DOCU_NIT = "36"
 COD_TIPO_ITEM = "4"
 COD_TIPO_DOC_GENERACION_DTE = 2
 TIPO_VENTA_PROD_GRAV = "gravado"
 TIPO_VENTA_PROD_EXENTO = "exento"
 TIPO_VENTA_PROD_NO_SUJETO = "no_sujeto"
+UNI_MEDIDA_OTRA = 99
 AMBIENTE_TEST = "00"
+PROD_AMBIENTE = "01"
+AMBIENTE_PROD = "production"
+HOMOLOGATION = "homologation"
+MODELO_PREVIO = 1
+MODELO_DIFERIDO = 2
+PAGO_CONTADO = 1
+PAGO_CREDITO = 2
+PAGO_OTRO = 3
 
 #Modulo de retenciones
 DEDUCCION_EMPLEADO = "empleado"
@@ -36,6 +52,17 @@ DEDUCCION_IPSFA_EMPLEADO = "ipsfa_empleado"
 DEDUCCION_IPSFA_EMPLEADOR = "ipsfa_empleador"
 DEDUCCION_AFP_CONF_EMPLEADO = "empleado_conf"
 DEDUCCION_AFP_CONF_EMPLEADOR = "patron_conf"
+PERIODO_PRI_QUINCENA = "1"
+PERIODO_SEG_QUINCENA = "2"
+
+SUM_VACACIONES = "Vacaciones"
+SUM_ASISTENCIA = "Asistencia"
+SUM_AFP = "afp_conf"
+SUM_OTRAS_DED = "otros"
+SUM_BANCOS = "banco"
+SUM_VENTA_EMPLEADOS = "venta_empleados"
+SUM_PRESTAMOS = "prestamos"
+SUM_FSV = "fsv"
 # Deducciones comunes a todos menos servicios profesionales
 BASE_DEDUCCIONES = [
     ('RENTA', 'renta', -1),
@@ -115,9 +142,15 @@ SCHEDULE_PAY_CONVERSION = {
 STRUCTURE_MAPPING = {'INCOE': ['PLAN_VAC', 'PLAN_PRO']}
 STRUCTURE_PLAN_PROD = "PLAN_PRO"
 
+SALARIO_MENSUAL = "monthly"
+SALARIO_POR_HORA = "hourly"
+CANT_HORAS_DIARIAS = "horas_diarias"
+DIAS_PROMEDIO_TRABAJADOS = "dias_promedio_salario"
+
 ITEM_SERVICIOS = "2"
 COD_TD_DUI = "13"
 
+RENTA = "RENTA"
 DEVOLUCION_RENTA_CODE = 'DEV_RENTA'
 
 TYPE_REPORT_CCF = "ccf"
@@ -145,3 +178,22 @@ config_retencion_iva = "retencion_iva"
 config_iva_rete = "retencion_iva_venta"
 config_retencion_venta = "retencion_venta"
 config_iva_percibido_venta = "iva_percibido_venta"
+
+# Tipos de item en ventas
+ITEM_BIEN = 1
+ITEM_SERVICIO = 2
+ITEM_OTROS = 4
+
+ITEM_EXP_BIEN = 1
+ITEM_EXP_SERVICIOS = 2
+ITEM_EXP_BIEN_SERVICIO = 3
+
+TRIBUTO_IVA = 20
+
+PERSONA_JURIDICA = "company"
+PERSONA_NATURAL = "person"
+
+# Invalidacion
+INV_ERROR_INFO_DTE = "1"
+INV_RESCINDIR = "2"
+INV_OTRO = "3"

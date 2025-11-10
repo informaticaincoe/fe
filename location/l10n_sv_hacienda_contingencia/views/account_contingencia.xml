@@ -76,7 +76,7 @@
                                     </list>
                                 </field>
                             </page>
-                            <page id="facturas_relacionadas" string="Facturas Relacionadas" name="facturas_relacionadas" invisible="sit_usar_lotes">
+                            <page id="facturas_relacionadas" string="Facturas Relacionadas" name="facturas_relacionadas" invisible="not sit_bloque">
                                 <field name="bloque_ids">
                                     <list>
                                         <field name="name"/>

@@ -26,7 +26,7 @@ class AccountContingenciaBloque(models.Model):
 
     def action_ver_facturas_bloque(self):
         return {
-            'name': 'Facturas del Bloque',
+            'name': 'Documentos Electrónicos del Bloque',
             'type': 'ir.actions.act_window',
             'res_model': 'account.move',
             'view_mode': 'list,form',

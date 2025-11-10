@@ -20,6 +20,15 @@ from . import res_company
 
 _logger = logging.getLogger(__name__)
 
+try:
+    from odoo.addons.common_utils.utils import config_utils
+    from odoo.addons.common_utils.utils import constants
+    _logger.info("SIT Modulo config_utils sv hacienda - res_company")
+except ImportError as e:
+    _logger.error(f"Error al importar 'config_utils': {e}")
+    config_utils = None
+    constants = None
+
 class ResCompany(models.Model):
     _inherit = "res.company"
 
@@ -119,6 +128,7 @@ class ResCompany(models.Model):
             config.journal_ids = company.configuration_journal_ids
 
     def get_generar_token(self):
+        """Genera y guarda el token de autenticación de Hacienda para la empresa."""
         _logger.info("SIT get_generar_token = %s,%s,%s", self.sit_token_user, self.sit_token_pass, self.sit_passwordPri)
         autenticacion = self._autenticar(self.sit_token_user, self.sit_token_pass)
         _logger.info("SIT autenticacioni = %s", autenticacion)
@@ -137,18 +147,20 @@ class ResCompany(models.Model):
 
     @api.model
     def _get_environment_type(self):
+        """Obtiene el tipo de entorno actual (producción o homologación) según la configuración del sistema."""
         parameter_env_type = self.env["ir.config_parameter"].sudo().get_param("afip.ws.env.type")
-        if parameter_env_type == "production":
-            environment_type = "production"
-        elif parameter_env_type == "homologation":
-            environment_type = "homologation"
+        if parameter_env_type == constants.AMBIENTE_PROD:
+            environment_type = constants.AMBIENTE_PROD
+        elif parameter_env_type == constants.HOMOLOGATION:
+            environment_type = constants.HOMOLOGATION
         else:
             server_mode = tools.config.get("server_mode")
-            environment_type = "homologation" if server_mode in ["test", "develop"] else "production"
+            environment_type = constants.HOMOLOGATION if server_mode in ["test", "develop"] else constants.AMBIENTE_PROD
         _logger.info("Running arg electronic invoice on %s mode" % environment_type)
         return environment_type
 
     def get_key_and_certificate(self, environment_type):
+        """Obtiene la llave y el certificado activo para el entorno indicado, validando que exista solo uno confirmado."""
         self.ensure_one()
         certificate = self.env["afipws.certificate"].search([
             ("alias_id.company_id", "=", self.id),
@@ -170,6 +182,7 @@ class ResCompany(models.Model):
             raise UserError(_("No se encontraron certificados confirmados para %s en la compañía %s") % (environment_type, self.name))
 
     def _autenticar(self, user, pwd):
+        """Realiza la autenticación ante Hacienda con usuario y contraseña, devolviendo el token si es válido."""
         _logger.info("SIT user,pwd = %s,%s", user, pwd)
 
         if not self:
@@ -179,8 +192,14 @@ class ResCompany(models.Model):
 
         enviroment_type = self._get_environment_type()
         #host = 'https://apitest.dtes.mh.gob.sv' if enviroment_type == 'homologation' else 'https://api.dtes.mh.gob.sv'
-        host = 'https://api.dtes.mh.gob.sv' if enviroment_type == 'homologation' else 'https://api.dtes.mh.gob.sv'
-        url = host + '/seguridad/auth'
+        # host = 'https://api.dtes.mh.gob.sv' if enviroment_type == 'homologation' else 'https://api.dtes.mh.gob.sv'
+        # url = host + '/seguridad/auth'
+
+        url = None
+        if enviroment_type == constants.HOMOLOGATION:
+            url = config_utils.get_config_value(self.env, 'autenticar_prod', self.id) if config_utils else 'https://api.dtes.mh.gob.sv/seguridad/auth'
+        else:
+            url = config_utils.get_config_value(self.env, 'autenticar_prod', self.id) if config_utils else 'https://api.dtes.mh.gob.sv/seguridad/auth'
         _logger.info("Url token = %s", url)
 
         self.check_hacienda_values(user, pwd)

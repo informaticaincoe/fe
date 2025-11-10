@@ -1,0 +1,4 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+dte_import_parser_access,dte_import_parser_access,model_dte_import_parser,base.group_user,1,0,0,0
+dte_import_wizard_access,dte_import_wizard_access,model_dte_import_wizard,base.group_user,1,1,1,0
+dte_import_wizard_line_access,dte_import_wizard_line_access,model_dte_import_wizard_line,base.group_user,1,1,1,0
