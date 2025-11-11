@@ -31,7 +31,6 @@
                      <field class="oe_left" name="amount_text" placeholder="amount to text"/>
                     <field name="codigo_tipo_documento" invisible="1"/>
 
-                    <field name="total_pagar_text" string="Total en letras" placeholder="Total en letras" invisible="not codigo_tipo_documento or not sit_facturacion"/>
                     <group string="Totales por tipo de operación" col="2" invisible="(move_type != 'out_invoice' and not codigo_tipo_documento) or not sit_facturacion">
                          <!-- invisible="1" modifiers="{'invisible': [['hide_no_sujeto_exento','=',True]]}" -->
 <!--                        <field name="total_no_sujeto" widget="monetary" modifiers='{"invisible": [["codigo_dte", "=", "14"]]}' invisible="codigo_tipo_documento in ('11', 14)"/>&lt;!&ndash; invisible="1" modifiers="{'invisible': [['hide_no_sujeto_exento','=',True]]}" &ndash;&gt;-->
@@ -71,6 +70,7 @@
                         <field name="total_operacion" widget="monetary" readonly="1"/>
                         <field name="total_pagar" widget="monetary" readonly="1" invisible="codigo_tipo_documento in ('05', '06')"/>
                     </group>
+                    <field name="total_pagar_text" string="Total en letras" placeholder="Total en letras" invisible="not codigo_tipo_documento or not sit_facturacion"/>
                 </xpath>
                 <xpath expr="//field[@name='payment_reference']" position="before">
                     <field name="inv_refund_id"

@@ -26,11 +26,14 @@ class DTEImportParser(models.TransientModel):
         receptor = data.get("receptor", {}) or {}
         resumen = data.get("resumen", {}) or {}
         items_raw = data.get("cuerpoDocumento", []) or []
+        respuesta_mh = data.get("jsonRespuestaMh", {}) or {}
+        docs_relacionados = data.get("documentoRelacionado", []) or []
 
         # --- Datos principales del DTE ---
         tipo_dte = str(ident.get("tipoDte") or "").zfill(2)  # "01" consumidor final, "03" crédito fiscal
         numero_control = ident.get("numeroControl")
         codigo_gen = ident.get("codigoGeneracion")
+        sello_recibido = respuesta_mh.get("selloRecibido")
         moneda = ident.get("tipoMoneda")
 
         _logger.info("Tipo DTE: %s | Número de control: %s | Código generación: %s | Moneda: %s", tipo_dte, numero_control, codigo_gen, moneda)
@@ -47,6 +50,17 @@ class DTEImportParser(models.TransientModel):
                 fecha_dt = None
         else:
             _logger.warning("No se encontró 'fecEmi' en identificación.")
+
+        # --- Fecha de procesamiento ---
+        fecha_hacienda_txt = respuesta_mh.get("fhProcesamiento")
+        fecha_hacienda_dt = None
+        if fecha_hacienda_txt:
+            for fmt in ("%d/%m/%Y %H:%M:%S", "%Y-%m-%d %H:%M:%S"):
+                try:
+                    fecha_hacienda_dt = datetime.strptime(fecha_hacienda_txt, fmt)
+                    break
+                except Exception:
+                    continue
 
         # --- Ítems del documento ---
         items = []
@@ -73,6 +87,20 @@ class DTEImportParser(models.TransientModel):
         # --- Datos del receptor ---
         # receptor_dir = (receptor.get("direccion") or {}).get("complemento")
 
+        # --- Documentos relacionados ---
+        docs = []
+        for d in docs_relacionados:
+            try:
+                doc_data = {
+                    "tipo_doc_relacionado": d.get("tipoDocumento") or None,
+                    "codigo_gen_relacionado": d.get("numeroDocumento") or None,
+                    "docr_fecha_emision": d.get("fechaEmision") or None,
+                }
+                docs.append(doc_data)
+            except Exception as e:
+                _logger.warning("Error al procesar documentos relacionados: %s | Error: %s", d, e)
+
+
         # --- Resumen ---
         total_iva = float(resumen.get("totalIva") or resumen.get("ivaPerci1") or 0.0)
         total_gravada = float(resumen.get("totalGravada") or 0.0)
@@ -83,6 +111,7 @@ class DTEImportParser(models.TransientModel):
             "tipo_dte": tipo_dte,
             "numero_control": numero_control,
             "codigo_generacion": codigo_gen,
+            "sello_hacienda": sello_recibido,
             "fecha_emision": fecha_dt,
             "moneda": moneda,
 
@@ -117,6 +146,17 @@ class DTEImportParser(models.TransientModel):
             "descu_exento": float(resumen.get("descuExenta") or 0.0),
             "descu_gravado": float(resumen.get("descuGravada") or 0.0),
             "porc_descu": resumen.get("porcentajeDescuento") or 0.0,
+
+            # Doc Relacionado(CCF)
+            "docs_relacionados": docs,
+
+            # Respuesta MH
+            "hacienda_estado": respuesta_mh.get("estado") or None,
+            "fecha_hacienda": fecha_hacienda_dt.strftime("%Y-%m-%d %H:%M:%S") if fecha_hacienda_dt else None,
+            "clasifica_msg": respuesta_mh.get("clasificaMsg") or None,
+            "codigo_msg": respuesta_mh.get("codigoMsg") or None,
+            "descripcion_msg": respuesta_mh.get("descripcionMsg") or None,
+            "observaciones_hacienda": respuesta_mh.get("observaciones") or None,
         }
 
         # Determinar NIT según el tipo de documento

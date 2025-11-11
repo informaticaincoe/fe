@@ -2456,8 +2456,12 @@ class AccountMove(models.Model):
                 continue
 
             # Copiar retenciones desde el documento origen
-            move.apply_retencion_renta = origen.apply_retencion_renta
-            move.retencion_renta_amount = origen.retencion_renta_amount
+            if move.codigo_tipo_documento == constants.COD_DTE_NC:
+                move.apply_retencion_renta = False
+                move.retencion_renta_amount = 0.0
+            else:
+                move.apply_retencion_renta = origen.apply_retencion_renta
+                move.retencion_renta_amount = origen.retencion_renta_amount
 
             move.apply_retencion_iva = origen.apply_retencion_iva
             move.retencion_iva_amount = origen.retencion_iva_amount
