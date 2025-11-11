@@ -87,6 +87,8 @@ class HrPayslipPlanillaUnica(models.TransientModel):
     # -----------------------------------------------------------------------
     nit_empresa = fields.Char(related='company_id.vat', string='NIT empresa')
     numero_isss_empresa = fields.Char(related='company_id.isss_patronal', string='ISSS patronal')
+    correlativo_centro_trabajo = fields.Char(related='company_id.correlativo_centro_trabajo', string='Correlativo centro de trabajo')
+
 
     # -----------------------------------------------------------------------
     # Datos del empleado (related/compute, no persistentes)

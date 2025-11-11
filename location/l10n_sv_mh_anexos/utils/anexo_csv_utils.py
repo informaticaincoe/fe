@@ -127,11 +127,9 @@ class AnexoCSVUtils(models.AbstractModel):
             ],
             "ANX_COMPRAS": [
                 "invoice_date",
-                "Fecha de Emisión",
-                "clase_documento_display",
-                "codigo_tipo_documento_display",
-                "numero_documento"
-                "Número documento",
+                "clase_documento",
+                "codigo_tipo_documento",
+                "numero_documento",
                 "nit_o_nrc_anexo_contribuyentes",
                 "razon_social",
                 "compras_internas_total_excento",
@@ -143,12 +141,11 @@ class AnexoCSVUtils(models.AbstractModel):
                 "importaciones_gravadas_servicio",
                 "credito_fiscal",
                 "total_compra",
-                "dui_cliente"
-                "DUI del proveedor",
-                "tipo_operacion_display",
-                "clasificacion_facturacion_display",
-                "sector_display",
-                "tipo_costo_gasto_display",
+                "dui_cliente",
+                "tipo_operacion_codigo",
+                "clasificacion_facturacion_codigo",
+                "sector_codigo",
+                "tipo_costo_gasto_codigo",
                 "numero_anexo",
             ]
         }
@@ -243,9 +240,14 @@ class AnexoCSVUtils(models.AbstractModel):
                     # normaliza no-numéricos
                     clean = "" if clean in (None, False) else str(clean)
 
-                # “0” por defecto para estos códigos si están vacíos
-                if fname in ("tipo_operacion_codigo", "tipo_ingreso_codigo") and not clean:
-                    clean = "0"
+                is_empty = val in (None, False, "")
+
+                # “” por defecto para estos códigos si están vacíos
+                if fname in ("tipo_operacion_codigo", "tipo_ingreso_codigo", "tipo_costo_gasto_codigo", "sector_codigo", "clasificacion_facturacion_codigo") and is_empty:
+                    clean = ""
+
+                if fname in ("invoice_month") and not clean:
+                    clean = f"{fname:.2f}"
 
                 # Formato compacto ddmmaa para ciertos anexos menores/mayores
                 if fname == "invoice_date" and key in ("ANX_CLIENTES_MENORES", "ANX_CLIENTES_MAYORES"):

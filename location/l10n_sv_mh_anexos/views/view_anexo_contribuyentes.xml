@@ -14,8 +14,8 @@
                         />
                     </header>
                     <field name="invoice_date" string="Fecha de Emisión"/>
-                    <field name="clase_documento"/>
-                    <field name="codigo_tipo_documento"/>
+                    <field name="clase_documento_display" string="Clase documento"/>
+                    <field name="codigo_tipo_documento_display" string="Tipo de documento"/>
                     <field name="numero_resolucion" string="Número de resolución"/>
                     <field name="hacienda_selloRecibido" string="Serie del documento"/>
                     <field name="numero_documento" string="Número de documento"/>
