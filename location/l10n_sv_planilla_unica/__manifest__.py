@@ -1,6 +1,7 @@
 {
     "name": "RRHH - Planilla Única",
     "depends": [
+        "base",
         "hr",
         "hr_payroll",
         "rrhh_base",

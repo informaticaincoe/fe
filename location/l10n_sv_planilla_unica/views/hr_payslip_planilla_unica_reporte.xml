@@ -1,27 +1,84 @@
 <odoo>
     <data>
-        <record id="view_hr_planilla_list_custom" model="ir.ui.view">
-            <field name="name">hr.payslip.planilla.unica.list.custom</field>
+
+        <!-- LISTA -->
+        <record id="view_hr_planilla_list_min" model="ir.ui.view">
+            <field name="name">hr.payslip.planilla.unica.list.min</field>
             <field name="model">hr.payslip.planilla.unica</field>
-            <field name="priority" eval="20"/>
             <field name="arch" type="xml">
-                <list string="Planilla unica">
+                <list string="Planilla Única (mensual)" create="false" edit="false">
+                    <header>
+                        <button name="get_action_planilla_unica"
+                                string="Actualizar"
+                                type="object"
+                                class="btn-primary"
+                                display="always"/>
+                    </header>
+                    <!-- tus campos de la lista -->
                     <field name="nit_empresa"/>
                     <field name="numero_isss_empresa"/>
                     <field name="periodo_planilla"/>
-                    <field name="num_documento"/>
-                    <field name="tipo_documento"/>
-                    <field name="numero_isss_empleado"/>
-                    <field name="afp_id"/>
-
-                    <field name="primer_nombre" />
-                    <field name="segundo_nombre" />
-                    <field name="primer_apellido" />
-                    <field name="segundo_apellido" />
-
+                    <field name="tipo_documento_empleado"/>
+                    <field name="num_documento_empleado"/>
+                    <field name="num_isss"/>
+                    <field name="afp_tipo"/>
+                    <field name="primer_nombre"/>
+                    <field name="segundo_nombre"/>
+                    <field name="primer_apellido"/>
+                    <field name="segundo_apellido"/>
+                    <field name="apellido_casada"/>
+                    <field name="salario_pagar"/>
+                    <field name="pago_adicional"/>
+                    <field name="vacaciones"/>
+                    <field name="total_worked_days"/>
+                    <field name="total_worked_hours"/>
+                    <field name="vacaciones_days"/>
+                    <field name="codigo_observacion_1"/>
+                    <field name="codigo_observacion_2"/>
                 </list>
             </field>
         </record>
+
+        <!-- SEARCH VIEW con tus campos guardados -->
+        <record id="view_hr_planilla_search" model="ir.ui.view">
+            <field name="name">hr.payslip.planilla.unica.search</field>
+            <field name="model">hr.payslip.planilla.unica</field>
+            <field name="arch" type="xml">
+                <search string="Buscar Planilla Única">
+                    <searchpanel>
+                        <field name="company_id" select="one" enable_counters="1"/>
+                        <field name="period_year" select="one"/>
+                        <field name="period_month" select="one"/>
+                    </searchpanel>
+                </search>
+            </field>
+        </record>
+
+
+        <!-- PATCH a la acción del menú para usar esta list y esta search -->
+        <record id="action_planilla_unica" model="ir.actions.act_window">
+            <field name="name">Planilla única</field>
+            <field name="res_model">hr.payslip.planilla.unica</field>
+            <field name="view_mode">list</field>
+            <field name="view_id" ref="view_hr_planilla_list_min"/>
+            <field name="search_view_id" ref="view_hr_planilla_search"/>
+            <field name="context">
+                {
+                'searchpanel_default_period_year': context_today().strftime('%Y'),
+                'searchpanel_default_period_month': context_today().strftime('%m')
+                }
+            </field>
+        </record>
+
+        <record id="rule_pu_multicompany" model="ir.rule">
+            <field name="name">PU multi company</field>
+            <field name="model_id" ref="l10n_sv_planilla_unica.model_hr_payslip_planilla_unica"/>
+            <field name="domain_force">
+                ['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]
+            </field>
+            <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+        </record>
+
 
     </data>
 </odoo>

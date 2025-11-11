@@ -1,2 +1,3 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 access_hr_payslip_planilla_unica_read,hr.payslip.planilla.unica read,l10n_sv_planilla_unica.model_hr_payslip_planilla_unica,base.group_user,1,0,0,0
+access_hr_payslip_planilla_unica_user,hr.payslip.planilla.unica user,l10n_sv_planilla_unica.model_hr_payslip_planilla_unica,base.group_user,1,1,1,1

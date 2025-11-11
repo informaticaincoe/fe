@@ -79,14 +79,14 @@
         />
 
         <record id="action_reporte_hr_plantilla" model="ir.actions.act_window">
-            <field name="name">Planilla</field>
+            <field name="name">Planilla quincenal</field>
             <field name="res_model">hr.payslip</field>
             <field name="view_mode">list</field>
             <field name="view_id" ref="view_hr_planilla_list_custom"/>
         </record>
 
         <record id="action_reporte_hr_plantilla_vacaciones" model="ir.actions.act_window">
-            <field name="name">Planilla</field>
+            <field name="name">Planilla vacaciones</field>
             <field name="res_model">hr.payslip</field>
             <field name="view_mode">list</field>
             <field name="view_id" ref="view_hr_planilla_vacaciones_list_custom"/>

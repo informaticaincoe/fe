@@ -1,0 +1,17 @@
+<odoo>
+    <data>
+        <record id="rrhh_payslip_run_form_inherit_send_email_lote" model="ir.ui.view">
+            <field name="name">rrhh.payslip.run.form.inherit.send.email.lote</field>
+            <field name="model">hr.payslip.run</field>
+            <!-- AJUSTA este ref al External ID real del form de batch en tu base -->
+            <field name="inherit_id" ref="hr_payroll.hr_payslip_run_form"/>
+            <field name="priority" eval="300"/>
+            <field name="arch" type="xml">
+                <header position="inside">
+                    <button name="action_send_payslip_email_batch" type="object" string="Enviar recibos (lote)" icon="fa-envelope"
+                            class="btn-primary" invisible="state != 'close'"/>
+                </header>
+            </field>
+        </record>
+    </data>
+</odoo>
