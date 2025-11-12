@@ -128,7 +128,7 @@ class AnexoCSVUtils(models.AbstractModel):
             "ANX_COMPRAS": [
                 "invoice_date",
                 "clase_documento",
-                "codigo_tipo_documento",
+                "codigo_tipo_documento_compra",
                 "numero_documento",
                 "nit_o_nrc_anexo_contribuyentes",
                 "razon_social",
