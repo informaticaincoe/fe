@@ -15,3 +15,10 @@ class SaleOrder(models.Model):
         string="Condición de pago por defecto (DTE)",
         default='1',
     )
+
+    def _prepare_invoice(self):
+        invoice_vals = super()._prepare_invoice()
+        # Copiamos el recinto fiscal seleccionado en la venta
+        if self.recintoFiscal:
+            invoice_vals['recinto_sale_order'] = self.recintoFiscal.id
+        return invoice_vals
