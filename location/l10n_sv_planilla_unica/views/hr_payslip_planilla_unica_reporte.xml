@@ -18,7 +18,7 @@
                     <field name="nit_empresa"/>
                     <field name="numero_isss_empresa"/>
                     <field name="periodo_planilla"/>
-                    <field name="correlativo_centro_trabajo" />
+                    <field name="correlativo_centro_trabajo"/>
                     <field name="tipo_documento_empleado"/>
                     <field name="num_documento_empleado"/>
                     <field name="num_isss"/>
@@ -65,8 +65,9 @@
             <field name="search_view_id" ref="view_hr_planilla_search"/>
             <field name="context">
                 {
-                'searchpanel_default_period_year': context_today().strftime('%Y'),
-                'searchpanel_default_period_month': context_today().strftime('%m')
+                'searchpanel_default_company_id': False,
+                'searchpanel_default_period_year': False,
+                'searchpanel_default_period_month': False
                 }
             </field>
         </record>
