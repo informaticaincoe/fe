@@ -111,9 +111,10 @@ class AccountDebitNote(models.TransientModel):
             }
 
             invoice_lines_vals = []
-
+            _logger.info("SIT: lineas de item: %s", move.invoice_line_ids)
             for line in move.invoice_line_ids:
                 if line.display_type in [False, 'product'] and not line.custom_discount_line:
+                    _logger.info("SIT: Producto debito: %s | Tipo: %s", line.name, line.display_type)
                     line_vals = {
                         'product_id': line.product_id.id,
                         'name': line.name,

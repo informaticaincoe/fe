@@ -70,6 +70,11 @@ class AccountMoveReversal(models.TransientModel):
                     'inv_refund_id': move.id,
                     'reversed_entry_id': move.id,
                     'company_id': move.company_id.id,
+                    # Copiar descuentos desde el crédito fiscal
+                    'descuento_gravado_pct': move.descuento_gravado_pct,
+                    'descuento_exento_pct': move.descuento_exento_pct,
+                    'descuento_no_sujeto_pct': move.descuento_no_sujeto_pct,
+                    'descuento_global_monto': 0.0,
                 })
 
                 # reversal_move = self.env['account.move'].with_context(ctx_move).create(base_vals)

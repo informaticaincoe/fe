@@ -213,7 +213,11 @@ class AccountMoveLine(models.Model):
             # Ajuste para ventas
             if line.move_id.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND):
                 _logger.info("Ventas detectadas -> move_type: %s, journal_code: %s", line.move_id.move_type, line.journal_id.code)
-                if line.journal_id.code == 'FCF' and line.tax_ids.price_include_override == 'tax_excluded':
+                # Manejo seguro de múltiples impuestos
+                tax_excluded = any(t.price_include_override == constants.IMP_EXCLUIDO for t in line.tax_ids)
+                _logger.info("Evaluando impuestos: %s → alguno tax_excluded=%s", [t.name for t in line.tax_ids], tax_excluded,)
+
+                if line.journal_id.code == 'FCF' and tax_excluded:
                     line.precio_unitario = line.price_unit + line.iva_unitario
                     _logger.info("Precio unitario FCF con IVA incluido: %s", line.precio_unitario)
                 else:
@@ -223,7 +227,10 @@ class AccountMoveLine(models.Model):
             # Asignar según tipo_venta
             _logger.info("Tipo de venta: %s", tipo_venta)
             if tipo_venta == constants.TIPO_VENTA_PROD_GRAV:
-                if line.journal_id.code == 'FCF' and line.tax_ids.price_include_override == 'tax_excluded':
+                # Manejo seguro de múltiples impuestos
+                tax_excluded = any(t.price_include_override == constants.IMP_EXCLUIDO for t in line.tax_ids)
+
+                if line.journal_id.code == 'FCF' and tax_excluded:
                     line.precio_gravado = precio_total + line.total_iva
                 else:
                     line.precio_gravado = precio_total
