@@ -28,22 +28,18 @@
         <field name="arch" type="xml">
             <list string="Facturas &gt; $25,000">
                 <header>
-                    <button name="action_download_csv_anexo" type="object"
-                            string="Descargar CSV" class="oe_highlight" display="always"/>
+                    <button name="action_download_csv_anexo" type="object" string="Descargar CSV" class="oe_highlight" display="always"/>
                 </header>
-
-                <!-- Muestra estos para ver que el agrupamiento funciona -->
-                <!--                <field name="invoice_year"/>-->
-                <!--                <field name="invoice_semester"/>-->
                 <field name="invoice_month"/>
-
-                <field name="razon_social"/>
                 <field name="codigo_tipo_documento_cliente_display" string="Documento de identificación"/>
-                <field name="documento_sujeto_excluido"/>
+                <field name="documento_sujeto_excluido" string="Número documento identificación"/>
+                <field name="razon_social" string="Nombre o razón social"/>
+                <field name="invoice_date" string="Fecha de emisión"/>
                 <field name="codigo_tipo_documento_display"/>
                 <field name="hacienda_codigoGeneracion_identificacion" string="Número de documento"/>
                 <field name="amount_untaxed" string="Monto de operación"/>
                 <field name="amount_tax" string="IVA"/>
+                <field name="invoice_year" string="Año"/>
                 <field name="numero_anexo"/>
             </list>
         </field>

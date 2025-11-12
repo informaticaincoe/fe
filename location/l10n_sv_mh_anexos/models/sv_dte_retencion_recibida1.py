@@ -68,6 +68,13 @@ class svDteRetencionRecibida1(models.Model):
         store=False
     )
 
+    sit_tipo_documento_display = fields.Char(
+        string="Tipo de documento",
+        compute="_compute_sit_tipo_documento_display",
+        readonly=True,
+        store=False
+    )
+
     has_sello_anulacion = fields.Boolean(
         string="Tiene Sello Anulación",
         compute="_compute_has_sello_anulacion",
@@ -119,7 +126,16 @@ class svDteRetencionRecibida1(models.Model):
     def _compute_sit_tipo_documento(self):
         for record in self:
             move = record.factura_relacionada_id
-            record.sit_tipo_documento = move.sit_tipo_documento_id.codigo
+
+            if move.sit_tipo_documento_id.codigo:
+                record.sit_tipo_documento = move.sit_tipo_documento_id.codigo
+
+    @api.depends('factura_relacionada_id')
+    def _compute_sit_tipo_documento_display(self):
+        for record in self:
+            move = record.factura_relacionada_id
+            if move.sit_tipo_documento_id.codigo:
+                record.sit_tipo_documento_display = f"{move.sit_tipo_documento_id.codigo}. {move.sit_tipo_documento_id.valores}"
 
     @api.depends('factura_relacionada_id')
     def _compute_get_nit_company(self):

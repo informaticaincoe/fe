@@ -1,18 +1,18 @@
-<odoo>
-    <data>
-        <record id="action_planilla_unica" model="ir.actions.act_window">
-            <field name="name">Planilla única</field>
-            <field name="res_model">hr.payslip.planilla.unica</field>
-            <field name="view_mode">list</field>
-        </record>
+    <odoo>
+        <data>
+            <record id="action_planilla_unica" model="ir.actions.act_window">
+                <field name="name">Planilla única</field>
+                <field name="res_model">hr.payslip.planilla.unica</field>
+                <field name="view_mode">list</field>
+            </record>
 
-        <menuitem
-                id="menu_planilla_unica"
-                name="Reporte planilla única"
-                parent="rrhh_base.submenu_hr_reportes"
-                action="action_planilla_unica"
-                sequence="100"
-                groups="base.group_system"
-        />
-    </data>
-</odoo>
+            <menuitem
+                    id="menu_planilla_unica"
+                    name="Reporte planilla única"
+                    parent="rrhh_base.submenu_hr_reportes"
+                    action="action_planilla_unica"
+                    sequence="100"
+                    groups="base.group_system"
+            />
+        </data>
+    </odoo>

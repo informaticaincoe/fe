@@ -17,13 +17,14 @@
                             <field name="tipoEstablecimiento" string="tipoEstablecimiento" readonly="0"/>
                         </group>
                     </group>
-                 <group>
-                    <separator string="Planilla única"/>
-                    <group col="1" class="w-100">
-                      <field name="isss_patronal"/>
+                    <group>
+                        <separator string="Planilla única"/>
+                        <group col="1" class="w-100">
+                            <field name="isss_patronal"/>
+                            <field name="correlativo_centro_trabajo"/>
+                        </group>
                     </group>
-                 </group>
-            </group>
+                </group>
             </xpath>
             <xpath expr="//sheet" position="before">
                 <header>
