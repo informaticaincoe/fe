@@ -37,6 +37,11 @@ class account_move(models.Model):
         index=True,
     )
 
+    codigo_tipo_documento = fields.Char(
+        string="Código tipo documento",
+        readonly=True
+    )
+
     tipo_ingreso_id = fields.Many2one(
         comodel_name="account.tipo.ingreso",
         string="Tipo de Ingreso"
@@ -64,11 +69,6 @@ class account_move(models.Model):
     clase_documento_id = fields.Many2one(
         string="Clase de documento",
         comodel_name="account.clase.documento"
-    )
-
-    codigo_tipo_documento = fields.Char(
-        string="Código tipo documento",
-        readonly=True
     )
 
     invoice_date = fields.Date(
@@ -132,6 +132,18 @@ class account_move(models.Model):
     )
 
     # ----------- Campos computados ----------- #
+    codigo_tipo_documento_compra = fields.Char(
+        string="Código tipo documento",
+        compute="_compute_codigo_tipo_documento_compra",
+        readonly=True
+    )
+
+    codigo_tipo_documento_compra_display = fields.Char(
+        string="Código tipo documento",
+        compute="_compute_codigo_tipo_documento_compra_display",
+        readonly=True
+    )
+
     clase_documento = fields.Char(
         string="Clase de documento",
         compute='_compute_get_clase_documento',
@@ -196,8 +208,6 @@ class account_move(models.Model):
         readonly=True,
         store=False,
     )
-
-
 
     codigo_tipo_documento_display = fields.Char(
         string="Tipo de documento",
@@ -481,6 +491,17 @@ class account_move(models.Model):
     )
 
     # ******************************** Metodos computados ******************************** #
+
+    @api.depends('invoice_date')
+    def _compute_codigo_tipo_documento_compra(self):
+        for doc in self:
+            doc.codigo_tipo_documento_compra = doc.sit_tipo_documento_id.codigo
+
+    @api.depends('invoice_date')
+    def _compute_codigo_tipo_documento_compra_display(self):
+        for doc in self:
+            doc.codigo_tipo_documento_compra_display = f"{doc.sit_tipo_documento_id.codigo}. {doc.sit_tipo_documento_id.valores}"
+
     @api.depends('name')
     def _compute_sit_tipo_documento(self):
         for record in self:
@@ -564,7 +585,7 @@ class account_move(models.Model):
             codigo = record.codigo_tipo_documento or ""  # asegura string
             nombre = record.journal_id.name or ""  # asegura string
 
-            _logger.info("Info %s Nombre %s ", codigo, nombre)
+            _logger.info("Infossssss %s Nombre %s, documento %s ", record.sit_tipo_documento_id.codigo, nombre, record.name)
             if codigo or nombre:
                 record.codigo_tipo_documento_display = f"{codigo} {nombre}".strip()
             else:

@@ -98,7 +98,8 @@
             <field name="res_model">report.account.move.daily</field>
             <field name="view_mode">list</field>
             <field name="view_id" ref="view_report_account_move_daily_list"/>
-            <field name="domain">[]</field>
+            <field name="domain">[]
+            </field>
             <field name="context">
                 {
                 'numero_anexo': 5,

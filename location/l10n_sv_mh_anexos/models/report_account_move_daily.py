@@ -93,9 +93,10 @@ class ReportAccountMoveDaily(models.Model):
         numero_anexo_ctx = str(self.env.context.get("numero_anexo", ""))  # valor del contexto o vacío
         for record in self:
             record.numero_anexo = numero_anexo_ctx
+        # fallback en caso pase otro operador
+        return []
 
     def init(self):
-        # IMPORTANTE: usar el nombre real de la tabla account_move y columnas (total_operacion, amount_tax, name, invoice_date)
         self.env.cr.execute("""
             CREATE OR REPLACE VIEW report_account_move_daily AS
             (
@@ -109,19 +110,30 @@ class ReportAccountMoveDaily(models.Model):
                     SUM(am.amount_tax)                        AS monto_total_impuestos,
                     (SELECT id FROM res_currency WHERE name='USD' LIMIT 1) AS currency_id,
 
-                    -- ===== Campos para AGRUPAR (coinciden con los del modelo) =====
                     EXTRACT(YEAR FROM am.invoice_date)::text              AS invoice_year_agrupado,
                     CASE WHEN EXTRACT(MONTH FROM am.invoice_date)::int <= 6
                          THEN '1' ELSE '2' END                            AS invoice_semester_agrupado,
                     TO_CHAR(am.invoice_date, 'MM')                        AS invoice_month_agrupado,
 
-                    -- ===== Wrappers para SearchPanel (Selection) =====
                     EXTRACT(YEAR FROM am.invoice_date)::text              AS invoice_year_sel,
                     TO_CHAR(am.invoice_date, 'MM')                        AS invoice_month_sel
 
                 FROM account_move am
-                WHERE am.amount_untaxed < 25000
-                  AND am.move_type::text ILIKE 'out_invoice'
+                LEFT JOIN account_move_invalidation inv
+                    ON inv.id = am.sit_evento_invalidacion
+
+                WHERE
+                    am.move_type = 'out_invoice'
+                    AND am.amount_untaxed < 25000
+                    AND am.hacienda_estado = 'PROCESADO'
+                    AND COALESCE(am."hacienda_selloRecibido", '') != ''
+
+                    -- NO ANULADAS:
+                    AND (
+                            am.sit_evento_invalidacion IS NULL
+                        OR COALESCE(inv."hacienda_selloRecibido_anulacion", '') = ''
+                    )
+
                 GROUP BY
                     am.invoice_date::date,
                     EXTRACT(YEAR FROM am.invoice_date)::text,
