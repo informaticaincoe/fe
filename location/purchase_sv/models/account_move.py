@@ -9,7 +9,7 @@ from odoo.exceptions import ValidationError
 
 import logging
 
-from location.common_utils.utils.constants import DTE_COD
+from odoo.addons.common_utils.utils.constants import DTE_COD
 
 _logger = logging.getLogger(__name__)
 
