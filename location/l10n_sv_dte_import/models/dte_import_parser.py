@@ -23,7 +23,7 @@ class DTEImportParser(models.TransientModel):
         # --- Secciones principales ---
         ident = data.get("identificacion", {}) or {}
         emisor = data.get("emisor", {}) or {}
-        receptor = data.get("receptor", {}) or {}
+        receptor = None # data.get("receptor", {}) or {}
         resumen = data.get("resumen", {}) or {}
         items_raw = data.get("cuerpoDocumento", []) or []
         respuesta_mh = data.get("jsonRespuestaMh", {}) or {}
@@ -31,6 +31,12 @@ class DTEImportParser(models.TransientModel):
 
         # --- Datos principales del DTE ---
         tipo_dte = str(ident.get("tipoDte") or "").zfill(2)  # "01" consumidor final, "03" crédito fiscal
+
+        if tipo_dte and tipo_dte == constants.COD_DTE_FSE:
+            receptor = data.get("sujetoExcluido", {}) or {}
+        else:
+            receptor = data.get("receptor", {}) or {}
+
         numero_control = ident.get("numeroControl")
         codigo_gen = ident.get("codigoGeneracion")
         sello_recibido = respuesta_mh.get("selloRecibido")
@@ -116,6 +122,10 @@ class DTEImportParser(models.TransientModel):
             "moneda": moneda,
 
             "emisor_nit": emisor.get("nit"),
+            # Campos de emisor para exportacion
+            "item_exportacion": emisor.get("tipoItemExpor"),
+            "recinto_fiscal": emisor.get("recintoFiscal"),
+            "regimen": emisor.get("regimen"),
 
             "receptor_nombre": receptor.get("nombre") or receptor.get("nombreComercial"),
             "receptor_tipo_documento": receptor.get("tipoDocumento"),
@@ -131,6 +141,7 @@ class DTEImportParser(models.TransientModel):
             "total_exenta": float(resumen.get("totalExenta") or 0.0),
             "total_no_sujeta": float(resumen.get("totalNoSuj") or 0.0),
             "total_pagar": float(resumen.get("totalPagar") or 0.0),
+            "total_operacion": float(resumen.get("montoTotalOperacion") or 0.0),
             "dias_credito": resumen.get("plazo") or resumen.get("diasCredito"),
 
             "items": items,
@@ -150,6 +161,15 @@ class DTEImportParser(models.TransientModel):
             # Doc Relacionado(CCF)
             "docs_relacionados": docs,
 
+            # Factura de Exportacion
+            "cod_incoterms": resumen.get("codIncoterms") or None,
+            "flete": resumen.get("flete") or 0.0,
+            "seguro": resumen.get("seguro") or 0.0,
+
+            # Sujeto Excluido
+            "total_compra": resumen.get("totalCompra") or 0.0,
+            "descu": resumen.get("descu") or 0.0,
+
             # Respuesta MH
             "hacienda_estado": respuesta_mh.get("estado") or None,
             "fecha_hacienda": fecha_hacienda_dt.strftime("%Y-%m-%d %H:%M:%S") if fecha_hacienda_dt else None,
@@ -160,7 +180,7 @@ class DTEImportParser(models.TransientModel):
         }
 
         # Determinar NIT según el tipo de documento
-        if tipo_dte == constants.COD_DTE_FE:
+        if tipo_dte and tipo_dte in(constants.COD_DTE_FE, constants.COD_DTE_FEX, constants.COD_DTE_FSE):
             receptor_nit = receptor.get("numDocumento")
         else:
             receptor_nit = receptor.get("nit")

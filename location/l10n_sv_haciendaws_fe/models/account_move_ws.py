@@ -1589,7 +1589,7 @@ class AccountMove(models.Model):
         invoice_info["ivaRete1"] = self.retencion_iva_amount
         invoice_info["reteRenta"] = self.retencion_renta_amount
         # invoice_info["montoTotalOperacion"] = round(self.total_operacion + retencion, 2)
-        invoice_info["montoTotalOperacion"] = round(self.total_pagar, 2)
+        invoice_info["montoTotalOperacion"] = round(self.amount_total, 2)
         invoice_info["totalLetras"] = self.amount_text
         invoice_info["condicionOperacion"] = int(self.condiciones_pago)
         pagos["codigo"] = self.forma_pago.codigo  # '01'   # CAT-017 Forma de Pago    01 = bienes

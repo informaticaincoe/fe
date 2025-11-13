@@ -38,7 +38,7 @@ class DTEImportWizard(models.TransientModel):
     company_id = fields.Many2one("res.company", required=True, default=lambda s: s.env.company)
 
     # Impuestos por línea
-    tax_iva_13_id = fields.Many2one("account.tax", string="IVA 13%", domain="[('type_tax_use','=','sale')]")
+    tax_iva_13_id = fields.Many2one("account.tax", string="Impuesto", domain="[('type_tax_use','=','sale')]")  # string="IVA 13%"
     tax_exento_id = fields.Many2one("account.tax", string="Impuesto Exento", domain="[('type_tax_use','=','sale')]")
     tax_no_suj_id = fields.Many2one("account.tax", string="Impuesto No Sujeto", domain="[('type_tax_use','=','sale')]")
 
@@ -161,15 +161,17 @@ class DTEImportWizard(models.TransientModel):
         tipo = parsed["tipo_dte"]
         move_type = None
         _logger.info("[DTE Import] Tipo DTE detectado: %s", tipo)
-        if tipo not in (constants.COD_DTE_FE, constants.COD_DTE_CCF, constants.COD_DTE_NC):
-            raise UserError(_("Tipo DTE no soportado: %s (sólo 01=CF, 03=CCF, 05=NC)") % (tipo,))
+        if tipo not in (constants.COD_DTE_FE, constants.COD_DTE_CCF, constants.COD_DTE_NC, constants.COD_DTE_ND, constants.COD_DTE_FEX, constants.COD_DTE_FSE):
+            raise UserError(_("Tipo DTE no soportado: %s (sólo 01=CF, 03=CCF, 05=NC, 06=ND, 11=FEX, 14=FSE)") % (tipo,))
 
         # 01 y 03 => facturas de venta
         if tipo:
-            if tipo in(constants.COD_DTE_FE, constants.COD_DTE_CCF, constants.COD_DTE_ND):
+            if tipo in(constants.COD_DTE_FE, constants.COD_DTE_CCF, constants.COD_DTE_ND, constants.COD_DTE_FEX):
                 move_type = constants.OUT_INVOICE
             elif tipo in(constants.COD_DTE_NC):
                 move_type = constants.OUT_REFUND
+            elif tipo in(constants.COD_DTE_FSE):
+                move_type = constants.IN_INVOICE
 
         # 1. Diario: buscar por sit_tipo_documento.codigo == tipo
         journal = self._find_sale_journal_by_tipo(tipo)
@@ -186,16 +188,36 @@ class DTEImportWizard(models.TransientModel):
         for dr in parsed.get("docs_relacionados", []):
             tipo_dte_r = dr.get("tipo_doc_relacionado")
             codigo = dr.get("codigo_gen_relacionado")
-            reversed = self._find_by_related_document(codigo, tipo_dte_r)
-            if reversed:
-                related_moves.append(reversed)
+            reversed_or_debit = self._find_by_related_document(codigo, tipo_dte_r)
+            if reversed_or_debit:
+                related_moves.append(reversed_or_debit)
 
         # 4. Descuentos globales
-        porcentaje_descu_gravada = self._calc_pct(parsed["descu_gravado"], parsed["total_gravada"])
+        if tipo and tipo == constants.COD_DTE_FSE:
+            porcentaje_descu_gravada = self._calc_pct(parsed["descu"], parsed["total_gravada"])
+        else:
+            porcentaje_descu_gravada = self._calc_pct(parsed["descu_gravado"], parsed["total_gravada"])
+
         porcentaje_descu_exenta = self._calc_pct(parsed["descu_exento"], parsed["total_exenta"])
         porcentaje_descu_no_suj = self._calc_pct(parsed["descu_no_suj"], parsed["total_no_sujeta"])
         _logger.info("Descuentos detectados: Gravado= %s | Exento= %s | No Sujeto= %s",
                      porcentaje_descu_gravada, porcentaje_descu_exenta, porcentaje_descu_no_suj)
+
+        # Datos Factura de Exportacion
+        ItemEmisor = item_emisor_id = Recinto = recinto_id = Regimen = regimen_id = Incoterm = incoterm_id = None
+
+        if tipo and tipo == constants.COD_DTE_FEX:
+            ItemEmisor = self.env['account.move.tipo_item.field']
+            item_emisor_id = ItemEmisor.search([("codigo", "=", str(parsed.get("item_exportacion")))], limit=1)
+
+            Recinto = self.env['account.move.recinto_fiscal.field']
+            recinto_id = Recinto.search([("codigo", "=", parsed["recinto_fiscal"])], limit=1)
+
+            Regimen = self.env['account.move.regimen.field']
+            regimen_id = Regimen.search([("codigo", "=", parsed["regimen"])], limit=1)
+
+            Incoterm = self.env['account.incoterms']
+            incoterm_id = Incoterm.search([("codigo_mh", "=", parsed["cod_incoterms"])], limit=1)
 
         move_vals = {
             "move_type": move_type,
@@ -241,15 +263,30 @@ class DTEImportWizard(models.TransientModel):
             "hacienda_observaciones": parsed["observaciones_hacienda"],
         }
 
+        # Notas de Credito y Debito
+        skip_retention_discounts = False
         if tipo == constants.COD_DTE_NC:
-            move_vals["reversed_entry_id"] = related_moves[0].id
+            skip_retention_discounts = True
+            move_vals["reversed_entry_id"] = related_moves[0].id if related_moves else None
+            # move_vals["inv_refund_id"] = reversed.id
+            _logger.info("[DTE Import] Nota de crédito vinculada con factura %s (Código generación: %s)", related_moves[0].name, related_moves[0].hacienda_codigoGeneracion_identificacion)
+        elif tipo == constants.COD_DTE_ND:
+            skip_retention_discounts= True
+            move_vals["debit_origin_id"] = related_moves[0].id if related_moves else None
+            _logger.info("[DTE Import] Nota de debito vinculada con factura %s (Código generación: %s)", related_moves[0].name, related_moves[0].hacienda_codigoGeneracion_identificacion)
+
+        if skip_retention_discounts:
             move_vals["apply_retencion_renta"] = False
             move_vals["retencion_renta_amount"] = 0.0
             move_vals["descuento_global_monto"] = 0.0
             move_vals["descuento_global"] = 0.0
-            # move_vals["inv_refund_id"] = reversed.id
-            _logger.info("[DTE Import] Nota de crédito vinculada con factura %s (Código generación: %s)",
-                         related_moves[0].name, related_moves[0].hacienda_codigoGeneracion_identificacion)
+
+        # Campos Factura de Exportacion
+        if tipo == constants.COD_DTE_FEX:
+            move_vals["tipoItemEmisor"] = item_emisor_id.id if item_emisor_id else None
+            move_vals["sit_regimen"] = regimen_id.id if regimen_id else None
+            move_vals["recinto_sale_order"] = recinto_id.id if recinto_id else None
+            move_vals["invoice_incoterm_id"] = incoterm_id.id if incoterm_id else None
 
         # 5. Construcción de líneas de producto
         line_vals = []
@@ -287,7 +324,7 @@ class DTEImportWizard(models.TransientModel):
                         _logger.warning("[Ítem %s] Error al calcular base sin IVA (precio=%s, IVA=%.2f%%): %s", it.get("numItem"), raw_price, impuesto_sv, e)
                 else:
                     _logger.info("[Ítem %s] Precio unitario %.2f sin modificación (IVA=%.2f%%).", it.get("numItem"), raw_price, impuesto_sv)
-            elif tipo in(constants.COD_DTE_CCF, constants.COD_DTE_NC):  # Crédito fiscal
+            elif tipo in(constants.COD_DTE_CCF, constants.COD_DTE_NC, constants.COD_DTE_ND, constants.COD_DTE_FEX, constants.COD_DTE_FSE):  # Crédito fiscal
                 tipo_venta = getattr(product, 'tipo_venta', 'gravado')  # gravado, exento, no sujeto
                 if tipo_venta == 'gravado':
                     taxes = self.tax_iva_13_id
@@ -338,7 +375,12 @@ class DTEImportWizard(models.TransientModel):
 
         # 6. Línea de CxC (balanceo)
         company = journal.company_id
-        receivable_account = partner.property_account_receivable_id.id or company.account_default_receivable_id.id
+        receivable_account = None
+
+        if move_type and move_type == constants.IN_INVOICE:
+            receivable_account = partner.property_account_payable_id.id
+        else:
+            receivable_account = partner.property_account_receivable_id.id
         total_to_receive = total_venta + total_impuesto
 
         line_vals.append((0, 0, {
@@ -394,11 +436,18 @@ class DTEImportWizard(models.TransientModel):
     def _find_sale_journal_by_tipo(self, tipo_dte):
         """Busca un diario de ventas cuyo sit_tipo_documento.codigo == tipo_dte en la compañía actual."""
         Journal = self.env["account.journal"]
-        return Journal.search([
-            ("type", "=", "sale"),
-            ("sit_tipo_documento.codigo", "=", tipo_dte),
-            ("company_id", "=", self.company_id.id),
-        ], limit=1)
+        if tipo_dte and tipo_dte == constants.COD_DTE_FSE:
+            return Journal.search([
+                ("type", "=", constants.TYPE_COMPRA),
+                ("sit_tipo_documento.codigo", "=", tipo_dte),
+                ("company_id", "=", self.company_id.id),
+            ], limit=1)
+        else:
+            return Journal.search([
+                ("type", "=", constants.TYPE_VENTA),
+                ("sit_tipo_documento.codigo", "=", tipo_dte),
+                ("company_id", "=", self.company_id.id),
+            ], limit=1)
 
     def _currency_from_code(self, code):
         if code == "USD":
@@ -451,22 +500,24 @@ class DTEImportWizard(models.TransientModel):
         _logger.info("NIT normalizado: '%s' (original: '%s')", nit_normalizado, receptor_nit)
 
         # 2 Buscar por NIT
-        if nit_normalizado:
-            if ((receptor_tipo_doc and receptor_tipo_doc == constants.COD_TIPO_DOCU_NIT) or
-                    (tipo_dte and tipo_dte in(constants.COD_DTE_CCF, constants.COD_DTE_NC) )):
-                # Buscar partners cuyo NIT sea igual en cualquiera de los dos formatos
-                domain = ["|",
-                          ("vat", "=", receptor_nit),
-                          ("vat", "=", nit_normalizado)]
-                partner = Partner.search(domain, limit=1)
-                _logger.info("[Partner Search] Encontrado por NIT: %s (%s)", partner.display_name, partner.vat)
-            else:
-                # Buscar partners cuyo NIT sea igual en cualquiera de los dos formatos
-                domain = ["|",
-                          ("dui", "=", receptor_nit),
-                          ("dui", "=", nit_normalizado)]
+        if ( (receptor_tipo_doc and receptor_tipo_doc == constants.COD_TIPO_DOCU_NIT) or
+                (tipo_dte and tipo_dte in(constants.COD_DTE_CCF, constants.COD_DTE_NC, constants.COD_DTE_ND)) ):
+            # Buscar partners cuyo NIT sea igual en cualquiera de los dos formatos
+            domain = ["|",
+                      ("vat", "=", receptor_nit),
+                      ("vat", "=", nit_normalizado)]
+            partner = Partner.search(domain, limit=1)
+            _logger.info("[Partner Search] Encontrado por NIT: %s (%s)", partner.display_name, partner.vat)
+        # Otros documentos: buscar por DUI o NIT según el tipo de documento del receptor
+        elif receptor_tipo_doc:
+            if receptor_tipo_doc == constants.COD_TIPO_DOCU_DUI:
+                domain = ["|", ("dui", "=", receptor_nit), ("dui", "=", nit_normalizado)]
                 partner = Partner.search(domain, limit=1)
                 _logger.info("[Partner Search] Encontrado por DUI: %s (%s)", partner.display_name, partner.dui)
+            elif receptor_tipo_doc == constants.COD_TIPO_DOCU_NIT:
+                domain = ["|", ("vat", "=", receptor_nit), ("vat", "=", nit_normalizado)]
+                partner = Partner.search(domain, limit=1)
+                _logger.info("[Partner Search] Encontrado por NIT: %s (%s)", partner.display_name, partner.vat)
 
         # 3 Buscar por correo o teléfono si no se encontró por NIT
         if not partner:
@@ -523,7 +574,6 @@ class DTEImportWizard(models.TransientModel):
         return 0.0
 
     def _find_by_related_document(self, codigo, tipo_dte):
-        """Busca un diario de ventas cuyo sit_tipo_documento.codigo == tipo_dte en la compañía actual."""
         _logger.info("[DTE Import] Buscando movimiento relacionado:")
         _logger.info("Código Generación: %s | Tipo DTE: %s | Compañía: %s", codigo, tipo_dte, self.company_id.name)
 

@@ -197,7 +197,7 @@ class AccountMove(models.Model):
     @api.depends('total_pagar', 'total_operacion')
     def _compute_total_pagar_text(self):
         for move in self:
-            if move.codigo_tipo_documento and move.codigo_tipo_documento == constants.COD_DTE_NC:
+            if move.codigo_tipo_documento and move.codigo_tipo_documento in(constants.COD_DTE_NC, constants.COD_DTE_ND):
                 move.total_pagar_text = to_word(move.total_operacion)
             else:
                 move.total_pagar_text = to_word(move.total_pagar)
@@ -209,7 +209,7 @@ class AccountMove(models.Model):
             move.retencion_renta_amount = 0.0
             move.retencion_iva_amount = 0.0
             move.iva_percibido_amount = 0.0
-            tipo_doc = move.journal_id.sit_tipo_documento.codigo
+            tipo_doc = move.journal_id.sit_tipo_documento
 
             if move.move_type in (constants.TYPE_ENTRY, constants.OUT_RECEIPT, constants.IN_RECEIPT):
                 _logger.info("SIT _compute_retencion | Asiento detectado  -> move_id: %s, se omiten cálculos", move.id)
@@ -220,7 +220,7 @@ class AccountMove(models.Model):
                 continue
             # Compras → solo si no es sujeto excluido (DTE tipo 14)
             if move.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
-                tipo_doc = move.journal_id.sit_tipo_documento
+                # tipo_doc = move.journal_id.sit_tipo_documento.codigo
                 if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE or (tipo_doc.codigo == constants.COD_DTE_FSE and not move.company_id.sit_facturacion):
                     _logger.info("SIT _compute_retencion | Compra normal o sujeto excluido sin facturación -> move_id: %s, se omiten cálculos", move.id)
                     continue
@@ -256,7 +256,7 @@ class AccountMove(models.Model):
             _logger.info("SIT Retencion= %s, Retencion IVA= %s, IVA Percibido= %s", retencion, iva_retencion, iva_percibido)
 
             if move.apply_retencion_iva:
-                if tipo_doc in [constants.COD_DTE_FSE]:  # FSE
+                if tipo_doc.codigo in [constants.COD_DTE_FSE]:  # FSE
                     move.retencion_iva_amount = float_round(base_total * iva_retencion, precision_rounding=move.currency_id.rounding)
                 else:
                     move.retencion_iva_amount = float_round(((move.sub_total_ventas / 1.13) - move.descuento_global) * retencion, precision_rounding=move.currency_id.rounding)
@@ -837,11 +837,11 @@ class AccountMove(models.Model):
                          f"sub_total final: {move.sub_total}")
 
             # 5. Calcular total_operacion y total_pagar
-            if move.journal_id.sit_tipo_documento.codigo not in [constants.COD_DTE_FE, constants.COD_DTE_FEX, constants.COD_DTE_NC]:
+            if move.journal_id.sit_tipo_documento.codigo not in [constants.COD_DTE_FE, constants.COD_DTE_FEX, constants.COD_DTE_NC, constants.COD_DTE_ND]:
                 move.total_operacion = float_round(move.sub_total + move.amount_tax, precision_rounding=move.currency_id.rounding)
                 # move.total_operacion = float_round( (move.sub_total + move.amount_tax + move.iva_percibido_amount) - move.retencion_iva_amount, precision_rounding=move.currency_id.rounding)
                 _logger.info(f"[{move.name}] Documento no es tipo 01, total_operacion: {move.total_operacion}")
-            elif move.journal_id.sit_tipo_documento.codigo in [constants.COD_DTE_NC]:
+            elif move.journal_id.sit_tipo_documento.codigo in [constants.COD_DTE_NC, constants.COD_DTE_ND]:
                 move.total_operacion = float_round( ((move.sub_total + move.amount_tax + move.iva_percibido_amount) - move.retencion_iva_amount), precision_rounding=move.currency_id.rounding)
                 _logger.info(f"[{move.name}] Documento no es tipo 01, total_operacion: {move.total_operacion}")
             elif move.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FEX:
@@ -1043,7 +1043,7 @@ class AccountMove(models.Model):
                         'credit': monto if es_nota_credito_o_sujeto_excluido else 0.0,
                         'debit': 0.0 if es_nota_credito_o_sujeto_excluido else monto,
                         'partner_id': move.partner_id.id,
-                        "display_type": "line_note",
+                        "custom_discount_line": True,
                     }))
                     _logger.info(f"RETENCION RENTA monto={monto}")
                 else:
@@ -1061,7 +1061,7 @@ class AccountMove(models.Model):
                         'credit': monto if es_nota_credito_o_sujeto_excluido else 0.0,
                         'debit': 0.0 if es_nota_credito_o_sujeto_excluido else monto,
                         'partner_id': move.partner_id.id,
-                        "display_type": "line_note",
+                        "custom_discount_line": True,
                     }))
                     _logger.info(f"RETENCION IVA monto={monto}")
                     _logger.info(f"cuenta_iva retencion={cuenta_iva}")
@@ -1077,7 +1077,8 @@ class AccountMove(models.Model):
                     monto = float_round(move.iva_percibido_amount, precision_rounding=move.currency_id.rounding)
 
                     es_nota_credito = move.move_type == constants.OUT_REFUND
-                    es_factura_venta = move.move_type == constants.OUT_INVOICE
+                    es_nota_debito = bool(move.move_type == constants.OUT_INVOICE and move.codigo_tipo_documento == constants.COD_DTE_ND)
+                    es_factura_venta = bool(move.move_type == constants.OUT_INVOICE and move.codigo_tipo_documento != constants.COD_DTE_ND)
                     es_compra_fse = move.move_type == constants.IN_INVOICE
 
                     lineas.append((0, 0, {
@@ -1085,10 +1086,10 @@ class AccountMove(models.Model):
                         'name': cuenta_iva_percibido.name,
                         # 'credit': monto if es_nota_credito_o_sujeto_excluido and es_nota_credito else 0.0,
                         # 'debit': 0.0 if es_nota_credito_o_sujeto_excluido else monto,
-                        'credit': 0.0,
+                        'credit': monto if es_nota_debito else 0.0,
                         'debit': monto if es_nota_credito or es_factura_venta or es_compra_fse else 0.0,
                         'partner_id': move.partner_id.id,
-                        "display_type": "line_note",
+                        "custom_discount_line": True,
                     }))
                     _logger.info(f"PERCEPCION IVA monto={monto} | {'CRÉDITO' if es_factura_venta else 'DÉBITO'}")
 

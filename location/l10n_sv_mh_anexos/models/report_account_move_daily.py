@@ -6,7 +6,6 @@ _logger = logging.getLogger(__name__)
 
 MONTHS = [(f'{m:02d}', f'{m:02d}') for m in range(1, 13)]
 
-
 class ReportAccountMoveDaily(models.Model):
     _name = "report.account.move.daily"
     _description = "Facturas agrupadas por día"
