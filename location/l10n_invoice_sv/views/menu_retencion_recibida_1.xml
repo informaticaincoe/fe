@@ -11,7 +11,7 @@
         <menuitem
                 id="menu_retenciones"
                 name="Comprobante de retención 1%"
-                parent="account.menu_finance_receivables"
+                parent="account.menu_finance_payables"
                 action="action_retencion_1"
         />
 

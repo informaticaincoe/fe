@@ -114,6 +114,7 @@
         <record id="action_report_account_move_daily_mayores" model="ir.actions.act_window">
             <field name="name">Facturas de clientes mayores a 25000</field>
             <field name="res_model">account.move</field>
+            <field name="view_id" ref="view_report_account_move_daily_mayores_list"/>
             <field name="view_mode">list</field>
             <field name="domain">[
                 '&amp;','&amp;',

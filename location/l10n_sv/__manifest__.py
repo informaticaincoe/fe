@@ -46,9 +46,6 @@
         "data/catalogos.xml",
         'data/account.journal.tipo_modelo.field.csv',
         "views/menuitem.xml",
-        # Archivos de las vistas de los anexos en el orden correcto
-        # "views/report_anexos.xml",
-        # 'views/anexos_report_tabbed.xml',
         "views/product_template.xml",
         'views/view_res_company.xml',
         'views/view_res_partner.xml',

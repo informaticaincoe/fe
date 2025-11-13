@@ -16,7 +16,6 @@ except ImportError as e:
     _logger.error(f"Error al importar 'config_utils': {e}")
     config_utils = None
 
-CA_CODES = {'SV', 'GT', 'HN', 'NI', 'CR', 'PA'}
 VAT_INCLUDE = ('iva',)
 VAT_EXCLUDE = ('retenc', 'percep', 'percepción', 'renta', 'fuente')
 MONTHS = [(f'{m:02d}', f'{m:02d}') for m in range(1, 13)]
@@ -133,6 +132,20 @@ class account_move(models.Model):
     )
 
     # ----------- Campos computados ----------- #
+    clase_documento = fields.Char(
+        string="Clase de documento",
+        compute='_compute_get_clase_documento',
+        readonly=True,
+        store=False,
+    )
+
+    clase_documento_display = fields.Char(
+        string="Clase de documento",
+        compute='_compute_get_clase_documento_display',
+        readonly=True,
+        store=False,
+    )
+
     sit_tipo_documento = fields.Char(
         string="Tipo de documento",
         compute="_compute_sit_tipo_documento",
@@ -184,19 +197,7 @@ class account_move(models.Model):
         store=False,
     )
 
-    clase_documento = fields.Char(
-        string="Clase de documento",
-        compute='_compute_get_clase_documento',
-        readonly=True,
-        store=False,
-    )
 
-    clase_documento_display = fields.Char(
-        string="Clase de documento",
-        compute='_compute_get_clase_documento_display',
-        readonly=True,
-        store=False,
-    )
 
     codigo_tipo_documento_display = fields.Char(
         string="Tipo de documento",
@@ -369,6 +370,12 @@ class account_move(models.Model):
         store=False
     )
 
+    tipo_de_detalle_display = fields.Char(
+        string="Tipo de detalle",
+        compute="_compute_tipo_detalle_display",
+        store=False
+    )
+
     desde = fields.Char(  # Desde para documentos extraviados y anulados
         string="Desde",
         compute="_compute_desde",
@@ -484,7 +491,6 @@ class account_move(models.Model):
         for m in self:
             inv = m.sit_evento_invalidacion
             m.has_sello_anulacion = bool(inv and inv.hacienda_selloRecibido_anulacion)
-            _logger.info("has_sello_anulacion %s → %s", m.name, m.has_sello_anulacion)
 
     # Search compatible con dominios sobre el booleano
     def _search_has_sello_anulacion(self, operator, value):
@@ -540,8 +546,6 @@ class account_move(models.Model):
     def _compute_get_clase_documento(self):
         for record in self:
             if record.name.startswith("DTE"):
-                _logger.info('name %s ', record.name)
-                _logger.info('clase_documento_id %s ', record.clase_documento_id)
                 record.clase_documento = '4'
             else:
                 record.clase_documento = '1'
@@ -559,6 +563,8 @@ class account_move(models.Model):
         for record in self:
             codigo = record.codigo_tipo_documento or ""  # asegura string
             nombre = record.journal_id.name or ""  # asegura string
+
+            _logger.info("Info %s Nombre %s ", codigo, nombre)
             if codigo or nombre:
                 record.codigo_tipo_documento_display = f"{codigo} {nombre}".strip()
             else:
@@ -599,7 +605,7 @@ class account_move(models.Model):
     @api.depends('journal_id')
     def _compute_get_total_gravado(self):
         for record in self:
-            if record.partner_id.country_id.code in ['SV']:
+            if record.partner_id.country_id.code in self.env.company.country_id.code:
                 record.total_gravado_local = record.total_gravado
             else:
                 record.total_gravado_local = 0.00
@@ -613,7 +619,7 @@ class account_move(models.Model):
     def _compute_get_exportaciones_dentro_centroamerica(self):
         for record in self:
             if record.codigo_tipo_documento == '11':
-                if record.partner_id.country_id.code in ['SV', 'GT', 'HN', 'CR', 'PA']:
+                if record.partner_id.country_id.code in constants.CA_CODES:
                     record.exportaciones_dentro_centroamerica = record.total_gravado
                 else:
                     record.exportaciones_dentro_centroamerica = 0.00
@@ -625,7 +631,7 @@ class account_move(models.Model):
         for record in self:
             if record.codigo_tipo_documento == '11':
                 # Exportaciones fuera de Centroamérica
-                if record.partner_id.country_id.code not in ['SV', 'GT', 'HN', 'CR', 'PA']:
+                if record.partner_id.country_id.code not in constants.CA_CODES:
                     record.exportaciones_fuera_centroamerica = record.total_gravado
                 else:
                     record.exportaciones_fuera_centroamerica = 0.00
@@ -768,6 +774,15 @@ class account_move(models.Model):
                 else:
                     record.tipo_de_detalle = 'A'
 
+    @api.depends('tipo_de_detalle')
+    def _compute_tipo_detalle_display(self):
+        for record in self:
+            if record.has_sello_anulacion:
+                if record.tipo_de_detalle == 'D':
+                    record.tipo_de_detalle_display = f"{record.tipo_de_detalle}. Documento DTE Invalidado".strip()
+                elif record.tipo_de_detalle == 'A':
+                    record.tipo_de_detalle_display = f"{record.tipo_de_detalle}. Documento Anulados/Invalidados'".strip()
+
     @api.depends('journal_id')
     def _compute_desde(self):
         for record in self:
@@ -822,46 +837,50 @@ class account_move(models.Model):
                 record.nrc_cliente = ''
             _logger.info("record.nrc_cliente %s ", record.nrc_cliente)
 
-    @api.depends('partner_id.vat', 'partner_id.nrc', 'partner_id.dui', 'invoice_date', 'partner_id.is_company',
-                 'partner_id.company_type')
-    def _compute_nit_nrc_anexo_contribuyentes(self):
-        """
-        H. NIT o NRC del Cliente (campo H del anexo):
-        - Personas Naturales:
-            * Periodo >= 2022-01-01:
-                - Si completa DUI (Q), este campo debe ir VACÍO.
-                - Si NO completa DUI, entonces DEBE completar NIT o NRC (preferencia NIT).
-            * Periodo < 2022-01-01: este campo es OBLIGATORIO (DUI debe ir vacío).
-        - Personas Jurídicas: NUNCA DUI; usar NIT o, si no, NRC.
-        Además: limpiar guiones/plecas y no formatear aquí (solo exportar limpio).
-        """
-        limite = date(2022, 1, 1)
-        for rec in self:
-            valor = ""
-            is_person = (rec.partner_id and (rec.partner_id.company_type or (
-                "company" if rec.partner_id.is_company else "person")) == "person")
-            period = rec.invoice_date or limite  # si no hay fecha, tratamos como >=2022 para no falsear DUI pre-2022
-
-            nit = self._only_digits(getattr(rec.partner_id, "vat", ""))
-            nrc = self._only_digits(getattr(rec.partner_id, "nrc", ""))
-            dui = self._only_digits(getattr(rec.partner_id, "dui", ""))
-
-            if is_person:
-                if period >= limite:
-                    # Si DUI está presente -> H vacío
-                    if dui:
-                        valor = ""
-                    else:
-                        # Debe llenar NIT o NRC (preferir NIT)
-                        valor = nit or nrc or ""
-                else:
-                    # Antes de 2022: H obligatorio (preferir NIT, luego NRC); DUI vacío
-                    valor = nit or nrc or ""
-            else:
-                # Jurídicas: usar NIT o NRC; DUI no aplica
-                valor = nit or nrc or ""
-
-            rec.nit_o_nrc_anexo_contribuyentes = valor
+    # @api.depends('partner_id.vat', 'partner_id.nrc', 'partner_id.dui', 'invoice_date', 'partner_id.is_company',
+    #              'partner_id.company_type')
+    # def _compute_nit_nrc_anexo_contribuyentes(self):
+    #     """
+    #     H. NIT o NRC del Cliente (campo H del anexo):
+    #     - Personas Naturales:
+    #         * Periodo >= 2022-01-01:
+    #             - Si completa DUI (Q), este campo debe ir VACÍO.
+    #             - Si NO completa DUI, entonces DEBE completar NIT o NRC (preferencia NIT).
+    #         * Periodo < 2022-01-01: este campo es OBLIGATORIO (DUI debe ir vacío).
+    #     - Personas Jurídicas: NUNCA DUI; usar NIT o, si no, NRC.
+    #     Además: limpiar guiones/plecas y no formatear aquí (solo exportar limpio).
+    #     """
+    #     limite = date(2022, 1, 1)
+    #     for rec in self:
+    #         valor = ""
+    #         is_person = (rec.partner_id and (rec.partner_id.company_type or (
+    #             "company" if rec.partner_id.is_company else "person")) == "person")
+    #         period = rec.invoice_date or limite  # si no hay fecha, tratamos como >=2022 para no falsear DUI pre-2022
+    #
+    #         vat = self._only_digits(getattr(rec.partner_id, "vat", ""))
+    #         nrc = self._only_digits(getattr(rec.partner_id, "nrc", ""))
+    #         dui = self._only_digits(getattr(rec.partner_id, "dui", ""))
+    #
+    #         _logger.info("vatsss %s", vat)
+    #         _logger.info("nrcsss %s", nrc)
+    #         _logger.info("duisss %s", dui)
+    #
+    #         if is_person:
+    #             if period >= limite:
+    #                 # Si DUI está presente -> H vacío
+    #                 if not dui:
+    #                     valor = ""
+    #                 else:
+    #                     # Debe llenar NIT o NRC (preferir NIT)
+    #                     valor = vat or nrc or ""
+    #             else:
+    #                 # Antes de 2022: H obligatorio (preferir NIT, luego NRC); DUI vacío
+    #                 valor = vat or nrc or ""
+    #         else:
+    #             # Jurídicas: usar NIT o NRC; DUI no aplica
+    #             valor = vat or nrc or ""
+    #
+    #         rec.nit_o_nrc_anexo_contribuyentes = valor
 
     @api.depends('partner_id')
     def _compute_get_nit_company(self):
@@ -977,7 +996,6 @@ class account_move(models.Model):
             valor = ""
             if record.invoice_date:
                 if record.invoice_date >= limite:
-                    _logger.info("mayor al limite %s ", record.name)
 
                     # A partir de 2022
                     if record.partner_id.dui:
@@ -992,7 +1010,6 @@ class account_move(models.Model):
                         valor = record.partner_id.vat
                     elif record.partner_id.nrc:
                         valor = record.partner_id.nrc
-            _logger.info("record.nit_cliente %s ", record.nit_cliente)
             record.nit_o_nrc_anexo_contribuyentes = valor
 
     ###################################################################################################
@@ -1071,19 +1088,19 @@ class account_move(models.Model):
     def _compute_compras_internas_exento(self):
         for rec in self:
             code = rec.partner_id.country_id.code or ''
-            rec.compras_internas_total_excento = rec.amount_exento or 0.0 if code == 'SV' else 0.0
+            rec.compras_internas_total_excento = rec.amount_exento or 0.0 if code == self.env.company.country_id.code else 0.0
 
     @api.depends('amount_exento', 'partner_id.country_id')
     def _compute_internaciones_exentas_no_sujetas(self):
         for rec in self:
             code = rec.partner_id.country_id.code or ''
-            rec.internaciones_exentas_no_sujetas = rec.amount_exento or 0.0 if code in (CA_CODES - {'SV'}) else 0.0
+            rec.internaciones_exentas_no_sujetas = rec.amount_exento or 0.0 if code in (constants.CA_CODES - {self.env.company.country_id.code}) else 0.0
 
     @api.depends('amount_exento', 'partner_id.country_id')
     def _compute_importaciones_exentas_no_sujetas(self):
         for rec in self:
             code = rec.partner_id.country_id.code or ''
-            rec.importaciones_exentas_no_sujetas = rec.amount_exento or 0.0 if (code and code not in CA_CODES) else 0.0
+            rec.importaciones_exentas_no_sujetas = rec.amount_exento or 0.0 if (code and code not in constants.CA_CODES) else 0.0
 
     @api.depends('total_gravado', 'partner_id.country_id', 'sit_tipo_documento_id')
     def _compute_compras_internas_gravadas(self):
@@ -1091,7 +1108,7 @@ class account_move(models.Model):
             code = rec.partner_id.country_id.code
             doc = rec.sit_tipo_documento_id.codigo
             val = 0.0
-            if code == 'SV':
+            if code == self.env.company.country_id.code:
                 val = rec.total_gravado or 0.00
 
             rec.compras_internas_gravadas = val
@@ -1153,11 +1170,11 @@ class account_move(models.Model):
                 country = (rec.partner_id.country_id.code or '')
                 _logger.info("[IMP-SERV] >>> move_id=%s name=%s partner=%s country=%s",
                              rec.id, rec.name, getattr(rec.partner_id, 'display_name', None), country)
-                _logger.info("[IMP-SERV] CA=%s ; country_not_in_CA=%s", CA_CODES,
-                             bool(country and country not in CA_CODES))
+                _logger.info("[IMP-SERV] CA=%s ; country_not_in_CA=%s", constants.CA_CODES,
+                             bool(country and country not in constants.CA_CODES))
 
                 # Importación = proveedor fuera de CA
-                if country and country not in CA_CODES:
+                if country and country not in constants.CA_CODES:
                     for line in rec.invoice_line_ids:
                         is_service = self._is_service_line(line)
                         has_vat = self._has_vat_positive(line)
@@ -1184,11 +1201,11 @@ class account_move(models.Model):
                 country = (rec.partner_id.country_id.code or '')
                 _logger.info("[IMP-SERV] >>> move_id=%s name=%s partner=%s country=%s",
                              rec.id, rec.name, getattr(rec.partner_id, 'display_name', None), country)
-                _logger.info("[IMP-SERV] CA=%s ; country_not_in_CA=%s", CA_CODES,
-                             bool(country and country not in CA_CODES))
+                _logger.info("[IMP-SERV] CA=%s ; country_not_in_CA=%s", constants.CA_CODES,
+                             bool(country and country not in constants.CA_CODES))
 
                 # Importación = proveedor fuera de CA
-                if country and country == "SV":
+                if country and country == self.env.company.country_id.code:
                     for line in rec.invoice_line_ids:
                         has_vat = self._has_vat_positive(line)
                         if has_vat:
@@ -1213,11 +1230,11 @@ class account_move(models.Model):
                 country = (rec.partner_id.country_id.code or '')
                 _logger.info("[IMP-SERV] >>> move_id=%s name=%s partner=%s country=%s",
                              rec.id, rec.name, getattr(rec.partner_id, 'display_name', None), country)
-                _logger.info("[IMP-SERV] CA=%s ; country_not_in_CA=%s", CA_CODES,
-                             bool(country and country not in CA_CODES))
+                _logger.info("[IMP-SERV] CA=%s ; country_not_in_CA=%s", constants.CA_CODES,
+                             bool(country and country not in constants.CA_CODES))
 
                 # Importación = proveedor fuera de CA
-                if country and country in (CA_CODES - {'SV'}):
+                if country and country in (constants.CA_CODES - {self.env.company.country_id.code}):
                     for line in rec.invoice_line_ids:
                         has_vat = self._has_vat_positive(line)
                         if has_vat:
@@ -1242,11 +1259,11 @@ class account_move(models.Model):
                 country = (rec.partner_id.country_id.code or '')
                 _logger.info("[IMP-SERV] >>> move_id=%s name=%s partner=%s country=%s",
                              rec.id, rec.name, getattr(rec.partner_id, 'display_name', None), country)
-                _logger.info("[IMP-SERV] CA=%s ; country_not_in_CA=%s", CA_CODES,
-                             bool(country and country not in CA_CODES))
+                _logger.info("[IMP-SERV] CA=%s ; country_not_in_CA=%s", constants.CA_CODES,
+                             bool(country and country not in constants.CA_CODES))
 
                 # Importación = proveedor fuera de CA
-                if country and country not in (CA_CODES):
+                if country and country not in (constants.CA_CODES):
                     for line in rec.invoice_line_ids:
                         has_vat = self._has_vat_positive(line)
                         if has_vat:
@@ -1320,23 +1337,24 @@ class account_move(models.Model):
         store=True, index=True
     )
 
-    # @api.depends('invoice_date')
-    # def _compute_semester(self):
-    #     for m in self:
-    #         if m.invoice_date:
-    #             m.semester_year = m.invoice_date.year
-    #             m.semester = 'S1' if m.invoice_date.month <= 6 else 'S2'
-    #             m.semester_label = f"{m.semester_year}-{m.semester}"
-    #         else:
-    #             m.semester_year = False
-    #             m.semester = False
-    #             m.semester_label = False
+    @api.depends('invoice_date')
+    def _compute_semester(self):
+        for m in self:
+            if m.invoice_date:
+                m.semester_year = m.invoice_date.year
+                m.semester = 'S1' if m.invoice_date.month <= 6 else 'S2'
+                m.semester_label = f"{m.semester_year}-{m.semester}"
+            else:
+                m.semester_year = False
+                m.semester = False
+                m.semester_label = False
 
     invoice_year = fields.Char(compute='_compute_periods', store=True, index=True)
     invoice_semester = fields.Selection(
         [('1', '1.º semestre'), ('2', '2.º semestre')],
         compute='_compute_periods', store=True, index=True
     )
+
     invoice_month = fields.Char(compute='_compute_periods', store=True, index=True)
 
     # Wrappers para SearchPanel (Selection)

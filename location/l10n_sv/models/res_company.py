@@ -10,6 +10,7 @@ class Company(models.Model):
     company_registry = fields.Char(string="N.R.C.")
     giro = fields.Char(string="Giro")
     isss_patronal = fields.Char(string="Número patronal ISSS")
+    correlativo_centro_trabajo = fields.Char(string="Correlativo centro de trabajo")
 
     #Datos de contacto
     fax = fields.Char(string="Fax")

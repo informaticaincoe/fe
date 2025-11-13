@@ -6,9 +6,10 @@ from odoo.tools import float_round
 from odoo.exceptions import UserError
 from odoo.exceptions import ValidationError
 
-from odoo.addons.common_utils.utils import constants
 
 import logging
+
+from location.common_utils.utils.constants import DTE_COD
 
 _logger = logging.getLogger(__name__)
 
@@ -408,14 +409,14 @@ class AccountMove(models.Model):
 
             if move.sit_tipo_documento_id and move.sit_tipo_documento_id.codigo != constants.COD_DTE_FEX and not move.hacienda_selloRecibido:
                 _logger.info("SIT | Sello Recepcion no agregado.")
-                if move.clase_documento_id and move.clase_documento_id.codigo == DTE_COD:
+                if move.clase_documento_id and move.clase_documento_id.codigo == constants.DTE_COD:
                     raise ValidationError("Debe agregar el Sello de recepción.")
                 else:
                     raise ValidationError("Debe agregar el Número de serie.")
 
             if move.sit_tipo_documento_id and move.sit_tipo_documento_id.codigo != constants.COD_DTE_FEX and not move.hacienda_codigoGeneracion_identificacion:
                 _logger.info("SIT | Codigo de generacion no agregado.")
-                if move.clase_documento_id and move.clase_documento_id.codigo == DTE_COD:
+                if move.clase_documento_id and move.clase_documento_id.codigo == constants.DTE_COD:
                     raise ValidationError("Debe agregar el Codigo de generación.")
                 else:
                     raise ValidationError("Debe agregar el Correlativo.")

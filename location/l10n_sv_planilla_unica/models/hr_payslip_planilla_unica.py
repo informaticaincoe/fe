@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from calendar import monthrange
 from datetime import date, datetime, timedelta
 
 from odoo import api, fields, models, _, tools, SUPERUSER_ID
@@ -67,11 +68,59 @@ class HrPayslipPlanillaUnica(models.TransientModel):
     # -----------------------------------------------------------------------
     # Selecciones dinámicas
     # -----------------------------------------------------------------------
+    # @api.model
+    # def year_selection(self):
+    #     """Rango de años (y-5 .. y+1)."""
+    #     y = date.today().year
+    #     return [(str(v), str(v)) for v in range(y - 5, y + 2)]
+
     @api.model
     def year_selection(self):
-        """Rango de años (y-5 .. y+1)."""
-        y = date.today().year
-        return [(str(v), str(v)) for v in range(y - 5, y + 2)]
+        """
+        Años dinámicos tomados de hr.payslip vía ORM (read_group), respetando
+        compañías permitidas. Si no hay datos, cae al rango y-5..y+1.
+        """
+        # compañías permitidas (multicompañía)
+        allowed = self.env.context.get('allowed_company_ids') or [self.env.company.id]
+        if isinstance(allowed, int):
+            allowed = [allowed]
+
+        domain = [('company_id', 'in', allowed)]
+
+        years = set()
+
+        # 1) Agrupar por año de date_from
+        rows_from = self.env['hr.payslip'].read_group(
+            domain=domain,
+            fields=['id'],
+            groupby=['date_from:year'],
+            lazy=False,
+        )
+        for r in rows_from:
+            y = r.get('date_from:year')
+            if y:
+                years.add(str(int(y)))
+
+        # 2) (Opcional/robusto) agregar años de date_to por si algún slip no tiene date_from
+        rows_to = self.env['hr.payslip'].read_group(
+            domain=domain,
+            fields=['id'],
+            groupby=['date_to:year'],
+            lazy=False,
+        )
+        for r in rows_to:
+            y = r.get('date_to:year')
+            if y:
+                years.add(str(int(y)))
+
+        # Fallback si no hay ningún slip
+        if not years:
+            today = fields.Date.context_today(self)
+            base = today.year
+            years = {str(v) for v in range(base - 5, base + 2)}
+
+        # Devuelve en formato selection (value, label)
+        return [(y, y) for y in sorted(years, reverse=True)]
 
     # -----------------------------------------------------------------------
     # Campos base / filtros
@@ -87,6 +136,8 @@ class HrPayslipPlanillaUnica(models.TransientModel):
     # -----------------------------------------------------------------------
     nit_empresa = fields.Char(related='company_id.vat', string='NIT empresa')
     numero_isss_empresa = fields.Char(related='company_id.isss_patronal', string='ISSS patronal')
+    correlativo_centro_trabajo = fields.Char(related='company_id.correlativo_centro_trabajo', string='Correlativo centro de trabajo')
+
 
     # -----------------------------------------------------------------------
     # Datos del empleado (related/compute, no persistentes)
@@ -140,6 +191,8 @@ class HrPayslipPlanillaUnica(models.TransientModel):
         string='Código observación 1', compute='_compute_codigos_observacion', store=False, readonly=True)
     codigo_observacion_2 = fields.Char(
         string='Código observación 2', compute='_compute_codigos_observacion', store=False, readonly=True)
+
+
 
     # -----------------------------------------------------------------------
     # Cómputo de contrato
@@ -206,7 +259,7 @@ class HrPayslipPlanillaUnica(models.TransientModel):
                         elif hasattr(c, 'afp') and c.afp:
                             afp_txt = str(c.afp).strip()
             except Exception:
-                _logger.exception("PU | _compute_afp_id: error obteniendo AFP emp=%s",
+                _logger.exception("_compute_afp_id: error obteniendo AFP emp=%s",
                                   rec.employee_id.id if rec.employee_id else None)
             rec.afp_id = afp_txt
 
@@ -256,7 +309,6 @@ class HrPayslipPlanillaUnica(models.TransientModel):
 
             has_pagos = pagos > 0.0
             has_vacas = vacdias > 1.0
-            _logger.info("HAS INCAPACIDAD %s ", has_incap)
 
             codes = []
             if has_pagos and has_vacas:
@@ -269,10 +321,9 @@ class HrPayslipPlanillaUnica(models.TransientModel):
                 codes.append('02')
             if has_vacas and '10' not in codes:
                 codes.append('09')
-            if rec.contract_id.contract_type_id.code == 'Apprenticeship'  not in codes:
+            ct_code = getattr(getattr(rec.contract_id, 'contract_type_id', False), 'code', '')
+            if ct_code == 'Apprenticeship' and '03' not in codes:
                 codes.append('03')
-            # if has_incapacidad  not in codes:
-            #     codes.append('06')
 
             while len(codes) < 2:
                 codes.append('00')
@@ -283,6 +334,13 @@ class HrPayslipPlanillaUnica(models.TransientModel):
     # -----------------------------------------------------------------------
     # Motor: reconstrucción del dataset
     # -----------------------------------------------------------------------
+    @staticmethod
+    def _month_bounds(y, m):
+        y = int(y);
+        m = int(m)
+        last = monthrange(y, m)[1]
+        return date(y, m, 1), date(y, m, last)
+
     def rebuild_from_payslips(self, period_year: str, period_month: str, company_id: int = None):
         """
         Reconstruye registros (uno por empleado) para (año, mes, empresa):
@@ -293,8 +351,6 @@ class HrPayslipPlanillaUnica(models.TransientModel):
         """
         import time
         t0 = time.time()
-        _logger.info("PU | rebuild_from_payslips(y=%s, m=%s, company_id=%s) - INICIO",
-                     period_year, period_month, company_id)
 
         # 1) Borrar previos (TransientModel)
         del_dom = [
@@ -305,24 +361,16 @@ class HrPayslipPlanillaUnica(models.TransientModel):
         ]
         self.search(del_dom).unlink()
 
-        if company_id:
-            del_dom.append(('company_id', '=', company_id))
-        prev = self.search(del_dom)
-        if prev:
-            _logger.info("PU | Borrando previos: %s (dom=%s)", len(prev), del_dom)
-            prev.unlink()
-
-        # 2) Buscar nóminas del mes (si tienes period_year/period_month en hr.payslip,
-        #    puedes descomentar filtros para precisión/velocidad)
+        # 2) Buscar nóminas del mes
         dom_mes = []
         if company_id:
             dom_mes.append(('company_id', '=', company_id))
-        # dom_mes += [('period_year', '=', str(period_year)), ('period_month', '=', period_month)]
+        start, end = self._month_bounds(period_year, period_month)
+        dom_mes = [('company_id', '=', company_id),
+                   ('date_from', '>=', start),
+                   ('date_to', '<=', end)]
+
         slips_mes = self.env['hr.payslip'].search(dom_mes)
-        _logger.info("PU | Slips del mes: %s (dom=%s)", len(slips_mes), dom_mes)
-        if not slips_mes:
-            _logger.warning("PU | No hay nóminas para %s-%s", period_year, period_month)
-            return 0
 
         # 3) Acumuladores
         q_map = {}               # emp_id -> {'q1': float, 'q2': float}
@@ -382,30 +430,21 @@ class HrPayslipPlanillaUnica(models.TransientModel):
             agg['d'] += float(d or 0.0)
             agg['h'] += float(h or 0.0)
 
-            _logger.debug("PU | slip=%s emp=%s quin=%s gross=%.2f dias=%.2f horas=%.2f",
-                          ps.id, emp_id, quin, gw, d, h)
-
-        _logger.info("PU | Empleados con Q1/Q2: %s | con días/horas: %s", len(q_map), len(days_hours_by_emp))
-
         # 4) Pagos adicionales (bonos+comisiones) y vacaciones (monto) desde hr.payslip.line
         bono_codes = _norm_codes(getattr(constants, 'ASIGNACION_BONOS', 'bono'), ['BONO'])
         comi_codes = _norm_codes(getattr(constants, 'ASIGNACION_COMISIONES', 'comision'), ['COMISION'])
         vac_codes = _norm_codes(getattr(constants, 'CODES_VACACIONES', ['VAC', 'VACACIONES']), ['VACACIONES'])
-        _logger.info("PU | Codes -> BONO=%s | COMISION=%s | VACACIONES=%s", bono_codes, comi_codes, vac_codes)
 
         lines = self.env['hr.payslip.line'].search([
             ('slip_id', 'in', slips_mes.ids),
             ('code', 'in', bono_codes + comi_codes + vac_codes),
         ])
-        _logger.info("PU | Líneas encontradas (BONO/COMISION/VAC): %s", len(lines))
 
         # Conteo diagnóstico (opcional)
         counts_by_code = {}
         for ln in lines:
             c = (ln.code or '').upper()
             counts_by_code[c] = counts_by_code.get(c, 0) + 1
-        if counts_by_code:
-            _logger.info("PU | Conteo por código: %s", counts_by_code)
 
         pago_adic_por_emp = {}  # bono+comision (monto)
         vac_por_emp = {}        # vacaciones (monto)
@@ -418,9 +457,6 @@ class HrPayslipPlanillaUnica(models.TransientModel):
                 vac_por_emp[emp_id] = vac_por_emp.get(emp_id, 0.0) + amt
             elif code in bono_codes or code in comi_codes:
                 pago_adic_por_emp[emp_id] = pago_adic_por_emp.get(emp_id, 0.0) + amt
-
-        _logger.info("PU | Empleados con pago_adicional: %s | con vacaciones(monto): %s",
-                     len(pago_adic_por_emp), len(vac_por_emp))
 
         # 5) Crear registros (uno por empleado)
         to_create = []
@@ -468,14 +504,9 @@ class HrPayslipPlanillaUnica(models.TransientModel):
                 'vacaciones_hours': vac_horas,
                 'has_incapacidad': emp_id in empleados_con_incap,
             }
-            _logger.debug(
-                "PU | create TMP emp=%s q1=%.2f q2=%.2f salario=%.2f pago_adic=%.2f vac=%.2f d=%.2f h=%.2f",
-                emp_id, q1, q2, salario_total, pago_adic, vac_monto, total_days, total_hours
-            )
             to_create.append(vals)
 
         created = self.create(to_create) if to_create else self.browse()
-        _logger.info("PU | Creadas %s filas TMP. t=%.3fs", len(created), time.time() - t0)
         return len(created)
 
     # ----------------------------------------------
@@ -505,17 +536,50 @@ class HrPayslipPlanillaUnica(models.TransientModel):
     # ----------------------------------------------
     # Actualizar datos temporales y recargar UI
     # ----------------------------------------------
+
+    def _iter_periods(self, company_id):
+        """Devuelve (YYYY, MM) existentes en hr.payslip para la compañía, robusto a idiomas."""
+        Slip = self.env['hr.payslip']
+        rows = Slip.read_group(
+            domain=[('company_id', '=', company_id)],
+            fields=['date_to:max'],  # usamos un agregado de fecha REAL
+            groupby=['date_to:month'],
+            lazy=False,
+        )
+        periods = set()
+        for r in rows:
+            dt = r.get('date_to:max') or r.get('date_to')
+            if dt:
+                # Asegura tipo date
+                if not isinstance(dt, date):
+                    dt = fields.Date.to_date(dt)
+                periods.add((str(dt.year), f"{dt.month:02d}"))
+            else:
+                for cond in (r.get('__domain') or []):
+                    if isinstance(cond, (list, tuple)) and cond[:2] == ['date_to', '>=']:
+                        d0 = cond[2]
+                        if not isinstance(d0, date):
+                            d0 = fields.Date.to_date(d0)
+                        periods.add((str(d0.year), f"{d0.month:02d}"))
+                        break
+
+        return sorted(periods, key=lambda t: (int(t[0]), int(t[1])))
+
+    def rebuild_all_periods(self, company_id):
+        """Reconstruye TODAS las filas (una por empleado x mes) para la compañía."""
+        # Limpia lo generado previamente por este usuario para esa compañía
+        self.search([('company_id', '=', company_id), ('create_uid', '=', self.env.uid)]).unlink()
+
+        count = 0
+        for y, m in self._iter_periods(company_id):
+            count += self.rebuild_from_payslips(y, m, company_id)
+        return count
+
     def action_refresh_tmp(self):
-        # periodo desde algún registro / defaults; ignora la compañía aquí
-        y, m, _ = self._pu_get_period_company()
-
-        # todas las compañías activas en el switcher (no solo env.company)
+        """Ahora genera TODOS los meses de cada compañía activa en el switcher."""
         companies = self.env.companies or self.env.company
-
         for c in companies:
-            # importante: tu rebuild ya borra por company_id; mantenlo así
-            self.rebuild_from_payslips(y, m, c.id)
-
+            self.rebuild_all_periods(c.id)
         return {'type': 'ir.actions.client', 'tag': 'reload'}
 
     # -----------------------------------------------------------------------
@@ -526,51 +590,4 @@ class HrPayslipPlanillaUnica(models.TransientModel):
 
 
 
-    @api.model
-    def year_selection(self):
-        """
-        Años dinámicos tomados de hr.payslip vía ORM (read_group), respetando
-        compañías permitidas. Si no hay datos, cae al rango y-5..y+1.
-        """
-        # compañías permitidas (multicompañía)
-        allowed = self.env.context.get('allowed_company_ids') or [self.env.company.id]
-        if isinstance(allowed, int):
-            allowed = [allowed]
-
-        domain = [('company_id', 'in', allowed)]
-
-        years = set()
-
-        # 1) Agrupar por año de date_from
-        rows_from = self.env['hr.payslip'].read_group(
-            domain=domain,
-            fields=['id'],
-            groupby=['date_from:year'],
-            lazy=False,
-        )
-        for r in rows_from:
-            y = r.get('date_from:year')
-            if y:
-                years.add(str(int(y)))
-
-        # 2) (Opcional/robusto) agregar años de date_to por si algún slip no tiene date_from
-        rows_to = self.env['hr.payslip'].read_group(
-            domain=domain,
-            fields=['id'],
-            groupby=['date_to:year'],
-            lazy=False,
-        )
-        for r in rows_to:
-            y = r.get('date_to:year')
-            if y:
-                years.add(str(int(y)))
-
-        # Fallback si no hay ningún slip
-        if not years:
-            today = fields.Date.context_today(self)
-            base = today.year
-            years = {str(v) for v in range(base - 5, base + 2)}
-
-        # Devuelve en formato selection (value, label)
-        return [(y, y) for y in sorted(years, reverse=True)]
 

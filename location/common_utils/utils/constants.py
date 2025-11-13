@@ -198,3 +198,5 @@ PERSONA_NATURAL = "person"
 INV_ERROR_INFO_DTE = "1"
 INV_RESCINDIR = "2"
 INV_OTRO = "3"
+
+CA_CODES = {'SV', 'GT', 'HN', 'NI', 'CR', 'PA'}
