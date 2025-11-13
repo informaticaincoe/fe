@@ -119,6 +119,7 @@ class DTEImportParser(models.TransientModel):
             "codigo_generacion": codigo_gen,
             "sello_hacienda": sello_recibido,
             "fecha_emision": fecha_dt,
+            "hora_emision": ident.get("horEmi"),
             "moneda": moneda,
 
             "emisor_nit": emisor.get("nit"),
@@ -134,6 +135,9 @@ class DTEImportParser(models.TransientModel):
             "receptor_correo": receptor.get("correo"),
             "receptor_tel": receptor.get("telefono"),
             "receptor_dir": (receptor.get("direccion") or {}).get("complemento"),
+            "receptor_direccion": receptor.get("direccion") or {},
+            "receptor_cod_actividad": receptor.get("codActividad") or None,
+            "cod_pais": receptor.get("codPais") or None,
 
             "condicion_operacion": resumen.get("condicionOperacion"),
             "total_iva": float(resumen.get("totalIva") or resumen.get("ivaPerci1") or 0.0),

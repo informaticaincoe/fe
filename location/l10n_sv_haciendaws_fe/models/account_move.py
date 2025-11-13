@@ -266,6 +266,8 @@ class AccountMove(models.Model):
     @api.depends('invoice_date')
     def _compute_invoice_time(self):
         _logger.info("---> _compute_invoice_time iniciado con %d registros", len(self))
+        sit_import_dte_json = self.env.context.get('sit_import_dte_json', False)
+
         salvador_tz = pytz.timezone('America/El_Salvador')
         for move in self:
             # Validación para excluir compras
@@ -274,14 +276,15 @@ class AccountMove(models.Model):
                 _logger.info("Compra detectada -> move_type: %s, no se calcula invoice_time", move.move_type)
                 move.invoice_time = False
                 return  # No calcular invoice_time para compras
-            _logger.info("---> Procesando factura ID: %s", move.id)
-            if move.invoice_date:
+
+            _logger.info("---> Procesando factura ID: %s | Hora de emision: %s | Es json importado: %s", move.id, move.invoice_time, sit_import_dte_json)
+            if move.invoice_date and not sit_import_dte_json:
                 now_salvador = datetime.now(salvador_tz)
                 hora_formateada = now_salvador.strftime('%H:%M:%S')
                 move.invoice_time = hora_formateada
                 _logger.info("---> Hora asignada: %s", hora_formateada)
             else:
-                _logger.info("---> Sin invoice_date asignada")
+                _logger.info("---> Sin invoice_time asignada")
 
     @api.onchange('move_type')
     def _onchange_move_type(self):
@@ -477,6 +480,11 @@ class AccountMove(models.Model):
         Si actualizar_secuencia=False, devuelve una previsualización sin consumir.
         """
         self.ensure_one()
+        sit_import_dte_json = self.env.context.get('sit_import_dte_json', False)
+        _logger.info("SIT Generar Name. %s | sit_import_dte_json=%s", self, sit_import_dte_json)
+        if sit_import_dte_json:
+            return None
+
         journal = journal or self.journal_id
         doc_electronico = False
 
@@ -721,6 +729,11 @@ class AccountMove(models.Model):
         errores_dte = []
         estado = None
         json_dte = None
+        skip_import_json = self.env.context.get('skip_import_json', False)
+        _logger.info("SIT Saltar logica MH. %s | skip_import_json=%s", self, skip_import_json)
+        if skip_import_json:
+            return super(AccountMove, self)._post(soft=soft)
+
         _logger.info("SIT _post override for invoices: %s", self.ids)
 
         # 1) Cuando no hay registros (p.ej. reversión), delegar al super
@@ -2155,8 +2168,8 @@ class AccountMove(models.Model):
         return bloque
 
     def action_post(self):
-        skip_import_json = self.env.context.get('skip_import_json', False)
-        _logger.info("SIT Action post dte. %s | skip_import_json=%s", self, skip_import_json)
+        sit_import_dte_json = self.env.context.get('sit_import_dte_json', False)
+        _logger.info("SIT Action post dte. %s | sit_import_dte_json=%s", self, sit_import_dte_json)
 
         # Filtrar solo facturas de venta o compra
         invoices = self.filtered(
@@ -2232,17 +2245,17 @@ class AccountMove(models.Model):
                     _logger.warning("SIT | El documento relacionado aún no tiene el sello de Hacienda.")
                     raise ValidationError("El documento relacionado aún no cuenta con el sello de Hacienda.")
 
-                if not skip_import_json and (inv.company_id.sit_facturacion or doc_electronico) and not inv.tipo_ingreso_id and inv.journal_id and inv.journal_id.sit_tipo_documento and inv.journal_id.sit_tipo_documento.codigo in (
+                if not sit_import_dte_json and (inv.company_id.sit_facturacion or doc_electronico) and not inv.tipo_ingreso_id and inv.journal_id and inv.journal_id.sit_tipo_documento and inv.journal_id.sit_tipo_documento.codigo in (
                         constants.COD_DTE_FE, constants.COD_DTE_FEX, constants.COD_DTE_CCF, constants.COD_DTE_NC, constants.COD_DTE_ND):
                     _logger.warning("SIT | No se ha seleccionado el tipo de ingreso para el documento electrónico %s.", inv.name)
                     raise ValidationError("Debe seleccionar un tipo de ingreso antes de validar el documento electrónico.")
 
-                if not skip_import_json and (inv.company_id.sit_facturacion or doc_electronico) and not inv.tipo_operacion and inv.journal_id and inv.journal_id.sit_tipo_documento and inv.journal_id.sit_tipo_documento.codigo in (
+                if not sit_import_dte_json and (inv.company_id.sit_facturacion or doc_electronico) and not inv.tipo_operacion and inv.journal_id and inv.journal_id.sit_tipo_documento and inv.journal_id.sit_tipo_documento.codigo in (
                         constants.COD_DTE_FE, constants.COD_DTE_FEX, constants.COD_DTE_CCF, constants.COD_DTE_NC, constants.COD_DTE_ND):
                     _logger.warning("SIT | No se ha seleccionado el tipo de operación para el documento electrónico %s.", inv.name)
                     raise ValidationError("Debe seleccionar un tipo de operación antes de validar el documento electrónico.")
 
-                if not skip_import_json and ((inv.company_id.sit_facturacion or doc_electronico) and
+                if not sit_import_dte_json and ((inv.company_id.sit_facturacion or doc_electronico) and
                         inv.journal_id and inv.journal_id.sit_tipo_documento and
                         inv.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FSE and
                         (not inv.tipo_costo_gasto_id or not inv.tipo_operacion or not inv.clasificacion_facturacion or not inv.sector)):
