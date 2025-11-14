@@ -481,9 +481,12 @@ class AccountMove(models.Model):
         """
         self.ensure_one()
         sit_import_dte_json = self.env.context.get('sit_import_dte_json', False)
-        _logger.info("SIT Generar Name. %s | sit_import_dte_json=%s", self, sit_import_dte_json)
+        _logger.info("SIT Generar Name. %s | sit_import_dte_json=%s | Name json import= %s", self, sit_import_dte_json, self.name)
         if sit_import_dte_json:
-            return None
+            if self.name and self.name != "/":
+                return self.name
+            else:
+                return None
 
         journal = journal or self.journal_id
         doc_electronico = False

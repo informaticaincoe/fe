@@ -109,7 +109,14 @@ class AccountMove(models.Model):
                 if not name or name == '/':
                     continue
 
-                year = move.invoice_date.year
+                # Usar invoice_date si está presente, sino usar la fecha actual
+                if move.invoice_date:
+                    year = move.invoice_date.year
+                else:
+                    # Si invoice_date no está definido, usamos el año actual
+                    year = datetime.now().year
+                    _logger.info("No se ha asignado una fecha de factura para el movimiento %s. Se usará el año actual: %s", move.id, year)
+
                 start_date = date(year, 1, 1)
                 end_date = date(year, 12, 31)
                 _logger.info("Año detectado para la factura %s: %s | Rango de fechas usado: %s -> %s", move.name, year, start_date, end_date)
