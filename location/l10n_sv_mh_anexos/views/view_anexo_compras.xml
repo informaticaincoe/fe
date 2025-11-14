@@ -15,7 +15,7 @@
                     </header>
                     <field name="invoice_date" string="Fecha de Emisión"/>
                     <field name="clase_documento_display"/>
-                    <field name="codigo_tipo_documento_display"/>
+                    <field name="codigo_tipo_documento_compra_display"/>
                     <field name="numero_documento" string="Número documento"/>
                     <field name="nit_o_nrc_anexo_contribuyentes"/>
                     <field name="razon_social"/>
