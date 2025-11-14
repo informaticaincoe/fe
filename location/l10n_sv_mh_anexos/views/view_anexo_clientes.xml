@@ -10,7 +10,7 @@
                             context="{'group_by': 'invoice_semester_agrupado'}"/>
                     <filter name="group_by_month" string="Mes" context="{'group_by': 'invoice_month_agrupado'}"/>
                 </group>
-                <!-- SearchPanel: solo Selection/Many2one -->
+
                 <searchpanel>
                     <field name="invoice_year_sel" select="one" enable_counters="1"/>
                     <field name="invoice_semester_agrupado" select="one" enable_counters="1"/>
@@ -26,11 +26,19 @@
         <field name="arch" type="xml">
             <list string="Facturas clientes menores a 25000">
                 <header>
+                    <button name="%(action_report_account_move_daily_server)d"
+                            type="action"
+                            string="Actualizar"
+                            class="oe_highlight"
+                            display="always"
+                            context="{'numero_anexo': 4, 'anexo_action_id': 'ANX_CLIENTES_MENORES'}"
+                    />
+
                     <button name="export_csv_from_action" type="object" string="Descargar CSV" class="oe_highlight"
                             display="always"/>
                 </header>
                 <field name="invoice_month"/>
-                <field name="invoice_date"/>
+                <field name="invoice_date_str"/>
                 <field name="cantidad_facturas"/>
                 <field name="monto_total_operacion"/>
                 <field name="monto_total_impuestos"/>
@@ -39,7 +47,5 @@
             </list>
         </field>
     </record>
-
-
 </odoo>
 

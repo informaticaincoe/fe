@@ -21,26 +21,27 @@ class AnexoCSVUtils(models.AbstractModel):
             # --- claves propias ---
             "ANX_CF_AGRUPADO": [
                 "invoice_date",
-                "clase_documento",
-                "codigo_tipo_documento",
-                "numero_resolucion_consumidor_final",
-                "numero_control_interno_del",
-                "numero_control_interno_al",
-                "numero_documento_del",
-                "numero_documento_al",
-                "numero_maquina_registradora",
-                "total_exento",
-                "ventas_exentas_no_sujetas",
-                "total_no_sujeto",
-                "total_gravado_local",
-                "exportaciones_dentro_centroamerica",
-                "exportaciones_fuera_centroamerica",
-                "exportaciones_de_servicio",
-                "ventas_tasa_cero",
-                "ventas_cuenta_terceros",
-                "total_operacion_suma",
-                "tipo_operacion_codigo",
-                "tipo_ingreso_codigo",
+                "clase_documento_codigo",
+                # "clase_documento",
+                # "codigo_tipo_documento",
+                # "numero_resolucion_consumidor_final",
+                # "numero_control_interno_del",
+                # "numero_control_interno_al",
+                # "numero_documento_del",
+                # "numero_documento_al",
+                # "numero_maquina_registradora",
+                # "total_exento",
+                # "ventas_exentas_no_sujetas",
+                # "total_no_sujeto",
+                # "total_gravado_local",
+                # "exportaciones_dentro_centroamerica",
+                # "exportaciones_fuera_centroamerica",
+                # "exportaciones_de_servicio",
+                # "ventas_tasa_cero",
+                # "ventas_cuenta_terceros",
+                # "total_operacion_suma",
+                # "tipo_operacion_codigo",
+                # "tipo_ingreso_codigo",
                 "numero_anexo",
             ],
             "ANX_CONTRIBUYENTE": [
@@ -154,9 +155,9 @@ class AnexoCSVUtils(models.AbstractModel):
 
     def generate_csv(self, records, numero_anexo=None, view_id=None, include_header=False):
 
-        # utils/anexo_csv_utils.py
         from decimal import Decimal, InvalidOperation
         import re
+        _logger.info("RECORDS CSV: %s", records)
 
         # Campos que deben ir con 2 decimales en el CSV
         NUMERIC_2D_FIELDS = {"total_monto_sujeto", "total_iva_retenido"}
@@ -189,9 +190,19 @@ class AnexoCSVUtils(models.AbstractModel):
         csv_content = io.StringIO()
 
         # 1) Resolver lista "deseada" desde el mapping por clave
-        key = ctx.get('anexo_action_id')
+        key = ctx.get('anexo_action_id') #TODO: REVISAR PORQUE NO SE ESTA ENVIANDO NADA
+        _logger.info("keysss: %s", key)
+
         desired_fields = self._get_fields_by_action_key(key) or []
+        _logger.info("ssssss: %s", key)
+
         model_fields = set(records._fields.keys())
+
+        _logger.info("RECORDS CSV 2: %s", records)
+
+        _logger.info("model_fields: %s", model_fields)
+        _logger.info("desired_fieldsss: %s", desired_fields)
+
 
         # 2) Filtrar a los que SÍ existen en el modelo para evitar SQL errors
         existing_fields = [f for f in desired_fields if f in model_fields]
@@ -207,11 +218,17 @@ class AnexoCSVUtils(models.AbstractModel):
 
         # 4) Leer en bloque (una sola query)
         rows_data = records.read(existing_fields)
+        _logger.info("rows_datassss: %s", rows_data)
 
         # 5) Renderizar filas
         for row_vals in rows_data:
             row_out = []
+            _logger.info("row_valssss: %s", row_vals)
+            _logger.info("existing_fieldssss: %s", existing_fields)
+
             for fname in existing_fields:
+                _logger.info("fnamess: %s", fname)
+
                 val = row_vals.get(fname, "")
 
                 # --- Formatos / Limpiezas ---
@@ -261,7 +278,11 @@ class AnexoCSVUtils(models.AbstractModel):
 
                 row_out.append(clean)
 
+            _logger.info("row_outss: %s", row_out)
             csv_content.write(";".join(row_out) + "\n")
+            _logger.info("csv_contentsss: %s", csv_content)
+
+        _logger.info("csv_contentsss fuera: %s", csv_content)
 
         return csv_content.getvalue().encode("utf-8-sig")
 

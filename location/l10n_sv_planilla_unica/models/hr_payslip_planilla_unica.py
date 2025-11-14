@@ -192,8 +192,6 @@ class HrPayslipPlanillaUnica(models.TransientModel):
     codigo_observacion_2 = fields.Char(
         string='Código observación 2', compute='_compute_codigos_observacion', store=False, readonly=True)
 
-
-
     # -----------------------------------------------------------------------
     # Cómputo de contrato
     # -----------------------------------------------------------------------

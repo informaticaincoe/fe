@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from odoo import fields, models, api, tools
 import logging
 import base64
@@ -7,10 +6,9 @@ from datetime import date
 _logger = logging.getLogger(__name__)
 
 
-class ReportAccountMoveConsumidorFinalAgrupado(models.Model):
+class ReportAccountMoveConsumidorFinalAgrupado(models.TransientModel):
     _name = "report.account.move.consumidor.final.agrupado"
     _description = "Facturas consumidor final agrupadas por día, tipo y clase de documento"
-    _auto = False
 
     sit_evento_invalidacion = fields.Many2one(
         'account.move.invalidation',
@@ -19,6 +17,37 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.Model):
         ondelete='set null',
         index=True,
     )
+
+    monto_total_operacion = fields.Monetary("Monto total operación")
+    clase_documento_display = fields.Char("clase documento display")
+    clase_documento_codigo = fields.Char("clase documento display")
+    clase_documento_valor = fields.Char("clase documento valor")
+    codigo_tipo_documento_codigo = fields.Char("codigo tipo documento codigo")
+    codigo_tipo_documento_valor = fields.Char("codigo tipo documento valor")
+    codigo_tipo_documento_display = fields.Char("codigo tipo documento display")
+
+    invoice_year = fields.Char(string="Año", compute="_compute_invoice_year", store=False)
+    invoice_month = fields.Char(string="Mes", compute="_compute_invoice_month", store=False)
+
+    numero_anexo = fields.Char(
+        string="Número del anexo",
+        default=lambda self: str(self.env.context.get("numero_anexo", "")),
+    )
+
+    @api.depends("invoice_date")
+    def _compute_invoice_date_str(self):
+        for r in self:
+            r.invoice_date_str = r.invoice_date.strftime("%d/%m/%Y") if r.invoice_date else ""
+
+    @api.depends("invoice_date")
+    def _compute_invoice_year(self):
+        for r in self:
+            r.invoice_year = r.invoice_date.strftime("%Y") if r.invoice_date else ""
+
+    @api.depends("invoice_date")
+    def _compute_invoice_month(self):
+        for r in self:
+            r.invoice_month = r.invoice_date.strftime("%m") if r.invoice_date else ""
 
     has_sello_anulacion = fields.Boolean(
         compute="_compute_has_sello_anulacion",
@@ -36,7 +65,6 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.Model):
                     ('sit_evento_invalidacion', 'not in', inv_ids)]
         _logger.info("datos %s ", self)
         return []
-
 
     hacienda_estado = fields.Char(string="Hacienda estado", readonly=True)
     company_id = fields.Many2one('res.company', readonly=True)
@@ -89,12 +117,12 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.Model):
         store=False,
     )
 
-    clase_documento_display = fields.Char(
-        string="Clase de documento",
-        compute='_compute_get_clase_documento_display',
-        readonly=True,
-        store=False,
-    )
+    # clase_documento_display = fields.Char(
+    #     string="Clase de documento",
+    #     compute='_compute_get_clase_documento_display',
+    #     readonly=True,
+    #     store=False,
+    # )
 
     numero_resolucion_consumidor_final = fields.Char(
         string="Número de resolución",
@@ -129,11 +157,6 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.Model):
         string="Sello Recibido",
         compute="_compute_hacienda_selloRecibido",
     )
-
-    # sit_evento_invalidacion = fields.Integer(
-    #     string="Evento de invalidacion",
-    #     readonly=True,
-    # )
 
     exportaciones_dentro_centroamerica = fields.Monetary(
         string="Exportaciones dentro del area de centroamerica",
@@ -205,13 +228,6 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.Model):
         store=False
     )
 
-    # tipo_operacion_renta = fields.Monetary(
-    #     string="Tipo de operacion (renta)",
-    #     compute='_compute_get_tipo_operacion_renta',
-    #     readonly=True,
-    #     store=False,
-    # )
-
     numero_maquina_registradora = fields.Char(
         string="Numero de maquina registradora",
         compute='_compute_get_numero_maquina_registradora',
@@ -277,13 +293,30 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.Model):
                 valor = getattr(mv.tipo_ingreso_id, 'valor', None) or ''
                 rec.tipo_ingreso_display = (f"{codigo}. {valor}".strip('. ').strip()) if (codigo or valor) else "0"
 
-    @api.depends('name', 'invoice_date')
+    @api.depends('invoice_date', 'journal_id', 'codigo_tipo_documento', 'clase_documento_id')
     def _compute_hacienda_selloRecibido(self):
+        Move = self.env['account.move']
         for record in self:
-            move = self.env['account.move'].search([
+            record.hacienda_selloRecibido = ''
+
+            # Si falta algo clave del grupo, no buscamos nada
+            if not record.invoice_date or not record.journal_id or not record.codigo_tipo_documento:
+                continue
+
+            domain = [
                 ('invoice_date', '=', record.invoice_date),
-                ('name', '=', record.name)
-            ], order='invoice_date ASC', limit=1)
+                ('journal_id', '=', record.journal_id.id),
+                ('codigo_tipo_documento', '=', record.codigo_tipo_documento),
+                ('state', '=', 'posted'),
+            ]
+
+            # Si la agrupación lleva clase_documento_id, filtramos también por eso
+            if record.clase_documento_id:
+                domain.append(('clase_documento_id', '=', record.clase_documento_id.id))
+
+            # "Primero": por número de documento (name) ascendente
+            move = Move.search(domain, order='name ASC, id ASC', limit=1)
+
             record.hacienda_selloRecibido = move.hacienda_selloRecibido or ''
 
     total_gravado_local = fields.Monetary(
@@ -294,7 +327,8 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.Model):
 
     cantidad_facturas = fields.Integer("Cantidad de facturas", readonly=True)
 
-    serie_documento_consumidor_final = fields.Char( "Serie de documento", compute="_compute_serie_documento_consumidor_final",readonly=True)
+    serie_documento_consumidor_final = fields.Char("Serie de documento",
+                                                   compute="_compute_serie_documento_consumidor_final", readonly=True)
 
     monto_total_impuestos = fields.Monetary("IVA operación", readonly=True)
     total_exento = fields.Monetary("Ventas exentas", readonly=True)
@@ -309,6 +343,13 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.Model):
     )
 
     currency_id = fields.Many2one("res.currency", string="Moneda", readonly=True)
+
+    invoice_date_str = fields.Char("Fecha", compute="_compute_invoice_date_str", store=False)
+
+    @api.depends("invoice_date")
+    def _compute_invoice_date_str(self):
+        for r in self:
+            r.invoice_date_str = r.invoice_date.strftime("%d/%m/%Y") if r.invoice_date else ""
 
     @api.depends('hacienda_selloRecibido')
     def _compute_serie_documento_consumidor_final(self):
@@ -457,17 +498,6 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.Model):
                 cod = getattr(mv.tipo_operacion, 'codigo', None)
                 rec.tipo_operacion_codigo = str(cod) if cod is not None else "0"
 
-    # @api.depends('journal_id')
-    # def _compute_get_tipo_operacion_renta(self):
-    #     for record in self:
-    #         move = self.env['account.move'].search([
-    #             ('invoice_date', '=', record.invoice_date)
-    #         ], order='invoice_date ASC', limit=1)
-    #
-    #         _logger.info("TIPO OPERACION %s", move.tipo_operacion)
-    #
-    #         record.tipo_operacion = move.tipo_operacion
-
     @api.depends('clase_documento')
     def _compute_get_clase_documento_display(self):
         for record in self:
@@ -553,55 +583,192 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.Model):
         for record in self:
             record.ventas_exentas_no_sujetas = 0.00
 
-    def init(self):
-        tools.drop_view_if_exists(self.env.cr, 'report_account_move_consumidor_final_agrupado')
-        self.env.cr.execute("""
-            CREATE OR REPLACE VIEW report_account_move_consumidor_final_agrupado AS (
-                SELECT
-                    MIN(am.id)                      AS id,
-                    am.company_id                   AS company_id,
-                    am.invoice_date::date           AS invoice_date,
-                    am.journal_id                   AS journal_id,
-                    am.codigo_tipo_documento        AS codigo_tipo_documento,
-                    am.clase_documento_id           AS clase_documento_id,
+    # def init(self):
+    #     tools.drop_view_if_exists(self.env.cr, 'report_account_move_consumidor_final_agrupado')
+    #     self.env.cr.execute("""
+    #         CREATE OR REPLACE VIEW report_account_move_consumidor_final_agrupado AS (
+    #             SELECT
+    #                 MIN(am.id)                      AS id,
+    #                 am.company_id                   AS company_id,
+    #                 am.invoice_date::date           AS invoice_date,
+    #                 am.journal_id                   AS journal_id,
+    #                 am.codigo_tipo_documento        AS codigo_tipo_documento,
+    #                 am.clase_documento_id           AS clase_documento_id,
+    #
+    #                 MIN(am.hacienda_estado)         AS hacienda_estado,
+    #                 MIN(am.name)                    AS name,
+    #                 MIN(am."hacienda_selloRecibido")              AS "hacienda_selloRecibido",
+    #                 MIN(am."sit_evento_invalidacion")    AS "sit_evento_invalidacion",
+    #                 MIN(am.tipo_operacion)  AS tipo_operacion,
+    #                 COUNT(am.id)                    AS cantidad_facturas,
+    #
+    #                 -- rangos del día
+    #                 MIN(am.name)                    AS numero_resolucion_consumidor_final,
+    #                 MIN(am.name)                    AS numero_control_interno_del,
+    #                 MAX(am.name)                    AS numero_control_interno_al,
+    #
+    #                 -- totales
+    #                 SUM(am.amount_tax)              AS monto_total_impuestos,
+    #                 SUM(am.total_exento)            AS total_exento,
+    #                 SUM(am.total_no_sujeto)         AS total_no_sujeto,
+    #                 SUM(am.total_gravado)           AS total_gravado,
+    #                 SUM(am.total_operacion)         AS total_operacion,
+    #
+    #                 (SELECT id FROM res_currency WHERE name='USD' LIMIT 1) AS currency_id
+    #             FROM account_move am
+    #             WHERE am.state = 'posted'
+    #               AND am.invoice_date IS NOT NULL
+    #               AND am.codigo_tipo_documento IN ('01','11')
+    #               AND am.move_type IN ('out_invoice','out_refund')
+    #               AND am.hacienda_estado IN ('PROCESADO')
+    #               AND am.sit_evento_invalidacion IS NULL
+    #               AND am."hacienda_selloRecibido" IS NOT NULL
+    #
+    #             GROUP BY
+    #                 am.company_id,
+    #                 am.invoice_date::date,
+    #                 am.journal_id,
+    #                 am.codigo_tipo_documento,
+    #                 am.clase_documento_id
+    #         )
+    #     """)
 
-                    MIN(am.hacienda_estado)         AS hacienda_estado,
-                    MIN(am.name)                    AS name,
-                    MIN(am."hacienda_selloRecibido")              AS "hacienda_selloRecibido",
-                    MIN(am."sit_evento_invalidacion")    AS "sit_evento_invalidacion",
-                    MIN(am.tipo_operacion)  AS tipo_operacion,
-                    COUNT(am.id)                    AS cantidad_facturas,
+    @api.model
+    def action_open_report(self, *args, **kwargs):
+        # ... (limpieza y contexto omitidos para brevedad) ...
 
-                    -- rangos del día
-                    MIN(am.name)                    AS numero_resolucion_consumidor_final,
-                    MIN(am.name)                    AS numero_control_interno_del,
-                    MAX(am.name)                    AS numero_control_interno_al,
+        self.search([]).unlink()
 
-                    -- totales
-                    SUM(am.amount_tax)              AS monto_total_impuestos,
-                    SUM(am.total_exento)            AS total_exento,
-                    SUM(am.total_no_sujeto)         AS total_no_sujeto,
-                    SUM(am.total_gravado)           AS total_gravado,
-                    SUM(am.total_operacion)         AS total_operacion,
+        Move = self.env["account.move"]
 
-                    (SELECT id FROM res_currency WHERE name='USD' LIMIT 1) AS currency_id
-                FROM account_move am
-                WHERE am.state = 'posted'
-                  AND am.invoice_date IS NOT NULL
-                  AND am.codigo_tipo_documento IN ('01','11')
-                  AND am.move_type IN ('out_invoice','out_refund')
-                  AND am.hacienda_estado IN ('PROCESADO')
-                  AND am.sit_evento_invalidacion IS NULL
-                  AND am."hacienda_selloRecibido" IS NOT NULL
-                  
-                GROUP BY
-                    am.company_id,
-                    am.invoice_date::date,
-                    am.journal_id,
-                    am.codigo_tipo_documento,
-                    am.clase_documento_id
-            )
-        """)
+        # 1. Ajuste del Dominio
+        domain = [
+            ("move_type", "=", "out_invoice"),
+            ("hacienda_estado", "=", "PROCESADO"),
+            ("has_sello_anulacion", "=", False),
+
+            '|',
+            ('hacienda_selloRecibido', '!=', False),  # Documentos electrónicos (DTE)
+            ('clase_documento_id', '!=', False),  # Documentos impresos (como tus nóminas)
+        ]
+
+        # Realizar las operaciones de suma y conteo en los siguientes campos
+        agg_fields = [
+            "amount_untaxed:sum",
+            "amount_tax:sum",
+            "id:count",
+            "clase_documento_id:min",
+            "journal_id",
+            "codigo_tipo_documento:min",
+            "sit_tipo_documento_id:min"
+        ]
+
+        # 2. Ajuste del Groupby
+        # Se añaden journal_id y codigo_tipo_documento para asegurar grupos únicos
+        # y para que las computadas que usan estos campos funcionen correctamente.
+        groupby = ["invoice_date:day", "clase_documento_id", "journal_id", "codigo_tipo_documento"]
+
+        _logger.info("INICIO: Ejecutando read_group con DOMAIN: %s", domain)
+        _logger.info("INICIO: Agrupando por: %s", groupby)
+
+        rows = Move.read_group(
+            domain=domain,
+            fields=agg_fields,
+            groupby=groupby,
+            orderby="invoice_date:day",
+        )
+
+        _logger.info(": rows del read_group (%s grupos): %s", len(rows), rows)
+
+        for r in rows:
+            # ... (Lógica de fechas y año/mes omitida para brevedad) ...
+
+            range_info = r.get("__range", {}).get("invoice_date:day")
+            _logger.info(" RRRRRRRR: %s", r)
+
+            if range_info:
+                d = fields.Date.to_date(range_info["from"])
+            else:
+                continue
+            numero_anexo = str(self.env.context.get("numero_anexo") or "")
+
+            year = d.year
+            month = d.month
+
+            clase_documento_info = r.get("clase_documento_id")
+            tipo_documento_info = r.get("sit_tipo_documento_id")
+            _logger.info("SSSSSSSSSSSSSS: %s", tipo_documento_info)
+            if clase_documento_info:
+                clase_documento_table = self.env["account.clase.documento"]
+                domain = [("id", "=", clase_documento_info),]
+                agg_fields = ["codigo:min", "valor:min"]
+
+                groupby = ["codigo"]
+                rows_clase_documento = clase_documento_table.read_group(
+                    domain=domain,
+                    fields=agg_fields,
+                    groupby=groupby
+                )
+
+            if tipo_documento_info:
+                tipo_documento_table = self.env["account.journal.tipo.documento.field"]
+                domain = [("id", "=", clase_documento_info),]
+                agg_fields = ["codigo:min", "valor:min"]
+
+                groupby = ["codigo"]
+                rows_tipo_documentos = tipo_documento_table.read_group(
+                    domain=domain,
+                    fields=agg_fields,
+                    groupby=groupby
+                )
+
+            journal_info = r.get("journal_id")
+            journal_id = journal_info[0] if isinstance(journal_info, tuple) else False
+            codigo_tipo_documento_codigo = rows_clase_documento[0].get("codigo_tipo_documento")
+            codigo_tipo_documentos_valor = rows_tipo_documentos[0].get("valor")
+
+            clase_documento_codigo = rows_clase_documento[0].get("codigo")
+            clase_documento_valor = rows_clase_documento[0].get("valor")
+
+            new_record = self.create({
+                "invoice_date": d,
+                "clase_documento_codigo": clase_documento_codigo,
+                "clase_documento_valor": clase_documento_valor,
+                "clase_documento_display": f"{clase_documento_codigo}. {clase_documento_valor}",
+                "journal_id": journal_id,
+                "codigo_tipo_documento_codigo": codigo_tipo_documento_codigo,
+                "codigo_tipo_documentos_valor": codigo_tipo_documentos_valor,
+                "codigo_tipo_documento_display": f"{codigo_tipo_documento_codigo}. {codigo_tipo_documentos_valor}",
+                "rows_tipo_documentos_valor"
+                "cantidad_facturas": r.get("id_count", r.get("__count", 0)),
+                "monto_total_operacion": r.get("amount_untaxed", 0.0),
+                "monto_total_impuestos": r.get("amount_tax", 0.0),
+                "invoice_year_agrupado": str(year),
+                "invoice_month_agrupado": f"{month:02d}",
+                "invoice_year_sel": str(year),
+                "invoice_month_sel": f"{month:02d}",
+                "numero_anexo": numero_anexo,
+            })
+
+            _logger.info("CREACIÓN: Nuevo registro (ID: %s, Clase ID: %s, Diario: %s, Tipo Doc: %s)",
+                         new_record.id, new_record.clase_documento_id.id if new_record.clase_documento_id else False,
+                         new_record.journal_id.id if new_record.journal_id else False,
+                         new_record.codigo_tipo_documento)
+
+        # ... (return de la acción omitido para brevedad) ...
+        return {
+            "type": "ir.actions.client",
+            "name": "Anexo de Ventas a Consumidor Final",
+            "res_model": "report.account.move.consumidor.final.agrupado",
+            "view_mode": "list",
+            "view_id": self.env.ref(
+                "l10n_sv_mh_anexos.view_report_account_move_consumidor_final_agrupado_list"
+            ).id,
+            "target": "current",
+            "context": dict(self.env.context, numero_anexo=numero_anexo),
+            "replace_existing_action": True,
+            'tag': 'reload'
+        }
 
     def export_csv_from_action(self):
         ctx = self.env.context
@@ -649,3 +816,43 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.Model):
             "url": f"/web/content/{att.id}?download=true",
             "target": "self",
         }
+
+    # --- Campos para agrupar (store=True) ---
+    invoice_year_agrupado = fields.Char(string="Año", index=True)
+    invoice_semester_agrupado = fields.Selection(
+        [('1', '1.º semestre'), ('2', '2.º semestre')],
+        string="Semestre", index=True
+    )
+    invoice_month_agrupado = fields.Char(string="Mes", index=True)
+
+    # --- Wrappers para SearchPanel (Selection) ---
+    invoice_year_sel = fields.Selection(
+        selection=lambda self: [(str(y), str(y)) for y in range(2018, 2040)],
+        string='Año (sel)', index=True
+    )
+    invoice_month_sel = fields.Selection(
+        selection=[(f'{m:02d}', f'{m:02d}') for m in range(1, 13)],
+        string='Mes (sel)', index=True
+    )
+
+    @api.depends('invoice_date')
+    def _compute_periods(self):
+        for r in self:
+            if r.invoice_date:
+                r.invoice_year_agrupado = str(r.invoice_date.year)
+                r.invoice_semester_agrupado = '1' if r.invoice_date.month <= 6 else '2'
+                r.invoice_month_agrupado = f'{r.invoice_date.month:02d}'
+            else:
+                r.invoice_year_agrupado = False
+                r.invoice_semester_agrupado = False
+                r.invoice_month_agrupado = False
+
+    @api.depends('invoice_date')
+    def _compute_periods_sel(self):
+        for r in self:
+            if r.invoice_date:
+                r.invoice_year_sel = str(r.invoice_date.year)
+                r.invoice_month_sel = f'{r.invoice_date.month:02d}'
+            else:
+                r.invoice_year_sel = False
+                r.invoice_month_sel = False

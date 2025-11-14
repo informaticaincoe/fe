@@ -858,51 +858,6 @@ class account_move(models.Model):
                 record.nrc_cliente = ''
             _logger.info("record.nrc_cliente %s ", record.nrc_cliente)
 
-    # @api.depends('partner_id.vat', 'partner_id.nrc', 'partner_id.dui', 'invoice_date', 'partner_id.is_company',
-    #              'partner_id.company_type')
-    # def _compute_nit_nrc_anexo_contribuyentes(self):
-    #     """
-    #     H. NIT o NRC del Cliente (campo H del anexo):
-    #     - Personas Naturales:
-    #         * Periodo >= 2022-01-01:
-    #             - Si completa DUI (Q), este campo debe ir VACÍO.
-    #             - Si NO completa DUI, entonces DEBE completar NIT o NRC (preferencia NIT).
-    #         * Periodo < 2022-01-01: este campo es OBLIGATORIO (DUI debe ir vacío).
-    #     - Personas Jurídicas: NUNCA DUI; usar NIT o, si no, NRC.
-    #     Además: limpiar guiones/plecas y no formatear aquí (solo exportar limpio).
-    #     """
-    #     limite = date(2022, 1, 1)
-    #     for rec in self:
-    #         valor = ""
-    #         is_person = (rec.partner_id and (rec.partner_id.company_type or (
-    #             "company" if rec.partner_id.is_company else "person")) == "person")
-    #         period = rec.invoice_date or limite  # si no hay fecha, tratamos como >=2022 para no falsear DUI pre-2022
-    #
-    #         vat = self._only_digits(getattr(rec.partner_id, "vat", ""))
-    #         nrc = self._only_digits(getattr(rec.partner_id, "nrc", ""))
-    #         dui = self._only_digits(getattr(rec.partner_id, "dui", ""))
-    #
-    #         _logger.info("vatsss %s", vat)
-    #         _logger.info("nrcsss %s", nrc)
-    #         _logger.info("duisss %s", dui)
-    #
-    #         if is_person:
-    #             if period >= limite:
-    #                 # Si DUI está presente -> H vacío
-    #                 if not dui:
-    #                     valor = ""
-    #                 else:
-    #                     # Debe llenar NIT o NRC (preferir NIT)
-    #                     valor = vat or nrc or ""
-    #             else:
-    #                 # Antes de 2022: H obligatorio (preferir NIT, luego NRC); DUI vacío
-    #                 valor = vat or nrc or ""
-    #         else:
-    #             # Jurídicas: usar NIT o NRC; DUI no aplica
-    #             valor = vat or nrc or ""
-    #
-    #         rec.nit_o_nrc_anexo_contribuyentes = valor
-
     @api.depends('partner_id')
     def _compute_get_nit_company(self):
         for record in self:
