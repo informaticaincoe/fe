@@ -98,12 +98,6 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.TransientModel):
         readonly=True
     )
 
-    codigo_tipo_documento_display = fields.Char(
-        string="Tipo de documento",
-        compute='_compute_codigo_tipo_documento_display',
-        store=False
-    )
-
     clase_documento_id = fields.Many2one(
         comodel_name="account.clasificacion.facturacion",
         string="Clasificación",
@@ -125,10 +119,7 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.TransientModel):
     # )
 
     numero_resolucion_consumidor_final = fields.Char(
-        string="Número de resolución",
-        compute='_compute_get_numero_resolucion_consumidor_final',
-        readonly=True,
-        store=False,
+        string="Número de resolución"
     )
 
     numero_control_interno_del = fields.Char(
@@ -186,11 +177,11 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.TransientModel):
         store=False,
     )
 
-    numero_anexo = fields.Char(
-        string="Número del anexo",
-        compute='_compute_get_numero_anexo',
-        readonly=True,
-    )
+    # numero_anexo = fields.Char(
+    #     string="Número del anexo",
+    #     compute='_compute_get_numero_anexo',
+    #     readonly=True,
+    # )
 
     tipo_ingreso_id = fields.Many2one(
         comodel_name="account.tipo.ingreso",
@@ -506,21 +497,6 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.TransientModel):
             else:
                 record.clase_documento_display = '1. Impreso por imprenta o tiquetes'
 
-    @api.depends('codigo_tipo_documento', 'journal_id')
-    def _compute_codigo_tipo_documento_display(self):
-        for record in self:
-            codigo = record.codigo_tipo_documento or ""
-            nombre = record.journal_id.name or ""
-            record.codigo_tipo_documento_display = f"{codigo} {nombre}".strip()
-
-    @api.depends('codigo_tipo_documento', 'journal_id')
-    def _compute_get_numero_resolucion_consumidor_final(self):
-        for record in self:
-            if record.name and record.name.startswith("DTE"):
-                record.numero_resolucion_consumidor_final = "N/A"
-            else:
-                record.numero_resolucion_consumidor_final = record.name
-
     @api.depends()
     def _compute_get_numero_control_documento_interno_del(self):
         for record in self:
@@ -571,12 +547,12 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.TransientModel):
                          record.invoice_date, record.journal_id.display_name, record.codigo_tipo_documento,
                          move_al.name)
 
-    @api.depends('journal_id')
-    def _compute_get_numero_anexo(self):
-        for record in self:
-            ctx = self.env.context
-            if ctx.get('numero_anexo'):
-                record.numero_anexo = str(ctx['numero_anexo'])
+    # @api.depends('journal_id')
+    # def _compute_get_numero_anexo(self):
+    #     for record in self:
+    #         ctx = self.env.context
+    #         if ctx.get('numero_anexo'):
+    #             record.numero_anexo = str(ctx['numero_anexo'])
 
     @api.depends('journal_id')
     def _compute_get_ventas_exentas_no_sujetas(self):
@@ -635,7 +611,6 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.TransientModel):
 
     @api.model
     def action_open_report(self, *args, **kwargs):
-        # ... (limpieza y contexto omitidos para brevedad) ...
 
         self.search([]).unlink()
 
@@ -660,7 +635,8 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.TransientModel):
             "clase_documento_id:min",
             "journal_id",
             "codigo_tipo_documento:min",
-            "sit_tipo_documento_id:min"
+            "sit_tipo_documento_id:min",
+            "name:min"
         ]
 
         # 2. Ajuste del Groupby
@@ -697,9 +673,11 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.TransientModel):
 
             clase_documento_info = r.get("clase_documento_id")
             tipo_documento_info = r.get("sit_tipo_documento_id")
-            _logger.info("SSSSSSSSSSSSSS: %s", tipo_documento_info)
+
             if clase_documento_info:
                 clase_documento_table = self.env["account.clase.documento"]
+                _logger.info("DDDD clase_documento_table%s", clase_documento_table)
+
                 domain = [("id", "=", clase_documento_info),]
                 agg_fields = ["codigo:min", "valor:min"]
 
@@ -710,10 +688,11 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.TransientModel):
                     groupby=groupby
                 )
 
-            if tipo_documento_info:
-                tipo_documento_table = self.env["account.journal.tipo.documento.field"]
-                domain = [("id", "=", clase_documento_info),]
-                agg_fields = ["codigo:min", "valor:min"]
+            if clase_documento_info:
+                tipo_documento_table = self.env["account.journal.tipo_documento.field"] # obtener tabla donde se obtendran los datos
+
+                domain = [("id", "=", tipo_documento_info)] # dominio obtener el tipo de documento que tenga el mismo id que el documento actual
+                agg_fields = ["codigo:min", "valores:min"]
 
                 groupby = ["codigo"]
                 rows_tipo_documentos = tipo_documento_table.read_group(
@@ -721,11 +700,27 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.TransientModel):
                     fields=agg_fields,
                     groupby=groupby
                 )
+            _logger.info('tipo_documento_info.get(codigo) %s', tipo_documento_info)
+            _logger.info('r.get("name") %s', r.get("name"))
+            _logger.info('AAAAAAAAAAAAA %s', r)
+
+            _logger.info('numero_resolucion %s', r.get("name"))
+
+
+
+            if tipo_documento_info == "4":
+                numero_resolucion =  "N/A"
+            else:
+                numero_resolucion = r.get("name")
 
             journal_info = r.get("journal_id")
             journal_id = journal_info[0] if isinstance(journal_info, tuple) else False
-            codigo_tipo_documento_codigo = rows_clase_documento[0].get("codigo_tipo_documento")
-            codigo_tipo_documentos_valor = rows_tipo_documentos[0].get("valor")
+            codigo_tipo_documento_codigo = rows_tipo_documentos[0].get("codigo")
+            codigo_tipo_documento_valores = rows_tipo_documentos[0].get("valores")
+
+            _logger.info("numero_resolucion ------------ %s",numero_resolucion)
+            _logger.info("DENTRO DE TIPO codigo_tipo_documento_valores %s", codigo_tipo_documento_valores)
+            _logger.info("DISPLAYSSS %s", f"{codigo_tipo_documento_codigo}. {codigo_tipo_documento_valores}")
 
             clase_documento_codigo = rows_clase_documento[0].get("codigo")
             clase_documento_valor = rows_clase_documento[0].get("valor")
@@ -737,9 +732,10 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.TransientModel):
                 "clase_documento_display": f"{clase_documento_codigo}. {clase_documento_valor}",
                 "journal_id": journal_id,
                 "codigo_tipo_documento_codigo": codigo_tipo_documento_codigo,
-                "codigo_tipo_documentos_valor": codigo_tipo_documentos_valor,
-                "codigo_tipo_documento_display": f"{codigo_tipo_documento_codigo}. {codigo_tipo_documentos_valor}",
-                "rows_tipo_documentos_valor"
+                "codigo_tipo_documento_valor": codigo_tipo_documento_valores,
+                "codigo_tipo_documento_display": f"{codigo_tipo_documento_codigo}. {codigo_tipo_documento_valores}",
+                "numero_resolucion_consumidor_final": numero_resolucion,
+                # "rows_tipo_documentos_valor"
                 "cantidad_facturas": r.get("id_count", r.get("__count", 0)),
                 "monto_total_operacion": r.get("amount_untaxed", 0.0),
                 "monto_total_impuestos": r.get("amount_tax", 0.0),
@@ -755,9 +751,16 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.TransientModel):
                          new_record.journal_id.id if new_record.journal_id else False,
                          new_record.codigo_tipo_documento)
 
-        # ... (return de la acción omitido para brevedad) ...
+        final_context = dict(
+            self.env.context,
+            numero_anexo=numero_anexo,
+            # Se mueven aquí las propiedades que causan la advertencia:
+            replace_existing_action=True,
+            tag='reload',
+        )
+
         return {
-            "type": "ir.actions.client",
+            "type": "ir.actions.act_window",
             "name": "Anexo de Ventas a Consumidor Final",
             "res_model": "report.account.move.consumidor.final.agrupado",
             "view_mode": "list",
@@ -765,9 +768,7 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.TransientModel):
                 "l10n_sv_mh_anexos.view_report_account_move_consumidor_final_agrupado_list"
             ).id,
             "target": "current",
-            "context": dict(self.env.context, numero_anexo=numero_anexo),
-            "replace_existing_action": True,
-            'tag': 'reload'
+            "context": final_context,
         }
 
     def export_csv_from_action(self):

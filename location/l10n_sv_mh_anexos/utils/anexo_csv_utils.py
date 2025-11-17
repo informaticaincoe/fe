@@ -22,7 +22,7 @@ class AnexoCSVUtils(models.AbstractModel):
             "ANX_CF_AGRUPADO": [
                 "invoice_date",
                 "clase_documento_codigo",
-                # "clase_documento",
+                "codigo_tipo_documento_codigo",
                 # "codigo_tipo_documento",
                 # "numero_resolucion_consumidor_final",
                 # "numero_control_interno_del",

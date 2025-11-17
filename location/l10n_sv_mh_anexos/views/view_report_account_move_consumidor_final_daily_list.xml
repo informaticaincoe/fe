@@ -22,7 +22,8 @@
                     </header>
                     <field name="invoice_date_str" string="Fecha de emisión"/>
                     <field name="clase_documento_display" string="Clase documento"/>
-                    <field name="codigo_tipo_documento_display"/>
+                    <field name="codigo_tipo_documento_display" string="Tipo documento"/>
+                    <field name="numero_resolucion_consumidor_final" string="Número de resolución"/>
                     <field name="monto_total_operacion"/>
                     <field name="monto_total_impuestos"/>
                     <field name="invoice_year"/>

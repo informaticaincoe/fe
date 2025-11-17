@@ -167,7 +167,7 @@ class ReportAccountMoveDaily(models.TransientModel):
             })
 
         return {
-            "type": "ir.actions.client",
+            "type": "ir.actions.act_window",
             "name": "Facturas clientes menores a 25000",
             "res_model": "report.account.move.daily",
             "view_mode": "list",
@@ -185,8 +185,6 @@ class ReportAccountMoveDaily(models.TransientModel):
 
     # Exportar datos a csv
     def export_csv_from_action(self):
-        _logger.info("Selfssss: %s", self)
-
         ctx = self.env.context
         numero_anexo = str(ctx.get("numero_anexo") or "")
         params = ctx.get("params") or {}
