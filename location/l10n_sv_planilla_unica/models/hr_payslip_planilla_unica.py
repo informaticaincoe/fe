@@ -85,13 +85,15 @@ class HrPayslipPlanillaUnica(models.TransientModel):
         if isinstance(allowed, int):
             allowed = [allowed]
 
-        domain = [('company_id', 'in', allowed)]
+        Slip = self.env['hr.payslip']
+        Planilla = self.env['hr.payslip.planilla.unica']
 
-        years = set()
+        domain_slip = [('company_id', 'in', allowed)]
+        years_from_slips = set()
 
-        # 1) Agrupar por año de date_from
-        rows_from = self.env['hr.payslip'].read_group(
-            domain=domain,
+        # 1) Años desde date_from
+        rows_from = Slip.read_group(
+            domain=domain_slip,
             fields=['id'],
             groupby=['date_from:year'],
             lazy=False,
@@ -99,11 +101,11 @@ class HrPayslipPlanillaUnica(models.TransientModel):
         for r in rows_from:
             y = r.get('date_from:year')
             if y:
-                years.add(str(int(y)))
+                years_from_slips.add(str(int(y)))
 
-        # 2) (Opcional/robusto) agregar años de date_to por si algún slip no tiene date_from
-        rows_to = self.env['hr.payslip'].read_group(
-            domain=domain,
+        # 2) Años desde date_to (por robustez)
+        rows_to = Slip.read_group(
+            domain=domain_slip,
             fields=['id'],
             groupby=['date_to:year'],
             lazy=False,
@@ -111,15 +113,42 @@ class HrPayslipPlanillaUnica(models.TransientModel):
         for r in rows_to:
             y = r.get('date_to:year')
             if y:
-                years.add(str(int(y)))
+                years_from_slips.add(str(int(y)))
 
-        # Fallback si no hay ningún slip
+        # 3) Años que existen hoy en la tabla temporal (period_year)
+        years_tmp = set()
+        rows_tmp = Planilla.read_group(
+            domain=[('company_id', 'in', allowed)],
+            fields=['id'],
+            groupby=['period_year'],
+            lazy=False,
+        )
+        for r in rows_tmp:
+            y = r.get('period_year')
+            if y:
+                years_tmp.add(str(y))
+
+        # 4) Detectar años "basura" en la temporal (p.ej. 2026 sin nóminas)
+        orphan_years = years_tmp - years_from_slips
+        if orphan_years:
+            # Limpia esos registros para que no vuelvan a aparecer
+            Planilla.search([
+                ('company_id', 'in', allowed),
+                ('period_year', 'in', list(orphan_years)),
+            ]).unlink()
+            # Y los sacamos del set
+            years_tmp -= orphan_years
+
+        # 5) Unión final: años válidos de slips + lo que quede en la temporal
+        years = years_from_slips | years_tmp
+
+        # 6) Fallback si está vacío: ventana alrededor del año actual
         if not years:
             today = fields.Date.context_today(self)
             base = today.year
             years = {str(v) for v in range(base - 5, base + 2)}
 
-        # Devuelve en formato selection (value, label)
+        # Devolver selection (value, label) ordenado desc
         return [(y, y) for y in sorted(years, reverse=True)]
 
     # -----------------------------------------------------------------------
@@ -136,8 +165,11 @@ class HrPayslipPlanillaUnica(models.TransientModel):
     # -----------------------------------------------------------------------
     nit_empresa = fields.Char(related='company_id.vat', string='NIT empresa')
     numero_isss_empresa = fields.Char(related='company_id.isss_patronal', string='ISSS patronal')
-    correlativo_centro_trabajo = fields.Char(related='company_id.correlativo_centro_trabajo', string='Correlativo centro de trabajo')
-
+    correlativo_centro_trabajo = fields.Char(
+        string='Correlativo centro de trabajo',
+        compute='_compute_correlativo_centro_trabajo',
+        readonly=True,
+    )
 
     # -----------------------------------------------------------------------
     # Datos del empleado (related/compute, no persistentes)
@@ -169,17 +201,17 @@ class HrPayslipPlanillaUnica(models.TransientModel):
     # -----------------------------------------------------------------------
     # Totales planilla / métricas
     # -----------------------------------------------------------------------
-    periodo_planilla = fields.Char('Periodo planilla (MMYYYY)', readonly=True)
+    periodo_planilla = fields.Char('Periodo planilla', readonly=True)
 
     total_worked_days = fields.Float('Días laborados', readonly=True)
     total_worked_hours = fields.Float('Horas laboradas', readonly=True)  # total (no promedio)
 
     quincena1_gross = fields.Float('Q1 gross', readonly=True)
     quincena2_gross = fields.Float('Q2 gross', readonly=True)
-    salario_pagar = fields.Float('Salario a pagar (Q1+Q2)', readonly=True)
+    salario_pagar = fields.Float('Salario a pagar', readonly=True)
 
-    pago_adicional = fields.Float('Pago adicional (Bonos+Comisiones)', readonly=True)
-    vacaciones = fields.Float('Vacaciones (monto)', readonly=True)
+    pago_adicional = fields.Float('Pago adicional', readonly=True)
+    vacaciones = fields.Float('Vacaciones', readonly=True)
     vacaciones_days = fields.Float('Días de vacaciones', readonly=True)
     vacaciones_hours = fields.Float('Horas de vacaciones', readonly=True)
     has_incapacidad = fields.Boolean('Tiene incapacidad', readonly=True)
@@ -233,6 +265,26 @@ class HrPayslipPlanillaUnica(models.TransientModel):
                 rec.num_documento_empleado = (emp.passport_id or '').strip()
             else:
                 rec.num_documento_empleado = normalize_doc(emp.identification_id)
+
+    # -----------------------------------------------------------------------
+    # Correlativo centro de trabajo normalizado 3 digitos
+    # -----------------------------------------------------------------------
+    @api.depends('company_id', 'company_id.correlativo_centro_trabajo')
+    def _compute_correlativo_centro_trabajo(self):
+        for rec in self:
+            raw = rec.company_id.correlativo_centro_trabajo or ''
+            raw = str(raw).strip()
+
+            if not raw:
+                rec.correlativo_centro_trabajo = ''
+                continue
+
+            # Si es numérico -> pad a 3 dígitos
+            try:
+                rec.correlativo_centro_trabajo = str(int(raw)).zfill(3)
+            except ValueError:
+                # Si por alguna razón no es numérico, se devuelve tal cual (o recortar, como prefieras)
+                rec.correlativo_centro_trabajo = raw[:3]
 
     # -----------------------------------------------------------------------
     # AFP
@@ -292,11 +344,10 @@ class HrPayslipPlanillaUnica(models.TransientModel):
         Reglas y prioridad:
           - default                                         '00'
           - pago_adicional > 0                              '02'
+          - aprendiz - tipo de contrato == practicas        '03'
+          - afp_tipo == 'IPSFA'                             '04'
           - vacaciones_days > 1                             '09'
           - pagos + vacaciones                              '10'
-          - afp_tipo == 'IPSFA'                             '04'
-          - aprendiz - tipo de contrato == practicas        '03'
-        Orden obs1/obs2: 10, 04, 02, 09 ; completar con     '00'.
         """
         for rec in self:
             pagos = float(rec.pago_adicional or 0.0)
@@ -308,7 +359,28 @@ class HrPayslipPlanillaUnica(models.TransientModel):
             has_pagos = pagos > 0.0
             has_vacas = vacdias > 1.0
 
+            fecha_actual = datetime.now()
+            mes_actual_numero = fecha_actual.month
+
+            _logger.info("REC %s", rec.employee_id)
+            _logger.info("REC %s", rec.contract_id)
+            _logger.info("REC %s %s", rec.contract_id.date_start, type(rec.contract_id.date_start))
+            _logger.info("REC %s %s", rec.contract_id.date_start, type(rec.contract_id.date_start))
+
+            contract_state = rec.contract_id.state
+            contract_start_date = rec.contract_id.date_start
+
+            _logger.info("mes_actual_numero %s", mes_actual_numero)
+            _logger.info("contract_start_date %s", contract_start_date)
+
+
+
+
+
             codes = []
+            ct_code = getattr(getattr(rec.contract_id, 'contract_type_id', False), 'code', '')
+            if ct_code == 'Apprenticeship' and '03' not in codes:
+                codes.append('03')
             if has_pagos and has_vacas:
                 codes.append('10')
             if has_incap and '06' not in codes:
@@ -319,10 +391,10 @@ class HrPayslipPlanillaUnica(models.TransientModel):
                 codes.append('02')
             if has_vacas and '10' not in codes:
                 codes.append('09')
-            ct_code = getattr(getattr(rec.contract_id, 'contract_type_id', False), 'code', '')
-            if ct_code == 'Apprenticeship' and '03' not in codes:
-                codes.append('03')
-
+            if contract_state in ["close", "cancel"] and '7' not in codes:
+                codes.append('07')
+            if contract_state in ["open"] and contract_start_date.month == mes_actual_numero and '8' not in codes:
+                codes.append('08')
             while len(codes) < 2:
                 codes.append('00')
 

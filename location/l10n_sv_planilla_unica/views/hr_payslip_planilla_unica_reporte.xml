@@ -19,8 +19,8 @@
                     <field name="numero_isss_empresa"/>
                     <field name="periodo_planilla"/>
                     <field name="correlativo_centro_trabajo"/>
-                    <field name="tipo_documento_empleado"/>
                     <field name="num_documento_empleado"/>
+                    <field name="tipo_documento_empleado"/>
                     <field name="num_isss"/>
                     <field name="afp_tipo"/>
                     <field name="primer_nombre"/>

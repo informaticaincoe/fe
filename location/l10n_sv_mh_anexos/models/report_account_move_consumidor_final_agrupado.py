@@ -5,6 +5,16 @@ from datetime import date
 
 _logger = logging.getLogger(__name__)
 
+try:
+    from odoo.addons.common_utils.utils import constants
+    from odoo.addons.common_utils.utils import config_utils
+
+    _logger.info("SIT Modulo config_utils [hacienda invalidacion]")
+except ImportError as e:
+    _logger.error(f"Error al importar 'constants': {e}")
+    constants = None
+    config_utils = None
+
 
 class ReportAccountMoveConsumidorFinalAgrupado(models.TransientModel):
     _name = "report.account.move.consumidor.final.agrupado"
@@ -76,8 +86,6 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.TransientModel):
 
     exportaciones_de_servicio = fields.Monetary(
         string="Exportaciones de servicio",
-        compute="_compute_get_exportaciones_de_servicio",
-        store=False,
         readonly=True,
     )
 
@@ -111,13 +119,6 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.TransientModel):
         store=False,
     )
 
-    # clase_documento_display = fields.Char(
-    #     string="Clase de documento",
-    #     compute='_compute_get_clase_documento_display',
-    #     readonly=True,
-    #     store=False,
-    # )
-
     numero_resolucion_consumidor_final = fields.Char(
         string="Número de resolución"
     )
@@ -125,63 +126,42 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.TransientModel):
     numero_control_interno_del = fields.Char(
         string="Numero de control interno DEL",
         readonly=True,
-        store=False,
-        compute='_compute_get_numero_control_documento_interno_del',
     )
 
     numero_control_interno_al = fields.Char(
         string="Numero de control interno AL",
         readonly=True,
-        store=False,
-        compute='_compute_get_numero_control_documento_interno_al',
     )
 
-    numero_documento_del = fields.Char(
-        compute='_compute_get_numero_documento_del',
-    )
+    numero_documento_del = fields.Char(string="Número de documento (DEL)")
 
-    numero_documento_al = fields.Char(
-        compute='_compute_get_numero_documento_al',
-    )
+    numero_documento_al = fields.Char(string="Número de documento (AL)")
 
-    hacienda_selloRecibido = fields.Char(
+    hacienda_sello_recibido = fields.Char(
         string="Sello Recibido",
-        compute="_compute_hacienda_selloRecibido",
     )
 
     exportaciones_dentro_centroamerica = fields.Monetary(
         string="Exportaciones dentro del area de centroamerica",
-        compute='_compute_get_exportaciones_dentro_centroamerica',
         readonly=True,
-        store=False,
     )
 
     exportaciones_fuera_centroamerica = fields.Monetary(
         string="Exportaciones fuera del area de centroamerica",
-        compute='_compute_get_exportaciones_fuera_centroamerica',
         readonly=True,
-        store=False,
     )
 
     ventas_tasa_cero = fields.Monetary(
         string="Ventas a zonas francas y DPA (tasa cero)",
-        compute='_compute_get_ventas_tasa_cero',
         readonly=True,
-        store=False,
     )
 
     ventas_exentas_no_sujetas = fields.Monetary(
         string="Ventas internas exentas no sujetas a proporcionalidad",
-        compute='_compute_get_ventas_exentas_no_sujetas',
         readonly=True,
-        store=False,
     )
 
-    # numero_anexo = fields.Char(
-    #     string="Número del anexo",
-    #     compute='_compute_get_numero_anexo',
-    #     readonly=True,
-    # )
+    total_ventas_exentas = fields.Monetary(string="Ventas exentas")
 
     tipo_ingreso_id = fields.Many2one(
         comodel_name="account.tipo.ingreso",
@@ -190,15 +170,17 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.TransientModel):
 
     tipo_ingreso_display = fields.Char(
         string="Tipo de Ingreso",
-        compute="_compute_tipo_ingreso_display",
-        store=False
+        readonly=True,
     )
 
     tipo_ingreso_codigo = fields.Char(
         string="Tipo ingreso codigo",
-        compute='_compute_get_tipo_ingreso_codigo',
         readonly=True,
-        store=False,
+    )
+
+    tipo_ingreso_valor = fields.Char(
+        string="Tipo ingreso valor",
+        readonly=True,
     )
 
     tipo_operacion = fields.Many2one(
@@ -208,112 +190,30 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.TransientModel):
 
     tipo_operacion_codigo = fields.Char(
         string="Tipo operacion codigo",
-        compute='_compute_get_tipo_operacion_codigo',
         readonly=True,
-        store=False,
+    )
+
+    tipo_operacion_valor = fields.Char(
+        string="Tipo operacion valor",
+        readonly=True,
     )
 
     tipo_operacion_display = fields.Char(
         string="Tipo de Operación",
-        compute="_compute_tipo_operacion_display",
-        store=False
     )
 
     numero_maquina_registradora = fields.Char(
-        string="Numero de maquina registradora",
-        compute='_compute_get_numero_maquina_registradora',
+        string="Nùmero de maquina registradora",
         readonly=True,
-        store=False,
     )
 
     ventas_cuenta_terceros = fields.Char(
         string="ventas a cuenta de terceros no domiciliados",
-        compute='_compute_get_ventas_cuenta_terceros',
         readonly=True,
-        store=False,
     )
-
-    @api.depends('journal_id')
-    def _compute_get_numero_maquina_registradora(self):
-        for record in self:
-            record.numero_maquina_registradora = ''
-
-    @api.depends('journal_id')
-    def _compute_get_ventas_cuenta_terceros(self):
-        for record in self:
-            record.ventas_cuenta_terceros = 0.00
-
-    @api.depends('invoice_date', 'journal_id', 'codigo_tipo_documento')
-    def _compute_get_tipo_ingreso_codigo(self):
-        Move = self.env['account.move']
-        limite = date(2025, 1, 1)
-        for rec in self:
-            rec.tipo_ingreso_codigo = "0"  # fallback
-            if not (rec.invoice_date and rec.journal_id and rec.codigo_tipo_documento):
-                continue
-
-            mv = Move.search([
-                ('invoice_date', '=', rec.invoice_date),
-                ('journal_id', '=', rec.journal_id.id),
-                ('codigo_tipo_documento', '=', rec.codigo_tipo_documento),
-                ('state', '=', 'posted'),
-            ], order='name ASC', limit=1)
-
-            if rec.invoice_date >= limite and mv and mv.tipo_ingreso_id:
-                cod = getattr(mv.tipo_ingreso_id, 'codigo', None)
-                rec.tipo_ingreso_codigo = str(cod) if cod is not None else "0"
-
-    @api.depends('invoice_date', 'journal_id', 'codigo_tipo_documento')
-    def _compute_tipo_ingreso_display(self):
-        Move = self.env['account.move']
-        limite = date(2025, 1, 1)
-        for rec in self:
-            rec.tipo_ingreso_display = "0"  # fallback
-            if not (rec.invoice_date and rec.journal_id and rec.codigo_tipo_documento):
-                continue
-
-            mv = Move.search([
-                ('invoice_date', '=', rec.invoice_date),
-                ('journal_id', '=', rec.journal_id.id),
-                ('codigo_tipo_documento', '=', rec.codigo_tipo_documento),
-                ('state', '=', 'posted'),
-            ], order='name ASC', limit=1)
-
-            if rec.invoice_date >= limite and mv and mv.tipo_ingreso_id:
-                codigo = getattr(mv.tipo_ingreso_id, 'codigo', None) or ''
-                valor = getattr(mv.tipo_ingreso_id, 'valor', None) or ''
-                rec.tipo_ingreso_display = (f"{codigo}. {valor}".strip('. ').strip()) if (codigo or valor) else "0"
-
-    @api.depends('invoice_date', 'journal_id', 'codigo_tipo_documento', 'clase_documento_id')
-    def _compute_hacienda_selloRecibido(self):
-        Move = self.env['account.move']
-        for record in self:
-            record.hacienda_selloRecibido = ''
-
-            # Si falta algo clave del grupo, no buscamos nada
-            if not record.invoice_date or not record.journal_id or not record.codigo_tipo_documento:
-                continue
-
-            domain = [
-                ('invoice_date', '=', record.invoice_date),
-                ('journal_id', '=', record.journal_id.id),
-                ('codigo_tipo_documento', '=', record.codigo_tipo_documento),
-                ('state', '=', 'posted'),
-            ]
-
-            # Si la agrupación lleva clase_documento_id, filtramos también por eso
-            if record.clase_documento_id:
-                domain.append(('clase_documento_id', '=', record.clase_documento_id.id))
-
-            # "Primero": por número de documento (name) ascendente
-            move = Move.search(domain, order='name ASC, id ASC', limit=1)
-
-            record.hacienda_selloRecibido = move.hacienda_selloRecibido or ''
 
     total_gravado_local = fields.Monetary(
         string="Ventas gravadas locales",
-        compute="_compute_total_gravado_local",
-        store=False,
     )
 
     cantidad_facturas = fields.Integer("Cantidad de facturas", readonly=True)
@@ -337,408 +237,310 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.TransientModel):
 
     invoice_date_str = fields.Char("Fecha", compute="_compute_invoice_date_str", store=False)
 
-    @api.depends("invoice_date")
-    def _compute_invoice_date_str(self):
-        for r in self:
-            r.invoice_date_str = r.invoice_date.strftime("%d/%m/%Y") if r.invoice_date else ""
-
-    @api.depends('hacienda_selloRecibido')
-    def _compute_serie_documento_consumidor_final(self):
-        for record in self:
-            if record.name and record.name.startswith("DTE"):
-                record.serie_documento_consumidor_final = "N/A"
-            else:
-                record.serie_documento_consumidor_final = record.hacienda_selloRecibido
-
-    @api.depends('total_operacion', 'currency_id')
-    def _compute_total_operacion_suma(self):
-        for rec in self:
-            rec.total_operacion_suma = (rec.total_operacion or 0.0)
-
-    @api.depends('name')
-    def _compute_get_clase_documento(self):
-        for record in self:
-            if record.name and record.name.startswith("DTE"):
-                record.clase_documento = '4'
-            else:
-                record.clase_documento = '1'
-
-    @api.depends('name', 'invoice_date', 'journal_id', 'codigo_tipo_documento')
-    def _compute_total_gravado_local(self):
-        Move = self.env['account.move']
-        for rec in self:
-            if not rec.invoice_date or not rec.journal_id:
-                rec.total_gravado_local = 0.0
-                continue
-            moves = Move.search([
-                ('invoice_date', '=', rec.invoice_date),
-                ('journal_id', '=', rec.journal_id.id),
-                ('partner_id.country_id.code', '=', 'SV'),
-            ])
-            rec.total_gravado_local = sum(m.total_gravado or 0.0 for m in moves)
-
-    @api.depends('invoice_date', 'journal_id', 'codigo_tipo_documento')
-    def _compute_get_exportaciones_dentro_centroamerica(self):
-        Move = self.env['account.move']
-        CA = ['GT', 'HN', 'NI', 'CR', 'PA']
-        for rec in self:
-            if rec.codigo_tipo_documento != '11' or not rec.invoice_date or not rec.journal_id:
-                rec.exportaciones_dentro_centroamerica = 0.0
-                continue
-            moves = Move.search([
-                ('invoice_date', '=', rec.invoice_date),
-                ('journal_id', '=', rec.journal_id.id),
-                ('codigo_tipo_documento', '=', '11'),
-                ('partner_id.country_id.code', 'in', CA),
-            ])
-            rec.exportaciones_dentro_centroamerica = sum(m.total_gravado or 0.0 for m in moves)
-
-    @api.depends('invoice_date', 'journal_id', 'codigo_tipo_documento')
-    def _compute_get_exportaciones_fuera_centroamerica(self):
-        Move = self.env['account.move']
-        NOT_CA = ['SV', 'GT', 'HN', 'NI', 'CR', 'PA']
-        for rec in self:
-            if rec.codigo_tipo_documento != '11' or not rec.invoice_date or not rec.journal_id:
-                rec.exportaciones_fuera_centroamerica = 0.0
-                continue
-            moves = Move.search([
-                ('invoice_date', '=', rec.invoice_date),
-                ('journal_id', '=', rec.journal_id.id),
-                ('codigo_tipo_documento', '=', '11'),
-                ('partner_id.country_id.code', 'not in', NOT_CA),
-            ])
-            rec.exportaciones_fuera_centroamerica = sum(m.total_gravado or 0.0 for m in moves)
-
-    @api.depends('invoice_date', 'journal_id', 'codigo_tipo_documento')
-    def _compute_get_exportaciones_de_servicio(self):
-        Move = self.env['account.move']
-        Line = self.env['account.move.line']
-        has_detailed = 'detailed_type' in self.env['product.product']._fields
-
-        for rec in self:
-            if rec.codigo_tipo_documento != '11' or not rec.invoice_date or not rec.journal_id:
-                rec.exportaciones_de_servicio = 0.0
-                continue
-
-            move_ids = Move.search([
-                ('invoice_date', '=', rec.invoice_date),
-                ('journal_id', '=', rec.journal_id.id),
-                ('codigo_tipo_documento', '=', '11'),
-            ]).ids
-            if not move_ids:
-                rec.exportaciones_de_servicio = 0.0
-                continue
-
-            # Dominio base
-            dom = [
-                ('move_id', 'in', move_ids),
-                ('product_id', '!=', False),
-            ]
-            # Filtro por servicio según versión
-            if has_detailed:
-                dom.append(('product_id.detailed_type', '=', 'service'))
-            else:
-                dom.append(('product_id.product_tmpl_id.type', '=', 'service'))
-
-            data = Line.read_group(dom, ['price_subtotal:sum'], [])
-            rec.exportaciones_de_servicio = (data and data[0].get('price_subtotal_sum') or 0.0)
-
-    @api.depends('journal_id')
-    def _compute_get_ventas_tasa_cero(self):
-        for record in self:
-            record.ventas_tasa_cero = 0.00
-
-    @api.depends('invoice_date', 'journal_id', 'codigo_tipo_documento')
-    def _compute_tipo_operacion_display(self):
-        Move = self.env['account.move']
-        limite = date(2025, 1, 1)
-        for rec in self:
-            rec.tipo_operacion_display = "0"  # fallback
-            if not (rec.invoice_date and rec.journal_id and rec.codigo_tipo_documento):
-                continue
-
-            mv = Move.search([
-                ('invoice_date', '=', rec.invoice_date),
-                ('journal_id', '=', rec.journal_id.id),
-                ('codigo_tipo_documento', '=', rec.codigo_tipo_documento),
-                ('state', '=', 'posted'),
-            ], order='name ASC', limit=1)
-
-            if rec.invoice_date >= limite and mv and mv.tipo_operacion:
-                codigo = getattr(mv.tipo_operacion, 'codigo', None) or ''
-                valor = getattr(mv.tipo_operacion, 'valor', None) or ''
-                rec.tipo_operacion_display = (f"{codigo}. {valor}".strip('. ').strip()) if (codigo or valor) else "0"
-
-    @api.depends('invoice_date', 'journal_id', 'codigo_tipo_documento')
-    def _compute_get_tipo_operacion_codigo(self):
-        Move = self.env['account.move']
-        limite = date(2025, 1, 1)
-        for rec in self:
-            rec.tipo_operacion_codigo = "0"  # fallback
-            if not (rec.invoice_date and rec.journal_id and rec.codigo_tipo_documento):
-                continue
-
-            mv = Move.search([
-                ('invoice_date', '=', rec.invoice_date),
-                ('journal_id', '=', rec.journal_id.id),
-                ('codigo_tipo_documento', '=', rec.codigo_tipo_documento),
-                ('state', '=', 'posted'),
-            ], order='name ASC', limit=1)
-
-            if rec.invoice_date >= limite and mv and mv.tipo_operacion:
-                cod = getattr(mv.tipo_operacion, 'codigo', None)
-                rec.tipo_operacion_codigo = str(cod) if cod is not None else "0"
-
-    @api.depends('clase_documento')
-    def _compute_get_clase_documento_display(self):
-        for record in self:
-            if record.clase_documento == '4':
-                record.clase_documento_display = '4. Documento tributario electrónico (DTE)'
-            else:
-                record.clase_documento_display = '1. Impreso por imprenta o tiquetes'
-
-    @api.depends()
-    def _compute_get_numero_control_documento_interno_del(self):
-        for record in self:
-            move = self.env['account.move'].search([
-                ('invoice_date', '=', record.invoice_date)
-            ], order='invoice_date ASC', limit=1)
-            if record.clase_documento == "4":
-                record.numero_control_interno_del = "N/A"
-            else:
-                record.numero_control_interno_del = move.hacienda_codigoGeneracion_identificacion
-
-    @api.depends()
-    def _compute_get_numero_control_documento_interno_al(self):
-        for record in self:
-            move = self.env['account.move'].search([
-                ('invoice_date', '=', record.invoice_date)
-            ], order='invoice_date DESC', limit=1)
-            if record.clase_documento == "4":
-                record.numero_control_interno_al = "N/A"
-            else:
-                record.numero_control_interno_al = move.hacienda_codigoGeneracion_identificacion
-
-    @api.depends('invoice_date', 'journal_id', 'codigo_tipo_documento')
-    def _compute_get_numero_documento_del(self):
-        for record in self:
-            move_del = self.env['account.move'].search([
-                ('invoice_date', '=', record.invoice_date),
-                ('journal_id', '=', record.journal_id.id),
-                ('codigo_tipo_documento', '=', record.codigo_tipo_documento)
-            ], order='name ASC', limit=1)
-
-            record.numero_documento_del = move_del.hacienda_codigoGeneracion_identificacion or ''
-            _logger.info("➡️ DEL grupo [%s - %s - %s] → %s",
-                         record.invoice_date, record.journal_id.display_name, record.codigo_tipo_documento,
-                         move_del.name)
-
-    @api.depends('invoice_date', 'journal_id', 'codigo_tipo_documento')
-    def _compute_get_numero_documento_al(self):
-        for record in self:
-            move_al = self.env['account.move'].search([
-                ('invoice_date', '=', record.invoice_date),
-                ('journal_id', '=', record.journal_id.id),
-                ('codigo_tipo_documento', '=', record.codigo_tipo_documento)
-            ], order='name DESC', limit=1)
-
-            record.numero_documento_al = move_al.hacienda_codigoGeneracion_identificacion or ''
-            _logger.info("⬅️ AL grupo [%s - %s - %s] → %s",
-                         record.invoice_date, record.journal_id.display_name, record.codigo_tipo_documento,
-                         move_al.name)
-
-    # @api.depends('journal_id')
-    # def _compute_get_numero_anexo(self):
-    #     for record in self:
-    #         ctx = self.env.context
-    #         if ctx.get('numero_anexo'):
-    #             record.numero_anexo = str(ctx['numero_anexo'])
-
-    @api.depends('journal_id')
-    def _compute_get_ventas_exentas_no_sujetas(self):
-        for record in self:
-            record.ventas_exentas_no_sujetas = 0.00
-
-    # def init(self):
-    #     tools.drop_view_if_exists(self.env.cr, 'report_account_move_consumidor_final_agrupado')
-    #     self.env.cr.execute("""
-    #         CREATE OR REPLACE VIEW report_account_move_consumidor_final_agrupado AS (
-    #             SELECT
-    #                 MIN(am.id)                      AS id,
-    #                 am.company_id                   AS company_id,
-    #                 am.invoice_date::date           AS invoice_date,
-    #                 am.journal_id                   AS journal_id,
-    #                 am.codigo_tipo_documento        AS codigo_tipo_documento,
-    #                 am.clase_documento_id           AS clase_documento_id,
-    #
-    #                 MIN(am.hacienda_estado)         AS hacienda_estado,
-    #                 MIN(am.name)                    AS name,
-    #                 MIN(am."hacienda_selloRecibido")              AS "hacienda_selloRecibido",
-    #                 MIN(am."sit_evento_invalidacion")    AS "sit_evento_invalidacion",
-    #                 MIN(am.tipo_operacion)  AS tipo_operacion,
-    #                 COUNT(am.id)                    AS cantidad_facturas,
-    #
-    #                 -- rangos del día
-    #                 MIN(am.name)                    AS numero_resolucion_consumidor_final,
-    #                 MIN(am.name)                    AS numero_control_interno_del,
-    #                 MAX(am.name)                    AS numero_control_interno_al,
-    #
-    #                 -- totales
-    #                 SUM(am.amount_tax)              AS monto_total_impuestos,
-    #                 SUM(am.total_exento)            AS total_exento,
-    #                 SUM(am.total_no_sujeto)         AS total_no_sujeto,
-    #                 SUM(am.total_gravado)           AS total_gravado,
-    #                 SUM(am.total_operacion)         AS total_operacion,
-    #
-    #                 (SELECT id FROM res_currency WHERE name='USD' LIMIT 1) AS currency_id
-    #             FROM account_move am
-    #             WHERE am.state = 'posted'
-    #               AND am.invoice_date IS NOT NULL
-    #               AND am.codigo_tipo_documento IN ('01','11')
-    #               AND am.move_type IN ('out_invoice','out_refund')
-    #               AND am.hacienda_estado IN ('PROCESADO')
-    #               AND am.sit_evento_invalidacion IS NULL
-    #               AND am."hacienda_selloRecibido" IS NOT NULL
-    #
-    #             GROUP BY
-    #                 am.company_id,
-    #                 am.invoice_date::date,
-    #                 am.journal_id,
-    #                 am.codigo_tipo_documento,
-    #                 am.clase_documento_id
-    #         )
-    #     """)
-
     @api.model
-    def action_open_report(self, *args, **kwargs):
-
+    def _rebuild_report(self):
+        """Borra y vuelve a generar las líneas del anexo."""
+        # 1) Limpiar el wizard
         self.search([]).unlink()
 
         Move = self.env["account.move"]
+        Line = self.env["account.move.line"]
+        Product = self.env["product.product"]
+        has_detailed = 'detailed_type' in Product._fields
 
-        # 1. Ajuste del Dominio
-        domain = [
+        # 1) Dominio base para facturas
+        base_domain = [
             ("move_type", "=", "out_invoice"),
             ("hacienda_estado", "=", "PROCESADO"),
             ("has_sello_anulacion", "=", False),
-
-            '|',
-            ('hacienda_selloRecibido', '!=', False),  # Documentos electrónicos (DTE)
-            ('clase_documento_id', '!=', False),  # Documentos impresos (como tus nóminas)
+            ("hacienda_selloRecibido", "!=", False),
+            ("invoice_date", "!=", False),
+            ("state", "=", "posted" ),
+            ("codigo_tipo_documento", "in", ('01', '11', '02, ''10'))
         ]
 
-        # Realizar las operaciones de suma y conteo en los siguientes campos
-        agg_fields = [
-            "amount_untaxed:sum",
-            "amount_tax:sum",
-            "id:count",
-            "clase_documento_id:min",
-            "journal_id",
-            "codigo_tipo_documento:min",
-            "sit_tipo_documento_id:min",
-            "name:min"
-        ]
-
-        # 2. Ajuste del Groupby
-        # Se añaden journal_id y codigo_tipo_documento para asegurar grupos únicos
-        # y para que las computadas que usan estos campos funcionen correctamente.
-        groupby = ["invoice_date:day", "clase_documento_id", "journal_id", "codigo_tipo_documento"]
-
-        _logger.info("INICIO: Ejecutando read_group con DOMAIN: %s", domain)
-        _logger.info("INICIO: Agrupando por: %s", groupby)
-
-        rows = Move.read_group(
-            domain=domain,
-            fields=agg_fields,
-            groupby=groupby,
-            orderby="invoice_date:day",
+        # 2) Traer todas las facturas y luego agruparlas en Python
+        moves = Move.search(
+            base_domain,
+            order="invoice_date asc, codigo_tipo_documento asc, id asc",
         )
+        _logger.info("ANEXO CF | moves encontrados=%s", len(moves))
 
-        _logger.info(": rows del read_group (%s grupos): %s", len(rows), rows)
+        # key = (fecha, codigo_tipo_documento)
+        grupos = {}
+        for m in moves:
+            key = (m.invoice_date, m.codigo_tipo_documento or "")
+            grupos.setdefault(key, []).append(m.id)
 
-        for r in rows:
-            # ... (Lógica de fechas y año/mes omitida para brevedad) ...
+        _logger.info("ANEXO CF | grupos formados=%s", len(grupos))
 
-            range_info = r.get("__range", {}).get("invoice_date:day")
-            _logger.info(" RRRRRRRR: %s", r)
+        numero_anexo = str(self.env.context.get("numero_anexo") or "")
+        CA_CODES = getattr(constants, "CA_CODES", ['GT', 'HN', 'NI', 'CR', 'PA'])
 
-            if range_info:
-                d = fields.Date.to_date(range_info["from"])
-            else:
+        # 3) Recorrer cada grupo (fecha + código) y crear el registro del wizard
+        #    Ordenado por fecha y luego por código
+        for (inv_date, codigo_doc_raw), move_ids in sorted(
+                grupos.items(),
+                key=lambda it: (it[0][0] or date.min, str(it[0][1] or "")),
+        ):
+            d = inv_date
+            if not d:
                 continue
-            numero_anexo = str(self.env.context.get("numero_anexo") or "")
+
+            moves_group = Move.browse(move_ids)
+            if not moves_group:
+                continue
 
             year = d.year
             month = d.month
 
-            clase_documento_info = r.get("clase_documento_id")
-            tipo_documento_info = r.get("sit_tipo_documento_id")
+            first_move = moves_group[0]
+            last_move = moves_group[-1]
 
+            # ------------------------------------------------------------------
+            # 1) Resolver clase_documento (código y valor)
+            # ------------------------------------------------------------------
+            clase_documento_info = first_move.clase_documento_id.id
             if clase_documento_info:
                 clase_documento_table = self.env["account.clase.documento"]
-                _logger.info("DDDD clase_documento_table%s", clase_documento_table)
+                domain_clase = [("id", "=", clase_documento_info)]
+                agg_fields_clase = ["codigo:min", "valor:min"]
+                groupby_clase = ["codigo"]
 
-                domain = [("id", "=", clase_documento_info),]
-                agg_fields = ["codigo:min", "valor:min"]
-
-                groupby = ["codigo"]
                 rows_clase_documento = clase_documento_table.read_group(
-                    domain=domain,
-                    fields=agg_fields,
-                    groupby=groupby
+                    domain=domain_clase,
+                    fields=agg_fields_clase,
+                    groupby=groupby_clase,
                 )
-
-            if clase_documento_info:
-                tipo_documento_table = self.env["account.journal.tipo_documento.field"] # obtener tabla donde se obtendran los datos
-
-                domain = [("id", "=", tipo_documento_info)] # dominio obtener el tipo de documento que tenga el mismo id que el documento actual
-                agg_fields = ["codigo:min", "valores:min"]
-
-                groupby = ["codigo"]
-                rows_tipo_documentos = tipo_documento_table.read_group(
-                    domain=domain,
-                    fields=agg_fields,
-                    groupby=groupby
-                )
-            _logger.info('tipo_documento_info.get(codigo) %s', tipo_documento_info)
-            _logger.info('r.get("name") %s', r.get("name"))
-            _logger.info('AAAAAAAAAAAAA %s', r)
-
-            _logger.info('numero_resolucion %s', r.get("name"))
-
-
-
-            if tipo_documento_info == "4":
-                numero_resolucion =  "N/A"
             else:
-                numero_resolucion = r.get("name")
+                # Fallback por prefijo DTE en el número de control
+                numero_control_aux = first_move.name or ""
+                if numero_control_aux.startswith("DTE"):
+                    codigo_clase = 4
+                else:
+                    codigo_clase = 1
 
-            journal_info = r.get("journal_id")
-            journal_id = journal_info[0] if isinstance(journal_info, tuple) else False
-            codigo_tipo_documento_codigo = rows_tipo_documentos[0].get("codigo")
-            codigo_tipo_documento_valores = rows_tipo_documentos[0].get("valores")
+                clase_documento_table = self.env["account.clase.documento"]
+                domain_clase = [("codigo", "=", codigo_clase)]
+                agg_fields_clase = ["codigo:min", "valor:min"]
+                groupby_clase = ["codigo"]
 
-            _logger.info("numero_resolucion ------------ %s",numero_resolucion)
-            _logger.info("DENTRO DE TIPO codigo_tipo_documento_valores %s", codigo_tipo_documento_valores)
-            _logger.info("DISPLAYSSS %s", f"{codigo_tipo_documento_codigo}. {codigo_tipo_documento_valores}")
+                rows_clase_documento = clase_documento_table.read_group(
+                    domain=domain_clase,
+                    fields=agg_fields_clase,
+                    groupby=groupby_clase,
+                )
 
-            clase_documento_codigo = rows_clase_documento[0].get("codigo")
-            clase_documento_valor = rows_clase_documento[0].get("valor")
+            clase_documento_codigo = rows_clase_documento[0].get("codigo") if rows_clase_documento else False
+            clase_documento_valor = rows_clase_documento[0].get("valor") if rows_clase_documento else False
 
-            new_record = self.create({
+            # ------------------------------------------------------------------
+            # 2) Resolver tipo_documento (código y valores) a partir del código del grupo
+            # ------------------------------------------------------------------
+            codigo_tipo_documento_info = codigo_doc_raw
+            if codigo_tipo_documento_info:
+                tipo_documento_table = self.env["account.journal.tipo_documento.field"]
+                domain_tipo = [("codigo", "=", codigo_tipo_documento_info)]
+                agg_fields_tipo = ["codigo:min", "valores:min"]
+                groupby_tipo = ["codigo"]
+
+                rows_tipo_documentos = tipo_documento_table.read_group(
+                    domain=domain_tipo,
+                    fields=agg_fields_tipo,
+                    groupby=groupby_tipo,
+                )
+            else:
+                rows_tipo_documentos = []
+
+            codigo_tipo_documento_codigo = rows_tipo_documentos[0].get("codigo") if rows_tipo_documentos else False
+            codigo_tipo_documento_valores = rows_tipo_documentos[0].get("valores") if rows_tipo_documentos else False
+
+            _logger.info(
+                "GRUPO -> fecha=%s cod_doc_mov=%s cod_doc_map=%s count=%s",
+                d,
+                codigo_doc_raw,
+                codigo_tipo_documento_codigo,
+                len(moves_group),
+            )
+
+            # ------------------------------------------------------------------
+            # 3) Primer y último hacienda_codigoGeneracion_identificacion
+            # ------------------------------------------------------------------
+            numero_control_interno_del = "N/A"
+            numero_control_interno_al = "N/A"
+            numero_documento_del = ""
+            numero_documento_al = ""
+
+            first_code = first_move.hacienda_codigoGeneracion_identificacion or ""
+            last_code = last_move.hacienda_codigoGeneracion_identificacion or ""
+
+            if first_code and clase_documento_codigo == 4:
+                numero_control_interno_del = "N/A"
+            else:
+                numero_control_interno_del = first_code
+            numero_documento_del = first_code
+
+            if last_code and clase_documento_codigo == 4:
+                numero_control_interno_al = "N/A"
+            else:
+                numero_control_interno_al = last_code
+            numero_documento_al = last_code
+
+            _logger.info(
+                "   DEL=%s AL=%s ids=%s",
+                first_code, last_code, moves_group.ids,
+            )
+
+            # ------------------------------------------------------------------
+            # 4) Totales (solo facturas del grupo fecha + código)
+            # ------------------------------------------------------------------
+            total_exento_group = sum(m.amount_exento or 0.0 for m in moves_group)
+            total_no_sujeto_group = sum(m.total_no_sujeto or 0.0 for m in moves_group)
+            moves_local = moves_group.filtered(lambda m: m.partner_id.country_id.code == 'SV')
+            total_gravado_local_group = sum(m.total_gravado or 0.0 for m in moves_local)
+            monto_total_op_sum = sum(m.amount_total or 0.0 for m in moves_group)
+            monto_total_impuestos_sum = sum(m.amount_tax or 0.0 for m in moves_group)
+            cantidad_facturas = len(moves_group)
+
+            # ------------------------------------------------------------------
+            # 5) Exportaciones (solo si código doc = 11)
+            # ------------------------------------------------------------------
+            exportaciones_dentro_centroamerica = 0.0
+            exportaciones_fuera_centroamerica = 0.0
+            exportaciones_servicio_group = 0.0
+
+            codigo_doc_str = str(codigo_tipo_documento_codigo or codigo_doc_raw or "").strip()
+            if codigo_doc_str == '11':
+                moves_exp_centroamerica = moves_group.filtered(
+                    lambda m: m.partner_id.country_id
+                              and m.partner_id.country_id.code in CA_CODES
+                )
+                exportaciones_dentro_centroamerica = sum(
+                    m.amount_total or 0.0 for m in moves_exp_centroamerica
+                )
+
+                moves_exp_fuera_centroamerica = moves_group.filtered(
+                    lambda m: m.partner_id.country_id
+                              and m.partner_id.country_id.code not in CA_CODES
+                )
+                exportaciones_fuera_centroamerica = sum(
+                    m.amount_total or 0.0 for m in moves_exp_fuera_centroamerica
+                )
+
+                line_domain = [
+                    ('move_id', 'in', moves_group.ids),
+                    ('product_id', '!=', False),
+                ]
+                if has_detailed:
+                    line_domain.append(('product_id.detailed_type', '=', 'service'))
+                else:
+                    line_domain.append(('product_id.product_tmpl_id.type', '=', 'service'))
+
+                data_servicio = Line.read_group(
+                    line_domain,
+                    ['price_subtotal:sum'],
+                    []
+                )
+
+                if data_servicio:
+                    row_serv = data_servicio[0]
+                    exportaciones_servicio_group = (
+                            (row_serv.get('price_subtotal_sum')
+                             if row_serv.get('price_subtotal_sum') is not None else
+                             row_serv.get('price_subtotal'))
+                            or 0.0
+                    )
+                else:
+                    exportaciones_servicio_group = 0.0
+
+            # ------------------------------------------------------------------
+            # 6) Datos de tipo de ingreso / tipo de operación
+            # ------------------------------------------------------------------
+            tipo_ingreso_id = first_move.tipo_ingreso_id.id
+            if tipo_ingreso_id:
+                tipo_ingreso_table = self.env["account.tipo.ingreso"]
+                rows_tipo_ingreso = tipo_ingreso_table.read_group(
+                    domain=[("id", "=", tipo_ingreso_id)],
+                    fields=["codigo:min", "valor:min"],
+                    groupby=["codigo"],
+                )
+            else:
+                rows_tipo_ingreso = []
+
+            tipo_ingreso_codigo = rows_tipo_ingreso[0].get("codigo") if rows_tipo_ingreso else False
+            tipo_ingreso_valor = rows_tipo_ingreso[0].get("valor") if rows_tipo_ingreso else False
+
+            tipo_operacion_info = first_move.tipo_operacion.id
+            if tipo_operacion_info:
+                tipo_operacion_table = self.env["account.tipo.operacion"]
+                row_tipo_operacion = tipo_operacion_table.read_group(
+                    domain=[("id", "=", tipo_operacion_info)],
+                    fields=["codigo:min", "valor:min"],
+                    groupby=["codigo"],
+                )
+            else:
+                row_tipo_operacion = []
+
+            tipo_operacion_codigo = row_tipo_operacion[0].get("codigo") if row_tipo_operacion else False
+            tipo_operacion_valor = row_tipo_operacion[0].get("valor") if row_tipo_operacion else False
+
+            # ------------------------------------------------------------------
+            # 7) Resolver número de resolución y sello recibido
+            # ------------------------------------------------------------------
+            if clase_documento_codigo == 4:
+                numero_resolucion = first_move.name
+                hacienda_sello_recibido = "N/A"
+                numero_control_interno_del = "N/A"
+                numero_control_interno_al = "N/A"
+            else:
+                numero_resolucion = first_move.name
+                hacienda_sello_recibido = first_move.hacienda_selloRecibido
+
+            journal_id = first_move.journal_id.id if first_move.journal_id else False
+
+            numero_maquina_registradora = ""
+            ventas_exentas_no_sujetas_aux = ""
+            ventas_tasa_cero = ""
+            ventas_cuenta_terceros = ""
+
+            # ------------------------------------------------------------------
+            # 8) Crear registro del wizard
+            # ------------------------------------------------------------------
+            self.create({
                 "invoice_date": d,
                 "clase_documento_codigo": clase_documento_codigo,
                 "clase_documento_valor": clase_documento_valor,
                 "clase_documento_display": f"{clase_documento_codigo}. {clase_documento_valor}",
                 "journal_id": journal_id,
-                "codigo_tipo_documento_codigo": codigo_tipo_documento_codigo,
+                "codigo_tipo_documento_codigo": codigo_tipo_documento_codigo or codigo_doc_raw,
                 "codigo_tipo_documento_valor": codigo_tipo_documento_valores,
-                "codigo_tipo_documento_display": f"{codigo_tipo_documento_codigo}. {codigo_tipo_documento_valores}",
+                "codigo_tipo_documento_display": (
+                    f"{codigo_tipo_documento_codigo or codigo_doc_raw}. {codigo_tipo_documento_valores or ''}"
+                ).strip(),
                 "numero_resolucion_consumidor_final": numero_resolucion,
-                # "rows_tipo_documentos_valor"
-                "cantidad_facturas": r.get("id_count", r.get("__count", 0)),
-                "monto_total_operacion": r.get("amount_untaxed", 0.0),
-                "monto_total_impuestos": r.get("amount_tax", 0.0),
+                "hacienda_sello_recibido": hacienda_sello_recibido,
+                "numero_control_interno_del": numero_control_interno_del,
+                "numero_control_interno_al": numero_control_interno_al,
+                "numero_documento_del": numero_documento_del,
+                "numero_documento_al": numero_documento_al,
+                "numero_maquina_registradora": numero_maquina_registradora,
+                "total_exento": total_exento_group,
+                "ventas_exentas_no_sujetas": ventas_exentas_no_sujetas_aux,
+                "total_no_sujeto": total_no_sujeto_group,
+                "total_gravado_local": total_gravado_local_group,
+                "exportaciones_dentro_centroamerica": exportaciones_dentro_centroamerica,
+                "exportaciones_fuera_centroamerica": exportaciones_fuera_centroamerica,
+                "exportaciones_de_servicio": exportaciones_servicio_group,
+                "ventas_tasa_cero": ventas_tasa_cero,
+                "ventas_cuenta_terceros": ventas_cuenta_terceros,
+                "cantidad_facturas": cantidad_facturas,
+                "monto_total_operacion": monto_total_op_sum,
+                "monto_total_impuestos": monto_total_impuestos_sum,
+                "tipo_ingreso_codigo": tipo_ingreso_codigo,
+                "tipo_ingreso_valor": tipo_ingreso_valor,
+                "tipo_ingreso_display": f"{tipo_ingreso_codigo}. {tipo_ingreso_valor}" if tipo_ingreso_codigo else "",
+                "tipo_operacion_codigo": tipo_operacion_codigo,
+                "tipo_operacion_display": f"{tipo_operacion_codigo}. {tipo_operacion_valor}" if tipo_operacion_codigo else "",
                 "invoice_year_agrupado": str(year),
                 "invoice_month_agrupado": f"{month:02d}",
                 "invoice_year_sel": str(year),
@@ -746,15 +548,9 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.TransientModel):
                 "numero_anexo": numero_anexo,
             })
 
-            _logger.info("CREACIÓN: Nuevo registro (ID: %s, Clase ID: %s, Diario: %s, Tipo Doc: %s)",
-                         new_record.id, new_record.clase_documento_id.id if new_record.clase_documento_id else False,
-                         new_record.journal_id.id if new_record.journal_id else False,
-                         new_record.codigo_tipo_documento)
-
         final_context = dict(
             self.env.context,
             numero_anexo=numero_anexo,
-            # Se mueven aquí las propiedades que causan la advertencia:
             replace_existing_action=True,
             tag='reload',
         )
@@ -769,6 +565,38 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.TransientModel):
             ).id,
             "target": "current",
             "context": final_context,
+        }
+
+    @api.model
+    def action_open_report(self, *args, **kwargs):
+        # reconstruir datos
+        self._rebuild_report()
+
+        numero_anexo = str(self.env.context.get("numero_anexo") or "")
+
+        final_context = dict(
+            self.env.context,
+            numero_anexo=numero_anexo,
+        )
+
+        return {
+            "type": "ir.actions.act_window",
+            "name": "Anexo de Ventas a Consumidor Final",
+            "res_model": "report.account.move.consumidor.final.agrupado",
+            "view_mode": "list",
+            "view_id": self.env.ref(
+                "l10n_sv_mh_anexos.view_report_account_move_consumidor_final_agrupado_list"
+            ).id,
+            "target": "current",
+            "context": final_context,
+        }
+
+    def action_refresh_report(self):
+        """Botón 'Actualizar' desde la vista: recalcula y recarga sin nuevo breadcrumb."""
+        self._rebuild_report()
+        return {
+            "type": "ir.actions.client",
+            "tag": "reload",
         }
 
     def export_csv_from_action(self):
