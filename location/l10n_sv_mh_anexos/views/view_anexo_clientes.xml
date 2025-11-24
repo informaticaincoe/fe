@@ -1,51 +1,57 @@
 <odoo>
-    <record id="view_anexo_menores_search" model="ir.ui.view">
-        <field name="name">account.move.anexo.menores.search</field>
-        <field name="model">report.account.move.daily</field>
-        <field name="arch" type="xml">
-            <search string="Buscar - Anexo Menores a 25,000">
-                <group expand="0" string="Agrupar por (Anexos)">
-                    <filter name="group_by_year" string="Año" context="{'group_by': 'invoice_year_agrupado'}"/>
-                    <filter name="group_by_semester" string="Semestre"
-                            context="{'group_by': 'invoice_semester_agrupado'}"/>
-                    <filter name="group_by_month" string="Mes" context="{'group_by': 'invoice_month_agrupado'}"/>
-                </group>
+    <data>
+        <record id="view_anexo_menores_search" model="ir.ui.view">
+            <field name="name">account.move.anexo.menores.search</field>
+            <field name="model">report.account.move.daily</field>
+            <field name="arch" type="xml">
+                <search string="Buscar - Anexo Menores a 25,000">
+                    <group expand="0" string="Agrupar por (Anexos)">
+                        <filter name="group_by_year" string="Año" context="{'group_by': 'invoice_year_agrupado'}"/>
+                        <filter name="group_by_semester" string="Semestre"
+                                context="{'group_by': 'invoice_semester_agrupado'}"/>
+                        <filter name="group_by_month" string="Mes" context="{'group_by': 'invoice_month_agrupado'}"/>
+                    </group>
 
-                <searchpanel>
-                    <field name="invoice_year_sel" select="one" enable_counters="1"/>
-                    <field name="invoice_semester_agrupado" select="one" enable_counters="1"/>
-                    <field name="invoice_month_sel" select="one" enable_counters="1"/>
-                </searchpanel>
-            </search>
-        </field>
-    </record>
+                    <searchpanel>
+                        <field name="invoice_year_sel" select="one" enable_counters="1"/>
+                        <field name="invoice_semester_agrupado" select="one" enable_counters="1"/>
+                        <field name="invoice_month_sel" select="one" enable_counters="1"/>
+                    </searchpanel>
+                </search>
+            </field>
+        </record>
 
-    <record id="view_report_account_move_daily_list" model="ir.ui.view">
-        <field name="name">report.account.move.daily.list</field>
-        <field name="model">report.account.move.daily</field>
-        <field name="arch" type="xml">
-            <list string="Facturas clientes menores a 25000">
-                <header>
-                    <button name="%(action_report_account_move_daily_server)d"
-                            type="action"
-                            string="Actualizar"
-                            class="oe_highlight"
-                            display="always"
-                            context="{'numero_anexo': 4, 'anexo_action_id': 'ANX_CLIENTES_MENORES'}"
-                    />
+        <record id="view_report_account_move_daily_list" model="ir.ui.view">
+            <field name="name">report.account.move.daily.list</field>
+            <field name="model">report.account.move.daily</field>
+            <field name="arch" type="xml">
+                <list string="Facturas clientes menores a 25000">
+                    <header>
+                        <!-- Llama a un método Python del modelo, no a una acción XML -->
+                        <button name="action_refresh_report"
+                                type="object"
+                                string="Actualizar"
+                                class="oe_highlight"
+                                display="always"
+                                context="{'numero_anexo': 4, 'anexo_action_id': 'ANX_CLIENTES_MENORES'}"/>
 
-                    <button name="export_csv_from_action" type="object" string="Descargar CSV" class="oe_highlight"
-                            display="always"/>
-                </header>
-                <field name="invoice_month"/>
-                <field name="invoice_date_str"/>
-                <field name="cantidad_facturas"/>
-                <field name="monto_total_operacion"/>
-                <field name="monto_total_impuestos"/>
-                <field name="invoice_year"/>
-                <field name="numero_anexo"/>
-            </list>
-        </field>
-    </record>
+                        <button name="export_csv_from_action"
+                                type="object"
+                                string="Descargar CSV"
+                                class="oe_highlight"
+                                display="always"/>
+                    </header>
+
+                    <field name="invoice_month"/>
+                    <field name="invoice_date_str"/>
+                    <field name="cantidad_facturas"/>
+                    <field name="monto_total_operacion"/>
+                    <field name="monto_total_impuestos"/>
+                    <field name="invoice_year"/>
+                    <field name="numero_anexo"/>
+                </list>
+            </field>
+        </record>
+    </data>
 </odoo>
 

@@ -277,3 +277,8 @@ class ReportAccountMoveDaily(models.TransientModel):
             else:
                 r.invoice_year_sel = False
                 r.invoice_month_sel = False
+
+    def action_refresh_report(self):
+        """Llamado desde el botón de la vista (type='object')."""
+        # simplemente reutilizamos la lógica existente
+        return self.env['report.account.move.daily'].action_open_report()
