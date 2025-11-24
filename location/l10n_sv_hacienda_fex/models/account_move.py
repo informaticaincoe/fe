@@ -40,6 +40,7 @@ class AccountMove(models.Model):
 
     tipoItemEmisor = fields.Many2one('account.move.tipo_item.field', string="Tipo de Item Emisor")
     sale_order_id = fields.Many2one('sale.order', string='Orden de Venta', compute='_compute_sale_order', store=False)
+    recinto_sale_order = fields.Many2one('account.move.recinto_fiscal.field' )
 
     def _compute_sale_order(self):
         for rec in self:
@@ -48,6 +49,9 @@ class AccountMove(models.Model):
                 rec.sale_order_id = sale_orders[:1] if sale_orders else False
 
     def action_post(self):
+        skip_import_json = self.env.context.get('skip_import_json', False)
+        _logger.info("SIT FEX - Action post dte. %s | skip_import_json=%s", self, skip_import_json)
+
         # Si FE está desactivada → comportamiento estándar de Odoo
         invoices = self.filtered(lambda inv: inv.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND, constants.IN_INVOICE, constants.IN_REFUND))
         if not invoices:
@@ -72,7 +76,7 @@ class AccountMove(models.Model):
                     raise ValidationError("El receptor debe tener un país seleccionado.")
                 if not rec.sit_regimen:
                     raise ValidationError("Debe seleccionar un régimen de exportación.")
-                if not rec.sale_order_id.recintoFiscal:
+                if not skip_import_json and not rec.sale_order_id.recintoFiscal:
                     raise ValidationError("Debe seleccionar un recinto fiscal.")
 
                 # OJO: si 'constants' no cargó, evita acceder a atributos

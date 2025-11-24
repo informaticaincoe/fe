@@ -153,6 +153,11 @@ class HrSalaryAssignment(models.Model):
             if not calendar:
                 raise UserError("No se encontró el horario de trabajo para el empleado.")
             horas_laboradas = calendar.hours_per_day if calendar else 8
+            HORAS_JORNADA_LEGAL = 8
+
+            _logger.info("HORAS LABORADAS %s", horas_laboradas)
+            _logger.info("HORAS LABORADASsss %s", calendar.hours_per_day )
+
 
             conversion = {
                 'monthly': 1, 'semi-monthly': 2, 'bi-weekly': 52 / 12 / 2,
@@ -164,7 +169,7 @@ class HrSalaryAssignment(models.Model):
                 raise UserError(f"Frecuencia de pago no soportada: {contrato.schedule_pay}")
 
             salario_base = float(contrato.wage or 0.0) * factor
-            salario_hora = round((salario_base / dias_mes) / horas_laboradas, 4)
+            salario_hora = round((salario_base / dias_mes) / HORAS_JORNADA_LEGAL, 4)
 
             recargos = {
                 'diurna': 0, 'nocturna': 0, 'diurna_descanso': 0, 'nocturna_descanso': 0,

@@ -7,7 +7,7 @@
             <field name="arch" type="xml">
 
                 <!-- Insertamos después del grupo de Retenciones -->
-                <xpath expr="//group[@name='group_retenciones']" position="after">
+                <xpath expr="//group[@name='group_totales']" position="after">
                     <group string="Clasificación de Operaciones" col="2" invisible="not sit_facturacion">
                         <field name="tipo_ingreso_id" invisible="move_type in('in_invoice', 'in_refund') or not codigo_tipo_documento"/>
                         <field name="tipo_costo_gasto_id" invisible="move_type in('out_invoice', 'out_refund')"/>

@@ -168,6 +168,8 @@ class AccountMove(models.Model):
         recinto_fiscal = None
         if self.sale_order_id and self.sale_order_id.recintoFiscal:
             recinto_fiscal = str(self.sale_order_id.recintoFiscal.codigo)
+        if not self.sale_order_id:
+            recinto_fiscal = self.recinto_sale_order.codigo if self.recinto_sale_order else None
         _logger.info("SIT Recinto fiscal: %s (tipo: %s)", recinto_fiscal, type(recinto_fiscal).__name__ if recinto_fiscal is not None else None)
         invoice_info["recintoFiscal"] = recinto_fiscal if recinto_fiscal else None
         _logger.info("SIT regimen de exportacion = %s", self.sit_regimen)
@@ -311,7 +313,14 @@ class AccountMove(models.Model):
         invoice_info["descuento"] = float_round(getattr(self, 'descuento_gravado', 0.0), precision_rounding=self.currency_id.rounding)
         invoice_info["porcentajeDescuento"] = float_round(getattr(self, 'descuento_global', 0.0), precision_rounding=self.currency_id.rounding)
         invoice_info["totalDescu"] = float_round(getattr(self, 'total_descuento', 0.0), precision_rounding=self.currency_id.rounding)
-        invoice_info["montoTotalOperacion"] = float_round(getattr(self, 'total_operacion', 0.0), precision_rounding=self.currency_id.rounding)
+        # invoice_info["montoTotalOperacion"] = float_round(getattr(self, 'total_operacion', 0.0), precision_rounding=self.currency_id.rounding)
+        if not self.total_operacion or self.total_operacion <= 0.0:
+            self.invalidate_recordset(['total_operacion'])
+            self._compute_total_con_descuento()
+
+        invoice_info["montoTotalOperacion"] = float_round(self.total_operacion or 0.0, precision_rounding=self.currency_id.rounding)
+        _logger.info("SIT Total Operacion FEX= %s", self.total_operacion)
+
         invoice_info["totalPagar"] = float_round(getattr(self, 'total_pagar', 0.0), precision_rounding=self.currency_id.rounding)
         invoice_info["totalLetras"] = self.amount_text
         invoice_info["condicionOperacion"] = int(self.condiciones_pago)

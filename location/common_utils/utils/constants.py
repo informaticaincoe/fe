@@ -189,6 +189,7 @@ ITEM_EXP_SERVICIOS = 2
 ITEM_EXP_BIEN_SERVICIO = 3
 
 TRIBUTO_IVA = 20
+IMP_EXCLUIDO = "tax_excluded"
 
 PERSONA_JURIDICA = "company"
 PERSONA_NATURAL = "person"
@@ -198,4 +199,4 @@ INV_ERROR_INFO_DTE = "1"
 INV_RESCINDIR = "2"
 INV_OTRO = "3"
 
-CA_CODES = {'SV', 'GT', 'HN', 'NI', 'CR', 'PA'}
+CA_CODES = {'SV', 'GT', 'HN', 'NI', 'CR'}

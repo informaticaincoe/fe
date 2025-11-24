@@ -17,6 +17,265 @@ except ImportError as e:
 class AccountDebitNote(models.TransientModel):
     _inherit = 'account.debit.note'
 
+    # def create_debit(self):
+    #     _logger.info("SIT: Entrando al método create_debit personalizado: %s", self)
+    #     self.ensure_one()
+    #
+    #     # Si es factura de compra -> usar flujo estándar de Odoo
+    #     if self.move_type in (constants.IN_INVOICE, constants.IN_REFUND, constants.TYPE_ENTRY, constants.OUT_RECEIPT, constants.IN_RECEIPT):
+    #         _logger.info("SIT: Se detectó factura de compra (move_type=%s). Se ejecutará el flujo estándar de Odoo.", self.move_type)
+    #         return super(AccountDebitNote, self).create_debit()
+    #
+    #     if not (self.journal_id.company_id and self.journal_id.company_id.sit_facturacion):
+    #         _logger.info("SIT: La empresa %s no aplica a facturación electrónica. Saltando validaciones DTE/Hacienda para ND.", self.journal_id.company_id.name)
+    #         # return  # Si no aplica, no continuar con la lógica de ND electrónica
+    #         return super(AccountDebitNote, self).create_debit()
+    #
+    #     if not self.journal_id:
+    #         raise UserError(_("Debe seleccionar un diario antes de continuar."))
+    #
+    #     if self.journal_id.type == 'sale' and not self.journal_id.sit_tipo_documento:
+    #         raise UserError(_("No se encontró el tipo de documento (06) Nota de Débito."))
+    #
+    #     # Obtener el código del tipo de documento desde el diario
+    #     # doc_code = (
+    #     #         getattr(self.journal_id.sit_tipo_documento, "codigo", False)
+    #     #         or getattr(self.journal_id.sit_tipo_documento, "code", False)
+    #     # )
+    #     # if not doc_code:
+    #     #     raise UserError(_("El diario no tiene código de tipo de documento configurado."))
+    #     doc_code = constants.COD_DTE_ND
+    #
+    #     DocType = self.env["l10n_latam.document.type"]
+    #     doc_type = DocType.search([
+    #         ("code", "=", doc_code),
+    #     ], limit=1)
+    #
+    #     # if not doc_type:
+    #     #     # Intento sin filtro de país como fallback
+    #     #     doc_type = DocType.search([
+    #     #         ("code", "=", doc_code)
+    #     #     ], limit=1)
+    #
+    #     if not doc_type:
+    #         _logger.error("SIT: No se encontró l10n_latam.document.type con code=%s", doc_code)
+    #         raise UserError(_("No se encontró el Tipo de Documento (LATAM) con código: %s") % doc_code)
+    #
+    #     _logger.info(
+    #         "SIT: Resuelto l10n_latam_document_type_id -> id=%s, code=%s, name=%s",
+    #         doc_type.id, doc_type.code, doc_type.display_name
+    #     )
+    #     ctx = dict(self.env.context or {})
+    #     ctx.update({
+    #         'default_journal_id': self.journal_id.id,
+    #         'dte_name_preassigned': True,
+    #     })
+    #
+    #     moves = self.move_ids
+    #     default_values_list = []
+    #
+    #     for move in moves:
+    #         _logger.info("SIT: Procesando factura original ID=%s | name=%s", move.id, move.name)
+    #         _logger.info("SIT: doc_type =%s, move_type: %s", doc_type, move.move_type)
+    #
+    #         move_type = None
+    #         tipo_documento_compra = None
+    #
+    #         if move.move_type == constants.OUT_INVOICE: # Credito fiscal en el modulo de ventas
+    #             move_type = constants.OUT_INVOICE # Nota de debito (out_debit)
+    #         elif move.move_type == constants.IN_INVOICE: # Credito fiscal en el modulo de compras
+    #             move_type = constants.IN_INVOICE # Nota de debito (in_debit) #in_invoice
+    #             tipo_documento_compra = self.env['account.journal.tipo_documento.field'].search([
+    #                 ('codigo', '=', constants.COD_DTE_ND)
+    #             ], limit=1)
+    #             _logger.info("SIT tipo_documento_compra asignado para in_refund: %s", tipo_documento_compra.valores if tipo_documento_compra else "No encontrado")
+    #
+    #
+    #         default_vals = {
+    #             'journal_id': self.journal_id.id,
+    #             'move_type': move_type,
+    #             'partner_id': move.partner_id.id,
+    #             'l10n_latam_document_type_id':doc_type.id,
+    #             'debit_origin_id': move.id,
+    #             'ref': move.name,
+    #             'invoice_origin': move.name,
+    #             'currency_id': move.currency_id.id,
+    #             'invoice_date': fields.Date.context_today(self),
+    #             'sit_tipo_documento_id': tipo_documento_compra.id if tipo_documento_compra else False,
+    #
+    #             # Copiar descuentos desde el crédito fiscal
+    #             'descuento_gravado_pct': move.descuento_gravado_pct,
+    #             'descuento_exento_pct': move.descuento_exento_pct,
+    #             'descuento_no_sujeto_pct': move.descuento_no_sujeto_pct,
+    #             'descuento_global_monto': move.descuento_global_monto,
+    #         }
+    #
+    #         invoice_lines_vals = []
+    #         for line in move.invoice_line_ids:
+    #             if line.display_type in [False, 'product'] and not line.custom_discount_line:
+    #                 _logger.info("SIT: Producto debito: %s | Tipo: %s | Descuento de linea: %s", line.name, line.display_type, line.custom_discount_line)
+    #                 line_vals = {
+    #                     'product_id': line.product_id.id,
+    #                     'name': line.name,
+    #                     'quantity': line.quantity,
+    #                     'price_unit': line.price_unit,
+    #                     'account_id': line.account_id.id,
+    #                     'tax_ids': [(6, 0, line.tax_ids.ids)],
+    #                     'discount': line.discount,
+    #                 }
+    #                 invoice_lines_vals.append((0, 0, line_vals))
+    #
+    #                 _logger.warning("SIT: line_vals: %s", line_vals)
+    #
+    #         # Simula el asiento temporalmente
+    #         temp_move = self.env['account.move'].new({
+    #             **default_vals,
+    #             'invoice_line_ids': invoice_lines_vals
+    #         })
+    #
+    #         # Total real simulado desde líneas temporales
+    #         total_debit = sum(line.debit for line in temp_move.line_ids)
+    #         total_credit = sum(line.credit for line in temp_move.line_ids)
+    #         diferencia = float_round(total_credit - total_debit, precision_rounding=move.currency_id.rounding)
+    #
+    #         _logger.warning("SIT: total_debit: %s", total_debit)
+    #         _logger.warning("SIT: total_credit: %s", total_credit)
+    #         _logger.warning("SIT: diferencia: %s", diferencia)
+    #         if abs(diferencia) > 0.01:
+    #             _logger.warning("SIT: Agregando contrapartida por diferencia: %s", diferencia)
+    #
+    #             if not self.journal_id.default_account_id:
+    #                 raise UserError(_("El diario seleccionado no tiene una cuenta predeterminada configurada."))
+    #
+    #             if diferencia > 0:
+    #                 # Hace falta agregar al DEBIT
+    #                 invoice_lines_vals.append((0, 0, {
+    #                     'name': 'Contrapartida automática',
+    #                     'account_id': self.journal_id.default_account_id.id,
+    #                     'quantity': 1,
+    #                     'price_unit': diferencia,
+    #                     'debit': diferencia,
+    #                     'credit': 0.0,
+    #                 }))
+    #             else:
+    #                 # Hace falta agregar al CREDIT
+    #                 diferencia = abs(diferencia)
+    #                 invoice_lines_vals.append((0, 0, {
+    #                     'name': 'Contrapartida automática',
+    #                     'account_id': self.journal_id.default_account_id.id,
+    #                     'quantity': 1,
+    #                     'price_unit': diferencia,
+    #                     'debit': 0.0,
+    #                     'credit': diferencia,
+    #                 }))
+    #
+    #         default_vals['invoice_line_ids'] = invoice_lines_vals
+    #
+    #         # Generar nombre anticipado
+    #         nombre_generado = None
+    #         name = default_vals.get('name', None)
+    #         _logger.info("SIT Move name: %s, Nuevio name: %s", move.name, name)
+    #         if (not name or name == '/') and move.codigo_tipo_documento:
+    #             temp_move_final = self.env['account.move'].new(default_vals)
+    #             temp_move_final.journal_id = self.journal_id
+    #             nombre_generado = temp_move_final.with_context(_dte_auto_generated=True)._generate_dte_name()
+    #         else:
+    #             # Permitir que Odoo use la secuencia estándar del diario
+    #             if move.journal_id.sequence_id:
+    #                 nombre_generado = move.journal_id.sequence_id.next_by_id()
+    #                 _logger.info("SIT Secuencia estándar asignada: %s", nombre_generado)
+    #             else:
+    #                 nombre_generado = '/'
+    #
+    #         if not nombre_generado:
+    #             raise UserError(_("No se pudo generar un número de control para el documento."))
+    #
+    #         default_vals['name'] = nombre_generado
+    #         _logger.info("SIT: Nombre generado para ND: %s", nombre_generado)
+    #
+    #         default_values_list.append(default_vals)
+    #
+    #     try:
+    #         new_moves = self.env['account.move'].with_context(ctx).create(default_values_list)
+    #     except Exception as e:
+    #         _logger.error("Error al crear account.move: %s", e)
+    #         raise UserError(_("Ocurrió un error al crear la nota de débito: %s") % e)
+    #
+    #     return {
+    #         'name': _('Debit Notes'),
+    #         'type': 'ir.actions.act_window',
+    #         'res_model': 'account.move',
+    #         'view_mode': 'form' if len(new_moves) == 1 else 'list,form',
+    #         'res_id': new_moves.id if len(new_moves) == 1 else False,
+    #         'domain': [('id', 'in', new_moves.ids)],
+    #         'context': {
+    #             'default_move_type': new_moves[0].move_type if new_moves else constants.OUT_INVOICE,
+    #         },
+    #     }
+
+    # def create_debit(self):
+    #     _logger.info("SIT: Entrando al método create_debit personalizado: %s", self)
+    #     self.ensure_one()
+    #
+    #     # 1️⃣ Si es factura de compra u otro tipo no venta → flujo estándar
+    #     if self.move_type in (
+    #         constants.IN_INVOICE, constants.IN_REFUND,
+    #         constants.TYPE_ENTRY, constants.OUT_RECEIPT, constants.IN_RECEIPT
+    #     ):
+    #         _logger.info("SIT: Se detectó factura de compra (move_type=%s). Usando flujo estándar de Odoo.", self.move_type)
+    #         return super(AccountDebitNote, self).create_debit()
+    #
+    #     # 2️⃣ Validación empresa y diario
+    #     if not (self.journal_id.company_id and self.journal_id.company_id.sit_facturacion):
+    #         _logger.info("SIT: Empresa sin facturación electrónica. Usando flujo estándar.")
+    #         return super(AccountDebitNote, self).create_debit()
+    #
+    #     if not self.journal_id:
+    #         raise UserError(_("Debe seleccionar un diario antes de continuar."))
+    #
+    #     if self.journal_id.type == 'sale' and not self.journal_id.sit_tipo_documento:
+    #         raise UserError(_("No se encontró el tipo de documento (06) Nota de Débito."))
+    #
+    #     # 3️⃣ Obtener tipo de documento LATAM
+    #     doc_code = constants.COD_DTE_ND
+    #     doc_type = self.env["l10n_latam.document.type"].search([("code", "=", doc_code)], limit=1)
+    #     if not doc_type:
+    #         raise UserError(_("No se encontró el Tipo de Documento LATAM con código: %s") % doc_code)
+    #
+    #     _logger.info(
+    #         "SIT: Resuelto l10n_latam_document_type_id -> id=%s, code=%s, name=%s",
+    #         doc_type.id, doc_type.code, doc_type.display_name
+    #     )
+    #
+    #     # 4️⃣ Crear la nota de débito usando el flujo estándar de Odoo
+    #     new_action = super(AccountDebitNote, self).create_debit()
+    #
+    #     # 5️⃣ Post-procesar las ND creadas (agregar DTE y ajustes personalizados)
+    #     new_moves = self.env["account.move"].browse(new_action.get("res_id", []))
+    #     for new_move in new_moves:
+    #         _logger.info("SIT: Ajustando nueva ND creada ID=%s | name=%s", new_move.id, new_move.name)
+    #
+    #         new_move.l10n_latam_document_type_id = doc_type.id
+    #         new_move.invoice_origin = self.move_ids.name
+    #         new_move.ref = self.move_ids.name
+    #         new_move.debit_origin_id = self.move_ids.id
+    #
+    #         # Copiar tus campos personalizados de descuento
+    #         origin = self.move_ids
+    #         new_move.descuento_gravado_pct = origin.descuento_gravado_pct
+    #         new_move.descuento_exento_pct = origin.descuento_exento_pct
+    #         new_move.descuento_no_sujeto_pct = origin.descuento_no_sujeto_pct
+    #         new_move.descuento_global_monto = origin.descuento_global_monto
+    #
+    #         # Generar nombre con tu lógica DTE
+    #         if not new_move.name or new_move.name == '/':
+    #             nombre_generado = new_move.with_context(_dte_auto_generated=True)._generate_dte_name()
+    #             _logger.info("SIT: Nombre DTE generado para ND: %s", nombre_generado)
+    #             new_move.name = nombre_generado
+    #
+    #     _logger.info("SIT: ND(s) creada(s) correctamente por flujo estándar + DTE.")
+    #     return new_action
+
     def create_debit(self):
         _logger.info("SIT: Entrando al método create_debit personalizado: %s", self)
         self.ensure_one()
@@ -65,141 +324,70 @@ class AccountDebitNote(models.TransientModel):
             "SIT: Resuelto l10n_latam_document_type_id -> id=%s, code=%s, name=%s",
             doc_type.id, doc_type.code, doc_type.display_name
         )
+        # Contexto protegido para evitar renumeraciones posteriores
         ctx = dict(self.env.context or {})
         ctx.update({
             'default_journal_id': self.journal_id.id,
             'dte_name_preassigned': True,
+            '_dte_auto_generated': True,  # evita que el write regenere el name
+            'skip_sv_ensure_name': True,  # evita _ensure_name en post-write
         })
 
-        moves = self.move_ids
-        default_values_list = []
+        # 1️⃣ Crear la ND con flujo estándar (Odoo genera líneas)
+        new_action = super(AccountDebitNote, self.with_context(ctx)).create_debit()
 
-        for move in moves:
-            _logger.info("SIT: Procesando factura original ID=%s | name=%s", move.id, move.name)
-            _logger.info("SIT: doc_type =%s, move_type: %s", doc_type, move.move_type)
+        # moves = self.move_ids
+        # default_values_list = []
 
-            move_type = None
-            tipo_documento_compra = None
+        # 5️⃣ Post-procesar las ND creadas (agregar DTE y ajustes personalizados)
+        new_moves = self.env["account.move"].browse(new_action.get("res_id", []))
+        origin = self.move_ids
 
-            if move.move_type == constants.OUT_INVOICE: # Credito fiscal en el modulo de ventas
-                move_type = constants.OUT_INVOICE # Nota de debito (out_debit)
-            elif move.move_type == constants.IN_INVOICE: # Credito fiscal en el modulo de compras
-                move_type = constants.IN_INVOICE # Nota de debito (in_debit) #in_invoice
-                tipo_documento_compra = self.env['account.journal.tipo_documento.field'].search([
-                    ('codigo', '=', constants.COD_DTE_ND)
-                ], limit=1)
-                _logger.info("SIT tipo_documento_compra asignado para in_refund: %s", tipo_documento_compra.valores if tipo_documento_compra else "No encontrado")
+        for new_move in new_moves:
+            _logger.info("SIT: Ajustando nueva ND ID=%s | name=%s", new_move.id, new_move.name)
 
+            # Vincular con documento original
+            new_move.l10n_latam_document_type_id = doc_type.id
+            new_move.invoice_origin = origin.name
+            new_move.ref = origin.name
+            new_move.debit_origin_id = origin.id
 
-            default_vals = {
-                'journal_id': self.journal_id.id,
-                'move_type': move_type,
-                'partner_id': move.partner_id.id,
-                'l10n_latam_document_type_id':doc_type.id,
-                'debit_origin_id': move.id,
-                'ref': move.name,
-                'invoice_origin': move.name,
-                'currency_id': move.currency_id.id,
-                'invoice_date': fields.Date.context_today(self),
-                'sit_tipo_documento_id': tipo_documento_compra.id if tipo_documento_compra else False,
+            # Copiar descuentos desde el documento origen
+            new_move.descuento_gravado_pct = origin.descuento_gravado_pct
+            new_move.descuento_exento_pct = origin.descuento_exento_pct
+            new_move.descuento_no_sujeto_pct = origin.descuento_no_sujeto_pct
+            new_move.descuento_global_monto = origin.descuento_global_monto
 
-                # Copiar descuentos desde el crédito fiscal
-                'descuento_gravado_pct': move.descuento_gravado_pct,
-                'descuento_exento_pct': move.descuento_exento_pct,
-                'descuento_no_sujeto_pct': move.descuento_no_sujeto_pct,
-                'descuento_global_monto': move.descuento_global_monto,
-            }
-
-            invoice_lines_vals = []
-
-            for line in move.invoice_line_ids:
-                if line.display_type in [False, 'product'] and not line.custom_discount_line:
-                    line_vals = {
-                        'product_id': line.product_id.id,
-                        'name': line.name,
-                        'quantity': line.quantity,
-                        'price_unit': line.price_unit,
-                        'account_id': line.account_id.id,
-                        'tax_ids': [(6, 0, line.tax_ids.ids)],
-                        'discount': line.discount,
-                    }
-                    invoice_lines_vals.append((0, 0, line_vals))
-
-                    _logger.warning("SIT: line_vals: %s", line_vals)
-
-            # Simula el asiento temporalmente
-            temp_move = self.env['account.move'].new({
-                **default_vals,
-                'invoice_line_ids': invoice_lines_vals
-            })
-
-            # Total real simulado desde líneas temporales
-            total_debit = sum(line.debit for line in temp_move.line_ids)
-            total_credit = sum(line.credit for line in temp_move.line_ids)
-            diferencia = float_round(total_credit - total_debit, precision_rounding=move.currency_id.rounding)
-
-            _logger.warning("SIT: total_debit: %s", total_debit)
-            _logger.warning("SIT: total_credit: %s", total_credit)
-            _logger.warning("SIT: diferencia: %s", diferencia)
-            if abs(diferencia) > 0.01:
-                _logger.warning("SIT: Agregando contrapartida por diferencia: %s", diferencia)
-
-                if not self.journal_id.default_account_id:
-                    raise UserError(_("El diario seleccionado no tiene una cuenta predeterminada configurada."))
-
-                if diferencia > 0:
-                    # Hace falta agregar al DEBIT
-                    invoice_lines_vals.append((0, 0, {
-                        'name': 'Contrapartida automática',
-                        'account_id': self.journal_id.default_account_id.id,
-                        'quantity': 1,
-                        'price_unit': diferencia,
-                        'debit': diferencia,
-                        'credit': 0.0,
-                    }))
-                else:
-                    # Hace falta agregar al CREDIT
-                    diferencia = abs(diferencia)
-                    invoice_lines_vals.append((0, 0, {
-                        'name': 'Contrapartida automática',
-                        'account_id': self.journal_id.default_account_id.id,
-                        'quantity': 1,
-                        'price_unit': diferencia,
-                        'debit': 0.0,
-                        'credit': diferencia,
-                    }))
-
-            default_vals['invoice_line_ids'] = invoice_lines_vals
-
-            # Generar nombre anticipado
+            # Determinar nombre final
             nombre_generado = None
-            name = default_vals.get('name', None)
-            _logger.info("SIT Move name: %s, Nuevio name: %s", move.name, name)
-            if (not name or name == '/') and move.codigo_tipo_documento:
-                temp_move_final = self.env['account.move'].new(default_vals)
-                temp_move_final.journal_id = self.journal_id
-                nombre_generado = temp_move_final.with_context(_dte_auto_generated=True)._generate_dte_name()
+            name_actual = new_move.name or '/'
+            _logger.info("SIT ND actual: %s", name_actual)
+
+            # Si el name está vacío o es '/', generamos el DTE name
+            if (not name_actual or name_actual == '/') and new_move.codigo_tipo_documento:
+                nombre_generado = new_move.with_context(_dte_auto_generated=True)._generate_dte_name()
+                _logger.info("SIT-create debit: Nombre DTE generado para ND: %s", nombre_generado)
             else:
-                # Permitir que Odoo use la secuencia estándar del diario
-                if move.journal_id.sequence_id:
-                    nombre_generado = move.journal_id.sequence_id.next_by_id()
-                    _logger.info("SIT Secuencia estándar asignada: %s", nombre_generado)
+                nombre_generado = name_actual
+
+            # Si sigue vacío, usar secuencia estándar
+            if not nombre_generado or nombre_generado == '/':
+                if new_move.journal_id.sequence_id:
+                    nombre_generado = new_move.journal_id.sequence_id.next_by_id()
+                    _logger.info("SIT: Secuencia estándar asignada: %s", nombre_generado)
                 else:
                     nombre_generado = '/'
 
-            if not nombre_generado:
-                raise UserError(_("No se pudo generar un número de control para el documento."))
+            new_move.name = nombre_generado
+            _logger.info("SIT: Nombre final para ND: %s", new_move.name)
 
-            default_vals['name'] = nombre_generado
-            _logger.info("SIT: Nombre generado para ND: %s", nombre_generado)
+            #default_values_list.append(default_vals)
 
-            default_values_list.append(default_vals)
-
-        try:
-            new_moves = self.env['account.move'].with_context(ctx).create(default_values_list)
-        except Exception as e:
-            _logger.error("Error al crear account.move: %s", e)
-            raise UserError(_("Ocurrió un error al crear la nota de débito: %s") % e)
+        # try:
+        #     new_moves = self.env['account.move'].with_context(ctx).create(default_values_list)
+        # except Exception as e:
+        #     _logger.error("Error al crear account.move: %s", e)
+        #     raise UserError(_("Ocurrió un error al crear la nota de débito: %s") % e)
 
         return {
             'name': _('Debit Notes'),

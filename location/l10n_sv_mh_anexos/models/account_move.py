@@ -37,6 +37,11 @@ class account_move(models.Model):
         index=True,
     )
 
+    codigo_tipo_documento = fields.Char(
+        string="Código tipo documento",
+        readonly=True
+    )
+
     tipo_ingreso_id = fields.Many2one(
         comodel_name="account.tipo.ingreso",
         string="Tipo de Ingreso"
@@ -64,11 +69,6 @@ class account_move(models.Model):
     clase_documento_id = fields.Many2one(
         string="Clase de documento",
         comodel_name="account.clase.documento"
-    )
-
-    codigo_tipo_documento = fields.Char(
-        string="Código tipo documento",
-        readonly=True
     )
 
     invoice_date = fields.Date(
@@ -132,6 +132,18 @@ class account_move(models.Model):
     )
 
     # ----------- Campos computados ----------- #
+    codigo_tipo_documento_compra = fields.Char(
+        string="Código tipo documento",
+        compute="_compute_codigo_tipo_documento_compra",
+        readonly=True
+    )
+
+    codigo_tipo_documento_compra_display = fields.Char(
+        string="Código tipo documento",
+        compute="_compute_codigo_tipo_documento_compra_display",
+        readonly=True
+    )
+
     clase_documento = fields.Char(
         string="Clase de documento",
         compute='_compute_get_clase_documento',
@@ -196,8 +208,6 @@ class account_move(models.Model):
         readonly=True,
         store=False,
     )
-
-
 
     codigo_tipo_documento_display = fields.Char(
         string="Tipo de documento",
@@ -481,6 +491,17 @@ class account_move(models.Model):
     )
 
     # ******************************** Metodos computados ******************************** #
+
+    @api.depends('invoice_date')
+    def _compute_codigo_tipo_documento_compra(self):
+        for doc in self:
+            doc.codigo_tipo_documento_compra = doc.sit_tipo_documento_id.codigo
+
+    @api.depends('invoice_date')
+    def _compute_codigo_tipo_documento_compra_display(self):
+        for doc in self:
+            doc.codigo_tipo_documento_compra_display = f"{doc.sit_tipo_documento_id.codigo}. {doc.sit_tipo_documento_id.valores}"
+
     @api.depends('name')
     def _compute_sit_tipo_documento(self):
         for record in self:
@@ -564,7 +585,7 @@ class account_move(models.Model):
             codigo = record.codigo_tipo_documento or ""  # asegura string
             nombre = record.journal_id.name or ""  # asegura string
 
-            _logger.info("Info %s Nombre %s ", codigo, nombre)
+            _logger.info("Infossssss %s Nombre %s, documento %s ", record.sit_tipo_documento_id.codigo, nombre, record.name)
             if codigo or nombre:
                 record.codigo_tipo_documento_display = f"{codigo} {nombre}".strip()
             else:
@@ -836,51 +857,6 @@ class account_move(models.Model):
             else:
                 record.nrc_cliente = ''
             _logger.info("record.nrc_cliente %s ", record.nrc_cliente)
-
-    # @api.depends('partner_id.vat', 'partner_id.nrc', 'partner_id.dui', 'invoice_date', 'partner_id.is_company',
-    #              'partner_id.company_type')
-    # def _compute_nit_nrc_anexo_contribuyentes(self):
-    #     """
-    #     H. NIT o NRC del Cliente (campo H del anexo):
-    #     - Personas Naturales:
-    #         * Periodo >= 2022-01-01:
-    #             - Si completa DUI (Q), este campo debe ir VACÍO.
-    #             - Si NO completa DUI, entonces DEBE completar NIT o NRC (preferencia NIT).
-    #         * Periodo < 2022-01-01: este campo es OBLIGATORIO (DUI debe ir vacío).
-    #     - Personas Jurídicas: NUNCA DUI; usar NIT o, si no, NRC.
-    #     Además: limpiar guiones/plecas y no formatear aquí (solo exportar limpio).
-    #     """
-    #     limite = date(2022, 1, 1)
-    #     for rec in self:
-    #         valor = ""
-    #         is_person = (rec.partner_id and (rec.partner_id.company_type or (
-    #             "company" if rec.partner_id.is_company else "person")) == "person")
-    #         period = rec.invoice_date or limite  # si no hay fecha, tratamos como >=2022 para no falsear DUI pre-2022
-    #
-    #         vat = self._only_digits(getattr(rec.partner_id, "vat", ""))
-    #         nrc = self._only_digits(getattr(rec.partner_id, "nrc", ""))
-    #         dui = self._only_digits(getattr(rec.partner_id, "dui", ""))
-    #
-    #         _logger.info("vatsss %s", vat)
-    #         _logger.info("nrcsss %s", nrc)
-    #         _logger.info("duisss %s", dui)
-    #
-    #         if is_person:
-    #             if period >= limite:
-    #                 # Si DUI está presente -> H vacío
-    #                 if not dui:
-    #                     valor = ""
-    #                 else:
-    #                     # Debe llenar NIT o NRC (preferir NIT)
-    #                     valor = vat or nrc or ""
-    #             else:
-    #                 # Antes de 2022: H obligatorio (preferir NIT, luego NRC); DUI vacío
-    #                 valor = vat or nrc or ""
-    #         else:
-    #             # Jurídicas: usar NIT o NRC; DUI no aplica
-    #             valor = vat or nrc or ""
-    #
-    #         rec.nit_o_nrc_anexo_contribuyentes = valor
 
     @api.depends('partner_id')
     def _compute_get_nit_company(self):
