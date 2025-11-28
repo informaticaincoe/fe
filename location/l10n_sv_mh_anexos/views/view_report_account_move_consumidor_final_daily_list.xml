@@ -6,21 +6,30 @@
             <field name="arch" type="xml">
                 <list string="Anexo consumidor final agrupado">
                     <header>
+                        <button name="action_refresh_report"
+                                type="object"
+                                string="Actualizar"
+                                class="oe_highlight"
+                                display="always"
+                                context="{'numero_anexo': 2, 'anexo_action_id': 'ANX_CF_AGRUPADO'}"/>
+
+
                         <button name="export_csv_from_action"
                                 type="object"
                                 string="Descargar CSV"
                                 class="oe_highlight"
-                                context="{'active_view_id': context.get('active_view_id') or context.get('view_id')}"
+                                context="{'numero_anexo': 2, 'anexo_action_id': 'ANX_CF_AGRUPADO'}"
                                 display="always"/>
                     </header>
-                    <field name="invoice_date"/>
-                    <field name="clase_documento_display"/>
-                    <field name="codigo_tipo_documento_display"/>
-                    <field name="numero_resolucion_consumidor_final" string="Serie del documento"/>
-                    <field name="numero_control_interno_del"/>
-                    <field name="numero_control_interno_al"/>
-                    <field name="numero_documento_del"/>
-                    <field name="numero_documento_al"/>
+                    <field name="invoice_date_str" string="Fecha de emisión"/>
+                    <field name="clase_documento_display" string="Clase documento"/>
+                    <field name="codigo_tipo_documento_display" string="Tipo documento"/>
+                    <field name="numero_resolucion_consumidor_final" string="Número de resolución"/>
+                    <field name="hacienda_sello_recibido" string="Serie de documento"/>
+                    <field name="numero_control_interno_del" string="Número de Control interno (DEL)"/>
+                    <field name="numero_control_interno_al" string="Número de Control interno (AL)"/>
+                    <field name="numero_documento_del" string="Número de Documento (DEL)"/>
+                    <field name="numero_documento_al" string="Número de Documento (AL)"/>
                     <field name="numero_maquina_registradora"/>
                     <field name="total_exento"/>
                     <field name="ventas_exentas_no_sujetas"/>
@@ -31,7 +40,7 @@
                     <field name="exportaciones_de_servicio"/>
                     <field name="ventas_tasa_cero"/>
                     <field name="ventas_cuenta_terceros"/>
-                    <field name="total_operacion_suma"/>
+                    <field name="monto_total_operacion"/>
                     <field name="tipo_operacion_display"/>
                     <field name="tipo_ingreso_display"/>
                     <field name="numero_anexo"/>

@@ -20,25 +20,22 @@
     'data': [
         "security/ir.model.access.csv",
 
-        # "views/report_anexos_search_action.xml",
-        # "views/filter_anexos_agrupar_por_semestre.xml",
-
+        # VISTAS
         "views/view_report_account_move_consumidor_final_daily_list.xml",
-
-        'views/view_anexo_contribuyentes.xml',
-        'views/view_anexo_compras.xml',
-        'views/view_anexo_sujeto_excluido.xml',
-        'views/view_anexo_casilla162.xml',
-        'views/view_anexo_documentos_anulados_y_extraviados.xml',
-        'views/view_anexo_casilla162.xml',
-        'views/view_anexo_clientes.xml',
-        'views/view_anexo_cliente_mayores.xml',
         "views/view_account_new_fields.xml",
-
-        "views/report_anexos_action.xml",
+        "views/view_anexo_casilla162.xml",
+        "views/view_anexo_cliente_mayores.xml",
+        "views/view_anexo_clientes.xml",
+        "views/view_anexo_compras.xml",
+        "views/view_anexo_contribuyentes.xml",
+        "views/view_anexo_documentos_anulados_y_extraviados.xml",
+        "views/view_anexo_sujeto_excluido.xml",
         "views/hide_new_button_in_anexos.xml",
 
-        # 'views/anexos_report_views.xml',
+        # ACCIONES / MENÚS
+        "views/report_anexos_action.xml",
+
+        # DATA CSV
         "data/account.tipo.costo.gasto.csv",
         "data/account.tipo.ingreso.csv",
         "data/account.tipo.operacion.csv",
@@ -47,6 +44,7 @@
         "data/account.tipo.documento.identificacion.csv",
         "data/account.sector.csv",
     ],
+
     'demo': [
         # 'demo.xml',
     ],

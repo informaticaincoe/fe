@@ -102,8 +102,6 @@
             </field>
             <field name="context">
                 {
-                'numero_anexo': 5,
-                'anexo_action_id': 'ANX_CLIENTES_MENORES',
                 'group_by': ['invoice_year_agrupado','invoice_semester_agrupado'],
                 'search_default_group_by_year': 1,
                 'search_default_group_by_semester': 1
@@ -131,8 +129,10 @@
                 ('amount_total', '&lt;=', 25000)
                 ]
             </field>
-            <field name="context">{'numero_anexo': 4, 'anexo_action_id': 'ANX_CLIENTES_MAYORES', 'group_by':
-                ['invoice_year','invoice_semester'],
+            <field name="context">{
+                'numero_anexo': 4,
+                'anexo_action_id': 'ANX_CLIENTES_MAYORES',
+                'group_by': ['invoice_year','invoice_semester'],
                 'search_default_group_by_year': 1,
                 'search_default_group_by_semester': 1}
             </field>
@@ -147,17 +147,36 @@
                 parent="account.menu_finance_reports"
                 sequence="20"/>
 
+        <record id="action_report_account_consumidor_final_server" model="ir.actions.server">
+            <field name="name">Anexo de Ventas a Consumidor Final</field>
+            <field name="model_id" ref="model_report_account_move_consumidor_final_agrupado"/>
+            <field name="state">code</field>
+            <field name="code">
+                action = env['report.account.move.consumidor.final.agrupado'].action_open_report()
+            </field>
+        </record>
+
+
         <menuitem id="menu_report_account_move_consumidor_final_agrupado"
                   name="Anexo de Ventas a Consumidor Final"
                   parent="menu_hacienda_reports"
-                  action="action_report_account_move_consumidor_final_agrupado"
+                  action="action_report_account_consumidor_final_server"
                   sequence="15"/>
+
+        <record id="action_report_account_move_daily_server" model="ir.actions.server">
+            <field name="name">Facturas Cliente menores</field>
+            <field name="model_id" ref="model_report_account_move_daily"/>
+            <field name="state">code</field>
+            <field name="code">
+                action = env['report.account.move.daily'].action_open_report()
+            </field>
+        </record>
 
         <!-- Submenús -->
         <menuitem id="menu_report_account_move_daily"
                   name="Facturas menores a 25000"
                   parent="menu_hacienda_reports"
-                  action="action_report_account_move_daily"/>
+                  action="action_report_account_move_daily_server"/>
 
         <menuitem id="menu_report_account_move_daily_mayores"
                   name="Facturas mayores a 25000"
