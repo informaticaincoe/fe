@@ -20,6 +20,17 @@
                 -->
         </field>
     </record>
+
+    <record id="view_account_journal_form_inherit_sit" model="ir.ui.view">
+        <field name="name">account.journal.form.sit.tax</field>
+        <field name="model">account.journal</field>
+        <field name="inherit_id" ref="account.view_account_journal_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='account_control_ids']" position="after">
+                <field name="sit_tax_ids" widget="many2many_tags"/>
+            </xpath>
+        </field>
+    </record>
 </odoo>
 
 

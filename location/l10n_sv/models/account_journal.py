@@ -24,3 +24,12 @@ class AccountJournal(models.Model):
     sit_codpuntoventa = fields.Char(string='codPuntoVenta' )
     sit_modelo_facturacion = fields.Many2one('account.journal.tipo_modelo.field', 'Tipo de Modelo (CAT03)', help='Tipo de Modelo de acuerdo al CAT03')
     sit_tipo_transmision = fields.Many2one('account.move.tipo_operacion.field', string="Tipo de Operación (CAT04)", help='Código del Tipo de Operación al CAT004')
+
+    sit_tax_ids = fields.Many2many(
+        'account.tax',
+        'account_journal_x_sale_tax_rel',  # tabla rel
+        'journal_id', 'tax_id',
+        string='Impuestos de ventas',
+        domain="[('type_tax_use', '=', 'sale')]",
+        help='Impuestos que se podrán seleccionar en las líneas de cotización y ventas usando este diario.'
+    )
