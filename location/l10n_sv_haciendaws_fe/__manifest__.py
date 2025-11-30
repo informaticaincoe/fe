@@ -29,6 +29,7 @@
         "data/dte_config.xml",
         "views/res_partner_view_journal.xml",
         "views/view_journal_sale_order.xml",
+        "views/view_taxes.xml",
     ],
     "demo": [],
     "images": [],

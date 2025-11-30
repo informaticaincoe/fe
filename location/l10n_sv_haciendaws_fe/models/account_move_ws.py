@@ -1286,7 +1286,8 @@ class AccountMove(models.Model):
         else:
             invoice_info["tributos"] = None
         invoice_info["subTotal"] = round(self.sub_total, 2)
-        invoice_info["ivaPerci1"] = round(self.inv_refund_id.iva_percibido_amount, 2)
+        # invoice_info["ivaPerci1"] = round(self.inv_refund_id.iva_percibido_amount, 2)
+        invoice_info["ivaPerci1"] = round(self.iva_percibido_amount, 2)
         invoice_info["ivaRete1"] = round(self.retencion_iva_amount or 0.0, 2)
         invoice_info["reteRenta"] = round(self.retencion_renta_amount or 0.0, 2)
         invoice_info["montoTotalOperacion"] = round(self.amount_total, 2)

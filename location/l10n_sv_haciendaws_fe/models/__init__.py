@@ -8,3 +8,5 @@ from . import account_move_reversal_ext
 from . import account_debit
 from . import sale_order
 from . import res_partner
+from . import sale_order_line
+from . import account_move_line

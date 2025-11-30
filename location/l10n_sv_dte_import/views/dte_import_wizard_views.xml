@@ -29,7 +29,7 @@
           <group string="Parámetros">
             <field name="company_id"/>
             <field name="product_fallback_id"/>
-            <field name="create_partners"/>
+<!--            <field name="create_partners"/>-->
             <field name="post_moves"/>
             <field name="skip_mh_flow"/>
           </group>

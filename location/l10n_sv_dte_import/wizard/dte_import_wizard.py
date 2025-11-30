@@ -18,10 +18,12 @@ MH_UOM_MAP = {
 
 try:
     from odoo.addons.common_utils.utils import constants
+    from odoo.addons.common_utils.utils import config_utils
     _logger.info("SIT Modulo l10n_sv_dte_import [dte_import_wizard]")
 except ImportError as e:
     _logger.error(f"Error al importar 'constants': {e}")
     constants = None
+    config_utils = None
 
 class DTEImportWizardLine(models.TransientModel):
     _name = "dte.import.wizard.line"
@@ -164,13 +166,16 @@ class DTEImportWizard(models.TransientModel):
         if tipo not in (constants.COD_DTE_FE, constants.COD_DTE_CCF, constants.COD_DTE_NC, constants.COD_DTE_ND, constants.COD_DTE_FEX, constants.COD_DTE_FSE):
             raise UserError(_("Tipo DTE no soportado: %s (sólo 01=CF, 03=CCF, 05=NC, 06=ND, 11=FEX, 14=FSE)") % (tipo,))
 
+        # Evaluar el codigo de generacion
+        codigo_generacion = parsed.get("codigo_generacion") or None
+        _logger.info("[DTE Import] Codigo de generacion detectado: %s", codigo_generacion)
         # 01 y 03 => facturas de venta
         if tipo:
             if tipo in(constants.COD_DTE_FE, constants.COD_DTE_CCF, constants.COD_DTE_ND, constants.COD_DTE_FEX):
                 move_type = constants.OUT_INVOICE
-            elif tipo in(constants.COD_DTE_NC):
+            elif tipo == constants.COD_DTE_NC:
                 move_type = constants.OUT_REFUND
-            elif tipo in(constants.COD_DTE_FSE):
+            elif tipo == constants.COD_DTE_FSE:
                 move_type = constants.IN_INVOICE
 
         # 1. Diario: buscar por sit_tipo_documento.codigo == tipo
@@ -224,11 +229,13 @@ class DTEImportWizard(models.TransientModel):
             "journal_id": journal.id,
             "partner_id": partner.id,
             "invoice_date": parsed["fecha_emision"].date() if parsed["fecha_emision"] else False,
+            "invoice_time": parsed["hora_emision"] or None,
             "invoice_date_due": self._compute_due_date(parsed),   # <- NUEVO
+            "state": "draft",
 
             # Tus campos existentes:
             "name": parsed.get("numero_control") or "/",
-            "hacienda_codigoGeneracion_identificacion": parsed.get("codigo_generacion") or "",
+            "hacienda_codigoGeneracion_identificacion": codigo_generacion or "",
             "hacienda_selloRecibido": parsed.get("sello_hacienda") or None,
 
             # Referencias visibles:
@@ -268,7 +275,7 @@ class DTEImportWizard(models.TransientModel):
         if tipo == constants.COD_DTE_NC:
             skip_retention_discounts = True
             move_vals["reversed_entry_id"] = related_moves[0].id if related_moves else None
-            # move_vals["inv_refund_id"] = reversed.id
+            move_vals["inv_refund_id"] = related_moves[0].id if related_moves else None
             _logger.info("[DTE Import] Nota de crédito vinculada con factura %s (Código generación: %s)", related_moves[0].name, related_moves[0].hacienda_codigoGeneracion_identificacion)
         elif tipo == constants.COD_DTE_ND:
             skip_retention_discounts= True
@@ -303,20 +310,37 @@ class DTEImportWizard(models.TransientModel):
             uom_id = self._uom_from_mh_code(it.get("uni_medida"))
 
             impuesto_sv = 0.0
-            taxes = self.env['account.tax'].browse()  # default vacío
-            if tipo == constants.COD_DTE_FE: # Consumidor final
-                taxes = self._taxes_for_line(
-                    iva_item=it.get("iva_item") or 0.0,
-                    exenta=it.get("venta_exenta") or 0.0,
-                    no_suj=it.get("venta_no_suj") or 0.0,
-                )
-                impuesto_sv = taxes.amount or 0.0
-                _logger.info("[DTE Import] Línea tipo 01, impuestos detectados: %s (%.2f%%)", taxes.mapped('name'), impuesto_sv)
+            # taxes = self.env['account.tax'].browse()  # vacío por defecto
 
-                # Ajustar el precio unitario dinámicamente (quitar IVA si corresponde)
+            tipo_venta = getattr(product, 'tipo_venta', 'gravado')
+
+            taxes = self._taxes_for_line(
+                iva_item=it.get("venta_gravada") or 0.0, # iva_item=it.get("iva_item") or 0.0,
+                exenta=it.get("venta_exenta") or 0.0,
+                no_suj=it.get("venta_no_suj") or 0.0,
+            )
+
+            # --- Validación final de impuesto ---
+            if not taxes:
+                raise UserError(
+                    _("El producto '%s' no tiene un impuesto configurado correctamente. Verifique su tipo de venta y el tipo de documento.") % product.display_name)
+
+            # --- CASO 1: CONSUMIDOR FINAL ---
+            if tipo == constants.COD_DTE_FE:
+                impuesto_sv = taxes.amount or 0.0
+                valor_iva = 0.0
+                impuesto_config = config_utils.get_config_value(self.env, 'impuesto_sv', self.company_id.id) if config_utils else 13
+                _logger.info("[DTE Import] Línea tipo 01, impuestos detectados: %s (%.2f%%) | Impuesto configurado: %s", taxes.mapped('name'), impuesto_sv, impuesto_config)
+
+                if float(impuesto_sv) > 0:
+                    if float(impuesto_config) == float(impuesto_sv):
+                        valor_iva = config_utils.get_config_value(self.env, 'iva_divisor', self.company_id.id) if config_utils else 1.13
+                        _logger.info("[DTE Import] IVA configurado: %s", valor_iva)
+
+                # Ajustar el precio si incluye IVA
                 if raw_price > 0 and impuesto_sv > 0:
                     try:
-                        factor = 1.0 + (impuesto_sv / 100.0)
+                        factor = float(valor_iva) #1.0 + (impuesto_sv / 100.0)
                         base_price = raw_price / factor
                         price = base_price
                         _logger.info("[Ítem %s] Precio unitario incluye IVA %.2f%% → sin IVA: %.4f (÷%.4f)", it.get("numItem"), impuesto_sv, base_price, factor)
@@ -324,31 +348,18 @@ class DTEImportWizard(models.TransientModel):
                         _logger.warning("[Ítem %s] Error al calcular base sin IVA (precio=%s, IVA=%.2f%%): %s", it.get("numItem"), raw_price, impuesto_sv, e)
                 else:
                     _logger.info("[Ítem %s] Precio unitario %.2f sin modificación (IVA=%.2f%%).", it.get("numItem"), raw_price, impuesto_sv)
-            elif tipo in(constants.COD_DTE_CCF, constants.COD_DTE_NC, constants.COD_DTE_ND, constants.COD_DTE_FEX, constants.COD_DTE_FSE):  # Crédito fiscal
-                tipo_venta = getattr(product, 'tipo_venta', 'gravado')  # gravado, exento, no sujeto
-                if tipo_venta == 'gravado':
-                    taxes = self.tax_iva_13_id
-                elif tipo_venta == 'exento':
-                    taxes = self.tax_exento_id
-                elif tipo_venta == 'no_sujeto':
-                    taxes = self.tax_no_suj_id
-                impuesto_sv = taxes.amount
 
-                _logger.info("[DTE Import] Línea tipo 03, producto %s, tipo_venta=%s, impuesto=%s",
-                             product.default_code, tipo_venta, taxes.display_name if taxes else None)
-
-            if impuesto_sv and not taxes:
-                raise UserError(_(
-                    "No se encontró un impuesto del %s%% en la compañía '%s'. "
-                    "Por favor, configure el impuesto correspondiente."
-                ) % (impuesto_sv, self.company_id.display_name))
+            # --- CASO 2: CCF, NC, ND, FEX, FSE ---
+            elif tipo in (constants.COD_DTE_CCF, constants.COD_DTE_NC, constants.COD_DTE_ND, constants.COD_DTE_FEX, constants.COD_DTE_FSE):
+                impuesto_sv = taxes.amount if taxes else 0.0
+                _logger.info("[DTE Import] Línea tipo %s, producto %s, tipo_venta=%s, impuesto=%s",
+                             tipo, product.default_code, tipo_venta, taxes.display_name if taxes else None)
 
             account_id = (
                     product.property_account_income_id.id
                     or product.categ_id.property_account_income_categ_id.id
                     or journal.company_id.account_default_income_id.id
             )
-
             if not account_id:
                 raise UserError(_("El producto '%s' no tiene cuenta de ingresos configurada.") % product.display_name)
 
@@ -374,7 +385,7 @@ class DTEImportWizard(models.TransientModel):
             raise UserError(_("El DTE no contiene líneas de producto válidas."))
 
         # 6. Línea de CxC (balanceo)
-        company = journal.company_id
+        # company = journal.company_id
         receivable_account = None
 
         if move_type and move_type == constants.IN_INVOICE:
@@ -415,12 +426,20 @@ class DTEImportWizard(models.TransientModel):
                 "skip_sequence_on_post": True,
                 "skip_import_json": True,
             })
+        else:
+            ctx.update({
+                "sit_import_dte_json": True,
+            })
             _logger.info("[DTE Import] Contexto ajustado para importar DTE: %s", ctx)
 
         # 10. Postear factura
         _logger.info("[DTE Import] Posteando factura ID=%s...", move.id)
-        move.with_context(ctx).action_post()
-        _logger.info("Asiento %s publicado correctamente", move.name)
+        if self.post_moves:
+            _logger.info("[DTE Import] Posteando factura ID=%s...", move.id)
+            move.with_context(ctx).action_post()
+            _logger.info("Asiento %s publicado correctamente", move.name)
+        else:
+            _logger.info("[DTE Import] NO se publica el movimiento (post_moves=False). Queda en borrador.")
 
         # 11. Mensaje en chatter
         move.message_post(
@@ -469,12 +488,31 @@ class DTEImportWizard(models.TransientModel):
     def _taxes_for_line(self, iva_item=0.0, exenta=0.0, no_suj=0.0):
         """Prioridad: IVA > Exento > No Sujeto. Devuelve recordset de account.tax."""
         Tax = self.env["account.tax"]
-        if iva_item and self.tax_iva_13_id:
+        _logger.info("[_taxes_for_line] Entrando con valores -> IVA: %.2f | Exenta: %.2f | No Sujeto: %.2f", iva_item, exenta, no_suj)
+
+        # --- Caso 1: IVA Gravado ---
+        if iva_item:
+            if not self.tax_iva_13_id:
+                raise UserError(_("No se encontró un impuesto configurado para productos gravados (IVA 13%)."))
+            _logger.info("[_taxes_for_line] ✅ Seleccionado impuesto IVA: %s (%.2f%%)", self.tax_iva_13_id.display_name, self.tax_iva_13_id.amount)
             return self.tax_iva_13_id
-        if exenta and self.tax_exento_id:
+
+        # --- Caso 2: Exento ---
+        if exenta:
+            if not self.tax_exento_id:
+                raise UserError(_("No se encontró un impuesto configurado para productos exentos."))
+            _logger.info("[_taxes_for_line] ✅ Seleccionado impuesto exento: %s", self.tax_exento_id.display_name)
             return self.tax_exento_id
-        if no_suj and self.tax_no_suj_id:
+
+        # --- Caso 3: No Sujeto ---
+        if no_suj:
+            if not self.tax_no_suj_id:
+                raise UserError(_("No se encontró un impuesto configurado para productos no sujetos."))
+            _logger.info("[_taxes_for_line] ✅ Seleccionado impuesto no sujeto: %s", self.tax_no_suj_id.display_name)
             return self.tax_no_suj_id
+
+        # --- Caso sin impuestos ---
+        _logger.warning("[_taxes_for_line] No se detectó ningún tipo de impuesto aplicable para esta línea.")
         return Tax.browse()
 
     def _find_product_by_code(self, code):
@@ -487,70 +525,126 @@ class DTEImportWizard(models.TransientModel):
         receptor_nit = parsed.get("receptor_nit")
         receptor_correo = parsed.get("receptor_correo")
         receptor_tel = parsed.get("receptor_tel")
-        receptor_tipo_doc = parsed.get("receptor_tipo_documento")
+        receptor_tipo_doc = parsed.get("receptor_tipo_documento") or None
         tipo_dte = parsed["tipo_dte"]
+        receptor_pais = parsed.get("cod_pais")
+        receptor_dir = parsed.get("receptor_direccion")
 
-        _logger.info("Datos del receptor: Tipo Documento=%s | NIT=%s | Correo=%s | Tel=%s | Tipo=%s",
-                     receptor_tipo_doc, receptor_nit, receptor_correo, receptor_tel, tipo_dte)
+        _logger.info(
+            "[Partner Init] Datos del receptor: TipoDoc=%s | NIT=%s | Correo=%s | Tel=%s | TipoDTE=%s | País=%s | Dirección=%s",
+            receptor_tipo_doc, receptor_nit, receptor_correo, receptor_tel, tipo_dte, receptor_pais, receptor_dir)
 
         partner = Partner.browse()
 
         # 1 Normalizar NIT (quitar guiones para comparar)
         nit_normalizado = receptor_nit.replace("-", "").strip() if receptor_nit else None
-        _logger.info("NIT normalizado: '%s' (original: '%s')", nit_normalizado, receptor_nit)
+        _logger.info("[Partner Search] NIT normalizado='%s' (original='%s')", nit_normalizado, receptor_nit)
 
-        # 2 Buscar por NIT
-        if ( (receptor_tipo_doc and receptor_tipo_doc == constants.COD_TIPO_DOCU_NIT) or
-                (tipo_dte and tipo_dte in(constants.COD_DTE_CCF, constants.COD_DTE_NC, constants.COD_DTE_ND)) ):
-            # Buscar partners cuyo NIT sea igual en cualquiera de los dos formatos
-            domain = ["|",
-                      ("vat", "=", receptor_nit),
-                      ("vat", "=", nit_normalizado)]
+        # Buscar por NIT
+        if ((receptor_tipo_doc and receptor_tipo_doc == constants.COD_TIPO_DOCU_NIT) or
+                (tipo_dte and tipo_dte in (constants.COD_DTE_CCF, constants.COD_DTE_NC, constants.COD_DTE_ND))):
+            domain = ["|", ("vat", "=", receptor_nit), ("vat", "=", nit_normalizado)]
             partner = Partner.search(domain, limit=1)
-            _logger.info("[Partner Search] Encontrado por NIT: %s (%s)", partner.display_name, partner.vat)
-        # Otros documentos: buscar por DUI o NIT según el tipo de documento del receptor
+            _logger.info("[Partner Search] Resultado búsqueda por NIT: %s (VAT=%s)", partner.display_name or "Ninguno", partner.vat)
         elif receptor_tipo_doc:
             if receptor_tipo_doc == constants.COD_TIPO_DOCU_DUI:
                 domain = ["|", ("dui", "=", receptor_nit), ("dui", "=", nit_normalizado)]
                 partner = Partner.search(domain, limit=1)
-                _logger.info("[Partner Search] Encontrado por DUI: %s (%s)", partner.display_name, partner.dui)
+                _logger.info("[Partner Search] Resultado búsqueda por DUI: %s (DUI=%s)", partner.display_name or "Ninguno", partner.dui)
             elif receptor_tipo_doc == constants.COD_TIPO_DOCU_NIT:
                 domain = ["|", ("vat", "=", receptor_nit), ("vat", "=", nit_normalizado)]
                 partner = Partner.search(domain, limit=1)
-                _logger.info("[Partner Search] Encontrado por NIT: %s (%s)", partner.display_name, partner.vat)
+                _logger.info("[Partner Search] Resultado búsqueda por NIT (tipo_doc): %s (VAT=%s)", partner.display_name or "Ninguno", partner.vat)
 
         # 3 Buscar por correo o teléfono si no se encontró por NIT
         if not partner:
             domain = ["|", "|",
                       ("email", "=", receptor_correo),
                       ("phone", "=", receptor_tel),
-                      ("mobile","=", receptor_tel)]
+                      ("mobile", "=", receptor_tel)]
             partner = Partner.search(domain, limit=1)
             if partner:
                 _logger.info("[Partner Search] Encontrado por correo/teléfono: %s (email=%s, tel=%s)", partner.display_name, receptor_correo, receptor_tel)
             else:
-                _logger.info("[Partner Search] No se encontró partner con correo/teléfono.")
+                _logger.info("[Partner Search] No se encontró partner por correo o teléfono.")
 
         # 4 Si existe o no se permite crear nuevos
         if partner or not self.create_partners:
             if partner:
                 _logger.info("[Partner Result] Usando partner existente: %s (ID=%s)", partner.display_name, partner.id)
             else:
-                _logger.warning("[Partner Result] No se encontró partner y create_partners=False. No se creará.")
+                _logger.warning("[Partner Result] No se encontró partner y create_partners=False. No se creará uno nuevo.")
             return partner or Partner.browse()
 
         # 5 Crear nuevo partner
+        TipoIdentificacion = self.env['l10n_latam.identification.type']
+        tipo_identificacion_id = TipoIdentificacion.search([("codigo", "=", receptor_tipo_doc)], limit=1)
+        _logger.info("[Partner Create] Tipo de identificación encontrado: %s (ID=%s)", tipo_identificacion_id.display_name, tipo_identificacion_id.id)
+
+        ActividadEco = self.env['account.move.actividad_economica.field']
+        cod_actividad_eco_id = ActividadEco.search([("codigo", "=", parsed["receptor_cod_actividad"])], limit=1)
+        _logger.info("[Partner Create] Actividad económica: %s (ID=%s)", cod_actividad_eco_id.display_name, cod_actividad_eco_id.id)
+
+        Pais = self.env['res.country']
+        Municipio = self.env['res.municipality']
+        Departamento = self.env['res.country.state']
+
+        pais_id = depto_id = municipio_id = None
+
+        # Determinar país
+        if receptor_pais:
+            pais_id = Pais.search([("code", "=", receptor_pais)], limit=1)
+            _logger.info("[Partner Create] País determinado desde JSON: %s (code=%s)", pais_id.display_name, receptor_pais)
+        else:
+            if receptor_tipo_doc in (constants.COD_TIPO_DOCU_DUI, constants.COD_TIPO_DOCU_NIT) or tipo_dte in(constants.COD_DTE_CCF, constants.COD_DTE_NC, constants.COD_DTE_ND):
+                pais_id = Pais.search([("code", "=", constants.COD_PAIS_SV)], limit=1)
+                _logger.info("[Partner Create] País asumido como El Salvador (por DUI/NIT): %s", pais_id.display_name)
+            else:
+                _logger.info("[Partner Create] País no proporcionado ni inferido.")
+
+        # Determinar departamento y municipio
+        dept_code = receptor_dir.get("departamento") if receptor_dir else None
+        muni_code = receptor_dir.get("municipio") if receptor_dir else None
+        _logger.info("[Partner Create] Códigos ubicación: depto=%s | municipio=%s", dept_code, muni_code)
+
+        if pais_id and tipo_dte != constants.COD_DTE_FEX:
+            depto_id = Departamento.search([("country_id", "=", pais_id.id), ("code", "=", dept_code)], limit=1)
+            municipio_id = Municipio.search([("dpto_id", "=", depto_id.id), ("code", "=", muni_code)], limit=1)
+            _logger.info("[Partner Create] Buscando con país '%s': Depto=%s (ID=%s) | Municipio=%s (ID=%s)",
+                         pais_id.display_name, depto_id.display_name, depto_id.id, municipio_id.display_name, municipio_id.id)
+        else:
+            if tipo_dte != constants.COD_DTE_FEX:
+                depto_id = Departamento.search([("code", "=", dept_code)], limit=1)
+                municipio_id = Municipio.search([("code", "=", muni_code)], limit=1)
+                _logger.info("[Partner Create] Sin país — usando primer depto/muni encontrado: Depto=%s (ID=%s) | Municipio=%s (ID=%s)",
+                             depto_id.display_name, depto_id.id, municipio_id.display_name, municipio_id.id)
+
+        # Preparar vals
         vals = {
             "name": parsed.get("receptor_nombre") or _("Cliente sin nombre"),
-            "vat": parsed.get("receptor_nit") or False,
+            "l10n_latam_identification_type_id": tipo_identificacion_id.id or None,
+            # "vat": parsed.get("receptor_nit") or False,
+            "nrc": parsed.get("receptor_nrc") or False,
             "email": parsed.get("receptor_correo") or False,
             "phone": parsed.get("receptor_tel") or False,
             "street": parsed.get("receptor_dir") or False,
             "company_type": "company" if parsed.get("receptor_nrc") else "person",
             "customer_rank": 1,
+            "codActividad": cod_actividad_eco_id.id,
+            "country_id": pais_id.id if pais_id else None,
+            "state_id": depto_id.id if depto_id else False,
+            "munic_id": municipio_id.id if municipio_id else False,
         }
 
-        _logger.info("[Partner Create] Creando nuevo partner con datos: %s", vals)
+        # Asignar identificación
+        if receptor_tipo_doc == constants.COD_TIPO_DOCU_DUI:
+            vals["dui"] = parsed.get("receptor_nit") or False
+        elif receptor_tipo_doc == constants.COD_TIPO_DOCU_NIT or tipo_dte in(constants.COD_DTE_CCF, constants.COD_DTE_NC, constants.COD_DTE_ND):
+            vals["vat"] = parsed.get("receptor_nit") or False
+        else:
+            vals["dui"] = parsed.get("receptor_nit") or False
+
+        _logger.info("[Partner Create] Valores finales para creación: %s", vals)
         partner = Partner.create(vals)
         _logger.info("[Partner Create] Partner creado exitosamente: %s (ID=%s, NIT=%s)", partner.display_name, partner.id, partner.vat)
 

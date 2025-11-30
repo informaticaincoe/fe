@@ -52,7 +52,7 @@
         <!-- Ubicamos el campo debajo de sit_factura_de_contingencia -->
         <xpath expr="//field[@name='sit_factura_de_contingencia']" position="after">
           <group>
-            <field name="sit_es_configencia" string="Contingencia" invisible="(move_type != 'out_invoice' and not codigo_tipo_documento) or not sit_facturacion"/>
+            <field name="sit_es_configencia" string="Contingencia" invisible="(move_type != 'out_invoice' and not codigo_tipo_documento) or not sit_entorno_test"/>
           </group>
         </xpath>
       </field>

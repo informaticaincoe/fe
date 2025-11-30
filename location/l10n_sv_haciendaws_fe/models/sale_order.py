@@ -51,7 +51,7 @@ class SaleOrder(models.Model):
                     ) % (tipo_doc_partner.name or tipo_doc_partner.codigo))
 
             # Validar recinto fiscal
-            if tipo_doc_journal and tipo_doc_journal.codigo in (constants.COD_DTE_FEX):
+            if tipo_doc_journal and tipo_doc_journal.codigo == constants.COD_DTE_FEX:
                 if not order.recintoFiscal:
                     raise ValidationError("Debe seleccionar un recinto fiscal.")
 

@@ -252,3 +252,90 @@ def _get_fecha_procesamiento(self, fh_str=None, fmt='%d/%m/%Y %H:%M:%S'):
 
     _logger.warning("No se pudo obtener ninguna fecha de procesamiento, devolviendo None")
     return None
+
+
+def _apply_journal_tax(line, tax_field, mode):
+    """
+    Parámetros:
+        line        -> línea (sale.order.line o account.move.line)
+        tax_field   -> 'tax_id' o 'tax_ids'
+        mode        -> 'on_product' o 'on_journal_change'
+    """
+
+    _logger.info("=== [APPLY JOURNAL TAX] START line=%s tax_field=%s mode=%s ===", line.id, tax_field, mode)
+
+    # ------------------------------
+    # 1) Empresa
+    # ------------------------------
+    company = None
+    if hasattr(line, 'order_id') and line.order_id:
+        company = line.order_id.company_id
+    elif hasattr(line, 'move_id') and line.move_id:
+        company = line.move_id.company_id
+
+    _logger.info("[CHECK COMPANY] company_id=%s usa_fact=%s", company.id if company else None, company.sit_facturacion if company else None)
+
+    if not company or not company.sit_facturacion:
+        _logger.info("[STOP] Empresa no usa facturación.")
+        return
+
+    # ------------------------------
+    # 2) Ignorar compras
+    # ------------------------------
+    if hasattr(line, 'move_id') and line.move_id:
+        mt = line.move_id.move_type
+        _logger.info("[CHECK MOVE TYPE] move_type=%s", mt)
+        if mt not in ('out_invoice', 'out_refund'):
+            _logger.info("[STOP] Documento no es venta → no aplicar lógica.")
+            return
+
+    # ------------------------------
+    # 3) Diario
+    # ------------------------------
+    journal = None
+    if hasattr(line, 'order_id') and line.order_id:
+        journal = line.order_id.journal_id
+    elif hasattr(line, 'move_id') and line.move_id:
+        journal = line.move_id.journal_id
+
+    _logger.info("[JOURNAL] journal_id=%s", journal.id if journal else None)
+
+    if not journal:
+        _logger.info("[STOP] No diario → salir.")
+        return
+
+    allowed = journal.sit_tax_ids
+    _logger.info("[ALLOWED TAXES] allowed=%s", allowed.ids if allowed else None)
+
+    # ------------------------------
+    # 4) Diario sin impuestos
+    # ------------------------------
+    if not allowed:
+        if mode == 'on_journal_change':
+            _logger.info("[CLEAR] Diario sin impuestos → limpiando %s", tax_field)
+            setattr(line, tax_field, False)
+        else:
+            _logger.info("[STOP] Diario sin impuestos → no asigno por modo on_product.")
+        return
+
+    current_taxes = getattr(line, tax_field)
+    _logger.info("[CURRENT TAXES] %s=%s", tax_field, current_taxes.ids if current_taxes else None)
+
+    # ------------------------------
+    # 5) MODO PRODUCTO
+    # ------------------------------
+    if mode == 'on_product':
+        if not current_taxes:
+            _logger.info("[SET] Asignando impuestos del diario → %s", allowed.ids)
+            setattr(line, tax_field, allowed)
+        else:
+            _logger.info("[KEEP] Línea ya tenía impuestos → no se modifican.")
+
+    # ------------------------------
+    # 6) MODO CAMBIO DE DIARIO
+    # ------------------------------
+    elif mode == 'on_journal_change':
+        _logger.info("[REPLACE] Reemplazando impuestos con %s", allowed.ids)
+        setattr(line, tax_field, allowed)
+
+    _logger.info("=== [APPLY JOURNAL TAX] END ===")
