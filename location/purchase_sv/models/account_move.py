@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from odoo import api, fields, models, _
-from datetime import datetime
+from datetime import datetime, date
 from odoo.tools import float_round
 from odoo.exceptions import UserError
 from odoo.exceptions import ValidationError
@@ -9,7 +9,7 @@ from odoo.exceptions import ValidationError
 
 import logging
 
-from location.common_utils.utils.constants import DTE_COD
+from odoo.addons.common_utils.utils.constants import DTE_COD
 
 _logger = logging.getLogger(__name__)
 
@@ -99,6 +99,7 @@ class AccountMove(models.Model):
     @api.constrains('name', 'company_id')
     def _check_unique_name(self):
         for move in self:
+            _logger.info("[VALIDACIÓN DUPLICADO] Iniciando búsqueda de duplicados para move: %s, name: %s", move.id, move.name)
             if (move.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND) or
                 (move.move_type == constants.IN_INVOICE and move.journal_id and move.journal_id.sit_tipo_documento and move.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FSE)):
                 name = (move.name or '').strip()
@@ -108,11 +109,25 @@ class AccountMove(models.Model):
                 if not name or name == '/':
                     continue
 
+                # Usar invoice_date si está presente, sino usar la fecha actual
+                if move.invoice_date:
+                    year = move.invoice_date.year
+                else:
+                    # Si invoice_date no está definido, usamos el año actual
+                    year = datetime.now().year
+                    _logger.info("No se ha asignado una fecha de factura para el movimiento %s. Se usará el año actual: %s", move.id, year)
+
+                start_date = date(year, 1, 1)
+                end_date = date(year, 12, 31)
+                _logger.info("Año detectado para la factura %s: %s | Rango de fechas usado: %s -> %s", move.name, year, start_date, end_date)
+
                 # Busca duplicado en la misma compañía, excluyendo el propio registro
                 dup = self.search([
                     ('id', '!=', move.id),
                     ('company_id', '=', move.company_id.id),
                     ('name', '=', name),
+                    ('invoice_date', '>=', start_date),
+                    ('invoice_date', '<=', end_date),
                 ], limit=1)
 
                 if dup:
@@ -153,25 +168,50 @@ class AccountMove(models.Model):
     @api.constrains('hacienda_codigoGeneracion_identificacion', 'company_id', 'move_type')
     def _check_unique_cod_generacion(self):
         for move in self:
-            if move.move_type not in (constants.IN_INVOICE, constants.IN_REFUND):
+            _logger.info(
+                "[VALIDACIÓN COD-GEN] Inicio | ID=%s | move_type=%s | código bruto=%s | compañía=%s",
+                move.id, move.move_type, move.hacienda_codigoGeneracion_identificacion, move.company_id.id
+            )
+
+            # Solo aplica para compras, devoluciones de compras y ahora también ventas
+            if move.move_type not in (constants.IN_INVOICE, constants.IN_REFUND, constants.OUT_INVOICE, constants.OUT_REFUND):
+                _logger.info(
+                    "[VALIDACIÓN COD-GEN] Saltado | ID=%s | Tipo %s no requiere validación.",
+                    move.id, move.move_type
+                )
                 continue
 
-            codigo_generacion = self._norm_sello(move.hacienda_codigoGeneracion_identificacion)
+            # Normalizar el código
+            codigo_generacion = None
+            if (move.move_type in (constants.IN_INVOICE, constants.IN_REFUND) and move.journal_id and
+                    (not move.journal_id.sit_tipo_documento or move.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)):
+                codigo_generacion = self._norm_sello(move.hacienda_codigoGeneracion_identificacion)
+                _logger.info("[VALIDACIÓN COD-GEN] Código normalizado para ID=%s: '%s'", move.id, codigo_generacion)
+            else:
+                codigo_generacion = move.hacienda_codigoGeneracion_identificacion
+
             if not codigo_generacion:
+                _logger.info("[VALIDACIÓN COD-GEN] Sin código → no se valida duplicado. ID=%s", move.id)
                 continue
+
+            # Búsqueda del duplicado
+            _logger.info("[VALIDACIÓN COD-GEN] Buscando duplicados para código='%s' en compañía=%s...", codigo_generacion, move.company_id.id)
 
             dup = self.search([
                 ('id', '!=', move.id),
                 ('company_id', '=', move.company_id.id),
-                ('move_type', 'in', [constants.IN_INVOICE, constants.IN_REFUND]),
+                ('move_type', 'in', [constants.IN_INVOICE, constants.IN_REFUND, constants.OUT_INVOICE, constants.OUT_REFUND]),
                 ('hacienda_codigoGeneracion_identificacion', '=', codigo_generacion),
             ], limit=1)
 
             if dup:
+                _logger.warning("[VALIDACIÓN COD-GEN] ❌ DUPLICADO DETECTADO | Este move ID=%s tiene el mismo código que ID=%s (name=%s)", move.id, dup.id, dup.name)
                 raise ValidationError(_("El codigo de generacion '%(codigo_generacion)s' ya existe en el documento %(doc)s.") % {
                     'codigo_generacion': codigo_generacion,
                     'doc': dup.name or dup.display_name,
                 })
+
+            _logger.info("[VALIDACIÓN COD-GEN] ✔ Sin duplicados | ID=%s | Código=%s", move.id, codigo_generacion)
 
     _original_name = fields.Char(compute='_compute_original_name', store=False)
 

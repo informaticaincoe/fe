@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ========================================================= -->
+    <!--     DOMAIN DE IMPUESTOS BASADO EN EL DIARIO  -->
+    <!-- ========================================================= -->
+    <!--
+        Este bloque modifica la vista de las cotizaciones (sale.order) y ventas (account.move)
+        para restringir los impuestos seleccionables en las líneas
+        según los impuestos configurados en el diario seleccionado.
+    -->
+
+    <record id="view_order_form_inherit_tax_domain_journal" model="ir.ui.view">
+        <field name="name">sale.order.form.inherit.journal.tax.domain</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_order_form"/>
+        <field name="arch" type="xml">
+            <!-- 1) Aseguramos que allowed_tax_ids esté en la vista de las líneas (invisible) -->
+            <xpath expr="//field[@name='order_line']/list" position="inside">
+                <field name="allowed_tax_ids" invisible="1"/>
+            </xpath>
+            <!-- 2) Sobrescribimos el domain del campo tax_id en la línea -->
+            <xpath expr="//field[@name='order_line']/list//field[@name='tax_id']" position="attributes">
+                <attribute name="domain">[('id', 'in', allowed_tax_ids)]</attribute>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_move_form_inherit_tax_domain_journal" model="ir.ui.view">
+        <field name="name">account.move.form.inherit.journal.tax.domain</field>
+        <field name="model">account.move</field>
+        <field name="inherit_id" ref="account.view_move_form"/>
+        <field name="arch" type="xml">
+            <!-- 1) Aseguramos que allowed_invoice_tax_ids esté en la vista de las líneas (invisible) -->
+            <xpath expr="//field[@name='invoice_line_ids']/list" position="inside">
+                <field name="allowed_invoice_tax_ids" invisible="1"/>
+            </xpath>
+            <!-- 2) Sobrescribimos el domain del campo tax_id en la línea -->
+            <xpath expr="//field[@name='invoice_line_ids']/list//field[@name='tax_ids']" position="attributes">
+                <attribute name="domain">[('id', 'in', allowed_invoice_tax_ids)]</attribute>
+            </xpath>
+        </field>
+    </record>
+</odoo>
