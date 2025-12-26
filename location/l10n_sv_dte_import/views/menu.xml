@@ -1,13 +1,15 @@
 <odoo>
-  <menuitem id="menu_sv_dte_import_root" name="DTE (SV)" parent="account.menu_finance" sequence="90"/>
+  <!-- SUBMENÚ -->
+  <menuitem id="menu_open_dte_import_wizard"
+            parent="account.menu_finance_receivables"
+            name="Importar DTE (JSON)"
+            action="action_open_dte_import_wizard"/>
+
+  <!-- ACCIÓN -->
   <record id="action_open_dte_import_wizard" model="ir.actions.act_window">
     <field name="name">Importar DTE (JSON)</field>
     <field name="res_model">dte.import.wizard</field>
     <field name="view_mode">form</field>
     <field name="target">new</field>
   </record>
-  <menuitem id="menu_open_dte_import_wizard"
-            parent="menu_sv_dte_import_root"
-            name="Importar DTE (JSON)"
-            action="action_open_dte_import_wizard"/>
 </odoo>

@@ -2487,84 +2487,84 @@ class AccountMove(models.Model):
 
             _logger.info("SIT | Retenciones copiadas desde el documento %s hacia %s.", origen.name, move.name)
 
-    def _products_missing_required_iva(self):
-        """Devuelve product.product de líneas que NO tienen aplicado el IVA 13% en tax_ids."""
-        self.ensure_one()
-
-        # --- Validación para compras FSE (sujeto excluido) ---
-        if self.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
-            tipo_doc = self.journal_id.sit_tipo_documento if self.journal_id else None
-            if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE:  # Sujeto Excluido
-                _logger.info("SIT | Factura de compra con documento se omite validación de IVA 13%% para %s.", self.name)
-                return self.env["product.product"]
-
-        # --- Validación: solo aplicar si la empresa aplica a facturación electrónica ---
-        if not (self.company_id and self.company_id.sit_facturacion):
-            _logger.info("SIT | La empresa %s no aplica a facturación electrónica. Se omite validación de IVA 13%%.", self.company_id.display_name)
-            return self.env["product.product"]
-            # return
-
-        _logger.info("IVA13CHK ▶ start move_id=%s name=%s company=%s", self.id, self.name or '/', self.company_id.display_name)
-
-        # 1) Obtener el impuesto requerido por XMLID; si no existe, buscarlo
-        iva_tax = self.env.ref("l10n_sv.tax_sv_iva_13_sale", raise_if_not_found=False)
-        if iva_tax:
-            _logger.info("IVA13CHK ▶ encontrado por XMLID: id=%s name=%s amount=%s%% company=%s country=%s",
-                         iva_tax.id, iva_tax.display_name, iva_tax.amount,
-                         iva_tax.company_id and iva_tax.company_id.display_name,
-                         iva_tax.country_id and iva_tax.country_id.code)
-        else:
-            _logger.warning("IVA13CHK ▶ XMLID l10n_sv.tax_sv_iva_13_sale no encontrado; haciendo búsqueda por criterios.")
-            iva_tax = self.env["account.tax"].search([
-                ("name", "=", "IVA 13% Ventas Bienes"),
-                ("amount", "=", 13.0),
-                ("type_tax_use", "in", ("sale", "none")),
-                ("company_id", "parent_of", self.company_id.id),
-                ("country_id", "=", self.company_id.tax_country_id.id or self.company_id.country_id.id),
-            ], limit=1)
-            _logger.info("IVA13CHK ▶ resultado búsqueda: %s", iva_tax and f"id={iva_tax.id}, name={iva_tax.display_name}" or "SIN RESULTADOS")
-
-        # Si no se encuentra el impuesto, no validar (devolver vacío)
-        if not iva_tax:
-            _logger.warning("IVA13CHK ▶ No se encontró el impuesto obligatorio IVA 13%% para la compañía %s.", self.company_id.display_name)
-            return self.env["product.product"]
-
-        # 2) Revisar SOLO líneas reales con producto y cantidad > 0
-        total_lines = len(self.invoice_line_ids)
-        lines = self.invoice_line_ids.filtered(lambda l: l.product_id and not l.display_type and l.quantity > 0)
-        _logger.info("IVA13CHK ▶ líneas totales=%s | líneas evaluadas=%s | fiscal_position=%s",
-                     total_lines, len(lines), self.fiscal_position_id and self.fiscal_position_id.display_name or "None")
-
-        missing_products = self.env["product.product"]
-
-        for idx, line in enumerate(lines, start=1):
-            taxes_orig = line.tax_ids
-            _logger.info("IVA13CHK ▶ L%s line_id=%s prod=%s qty=%s price=%s taxes(orig)=[%s]",
-                         idx, line.id, line.product_id.display_name, line.quantity, line.price_unit,
-                         ", ".join(taxes_orig.mapped("display_name")) or "—")
-
-            # mapear por posición fiscal (si aplica)
-            taxes_eff = taxes_orig
-            if self.fiscal_position_id:
-                mapped = self.fiscal_position_id.map_tax(taxes_orig, self.partner_id)
-                if mapped:
-                    taxes_eff = mapped
-                _logger.info("IVA13CHK ▶ L%s taxes(mapped by FP)=[%s]", idx, ", ".join(taxes_eff.mapped("display_name")) or "—")
-
-            # considerar impuestos hijos (por grupos)
-            taxes_with_children = taxes_eff | taxes_eff.mapped("children_tax_ids")
-            tiene_iva = iva_tax in taxes_with_children
-            _logger.info("IVA13CHK ▶ L%s comparación: requerido=%s | en_linea=%s | tiene_IVA13=%s",
-                         idx, iva_tax.display_name,
-                         ", ".join(taxes_with_children.mapped("display_name")) or "—",
-                         tiene_iva)
-
-            if not tiene_iva:
-                missing_products |= line.product_id
-                _logger.warning("IVA13CHK ▶ L%s SIN IVA13 → producto faltante: %s (line_id=%s)", idx, line.product_id.display_name, line.id)
-
-        _logger.info("IVA13CHK ▶ productos sin IVA13 (conteo=%s): %s", len(missing_products), ", ".join(missing_products.mapped("display_name")) or "NINGUNO")
-        return missing_products
+    # def _products_missing_required_iva(self):
+    #     """Devuelve product.product de líneas que NO tienen aplicado el IVA 13% en tax_ids."""
+    #     self.ensure_one()
+    # 
+    #     # --- Validación para compras FSE (sujeto excluido) ---
+    #     if self.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
+    #         tipo_doc = self.journal_id.sit_tipo_documento if self.journal_id else None
+    #         if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE:  # Sujeto Excluido
+    #             _logger.info("SIT | Factura de compra con documento se omite validación de IVA 13%% para %s.", self.name)
+    #             return self.env["product.product"]
+    # 
+    #     # --- Validación: solo aplicar si la empresa aplica a facturación electrónica ---
+    #     if not (self.company_id and self.company_id.sit_facturacion):
+    #         _logger.info("SIT | La empresa %s no aplica a facturación electrónica. Se omite validación de IVA 13%%.", self.company_id.display_name)
+    #         return self.env["product.product"]
+    #         # return
+    # 
+    #     _logger.info("IVA13CHK ▶ start move_id=%s name=%s company=%s", self.id, self.name or '/', self.company_id.display_name)
+    # 
+    #     # 1) Obtener el impuesto requerido por XMLID; si no existe, buscarlo
+    #     iva_tax = self.env.ref("l10n_sv.tax_sv_iva_13_sale", raise_if_not_found=False)
+    #     if iva_tax:
+    #         _logger.info("IVA13CHK ▶ encontrado por XMLID: id=%s name=%s amount=%s%% company=%s country=%s",
+    #                      iva_tax.id, iva_tax.display_name, iva_tax.amount,
+    #                      iva_tax.company_id and iva_tax.company_id.display_name,
+    #                      iva_tax.country_id and iva_tax.country_id.code)
+    #     else:
+    #         _logger.warning("IVA13CHK ▶ XMLID l10n_sv.tax_sv_iva_13_sale no encontrado; haciendo búsqueda por criterios.")
+    #         iva_tax = self.env["account.tax"].search([
+    #             ("name", "=", "IVA 13% Ventas Bienes"),
+    #             ("amount", "=", 13.0),
+    #             ("type_tax_use", "in", ("sale", "none")),
+    #             ("company_id", "parent_of", self.company_id.id),
+    #             ("country_id", "=", self.company_id.tax_country_id.id or self.company_id.country_id.id),
+    #         ], limit=1)
+    #         _logger.info("IVA13CHK ▶ resultado búsqueda: %s", iva_tax and f"id={iva_tax.id}, name={iva_tax.display_name}" or "SIN RESULTADOS")
+    # 
+    #     # Si no se encuentra el impuesto, no validar (devolver vacío)
+    #     if not iva_tax:
+    #         _logger.warning("IVA13CHK ▶ No se encontró el impuesto obligatorio IVA 13%% para la compañía %s.", self.company_id.display_name)
+    #         return self.env["product.product"]
+    # 
+    #     # 2) Revisar SOLO líneas reales con producto y cantidad > 0
+    #     total_lines = len(self.invoice_line_ids)
+    #     lines = self.invoice_line_ids.filtered(lambda l: l.product_id and not l.display_type and l.quantity > 0)
+    #     _logger.info("IVA13CHK ▶ líneas totales=%s | líneas evaluadas=%s | fiscal_position=%s",
+    #                  total_lines, len(lines), self.fiscal_position_id and self.fiscal_position_id.display_name or "None")
+    # 
+    #     missing_products = self.env["product.product"]
+    # 
+    #     for idx, line in enumerate(lines, start=1):
+    #         taxes_orig = line.tax_ids
+    #         _logger.info("IVA13CHK ▶ L%s line_id=%s prod=%s qty=%s price=%s taxes(orig)=[%s]",
+    #                      idx, line.id, line.product_id.display_name, line.quantity, line.price_unit,
+    #                      ", ".join(taxes_orig.mapped("display_name")) or "—")
+    # 
+    #         # mapear por posición fiscal (si aplica)
+    #         taxes_eff = taxes_orig
+    #         if self.fiscal_position_id:
+    #             mapped = self.fiscal_position_id.map_tax(taxes_orig, self.partner_id)
+    #             if mapped:
+    #                 taxes_eff = mapped
+    #             _logger.info("IVA13CHK ▶ L%s taxes(mapped by FP)=[%s]", idx, ", ".join(taxes_eff.mapped("display_name")) or "—")
+    # 
+    #         # considerar impuestos hijos (por grupos)
+    #         taxes_with_children = taxes_eff | taxes_eff.mapped("children_tax_ids")
+    #         tiene_iva = iva_tax in taxes_with_children
+    #         _logger.info("IVA13CHK ▶ L%s comparación: requerido=%s | en_linea=%s | tiene_IVA13=%s",
+    #                      idx, iva_tax.display_name,
+    #                      ", ".join(taxes_with_children.mapped("display_name")) or "—",
+    #                      tiene_iva)
+    # 
+    #         if not tiene_iva:
+    #             missing_products |= line.product_id
+    #             _logger.warning("IVA13CHK ▶ L%s SIN IVA13 → producto faltante: %s (line_id=%s)", idx, line.product_id.display_name, line.id)
+    # 
+    #     _logger.info("IVA13CHK ▶ productos sin IVA13 (conteo=%s): %s", len(missing_products), ", ".join(missing_products.mapped("display_name")) or "NINGUNO")
+    #     return missing_products
 
     def _products_missing_hacienda_tributo(self):
         """
