@@ -150,7 +150,7 @@
                                     </td>
                                     <td class="label border-clean" style="width: 15%;">Días laborados</td>
                                     <td class="label border-clean" style="width: 20%;">
-                                        <t t-esc="dias_trabajados"/>
+                                        <t t-esc="round(dias_trabajados or 0.0, 2)"/>
                                     </td>
                                     <t t-if="hay_vacaciones">
                                         <td class="label border-clean" style="width: 25%;">Bono 30%</td>
