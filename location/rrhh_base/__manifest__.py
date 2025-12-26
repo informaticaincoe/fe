@@ -18,6 +18,7 @@
         'views/hr_payroll_reports.xml',
         'views/menu_rrhh_base.xml',
         "report/report.xml",
+        "report/override_payment_report.xml",
         "report/report_payslip_incoe.xml",
         "views/hr_payslip_views.xml",
         'data/mail_template_payslip.xml',
