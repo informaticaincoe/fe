@@ -201,3 +201,7 @@ INV_RESCINDIR = "2"
 INV_OTRO = "3"
 
 CA_CODES = {'SV', 'GT', 'HN', 'NI', 'CR'}
+
+# Claves de pagos
+NOT_PAID = "not_paid"
+PARTIAL = "partial"

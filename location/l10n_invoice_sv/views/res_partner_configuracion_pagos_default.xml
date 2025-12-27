@@ -11,6 +11,8 @@
                     <field name="condicion_pago_venta_id"/>
                     <field name="terminos_pago_venta_id"/>
                     <field name="formas_pago_venta_id"/>
+                    <field name="enforce_dte_pending_limit"/>
+                    <field name="max_pending_dte_count"/>
                 </xpath>
             </field>
         </record>

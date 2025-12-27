@@ -2271,6 +2271,52 @@ class AccountMove(models.Model):
                         "- Sector"
                     )
 
+                # Validación solo si el cliente usa "Factura por factura"
+                if not inv.partner_id.enforce_dte_pending_limit:
+                    _logger.debug(
+                        "[FACTURA_X_FACTURA] Cliente %s no tiene validación activa. Factura %s continúa.",
+                        inv.partner_id.display_name,
+                        inv.name or inv.id
+                    )
+                    continue
+
+                _logger.info(
+                    "[FACTURA_X_FACTURA] Validando cliente %s (Empresa: %s | Límite permitido: %s)",
+                    inv.partner_id.display_name, inv.company_id.name, inv.partner_id.max_pending_dte_count)
+
+                # Buscar TODAS las facturas pendientes del mismo cliente y empresa
+                pending_invoices = self.search([
+                    ('id', '!=', inv.id),
+                    ('partner_id', '=', inv.partner_id.id),
+                    ('company_id', '=', inv.company_id.id),
+                    ('move_type', '=', constants.OUT_INVOICE),
+                    ('state', '=', 'posted'),
+                    ('payment_state', 'in', [constants.NOT_PAID, constants.PARTIAL]),
+                ])
+
+                _logger.info(
+                    "[FACTURA_X_FACTURA] Cliente %s tiene %s factura(s) pendiente(s): %s",
+                    inv.partner_id.display_name,
+                    len(pending_invoices), ", ".join(pending_invoices.mapped('name')) or "N/A"
+                )
+
+                # Validación contra el límite configurado
+                if inv.partner_id.max_pending_dte_count and len(pending_invoices) > 0 and len(pending_invoices) >= inv.partner_id.max_pending_dte_count:
+                    _logger.warning("[FACTURA_X_FACTURA] BLOQUEO: Cliente %s supera el límite permitido. "
+                        "Pendientes: %s | Límite: %s | Factura actual: %s",
+                                    inv.partner_id.display_name, len(pending_invoices), inv.partner_id.max_pending_dte_count, inv.name or inv.id)
+
+                    total_pendientes = len(pending_invoices)
+                    limite = inv.partner_id.max_pending_dte_count
+                    a_cancelar = total_pendientes - limite + 1
+
+                    raise UserError(_(
+                        "No se puede validar el documento electrónico.\n\n"
+                        "El cliente %s tiene %s DTE(s) pendiente(s) de pago.\n"
+                        "El límite permitido es %s.\n\n"
+                        "Debe cancelar al menos %s DTE(s) para poder emitir una nueva venta."
+                    ) % (inv.partner_id.display_name, total_pendientes, limite, a_cancelar))
+
         # Verificar si el DTE ha sido recibido y procesado correctamente
         for inv in self:
             _logger.info("SIT Estado registro: %s", inv.state)

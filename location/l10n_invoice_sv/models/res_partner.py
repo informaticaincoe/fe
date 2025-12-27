@@ -40,3 +40,13 @@ class ResPartner(models.Model):
         'account.move.forma_pago.field',
         string="Formas de pago"
     )
+
+    enforce_dte_pending_limit = fields.Boolean(
+        string='Factura por factura',
+        help='Si está activo, el cliente no puede tener más de una factura pendiente.',
+        default=True)
+
+    max_pending_dte_count = fields.Integer(
+        string='Limite de facturas pendientes de pago',
+        help="Limite de facturas pendientes de pago antes de realizarle una nueva venta al cliente",
+        default=1)
