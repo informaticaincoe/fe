@@ -605,7 +605,7 @@ class HrSalaryAssignment(models.Model):
         """
         # Busca el archivo adjunto con la plantilla
         attachment = self.env['ir.attachment'].search([
-            ('name', '=', constants.NOMBRE_PLANTILLA_ASIGNACIONES),
+            ('name', '=', 'plantilla_asignaciones.xlsx'), #constants.NOMBRE_PLANTILLA_ASIGNACIONES
             ('company_id', '=', self.env.company.id)
         ], limit=1)
         if not attachment:
