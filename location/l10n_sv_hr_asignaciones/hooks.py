@@ -76,7 +76,7 @@ def cargar_archivo_excel(env):
         contenido = base64.b64encode(f.read()).decode('utf-8')
 
     env['ir.attachment'].create({
-        'name': constants.NOMBRE_PLANTILLA_ASIGNACIONES,
+        'name': 'plantilla_asignaciones.xlsx', #'constants.NOMBRE_PLANTILLA_ASIGNACIONES,
         'datas': contenido,
         'mimetype': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'public': True,

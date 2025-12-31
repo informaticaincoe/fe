@@ -43,7 +43,7 @@ class sit_account_move(models.Model):
     )
 
     hacienda_estado = fields.Text("Hacienda Estado")
-    amount_tax = fields.Float("amount_tax")
+    # amount_tax = fields.Float("amount_tax")
 
     anexo_type = fields.Selection([
         ("consumidor_final", "Consumidor Final"),
