@@ -60,6 +60,7 @@
         'data/account_retention_accounts.xml',
         'data/account_discount.xml',
         'views/res_partner_contribuyente.xml',
+        'views/account_move_fechas_view.xml',
     ],
     'demo': [],
     'installable': True,

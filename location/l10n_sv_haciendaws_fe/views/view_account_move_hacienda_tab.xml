@@ -21,7 +21,7 @@
 
             <!-- Añadir un nuevo grupo debajo de la sección de información de venta -->
             <xpath expr="//field[@name='invoice_date']" position="after">
-                <group string="Factura Hacienda" name="sale_hacienda_info_group" invisible="journal_code == 'SLR' or not codigo_tipo_documento or not sit_facturacion">
+                <group string="Factura Hacienda" name="sale_hacienda_info_group" invisible="1">
                     <field name="afip_fce_es_anulacion"/>
                     <field name="validation_type" invisible="1"/>
                     <field name="afip_auth_code" invisible="1"/>

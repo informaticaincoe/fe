@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="account_move_form_delivery_date_inline_like_due" model="ir.ui.view">
+        <field name="name">account.move.form.delivery.date.inline.like.due</field>
+        <field name="model">account.move</field>
+        <field name="inherit_id" ref="account.view_move_form"/>
+        <field name="arch" type="xml">
+            <!-- Reemplazamos el field simple -->
+            <xpath expr="//field[@name='delivery_date']" position="replace">
+                <div class="o_td_label" invisible="not show_delivery_date">
+                    <label for="delivery_date"/>
+                </div>
+                <div class="d-flex"
+                     invisible="not show_delivery_date">
+                    <field name="delivery_date" readonly="state != 'draft'"/>
+                </div>
+            </xpath>
+        </field>
+    </record>
+</odoo>
