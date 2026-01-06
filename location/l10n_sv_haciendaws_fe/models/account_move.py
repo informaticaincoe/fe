@@ -2202,6 +2202,9 @@ class AccountMove(models.Model):
                     inv.name)
                 continue
 
+            if inv.partner_id and not inv.partner_id.email:
+                raise ValidationError("Cliente sin correo electrónico; es necesario agregar una dirección de correo.")
+
             # Validación de compras FSE (sujeto excluido)
             if inv.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
                 tipo_doc = inv.journal_id.sit_tipo_documento if inv.journal_id else None
@@ -2416,6 +2419,9 @@ class AccountMove(models.Model):
             _logger.info("SIT Enviando correo[Ambiente]: %s", ambiente_test)
 
         for invoice in self:
+            if invoice.partner_id and not invoice.partner_id.email:
+                raise ValidationError("Cliente sin correo electrónico; es necesario agregar una dirección de correo.")
+
             # Validar si la empresa aplica a facturación electrónica
             if invoice.company_id and invoice.company_id.sit_facturacion:
 
