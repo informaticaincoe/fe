@@ -1,10 +1,4 @@
 <odoo>
-  <!-- SUBMENÚ -->
-  <menuitem id="menu_open_dte_import_wizard"
-            parent="account.menu_finance_receivables"
-            name="Importar DTE (JSON)"
-            action="action_open_dte_import_wizard"/>
-
   <!-- ACCIÓN -->
   <record id="action_open_dte_import_wizard" model="ir.actions.act_window">
     <field name="name">Importar DTE (JSON)</field>
@@ -12,4 +6,10 @@
     <field name="view_mode">form</field>
     <field name="target">new</field>
   </record>
+
+  <!-- SUBMENÚ -->
+  <menuitem id="menu_open_dte_import_wizard"
+            parent="account.menu_finance_receivables"
+            name="Importar DTE (JSON)"
+            action="action_open_dte_import_wizard"/>
 </odoo>

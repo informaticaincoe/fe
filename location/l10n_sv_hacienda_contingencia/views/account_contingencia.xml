@@ -88,19 +88,20 @@
                                     </list>
                                 </field>
                             </page>
-                            <page id="respuesta_hacienda" string="Respuesta Hacienda" name="respuesta_hacienda">                                  
+                            <page id="respuesta_hacienda" string="Respuesta Hacienda" name="respuesta_hacienda">
                                 <group id="other_tab_group">
-                                    <group string="Estado Hacienda" name="sale_info_group" >
-                                        <field name="sit_estado" string="Estado" invisible="0"/>
-                                        <field name="sit_fechaHora" string="Fecha/Hora" invisible="0"/>
-                                        <field name="sit_mensaje" string="Mensaje" invisible="0"/>
-                                        <field name="sit_selloRecibido" string="Sello Recibido" invisible="0"/>
-                                        <field name="sit_observaciones" string="Observaciones" invisible="0"/>
-                                        <field name="hacienda_estado" string="Estado" invisible="0"/>
+<!--                                    <group string="Estado Hacienda" name="sale_info_group">-->
+                                        <!-- Campos cortos (2 columnas) -->
+                                        <field name="sit_estado"/>
+                                        <field name="sit_fechaHora"/>
+                                        <field name="hacienda_estado"/>
+                                        <field name="sit_selloRecibido"/>
+                                        <!-- Campos largos: ocupar toda la fila -->
+                                        <field name="sit_mensaje" colspan="2"/>
+                                        <field name="sit_observaciones" colspan="2"/>
                                     </group>
-                                    <group string="" name="accounting_info_group">
-                                    </group>
-                                </group>
+                                    <group name="accounting_info_group"/>
+<!--                                </group>-->
                             </page>
                             <page id="sit_lote_haciendda" string="Certificado Lote Hacienda" name="certificado_lote_hacienda"  invisible="sit_selloRecibido == False">
                                 <group id="lote_group">
