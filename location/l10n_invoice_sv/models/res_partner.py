@@ -17,7 +17,7 @@ class ResPartner(models.Model):
     )
 
     terminos_pago_compras_id = fields.Many2one(
-        'account.payment.term',
+        related='property_supplier_payment_term_id',
         string="Terminos de pago"
     )
 
@@ -32,7 +32,7 @@ class ResPartner(models.Model):
     )
 
     terminos_pago_venta_id = fields.Many2one(
-        'account.payment.term',
+        related='property_payment_term_id',
         string="Terminos de pago"
     )
 
@@ -40,3 +40,13 @@ class ResPartner(models.Model):
         'account.move.forma_pago.field',
         string="Formas de pago"
     )
+
+    enforce_dte_pending_limit = fields.Boolean(
+        string='Factura por Factura',
+        help='Si está activo, el cliente no puede tener más de una factura pendiente.',
+        default=True)
+
+    max_pending_dte_count = fields.Integer(
+        string='Limite de facturas pendientes de pago',
+        help="Limite de facturas pendientes de pago antes de realizarle una nueva venta al cliente",
+        default=1)

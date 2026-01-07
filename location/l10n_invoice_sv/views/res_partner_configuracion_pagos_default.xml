@@ -9,8 +9,10 @@
             <field name="arch" type="xml">
                 <xpath expr="//group[@name='sale']/field[@name='property_product_pricelist']" position="after">
                     <field name="condicion_pago_venta_id"/>
-                    <field name="terminos_pago_venta_id"/>
+<!--                    <field name="terminos_pago_venta_id"/>-->
                     <field name="formas_pago_venta_id"/>
+                    <field name="enforce_dte_pending_limit"/>
+                    <field name="max_pending_dte_count"/>
                 </xpath>
             </field>
         </record>
@@ -23,7 +25,7 @@
             <field name="arch" type="xml">
                 <xpath expr="//group[@name='purchase']//div[@name='receipt_reminder']" position="after">
                     <field name="condicion_pago_compras_id"/>
-                    <field name="terminos_pago_compras_id"/>
+<!--                    <field name="terminos_pago_compras_id"/>-->
                     <field name="formas_pago_compras_id"/>
                 </xpath>
             </field>

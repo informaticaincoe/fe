@@ -17,7 +17,7 @@
     "external_dependencies": {},
     "data": [
         "views/account_move_views.xml",
-        "views/account_journal_view.xml",
+        # "views/account_journal_view.xml",
         # "data/account.journal.csv",
         "views/ir_cron.xml",
         "wizard/account_validate_account_move.xml",

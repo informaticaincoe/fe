@@ -20,17 +20,53 @@
                     </div>
                 </xpath>
 
-                <xpath expr="//label[@for='journal_id']" position="after">
-                    <!--                    <field name="invoice_payment_term_name" invisible="1"/>-->
-                    <group string="Pago Hacienda" invisible="(move_type != 'out_invoice' and not codigo_tipo_documento) or not sit_facturacion">
-                        <field name="invoice_payment_term_id" string="Términos de Pago"/>
-                        <field name="condiciones_pago" string="Condiciones de Pago"
-                               options="{'no_open': True, 'no_create': True}"/>
-                        <field name="forma_pago" string="Forma de Pago" options="{'no_open': True, 'no_create': True}"/>
-                        <field name="sit_periodo" string="periodo de pago"
-                               options="{'no_open': True, 'no_create': True}"/>
-                        <field name="sit_plazo" string="plazo" invisible="0"/>
-                    </group>
+                <xpath expr="//label[@for='journal_id']" position="before">
+
+                        <!-- Título del bloque -->
+                        <div class="o_td_label" invisible="(move_type != 'out_invoice' and not codigo_tipo_documento) or not sit_facturacion">
+                            <div class="o_form_label fw-bold">Pago Hacienda</div>
+                        </div>
+                        <div class="o_td_field" invisible="(move_type != 'out_invoice' and not codigo_tipo_documento) or not sit_facturacion"/>
+
+                        <!-- Términos de Pago -->
+                        <div class="o_td_label" invisible="(move_type != 'out_invoice' and not codigo_tipo_documento) or not sit_facturacion">
+                            <label for="invoice_payment_term_id" class="o_form_label fw-bold"/>
+                        </div>
+                        <div class="o_td_field" invisible="(move_type != 'out_invoice' and not codigo_tipo_documento) or not sit_facturacion">
+                            <field name="invoice_payment_term_id"/>
+                        </div>
+
+                        <!-- Condiciones de Pago -->
+                        <div class="o_td_label" invisible="(move_type != 'out_invoice' and not codigo_tipo_documento) or not sit_facturacion">
+                            <label for="condiciones_pago" String="Condición de la Operación" class="o_form_label fw-bold"/>
+                        </div>
+                        <div class="o_td_field" invisible="(move_type != 'out_invoice' and not codigo_tipo_documento) or not sit_facturacion">
+                            <field name="condiciones_pago" options="{'no_open': True, 'no_create': True}"/>
+                        </div>
+
+                        <!-- Forma de Pago -->
+                        <div class="o_td_label" invisible="(move_type != 'out_invoice' and not codigo_tipo_documento) or not sit_facturacion">
+                            <label for="forma_pago" class="o_form_label fw-bold"/>
+                        </div>
+                        <div class="o_td_field" invisible="(move_type != 'out_invoice' and not codigo_tipo_documento) or not sit_facturacion">
+                            <field name="forma_pago" options="{'no_open': True, 'no_create': True}"/>
+                        </div>
+
+                        <!-- Periodo -->
+                        <div class="o_td_label" invisible="(move_type != 'out_invoice' and not codigo_tipo_documento) or not sit_facturacion">
+                            <label for="sit_periodo"/>
+                        </div>
+                        <div class="o_td_field" invisible="(move_type != 'out_invoice' and not codigo_tipo_documento) or not sit_facturacion">
+                            <field name="sit_periodo" options="{'no_open': True, 'no_create': True}"/>
+                        </div>
+
+                        <!-- Plazo -->
+                        <div class="o_td_label" invisible="(move_type != 'out_invoice' and not codigo_tipo_documento) or not sit_facturacion">
+                            <label for="sit_plazo"/>
+                        </div>
+                        <div class="o_td_field" invisible="(move_type != 'out_invoice' and not codigo_tipo_documento) or not sit_facturacion">
+                            <field name="sit_plazo"/>
+                        </div>
                 </xpath>
                 <notebook>
                     <page string="FEL" name="certificados2" invisible="journal_code == 'SLR' or not sit_facturacion or (move_type in('entry', 'in_invoice', 'in_refund') and (not codigo_tipo_documento or codigo_tipo_documento != '14') )">
@@ -41,11 +77,11 @@
                         <group>
                             <field name="sit_facturacion" invisible="1"/>
 
-                            <field name="sit_tipo_contingencia" options="{'no_open': True, 'no_create': True}"/>
-                            <field name="sit_tipo_contingencia_valores" invisible="1"/>
-                            <field name="sit_tipo_contingencia_otro" options="{'no_open': True, 'no_create': True}"/>
+<!--                            <field name="sit_tipo_contingencia" options="{'no_open': True, 'no_create': True}"/>-->
+<!--                            <field name="sit_tipo_contingencia_valores" invisible="1"/>-->
+<!--                            <field name="sit_tipo_contingencia_otro" options="{'no_open': True, 'no_create': True}"/>-->
                             <!--                            <field name="sit_modelo_facturacion"/>-->
-                            <field name="sit_tipo_transmision" options="{'no_open': True, 'no_create': True}"/>
+<!--                            <field name="sit_tipo_transmision" options="{'no_open': True, 'no_create': True}"/>-->
                         </group>
                     </page>
                 </notebook>
