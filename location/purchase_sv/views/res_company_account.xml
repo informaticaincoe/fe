@@ -8,7 +8,7 @@
         <field name="arch" type="xml">
             <!-- Insertamos dentro de la pestaña "Plan de cuentas" -->
             <xpath expr="//page[@name='discounts_settings']" position="inside">
-                <group string="Cuentas para Compras">
+                <group string="Cuentas Asociadas a Compras">
                     <field name="percepcion_purchase_id"/>
                     <field name="retencion_iva_purchase_id"/>
                     <field name="renta_purchase_id"/>
