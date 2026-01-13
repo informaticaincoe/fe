@@ -205,3 +205,36 @@ CA_CODES = {'SV', 'GT', 'HN', 'NI', 'CR'}
 # Claves de pagos
 NOT_PAID = "not_paid"
 PARTIAL = "partial"
+
+#Campos fiscales reqieridos
+PERIODOS_ANT_2024 = 0
+EXCEPCIONES = 9
+OPERACIONES_1_ANEXO = 8
+
+#_____Tipo de operacion
+TO_GRAVADO = 1
+TO_NO_GRAV_EX = 2
+TO_EXCLUIDO = 3
+TO_MIXTA = 4
+TO_SUJ_DE_RETENCIOMN = 12
+TO_PASIVOS_EXC = 13
+
+#_____Clasificacion
+C_COSTO = 1
+C_GASTO = 2
+C_OPERCIONES_INFORMALES = 8
+
+#_____Sector
+S_INDUSTRIA = 1
+S_COMERCIO = 2
+S_AGROP = 3
+S_SERVICIOS = 4
+
+#_____Tipo de costo/gasto
+TCG_VENTA_SIN_DONACION = 1
+TCG_GASTOS_ADMIN = 2
+TCG_GASTOS_FIN = 3
+TCG_IMPORTACIONES = 4
+TCG_COSTO_INTERNO = 5
+TCG_COSTOS_FAB = 6
+TCG_MANO_OBRA = 7

@@ -1,4 +1,7 @@
 from odoo import models, api, fields, _
+import logging
+
+_logger = logging.getLogger(__name__)
 
 class TipoIngreso(models.Model):
     _name = "account.tipo.ingreso"
@@ -16,6 +19,20 @@ class TipoCostoGasto(models.Model):
     codigo = fields.Integer("Código")
     valor = fields.Char("Valor")
 
+    def name_get(self):
+        result = []
+        for rec in self:
+            name = f"{rec.codigo} - {rec.valor}" if rec.codigo is not None else rec.valor
+            result.append((rec.id, name))
+        return result
+
+    @api.model
+    def name_search(self, name='', args=None, operator='ilike', limit=100):
+        args = args or []
+        if name:
+            args = ['|', ('valor', operator, name), ('codigo', operator, name)] + args
+        records = self.search(args, limit=limit)
+        return records.name_get()
 
 class TipoOperacion(models.Model):
     _name = "account.tipo.operacion"
@@ -25,6 +42,21 @@ class TipoOperacion(models.Model):
     codigo = fields.Integer("Código")
     valor = fields.Char("Valor")
 
+    def name_get(self):
+        result = []
+        for rec in self:
+            name = f"{rec.codigo} - {rec.valor}" if rec.codigo is not None else rec.valor
+            result.append((rec.id, name))
+        return result
+
+    @api.model
+    def name_search(self, name='', args=None, operator='ilike', limit=100):
+        args = args or []
+        if name:
+            args = ['|', ('valor', operator, name), ('codigo', operator, name)] + args
+        records = self.search(args, limit=limit)
+        _logger.info("SIT name_search args=%s", args)
+        return records.name_get()
 
 class ClasificacionFacturacion(models.Model):
     _name = "account.clasificacion.facturacion"
@@ -34,6 +66,22 @@ class ClasificacionFacturacion(models.Model):
     codigo = fields.Integer("Código")
     valor = fields.Char("Valor")
 
+    def name_get(self):
+        result = []
+        for rec in self:
+            name = f"{rec.codigo} - {rec.valor}" if rec.codigo is not None else rec.valor
+            result.append((rec.id, name))
+        return result
+
+    @api.model
+    def name_search(self, name='', args=None, operator='ilike', limit=100):
+        args = args or []
+        if name:
+            args = ['|', ('valor', operator, name), ('codigo', operator, name)] + args
+        records = self.search(args, limit=limit)
+        _logger.info("SIT name_search args=%s", args)
+        return records.name_get()
+
 class Sector(models.Model):
     _name = "account.sector"
     _description = "Sector"
@@ -41,6 +89,21 @@ class Sector(models.Model):
 
     codigo = fields.Integer("Código")
     valor = fields.Char("Valor")
+
+    def name_get(self):
+        result = []
+        for rec in self:
+            name = f"{rec.codigo} - {rec.valor}" if rec.codigo is not None else rec.valor
+            result.append((rec.id, name))
+        return result
+
+    @api.model
+    def name_search(self, name='', args=None, operator='ilike', limit=100):
+        args = args or []
+        if name:
+            args = ['|', ('valor', operator, name), ('codigo', operator, name)] + args
+        records = self.search(args, limit=limit)
+        return records.name_get()
 
 class ClaseDocumento(models.Model):
     _name = "account.clase.documento"

@@ -71,6 +71,21 @@ class account_move(models.Model):
         comodel_name="account.clase.documento"
     )
 
+    clasificacion_domain = fields.Char(
+        compute='_compute_clasificacion_domain',
+        readonly=True
+    )
+
+    sector_domain = fields.Char(
+        compute='_compute_sector_domain',
+        readonly=True
+    )
+
+    tipo_costo_gasto_domain = fields.Char(
+        compute='_compute_costo_gasto_domain',
+        readonly=True
+    )
+
     invoice_date = fields.Date(
         string="Fecha",
         readonly=True,
@@ -1378,3 +1393,145 @@ class account_move(models.Model):
             else:
                 m.invoice_year_sel = False
                 m.invoice_month_sel = False
+
+    def _apply_partner_defaults_if_needed(self):
+        """
+        Aplica valores por defecto desde el partner en documentos de venta y compra
+        con campos fiscales requeridos por Hacienda.
+        """
+        _logger.info("SIT: Campos fiscales requeridos por Hacienda")
+        for move in self:
+            if move.company_id and not move.company_id.sit_facturacion:
+                _logger.info("SIT No aplica facturación electrónica para la factura %s. Se omiten campos fiscales requeridos.", move.name)
+                continue
+
+            if not move.partner_id:
+                continue
+
+            # Aplica tanto a ventas como a compras
+            if not move.is_invoice(include_receipts=True):
+                continue
+
+            p = move.partner_id.with_company(move.company_id)
+
+            _logger.info("SIT: Campos fiscales requeridos por Hacienda. Partner: %s", p)
+            applied_fields = []
+
+            # Campos fiscales requeridos por Hacienda
+            if move.move_type not in (constants.IN_INVOICE, constants.IN_REFUND):
+                if not move.tipo_ingreso_id and p.tipo_ingreso_id_partner:
+                    move.tipo_ingreso_id = p.tipo_ingreso_id_partner
+                    applied_fields.append("tipo_ingreso_id")
+
+            if move.move_type not in (constants.OUT_INVOICE, constants.OUT_REFUND):
+                if not move.tipo_costo_gasto_id and p.tipo_costo_gasto_id_partner:
+                    move.tipo_costo_gasto_id = p.tipo_costo_gasto_id_partner
+                    applied_fields.append("tipo_costo_gasto_id")
+
+                if not move.clasificacion_facturacion and p.clasificacion_facturacion_partner:
+                    move.clasificacion_facturacion = p.clasificacion_facturacion_partner
+                    applied_fields.append("clasificacion_facturacion")
+
+                if not move.sector and p.sector_partner:
+                    move.sector = p.sector_partner
+                    applied_fields.append("sector")
+
+            if not move.tipo_operacion and p.tipo_operacion_partner:
+                move.tipo_operacion = p.tipo_operacion_partner
+                applied_fields.append("tipo_operacion")
+
+            if applied_fields:
+                _logger.info("SIT: Valores fiscales aplicados desde partner %s en movimiento %s (%s): %s",
+                    p.name, move.name or "nuevo", move.move_type, ", ".join(applied_fields) )
+
+    @api.depends('tipo_operacion')
+    def _compute_clasificacion_domain(self):
+        for move in self:
+            domain = []
+
+            tipo_operacion = move.tipo_operacion
+            codigo_operacion = (tipo_operacion.codigo if tipo_operacion and tipo_operacion.codigo is not None else None)
+
+            if codigo_operacion in (constants.TO_GRAVADO, constants.TO_NO_GRAV_EX, constants.TO_EXCLUIDO, constants.TO_MIXTA):
+                domain = [
+                    ('codigo', 'in', [constants.C_COSTO, constants.C_GASTO])
+                ]
+
+            move.clasificacion_domain = str(domain)
+
+    @api.depends('clasificacion_facturacion', 'tipo_operacion')
+    def _compute_sector_domain(self):
+        for move in self:
+            domain = []
+
+            clasificacion = move.clasificacion_facturacion
+            tipo_operacion = move.tipo_operacion
+
+            codigo_clasificacion = (clasificacion.codigo if clasificacion and clasificacion.codigo is not None else None)
+
+            codigo_operacion = (tipo_operacion.codigo if tipo_operacion and tipo_operacion.codigo is not None else None)
+
+            if (codigo_clasificacion in (constants.C_COSTO, constants.C_GASTO)
+                    and codigo_operacion in (constants.TO_GRAVADO, constants.TO_NO_GRAV_EX, constants.TO_EXCLUIDO, constants.TO_MIXTA)):
+                domain = [
+                    ('codigo', 'in', [
+                        constants.S_INDUSTRIA,
+                        constants.S_COMERCIO,
+                        constants.S_AGROP,
+                        constants.S_SERVICIOS,
+                    ])
+                ]
+
+            move.sector_domain = str(domain)
+
+    @api.depends('sector', 'clasificacion_facturacion', 'tipo_operacion')
+    def _compute_costo_gasto_domain(self):
+        for move in self:
+            domain = []
+
+            sector = move.sector
+            clasificacion = move.clasificacion_facturacion
+            tipo_operacion = move.tipo_operacion
+
+            codigo_sector = (sector.codigo if sector and sector.codigo is not None else None)
+            codigo_clasificacion = (clasificacion.codigo if clasificacion and clasificacion.codigo is not None else None)
+            codigo_operacion = (tipo_operacion.codigo if tipo_operacion and tipo_operacion.codigo is not None else None)
+
+            # Si la operación no es válida fiscalmente, no hay dominio
+            if codigo_operacion not in (constants.TO_GRAVADO, constants.TO_NO_GRAV_EX, constants.TO_EXCLUIDO, constants.TO_MIXTA):
+                move.tipo_costo_gasto_domain = str(domain)
+                continue
+
+            # INDUSTRIA | COSTOS
+            if (codigo_sector == constants.S_INDUSTRIA and codigo_clasificacion == constants.C_COSTO):
+                domain = [
+                    ('codigo', 'in', [
+                        constants.TCG_IMPORTACIONES,
+                        constants.TCG_COSTO_INTERNO,
+                        constants.TCG_COSTOS_FAB,
+                        constants.TCG_MANO_OBRA,
+                    ])
+                ]
+
+            # COMERCIO / AGROP / SERVICIOS | COSTOS
+            elif (codigo_sector in (constants.S_COMERCIO, constants.S_AGROP, constants.S_SERVICIOS)
+                  and codigo_clasificacion == constants.C_COSTO):
+                domain = [
+                    ('codigo', 'in', [
+                        constants.TCG_IMPORTACIONES,
+                        constants.TCG_COSTO_INTERNO,
+                    ])
+                ]
+
+            # TODOS LOS SECTORES | GASTOS
+            elif (codigo_sector in (constants.S_INDUSTRIA, constants.S_COMERCIO, constants.S_AGROP, constants.S_SERVICIOS)
+                  and codigo_clasificacion == constants.C_GASTO):
+                domain = [
+                    ('codigo', 'in', [
+                        constants.TCG_VENTA_SIN_DONACION,
+                        constants.TCG_GASTOS_ADMIN,
+                        constants.TCG_GASTOS_FIN,
+                    ])
+                ]
+
+            move.tipo_costo_gasto_domain = str(domain)

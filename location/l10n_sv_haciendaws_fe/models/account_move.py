@@ -2268,10 +2268,10 @@ class AccountMove(models.Model):
                     _logger.warning("SIT | Faltan datos requeridos en factura de sujeto excluido (%s).", inv.name)
                     raise ValidationError(
                         "Debe completar todos los campos requeridos para facturas de sujeto excluido:\n"
-                        "- Tipo de costo o gasto\n"
                         "- Tipo de operación\n"
                         "- Clasificación\n"
-                        "- Sector"
+                        "- Sector\n"
+                        "- Tipo de costo o gasto"
                     )
 
                 # Validación solo si el cliente usa "Factura por factura"

@@ -202,26 +202,61 @@ class sit_account_move(models.Model):
         Establece automáticamente términos de pago, condición y forma de pago al seleccionar un proveedor,
         considerando facturación electrónica y configuración del partner.
         """
+        _logger.info("SIT: Actualizacion partner...")
+
         # primero el onchange estándar de Odoo
         super(sit_account_move, self)._onchange_partner_id()
 
         for move in self:
-            if not move.partner_id or not move.is_purchase_document(include_receipts=True):
+            # if not move.partner_id or not move.is_purchase_document(include_receipts=True):
+            if not move.partner_id:
                 continue
+
             p = move.partner_id.with_company(move.company_id)
+            applied_fields = []
 
-            # 1) Términos de pago (compra)
-            if not move.invoice_payment_term_id and p.terminos_pago_compras_id:
-                move.invoice_payment_term_id = p.terminos_pago_compras_id
+            # ======================
+            # COMPRAS
+            # ======================
+            if move.is_purchase_document(include_receipts=True):
+                # 1) Términos de pago (compra)
+                if not move.invoice_payment_term_id and p.terminos_pago_compras_id:
+                    move.invoice_payment_term_id = p.terminos_pago_compras_id
 
-            # 2) Condición de pago (Hacienda)
-            if not move.condiciones_pago and p.condicion_pago_compras_id:
-                move.condiciones_pago = p.condicion_pago_compras_id
+                # 2) Condición de pago (Hacienda)
+                if not move.condiciones_pago and p.condicion_pago_compras_id:
+                    move.condiciones_pago = p.condicion_pago_compras_id
 
-            # 3) Forma de pago
-            if move.journal_id.sit_tipo_documento and move.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FSE:
-                if not move.forma_pago and p.formas_pago_compras_id:
-                    move.forma_pago = p.formas_pago_compras_id
+                # 3) Forma de pago
+                if move.journal_id.sit_tipo_documento and move.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FSE:
+                    if not move.forma_pago and p.formas_pago_compras_id:
+                        move.forma_pago = p.formas_pago_compras_id
+
+            # ======================
+            # VENTAS
+            # ======================
+            elif move.is_sale_document():
+
+                if move.move_type not in (constants.IN_INVOICE, constants.IN_REFUND):
+                    move.tipo_ingreso_id = p.tipo_ingreso_id_partner
+                    applied_fields.append("tipo_ingreso_id")
+
+                if move.move_type not in (constants.OUT_INVOICE, constants.OUT_REFUND):
+                    move.tipo_costo_gasto_id = p.tipo_costo_gasto_id_partner
+                    applied_fields.append("tipo_costo_gasto_id")
+
+                    move.clasificacion_facturacion = p.clasificacion_facturacion_partner
+                    applied_fields.append("clasificacion_facturacion")
+
+                    move.sector = p.sector_partner
+                    applied_fields.append("sector")
+
+                move.tipo_operacion = p.tipo_operacion_partner
+                applied_fields.append("tipo_operacion")
+
+                if applied_fields:
+                    _logger.info("SIT: Valores fiscales aplicados desde partner %s en movimiento %s (%s): %s",
+                        p.name, move.name or "nuevo", move.move_type, ", ".join(applied_fields) )
 
     def _apply_partner_defaults_compras_if_needed(self):
         """Cubre creaciones sin UI (import/API), donde no corre el onchange."""
@@ -236,6 +271,20 @@ class sit_account_move(models.Model):
             if move.journal_id.sit_tipo_documento and move.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FSE:
                 if not move.forma_pago and p.formas_pago_compras_id:
                     move.forma_pago = p.formas_pago_compras_id
+
+
+            #Campos requeridos de hacienda
+            if not move.tipo_costo_gasto_id and p.tipo_costo_gasto_id_partner:
+                move.tipo_costo_gasto_id = p.tipo_costo_gasto_id_partner
+
+            if not move.tipo_operacion and p.tipo_operacion_partner:
+                move.tipo_operacion = p.tipo_operacion_partner
+
+            if not move.clasificacion_facturacion and p.clasificacion_facturacion_partner:
+                move.clasificacion_facturacion = p.clasificacion_facturacion_partner
+
+            if not move.sector and p.sector_partner:
+                move.sector = p.sector_partner
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -372,6 +421,7 @@ class sit_account_move(models.Model):
         if moves_facturacion:
             moves_facturacion._apply_partner_defaults_ventas_if_needed()
             moves_facturacion._apply_partner_defaults_compras_if_needed()
+            moves_facturacion._apply_partner_defaults_if_needed()
 
         _logger.info("SIT | FIN create unificado. IDs creados: %s", base_records.ids)
         return base_records
