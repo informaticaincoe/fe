@@ -22,9 +22,19 @@ class SaleOrder(models.Model):
         help="Seleccione el diario permitido por la empresa"
     )
 
-    @api.constrains('journal_id', 'partner_id')
-    def _check_journal_and_partner_identification(self):
+    def action_confirm(self):
         for order in self:
+            _logger.info("Confirmando SO %s | state=%s | context=%s", order.id, order.state, self.env.context)
+
+            # SI VIENE DESDE SERVICIO EXTERNO / TAREA → NO VALIDAR
+            if self.env.context.get('active_model') == 'project.task':
+                _logger.info("Saltando validación: confirmación desde Servicio Externo")
+                continue
+
+            if self.env.context.get('fsm_task_id'):
+                _logger.info("Saltando validación: flujo FSM")
+                continue
+
             _logger.info("=== Validando cotización ID %s ===", order.id)
 
             if not (order.company_id and order.company_id.sit_facturacion):
@@ -39,7 +49,7 @@ class SaleOrder(models.Model):
             _logger.info("l10n_latam_identification_type_id.codigo: %s", getattr(order.partner_id.l10n_latam_identification_type_id, 'codigo', None))
 
             if not order.journal_id:
-                raise ValidationError(_("Debe seleccionar un diario para la cotización."))
+                raise ValidationError(_("Debe seleccionar un diario antes de confirmar la orden de venta."))
 
             tipo_doc_journal = order.journal_id.sit_tipo_documento
             tipo_doc_partner = order.partner_id.l10n_latam_identification_type_id
@@ -54,6 +64,7 @@ class SaleOrder(models.Model):
             if tipo_doc_journal and tipo_doc_journal.codigo == constants.COD_DTE_FEX:
                 if not order.recintoFiscal:
                     raise ValidationError("Debe seleccionar un recinto fiscal.")
+        return super().action_confirm()
 
     @api.onchange("partner_id")
     def _onchange_partner_id_set_journal(self):
@@ -71,3 +82,37 @@ class SaleOrder(models.Model):
         if config and config.journal_ids:
             return [('id', 'in', config.journal_ids.ids)]
         return []
+
+    def _create_invoices(self, grouped=False, final=False, **kwargs):
+        for order in self:
+            _logger.info("Creando factura desde SO %s | journal=%s | context=%s", order.id, order.journal_id, self.env.context)
+
+            # Si la empresa no aplica facturación electrónica, no validar
+            if not (order.company_id and order.company_id.sit_facturacion):
+                continue
+
+            if not order.journal_id:
+                raise ValidationError(_(
+                    "No puede crear la factura porque la orden de venta no tiene un diario asignado.\n"
+                    "Por favor seleccione un diario en la orden de venta antes de facturar."
+                ))
+
+            tipo_doc_journal = order.journal_id.sit_tipo_documento
+            tipo_doc_partner = order.partner_id.l10n_latam_identification_type_id
+
+            if tipo_doc_journal and tipo_doc_journal.codigo in (constants.COD_DTE_CCF, constants.COD_DTE_FEX, constants.COD_DTE_NC, constants.COD_DTE_ND):
+                if tipo_doc_partner and tipo_doc_partner.codigo == constants.COD_TIPO_DOCU_DUI:
+                    raise ValidationError(_(
+                        "El cliente tiene el tipo de documento '%s' que no es válido para el tipo de documento del diario."
+                    ) % (tipo_doc_partner.name or tipo_doc_partner.codigo))
+
+            # Validar recinto fiscal
+            if tipo_doc_journal and tipo_doc_journal.codigo == constants.COD_DTE_FEX:
+                if not order.recintoFiscal:
+                    raise ValidationError("Debe seleccionar un recinto fiscal.")
+
+        return super()._create_invoices(
+            grouped=grouped,
+            final=final,
+            **kwargs
+        )
