@@ -134,7 +134,8 @@
             <field name="arch" type="xml">
                 <xpath expr="//field[@name='narration']" position="before">
                     <group string="Totales" colspan="4" invisible="move_type not in('in_invoice', 'in_refund') or codigo_tipo_documento">
-                        <field name="amount_exento" string="Total Exento" readonly="True"/>
+                        <field name="amount_untaxed" string="Compra Gravada" readonly="True"/>
+                        <field name="amount_exento" string="Compra Exenta" readonly="True"/>
                         <field name="percepcion_amount" string="Percepción 1%" readonly="True"/>
                         <field name="retencion_iva_amount" string="Retención IVA" readonly="True"/>
                         <field name="retencion_renta_amount" string="Renta" readonly="True"/>

@@ -5,6 +5,8 @@ import logging
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError
 from datetime import timedelta
+from odoo.tools import float_round
+from odoo.exceptions import ValidationError
 
 _logger = logging.getLogger(__name__)
 
@@ -25,28 +27,88 @@ except ImportError as e:
     constants = None
     config_utils = None
 
-class DTEImportWizardLine(models.TransientModel):
-    _name = "dte.import.wizard.line"
+class DTEImportLine(models.Model):
+    _name = "dte.import.line"
     _description = "Archivo JSON DTE a importar"
 
-    wizard_id = fields.Many2one("dte.import.wizard", required=True, ondelete="cascade")
+    wizard_id = fields.Many2one("dte.import", required=True, ondelete="cascade", default=lambda self: self.env.context.get("wizard_id"))
     filename = fields.Char(required=True)
     file = fields.Binary(required=True)
 
-class DTEImportWizard(models.TransientModel):
-    _name = "dte.import.wizard"
+    products_loaded = fields.Boolean(string="Productos cargados", default=False)
+
+    product_line_ids = fields.One2many(
+        "dte.import.product.line",
+        "wizard_line_id",
+        string="Productos del JSON"
+    )
+
+    observations = fields.Text(string="Observaciones")
+
+    move_ids = fields.One2many(
+        "account.move",
+        "dte_import_line_id",
+        string="Asientos contables",
+        readonly=True,
+    )
+
+    def write(self, vals):
+        for rec in self:
+            _logger.info("DTE IMPORT: Estado: %s", rec.wizard_id.state)
+            if rec.wizard_id.state not in ("draft", None):
+                raise ValidationError("No se pueden modificar archivos de una importación confirmada.")
+        return super().write(vals)
+
+    def unlink(self):
+        for rec in self:
+            if rec.wizard_id.state not in ("draft", None):
+                raise ValidationError("No se pueden eliminar archivos de una importación confirmada.")
+        return super().unlink()
+
+    def action_view_products(self):
+        self.ensure_one()
+
+        if not self.products_loaded:
+            self.wizard_id._load_products_for_line(self)
+            self.products_loaded = True
+
+        return {
+            "type": "ir.actions.act_window",
+            "name": f"Productos - {self.filename}",
+            "res_model": "dte.import.product.line",
+            "view_mode": "list,form",
+            "domain": [("wizard_line_id", "=", self.id)],
+            "context": {
+                "default_wizard_line_id": self.id,
+                "default_company_id": self.wizard_id.company_id.id,
+                "default_move_type": self.wizard_id.move_type,
+            },
+            "target": "current",
+        }
+
+class DTEImport(models.Model):
+    _name = "dte.import"
     _description = "Importar DTEs (JSON) a Odoo"
 
-    company_id = fields.Many2one("res.company", required=True, default=lambda s: s.env.company)
+    name = fields.Char(
+        string="Referencia",
+        required=True,
+        readonly=True,
+        copy=False,
+        default="/",
+        index=True
+    )
+
+    company_id = fields.Many2one("res.company", string="Empresa", required=True, default=lambda s: s.env.company)
 
     # Impuestos por línea
-    tax_iva_13_id = fields.Many2one("account.tax", string="Impuesto", domain="[('type_tax_use','=','sale')]")  # string="IVA 13%"
-    tax_exento_id = fields.Many2one("account.tax", string="Impuesto Exento", domain="[('type_tax_use','=','sale')]")
-    tax_no_suj_id = fields.Many2one("account.tax", string="Impuesto No Sujeto", domain="[('type_tax_use','=','sale')]")
+    tax_iva_13_id = fields.Many2one("account.tax", string="Impuesto")  # string="IVA 13%"
+    tax_exento_id = fields.Many2one("account.tax", string="Impuesto Exento")
+    tax_no_suj_id = fields.Many2one("account.tax", string="Impuesto No Sujeto")
 
-    product_fallback_id = fields.Many2one("product.product", string="Producto genérico", required=True)
+    # product_fallback_id = fields.Many2one("product.product", string="Producto genérico", required=True)
 
-    lines = fields.One2many("dte.import.wizard.line", "wizard_id", string="Archivos")
+    lines = fields.One2many("dte.import.line", "wizard_id", string="Archivos")
 
     create_partners = fields.Boolean(string="Crear cliente si no existe", default=True)
     post_moves = fields.Boolean(string="Postear automáticamente", default=True)
@@ -56,6 +118,99 @@ class DTEImportWizard(models.TransientModel):
         help="Evita disparar lógicas propias de envío/validación durante el post."
     )
 
+    dte_import_journal_id = fields.Many2one(
+        'account.journal',
+        string='Diario compras',
+        domain="[('type', '=', 'purchase')]",
+        help="Seleccione un diario contable diferente al asignado para FSE al registrar la factura de proveedor.",
+    )
+
+    product_ids = fields.One2many(
+        "dte.import.product.line",
+        "wizard_id",
+        string="Productos"
+    )
+
+    missing_products_info = fields.Text(
+        string="Productos no encontrados",
+        readonly=True
+    )
+
+    state = fields.Selection([
+        ('draft', 'Borrador'),
+        ('done', 'Importado'),
+        ('cancel', 'Cancelado'),
+    ], string="Estado", default='draft')
+
+    move_type = fields.Selection(
+        string="Tipo",
+        selection=[
+            ('out_invoice', 'Venta'),
+            ('in_invoice', 'Compra'),
+        ],
+        required=True,
+    )
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        _logger.info("DTE IMPORT: Iniciando create() con %s registros", len(vals_list))
+
+        for vals in vals_list:
+            _logger.info("DTE IMPORT: Valores iniciales: %s", vals)
+
+            if not vals.get("name") or vals.get("name") == "/":
+
+                move_type = (vals.get("move_type") or self.env.context.get("default_move_type"))
+                _logger.info("DTE IMPORT: move_type resuelto (vals/context): %s", move_type)
+
+                if move_type == constants.OUT_INVOICE:
+                    seq_code = "dte.import.sale"
+                else:
+                    seq_code = "dte.import.purchase"
+
+                _logger.info( "DTE IMPORT: Secuencia seleccionada: %s", seq_code)
+
+                seq = self.env["ir.sequence"].next_by_code(seq_code)
+                _logger.info("DTE IMPORT: Valor retornado por secuencia: %s", seq)
+
+                vals["name"] = seq or "/"
+            else:
+                _logger.info("DTE IMPORT: name ya definido (%s), no se genera secuencia", vals.get("name"))
+
+        records = super().create(vals_list)
+
+        _logger.info("DTE IMPORT: create() finalizado. Registros creados: %s", records.ids)
+        return records
+
+    def write(self, vals):
+        _logger.info("DTE IMPORT WRITE → IDs=%s | vals=%s | ctx=%s", self.ids, vals, self.env.context)
+
+        if self.env.context.get("skip_dte_import_write_validation"):
+            _logger.info("DTE IMPORT WRITE → bypass activo por contexto")
+            return super().write(vals)
+
+        for rec in self:
+            _logger.info("DTE IMPORT WRITE → ID=%s | estado=%s", rec.id, rec.state)
+
+            if rec.state == "done":
+                _logger.warning("DTE IMPORT WRITE BLOQUEADO → ID=%s", rec.id)
+                raise UserError("No se puede modificar un DTE Importado que ya está confirmado.")
+
+        return super().write(vals)
+
+    def unlink(self):
+        for rec in self:
+            move_ids = rec.lines.mapped("move_ids").ids
+            _logger.info(
+                "DTE IMPORT UNLINK → ID=%s | moves relacionados=%s",
+                rec.id,
+                move_ids,
+            )
+            if move_ids:
+                raise UserError(
+                    "La importación no puede eliminarse mientras tenga asientos contables relacionados."
+                )
+        return super().unlink()
 
     def _normalize_maturity(self, move):
         """
@@ -107,48 +262,102 @@ class DTEImportWizard(models.TransientModel):
         return fecha + timedelta(days=dias)
 
     def action_import(self):
-        _logger.info("[DTE Import] Iniciando proceso de importación de archivos JSON (total=%s)", len(self.lines))
+        self.ensure_one()
+
+        _logger.info(
+            "[DTE Import] Iniciando proceso de importación de archivos JSON (total=%s)",
+            len(self.lines),
+        )
 
         if not self.lines:
             raise UserError(_("Adjunta al menos un archivo JSON."))
 
-        created = self.env["account.move"]
+        created_moves = self.env["account.move"]
 
-        for idx, l in enumerate(self.lines, start=1):
-            _logger.info("[DTE Import] Procesando archivo #%s: %s", idx, l.filename or "sin_nombre")
+        for idx, line in enumerate(self.lines, start=1):
+            _logger.info(
+                "[DTE Import] Procesando archivo #%s: %s",
+                idx,
+                line.filename or "sin_nombre",
+            )
 
             try:
-                raw = base64.b64decode(l.file or b"{}")
-                _logger.info("[DTE Import] Archivo %s decodificado correctamente (%s bytes)", l.filename, len(raw))
+                raw = base64.b64decode(line.file or b"{}")
+                _logger.info(
+                    "[DTE Import] Archivo %s decodificado correctamente (%s bytes)",
+                    line.filename,
+                    len(raw),
+                )
 
                 data = json.loads(raw.decode("utf-8"))
-                _logger.info("[DTE Import] JSON parseado correctamente para archivo %s", l.filename)
+                _logger.info(
+                    "[DTE Import] JSON parseado correctamente para archivo %s",
+                    line.filename,
+                )
 
             except Exception as e:
-                _logger.exception("[DTE Import] Error al leer o parsear el JSON del archivo %s: %s", l.filename, e)
-                raise UserError(_("Archivo %s no es JSON válido: %s") % (l.filename, e))
+                _logger.exception(
+                    "[DTE Import] Error al leer o parsear el JSON del archivo %s",
+                    line.filename,
+                )
+                raise UserError(
+                    _("Archivo %s no es JSON válido: %s") % (line.filename, e)
+                )
 
             try:
-                move = self._create_move_from_json(data, filename=l.filename)
+                move = self._create_move_from_json(
+                    data,
+                    filename=line.filename,
+                )
+
                 if move:
-                    created |= move
-                    _logger.info("[DTE Import] Factura creada correctamente desde %s → Move ID=%s | Nombre=%s", l.filename, move.id, move.name)
+                    created_moves |= move
+                    _logger.info(
+                        "[DTE Import] Factura creada correctamente desde %s → Move ID=%s | Nombre=%s",
+                        line.filename,
+                        move.id,
+                        move.name,
+                    )
                 else:
-                    _logger.warning("[DTE Import] No se creó ningún move para el archivo %s", l.filename)
+                    _logger.warning(
+                        "[DTE Import] No se creó ningún move para el archivo %s",
+                        line.filename,
+                    )
 
             except Exception as e:
-                _logger.exception("[DTE Import] Error crítico al crear el move desde archivo %s: %s", l.filename, e)
-                raise UserError(_("Error al crear la factura desde %s: %s") % (l.filename, e))
+                _logger.exception(
+                    "[DTE Import] Error crítico al crear el move desde archivo %s",
+                    line.filename,
+                )
+                raise UserError(
+                    _("Error al crear la factura desde %s: %s")
+                    % (line.filename, e)
+                )
 
-        _logger.info("[DTE Import] Proceso finalizado. Total moves creados: %s", len(created))
+        # ✅ SOLO AL FINAL se marca como done
+        if created_moves:
+            _logger.info(
+                "[DTE Import] Marcando importación como DONE (moves creados=%s)",
+                len(created_moves),
+            )
 
-        return {
-            "type": "ir.actions.act_window",
-            "name": _("Documentos creados (%s)") % len(created),
-            "res_model": "account.move",
-            "view_mode": "list,form",
-            "domain": [("id", "in", created.ids)],
-        }
+            self.with_context(
+                skip_dte_import_write_validation=True
+            ).write({
+                "state": "done"
+            })
+
+        _logger.info(
+            "[DTE Import] Proceso finalizado correctamente. Total moves creados: %s",
+            len(created_moves),
+        )
+
+        return True
+
+    def action_cancel(self):
+        for rec in self:
+            rec.move_ids.button_cancel()
+            rec.state = 'cancel'
 
     # -------------------------
     # Core JSON -> Odoo
@@ -168,21 +377,33 @@ class DTEImportWizard(models.TransientModel):
 
         # Evaluar el codigo de generacion
         codigo_generacion = parsed.get("codigo_generacion") or None
-        _logger.info("[DTE Import] Codigo de generacion detectado: %s", codigo_generacion)
+        _logger.info("[DTE Import] Codigo de generacion detectado: %s | Tipo de movimiento: %s", codigo_generacion, self.move_type)
         # 01 y 03 => facturas de venta
         if tipo:
             if tipo in(constants.COD_DTE_FE, constants.COD_DTE_CCF, constants.COD_DTE_ND, constants.COD_DTE_FEX):
-                move_type = constants.OUT_INVOICE
+                if self.move_type == constants.OUT_INVOICE:
+                    move_type = constants.OUT_INVOICE
+                else:
+                    move_type = constants.IN_INVOICE
             elif tipo == constants.COD_DTE_NC:
-                move_type = constants.OUT_REFUND
+                if self.move_type == constants.OUT_INVOICE:
+                    move_type = constants.OUT_REFUND
+                else:
+                    move_type = constants.IN_REFUND
             elif tipo == constants.COD_DTE_FSE:
                 move_type = constants.IN_INVOICE
 
         # 1. Diario: buscar por sit_tipo_documento.codigo == tipo
-        journal = self._find_sale_journal_by_tipo(tipo)
+        journal = self._find_sale_journal_by_tipo(tipo, self.move_type)
         if not journal:
             raise UserError(_("No se encontró un diario de ventas con sit_tipo_documento.codigo = %s") % tipo)
-        _logger.info("[DTE Import] Diario encontrado: %s", journal.display_name)
+        _logger.info("[DTE Import] Diario contable detectado: %s Tipo de diario: %s", journal.name, journal.type)
+
+        if journal and not journal.currency_id:
+            raise UserError(_("No se encontró una moneda configurada en el diario %s") % journal.name)
+
+        currency = journal.currency_id
+        _logger.info("[DTE Import] Diario encontrado: %s | Moneda: %s", journal.display_name, currency)
 
         # 2. Buscar o crear partner
         partner = self._find_or_create_partner(parsed)
@@ -224,8 +445,46 @@ class DTEImportWizard(models.TransientModel):
             Incoterm = self.env['account.incoterms']
             incoterm_id = Incoterm.search([("codigo_mh", "=", parsed["cod_incoterms"])], limit=1)
 
+        # Facturas de compra
+        numero_control_json = parsed.get("numero_control")
+        numero_control = None
+        tipo_documento = None
+        clase_documento_id = False
+
+        if numero_control_json:
+            numero_control = numero_control_json.replace("-", "").replace(" ", "")
+        else:
+            numero_control = numero_control_json or "/"
+
+        if codigo_generacion:
+            codigo_generacion = codigo_generacion.replace("-", "").replace(" ", "")
+        else:
+            codigo_generacion = codigo_generacion or "/"
+
+        if self.move_type == constants.IN_INVOICE:
+            tipo_dte_compra = self.env["account.journal.tipo_documento.field"].search([("codigo", "=", tipo)], limit=1)
+            tipo_documento = tipo_dte_compra.id if tipo_dte_compra else None
+
+            if numero_control and numero_control.startswith("DTE"):
+                clase_doc = self.env["account.clase.documento"].search(
+                    [("codigo", "=", constants.DTE_COD)],
+                    limit=1
+                )
+                if not clase_doc:
+                    clase_doc = self.env["account.clase.documento"].search(
+                        [("codigo", "=", constants.IMPRESO_COD)],
+                        limit=1
+                    )
+                if not  clase_doc:
+                    raise ValidationError("No se encontró configurada la Clase de Documento.")
+                clase_documento_id = clase_doc.id
+
+        wizard_line = self.lines.filtered(lambda l: l.filename == filename)
+        _logger.info("[DTE Import] Lineas json: %s", wizard_line)
+
         move_vals = {
-            "move_type": move_type,
+            "dte_import_line_id": wizard_line.id if wizard_line else False,
+            "move_type": self.move_type,
             "journal_id": journal.id,
             "partner_id": partner.id,
             "invoice_date": parsed["fecha_emision"].date() if parsed["fecha_emision"] else False,
@@ -234,16 +493,17 @@ class DTEImportWizard(models.TransientModel):
             "state": "draft",
 
             # Tus campos existentes:
-            "name": parsed.get("numero_control") or "/",
+            "name": numero_control,
             "hacienda_codigoGeneracion_identificacion": codigo_generacion or "",
             "hacienda_selloRecibido": parsed.get("sello_hacienda") or None,
 
             # Referencias visibles:
-            "payment_reference": parsed.get("numero_control") or filename,
-            "ref": parsed.get("codigo_generacion") or "",
+            "payment_reference": numero_control or filename,
+            "ref": codigo_generacion or "",
 
             "sit_tipo_documento": journal.sit_tipo_documento.id if journal.sit_tipo_documento else None,
-            "invoice_origin": parsed.get("numero_control") or filename,
+            "sit_tipo_documento_id": tipo_documento,
+            "invoice_origin": numero_control or filename,
 
             "condiciones_pago": parsed["condicion_operacion"],
             "forma_pago": parsed["condicion_operacion"],
@@ -295,91 +555,50 @@ class DTEImportWizard(models.TransientModel):
             move_vals["recinto_sale_order"] = recinto_id.id if recinto_id else None
             move_vals["invoice_incoterm_id"] = incoterm_id.id if incoterm_id else None
 
+        # Guardar campos del modelo de compras
+        if self.move_type == constants.IN_INVOICE:
+            move_vals["clase_documento_id"] = clase_documento_id
+            move_vals["sit_observaciones"] = wizard_line.observations if wizard_line else False
+
         # 5. Construcción de líneas de producto
         line_vals = []
         total_venta = 0.0
         total_impuesto = 0.0
         _logger.info("[DTE Import] Construyendo líneas de producto...")
 
-        for it in parsed.get("items", []):
-            product = self._find_product_by_code(it.get("codigo")) or self.product_fallback_id
-            name = it.get("descripcion") or product.display_name
-            qty = it.get("cantidad") or 1.0
-            price = it.get("precio_unit") or 0.0
-            raw_price = price
-            uom_id = self._uom_from_mh_code(it.get("uni_medida"))
+        # PRIORIDAD: líneas editadas por el usuario
+        if wizard_line and wizard_line.products_loaded and wizard_line.product_line_ids:
+            _logger.info("[DTE Import] Usando líneas editadas por el usuario (%s)", filename)
 
-            impuesto_sv = 0.0
-            # taxes = self.env['account.tax'].browse()  # vacío por defecto
+            source_lines = wizard_line.product_line_ids
 
-            tipo_venta = getattr(product, 'tipo_venta', 'gravado')
+            for line in source_lines:
+                product = line.product_id
+                qty = line.quantity
+                price = line.price_unit
+                taxes = line.tax_ids[:1]
 
-            taxes = self._taxes_for_line(
-                iva_item=it.get("venta_gravada") or 0.0, # iva_item=it.get("iva_item") or 0.0,
-                exenta=it.get("venta_exenta") or 0.0,
-                no_suj=it.get("venta_no_suj") or 0.0,
-            )
+                account_id = (
+                        product.property_account_income_id.id
+                        or product.categ_id.property_account_income_categ_id.id
+                        or journal.company_id.account_default_income_id.id
+                )
+                if not account_id:
+                    raise UserError(
+                        _("El producto '%s' no tiene cuenta de ingresos configurada.") % product.display_name)
 
-            # --- Validación final de impuesto ---
-            if not taxes:
-                raise UserError(
-                    _("El producto '%s' no tiene un impuesto configurado correctamente. Verifique su tipo de venta y el tipo de documento.") % product.display_name)
+                subtotal = qty * price
+                total_venta += subtotal
+                total_impuesto += subtotal * (taxes.amount / 100.0) if taxes else 0.0
 
-            # --- CASO 1: CONSUMIDOR FINAL ---
-            if tipo == constants.COD_DTE_FE:
-                impuesto_sv = taxes.amount or 0.0
-                valor_iva = 0.0
-                impuesto_config = config_utils.get_config_value(self.env, 'impuesto_sv', self.company_id.id) if config_utils else 13
-                _logger.info("[DTE Import] Línea tipo 01, impuestos detectados: %s (%.2f%%) | Impuesto configurado: %s", taxes.mapped('name'), impuesto_sv, impuesto_config)
-
-                if float(impuesto_sv) > 0:
-                    if float(impuesto_config) == float(impuesto_sv):
-                        valor_iva = config_utils.get_config_value(self.env, 'iva_divisor', self.company_id.id) if config_utils else 1.13
-                        _logger.info("[DTE Import] IVA configurado: %s", valor_iva)
-
-                # Ajustar el precio si incluye IVA
-                if raw_price > 0 and impuesto_sv > 0:
-                    try:
-                        factor = float(valor_iva) #1.0 + (impuesto_sv / 100.0)
-                        base_price = raw_price / factor
-                        price = base_price
-                        _logger.info("[Ítem %s] Precio unitario incluye IVA %.2f%% → sin IVA: %.4f (÷%.4f)", it.get("numItem"), impuesto_sv, base_price, factor)
-                    except Exception as e:
-                        _logger.warning("[Ítem %s] Error al calcular base sin IVA (precio=%s, IVA=%.2f%%): %s", it.get("numItem"), raw_price, impuesto_sv, e)
-                else:
-                    _logger.info("[Ítem %s] Precio unitario %.2f sin modificación (IVA=%.2f%%).", it.get("numItem"), raw_price, impuesto_sv)
-
-            # --- CASO 2: CCF, NC, ND, FEX, FSE ---
-            elif tipo in (constants.COD_DTE_CCF, constants.COD_DTE_NC, constants.COD_DTE_ND, constants.COD_DTE_FEX, constants.COD_DTE_FSE):
-                impuesto_sv = taxes.amount if taxes else 0.0
-                _logger.info("[DTE Import] Línea tipo %s, producto %s, tipo_venta=%s, impuesto=%s",
-                             tipo, product.default_code, tipo_venta, taxes.display_name if taxes else None)
-
-            account_id = (
-                    product.property_account_income_id.id
-                    or product.categ_id.property_account_income_categ_id.id
-                    or journal.company_id.account_default_income_id.id
-            )
-            if not account_id:
-                raise UserError(_("El producto '%s' no tiene cuenta de ingresos configurada.") % product.display_name)
-
-            tax_ids = [(6, 0, [taxes.id])] if taxes else False
-            subtotal = qty * price
-            total_venta += subtotal
-            total_impuesto += subtotal * (taxes.amount / 100.0) if taxes else 0.0
-
-            line_vals.append((0, 0, {
-                "name": name,
-                "product_id": product.id,
-                "product_uom_id": uom_id,
-                "quantity": qty,
-                "price_unit": price,
-                "account_id": account_id,
-                "tax_ids": tax_ids,
-            }))
-
-            _logger.info("Línea: %s | Cant=%.2f | Precio=%.2f | Impuesto=%s%% | Subtotal=%.2f",
-                         product.display_name, qty, price, impuesto_sv, subtotal)
+                line_vals.append((0, 0, {
+                    "name": line.name,
+                    "product_id": product.id,
+                    "quantity": qty,
+                    "price_unit": price,
+                    "account_id": account_id,
+                    "tax_ids": [(6, 0, taxes.ids)] if taxes else False,
+                }))
 
         if not line_vals:
             raise UserError(_("El DTE no contiene líneas de producto válidas."))
@@ -392,7 +611,11 @@ class DTEImportWizard(models.TransientModel):
             receivable_account = partner.property_account_payable_id.id
         else:
             receivable_account = partner.property_account_receivable_id.id
-        total_to_receive = total_venta + total_impuesto
+
+        total_venta = float_round(total_venta, precision_rounding=currency.rounding)
+        total_impuesto = float_round(total_impuesto, precision_rounding=currency.rounding)
+        total_to_receive = float_round(total_venta + total_impuesto, precision_rounding=currency.rounding)
+        _logger.info("SIT - Valores previos | total_venta=%s | total_impuesto=%s | total_to_receive=%s", total_venta, total_impuesto, total_to_receive)
 
         line_vals.append((0, 0, {
             "name": partner.property_account_receivable_id.name or partner.name,
@@ -452,7 +675,7 @@ class DTEImportWizard(models.TransientModel):
         return move
 
     # ---------- helpers ----------
-    def _find_sale_journal_by_tipo(self, tipo_dte):
+    def _find_sale_journal_by_tipo(self, tipo_dte, tipo_movimiento):
         """Busca un diario de ventas cuyo sit_tipo_documento.codigo == tipo_dte en la compañía actual."""
         Journal = self.env["account.journal"]
         if tipo_dte and tipo_dte == constants.COD_DTE_FSE:
@@ -462,11 +685,14 @@ class DTEImportWizard(models.TransientModel):
                 ("company_id", "=", self.company_id.id),
             ], limit=1)
         else:
-            return Journal.search([
-                ("type", "=", constants.TYPE_VENTA),
-                ("sit_tipo_documento.codigo", "=", tipo_dte),
-                ("company_id", "=", self.company_id.id),
-            ], limit=1)
+            if tipo_movimiento and tipo_movimiento == constants.OUT_INVOICE:
+                return Journal.search([
+                    ("type", "=", constants.TYPE_VENTA),
+                    ("sit_tipo_documento.codigo", "=", tipo_dte),
+                    ("company_id", "=", self.company_id.id),
+                ], limit=1)
+            else:
+                return self.dte_import_journal_id
 
     def _currency_from_code(self, code):
         if code == "USD":
@@ -558,11 +784,23 @@ class DTEImportWizard(models.TransientModel):
 
         # 3 Buscar por correo o teléfono si no se encontró por NIT
         if not partner:
-            domain = ["|", "|",
-                      ("email", "=", receptor_correo),
-                      ("phone", "=", receptor_tel),
-                      ("mobile", "=", receptor_tel)]
-            partner = Partner.search(domain, limit=1)
+            conditions = []
+
+            if receptor_correo:
+                conditions.append(("email", "=", receptor_correo))
+
+            if receptor_tel:
+                conditions.extend([
+                    ("phone", "=", receptor_tel),
+                    ("mobile", "=", receptor_tel),
+                ])
+
+            if conditions:
+                domain = ["|"] * (len(conditions) - 1) + conditions
+                partner = Partner.search(domain, limit=1)
+            else:
+                partner = False
+
             if partner:
                 _logger.info("[Partner Search] Encontrado por correo/teléfono: %s (email=%s, tel=%s)", partner.display_name, receptor_correo, receptor_tel)
             else:
@@ -685,3 +923,48 @@ class DTEImportWizard(models.TransientModel):
         else:
             _logger.warning("[DTE Import] No se encontró ningún movimiento con el código '%s' y tipo '%s'.", codigo, tipo_dte)
         return move
+
+    def _load_products_for_line(self, wizard_line):
+        self.ensure_one()
+        missing = []
+
+        raw = base64.b64decode(wizard_line.file)
+        payload = json.loads(raw.decode("utf-8"))
+
+        parser = self.env["dte.import.parser"]
+        parsed = parser.parse_payload(payload)
+
+        for it in parsed.get("items", []):
+            product = self._find_product_by_code(it.get("codigo"))
+            if not product:
+                missing.append({
+                    "archivo": wizard_line.filename or "",
+                    "descripcion": it.get("descripcion"),
+                    "codigo": it.get("codigo"),
+                    "cantidad": it.get("cantidad"),
+                })
+                continue
+
+            taxes = self._taxes_for_line(
+                iva_item=it.get("venta_gravada") or 0.0,
+                exenta=it.get("venta_exenta") or 0.0,
+                no_suj=it.get("venta_no_suj") or 0.0,
+            )
+
+            self.env["dte.import.product.line"].create({
+                "wizard_line_id": wizard_line.id,
+                "product_id": product.id,
+                "name": it.get("descripcion") or product.display_name,
+                "quantity": it.get("cantidad") or 1.0,
+                "price_unit": it.get("precio_unit") or 0.0,
+                "tax_ids": [(6, 0, taxes.ids)],
+            })
+
+        # Guardar resumen al FINAL (tal como acordamos)
+        if missing:
+            self.missing_products_info = "\n".join(
+                "- Archivo: %(archivo)s | Producto: %(descripcion)s | Código: %(codigo)s | Cantidad: %(cantidad)s"
+                % m for m in missing
+            )
+        else:
+            self.missing_products_info = False
