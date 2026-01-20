@@ -82,7 +82,7 @@ class sit_account_contingencia(models.Model):
     journal_id = fields.Many2one(
         'account.journal',
         string='Diario',
-        required=True,
+        required=False,
     )
     sit_fInicio_hInicio = fields.Datetime("Fecha de Inicio de Contingencia - Hacienda", required=True, help="Asignación de Fecha manual para registrarse en Hacienda", default=_default_fecha_hora_sv)
     fecha_hora_creacion = fields.Datetime(string="Fecha y hora (El Salvador)", readonly=True)
@@ -1034,8 +1034,8 @@ class sit_account_contingencia(models.Model):
 
     # Generar secuencia para contingencia
     @api.model
-    def _generate_contingencia_name(self, journal=None, actualizar_secuencia=False):
-        journal = journal or self.journal_id
+    def _generate_contingencia_name(self, journal=None, actualizar_secuencia=False, empresa=False):
+        journal = journal
 
         # Validaciones
         version_contingencia = config_utils.get_config_value(
@@ -1052,13 +1052,17 @@ class sit_account_contingencia(models.Model):
         if not journal.sit_codpuntoventa:
             raise UserError(_("Configure el Punto de Venta en el diario '%s'.") % journal.name)
 
-        if not journal.sequence_id:
-            raise UserError(_("Configure una secuencia de contingencia en el diario '%s'.") % journal.name)
+        # if not journal.sequence_id:
+        #     raise UserError(_("Configure una secuencia de contingencia en el diario '%s'.") % journal.name)
 
         # Obtener secuencia configurada para actualizar el número, no para generar el nombre
-        sequence = journal.sequence_id
+        sequence = self.env['ir.sequence'].search([
+            ('code', '=', 'CONT'),
+            ('company_id', '=', empresa.id),
+        ], limit=1)
+        _logger.info("Secuencia contingencia: %s | Empresa: %s", sequence, empresa.id)
         if not sequence or not sequence.exists():
-            raise UserError(_("El diario '%s' no tiene una secuencia configurada para contingencia.") % journal.name)
+            raise UserError(_("Secuencia no configurada para contingencia."))
 
         # Tomar el prefix de la secuencia y reemplazar placeholders dinámicamente
         prefix = sequence.prefix or ''  # prefijo dinámico de la secuencia
@@ -1085,7 +1089,7 @@ class sit_account_contingencia(models.Model):
         _logger.info("Prefijo dinámico final contingencia: %s", pattern_prefix)
 
         # Buscar el último nombre generado que coincida con el patrón
-        ultimo = self.search([('journal_id', '=', journal.id), ('name', 'like', f'{pattern_prefix}%')], order='name desc', limit=1)
+        ultimo = self.search([('company_id', '=', empresa.id), ('name', 'like', f'{pattern_prefix}%')], order='name desc', limit=1)
         if ultimo:
             try:
                 ultima_parte = int(ultimo.name.split('-')[-1])
@@ -1099,7 +1103,7 @@ class sit_account_contingencia(models.Model):
         nuevo_name = f"{pattern_prefix}{str(nuevo_numero).zfill(15)}"
 
         # Verificar duplicado
-        if self.search_count([('name', '=', nuevo_name), ('journal_id', '=', journal.id)]):
+        if self.search_count([('name', '=', nuevo_name), ('company_id', '=', empresa.id)]):
             raise UserError(_("El número de contingencia generado ya existe: %s") % nuevo_name)
 
         _logger.info("Nombre de contingencia generado dinámicamente con prefix: %s", nuevo_name)

@@ -15,7 +15,6 @@
                     <field name="state" widget="badge" decoration-success="state == 'posted'" decoration-info="state == 'draft'" optional="show"/>
                         <field name="id"/>
                         <field name="name" readonly="state != 'draft'" placeholder="Factura de Contingencia"/>
-                        <field name="journal_id" invisible="0"/>
                         <field name="invoice_user_id" invisible="0"/>
                         <field name="company_id" invisible="0"/>
                         <field name="fechaHoraTransmision" invisible="0"/>
@@ -48,7 +47,6 @@
                         </div>
                         <group>
                             <group id="header_left_group">
-                                <field name="journal_id" invisible="0"/>
                                 <field name="invoice_user_id" invisible="0"/>
                                 <field name="company_id" invisible="0"/>
                                 <field name="fechaHoraTransmision" invisible="0"/>
