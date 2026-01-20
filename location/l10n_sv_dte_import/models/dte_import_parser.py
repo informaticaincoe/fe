@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from datetime import datetime
 from odoo import models
+import json
 import logging
 _logger = logging.getLogger(__name__)
 
@@ -21,6 +22,7 @@ class DTEImportParser(models.TransientModel):
         data = data or {}
 
         # --- Secciones principales ---
+        raw_json = json.dumps(data, ensure_ascii=False, indent=2)
         ident = data.get("identificacion", {}) or {}
         emisor = data.get("emisor", {}) or {}
         receptor = None # data.get("receptor", {}) or {}
@@ -28,6 +30,7 @@ class DTEImportParser(models.TransientModel):
         items_raw = data.get("cuerpoDocumento", []) or []
         respuesta_mh = data.get("jsonRespuestaMh", {}) or {}
         docs_relacionados = data.get("documentoRelacionado", []) or []
+        _logger.info("[DTE Import Parser] Respuesta hacienda: %s | Sello recibido: %s", respuesta_mh, data.get("selloRecibido"))
 
         # --- Datos principales del DTE ---
         tipo_dte = str(ident.get("tipoDte") or "").zfill(2)  # "01" consumidor final, "03" crédito fiscal
@@ -39,10 +42,10 @@ class DTEImportParser(models.TransientModel):
 
         numero_control = ident.get("numeroControl")
         codigo_gen = ident.get("codigoGeneracion")
-        sello_recibido = respuesta_mh.get("selloRecibido")
+        sello_recibido = respuesta_mh.get("selloRecibido") or data.get("selloRecibido")
         moneda = ident.get("tipoMoneda")
 
-        _logger.info("Tipo DTE: %s | Número de control: %s | Código generación: %s | Moneda: %s", tipo_dte, numero_control, codigo_gen, moneda)
+        _logger.info("Tipo DTE: %s | Número de control: %s | Código generación: %s | Sello recibido: %s | Moneda: %s", tipo_dte, numero_control, codigo_gen, sello_recibido, moneda)
 
         # --- Fecha de emisión ---
         fecha_dt = None
@@ -181,6 +184,7 @@ class DTEImportParser(models.TransientModel):
             "codigo_msg": respuesta_mh.get("codigoMsg") or None,
             "descripcion_msg": respuesta_mh.get("descripcionMsg") or None,
             "observaciones_hacienda": respuesta_mh.get("observaciones") or None,
+            "json_respuesta": raw_json,
         }
 
         # Determinar NIT según el tipo de documento

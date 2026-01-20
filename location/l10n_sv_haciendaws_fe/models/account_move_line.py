@@ -26,6 +26,30 @@ class AccountMoveLine(models.Model):
             _logger.info("=== [SOL COMPUTE ALLOWED TAX IDS] line=%s ===", line.id)
 
             company = line.move_id.company_id if line.move_id else None
+            move = line.move_id
+            move_type = move.move_type if move else False
+
+            is_purchase = move_type in ('in_invoice', 'in_refund')
+
+            # ----------------------------------------------------------------------
+            # 0) Compras → comportamiento estándar de Odoo (NO restringir impuestos)
+            # ----------------------------------------------------------------------
+            if is_purchase:
+                _logger.info("[SOL] Compra detectada → usar comportamiento estándar de Odoo")
+
+                company = line.move_id.company_id
+                if line.product_id:
+                    taxes = line.product_id.supplier_taxes_id.filtered(
+                        lambda t: t.company_id == company
+                    )
+                    line.allowed_invoice_tax_ids = taxes
+                else:
+                    line.allowed_invoice_tax_ids = self.env['account.tax'].search([
+                        ('company_id', '=', company.id),
+                        ('type_tax_use', 'in', ['purchase', 'none']),
+                        ('active', '=', True),
+                    ])
+                continue
 
             # ----------------------------------------------------------------------
             # 1) Empresa NO usa facturación → usar impuestos estándar de Odoo

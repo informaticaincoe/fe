@@ -172,6 +172,7 @@ TYPE_RECEPCION = "incoming"
 
 # Identificacion documentos electronicos
 DTE_COD = 4
+IMPRESO_COD = 1
 
 #Clave de porcentajes configurados desde compañía
 config_percepcion = "percepcion"
