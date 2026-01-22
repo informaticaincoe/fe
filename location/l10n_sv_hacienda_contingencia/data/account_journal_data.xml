@@ -4,7 +4,7 @@
     <record id="sequence_contingencia" model="ir.sequence">
         <field name="name">CONT Sequence</field>
         <field name="code">CONT</field>
-        <field name="prefix">CON-%(con)s-0000%(estable)s-</field>
+        <field name="prefix">CON-%(con)s-%(estable)s%(punto_venta)s-</field>
         <field name="padding">15</field>
         <field name="number_increment">1</field>
         <field name="implementation">no_gap</field>
@@ -15,7 +15,7 @@
     <record id="sequence_lotes" model="ir.sequence">
         <field name="name">LOTE Sequence</field>
         <field name="code">LOT</field>
-        <field name="prefix">LOT-%(lote)s-0000%(estable)s-</field>
+        <field name="prefix">LOT-%(lote)s-%(estable)s%(punto_venta)s-</field>
         <field name="padding">15</field>
         <field name="number_increment">1</field>
         <field name="implementation">no_gap</field>

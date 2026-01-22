@@ -31,6 +31,7 @@
         "views/res_company_account.xml",
 
         "views/sv_tax_override_views.xml",
+        "views/account_move_fechas_purchase.xml",
     ],
     "installable": True,
     "auto_install": False,

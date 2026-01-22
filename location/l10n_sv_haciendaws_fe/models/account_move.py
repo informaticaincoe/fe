@@ -1915,6 +1915,9 @@ class AccountMove(models.Model):
             _logger.info("SIT _crear_contingencia | Movimiento %s. Se omite generación de QR.", self.move_type)
             return
 
+        if not self.journal_id:
+            raise UserError(_("No existe el diario configurado."))
+
         if self.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
             tipo_doc = self.journal_id.sit_tipo_documento if self.journal_id else None
             if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE:  # Sujeto excluido
@@ -1931,19 +1934,19 @@ class AccountMove(models.Model):
             _logger.info("Factura %s no entra a contingencia: sello=%s, contingencia=%s", self.name, self.hacienda_selloRecibido, self.sit_factura_de_contingencia)
             return
 
-        journal_contingencia = self.env['account.journal'].search([
-            ('code', '=', 'CONT'),
-            ('company_id', '=', self.company_id.id),
-        ], limit=1)
-        if not journal_contingencia:
-            raise UserError(_("Verifique la existencia de un diario con el código 'CONT'; de lo contrario, proceda a crearlo"))
+        # journal_contingencia = self.env['account.journal'].search([
+        #     ('code', '=', 'CONT'),
+        #     ('company_id', '=', self.company_id.id),
+        # ], limit=1)
+        # if not journal_contingencia:
+        #     raise UserError(_("Verifique la existencia de un diario con el código 'CONT'; de lo contrario, proceda a crearlo"))
 
-        journal_lote = self.env['account.journal'].search([
-            ('code', '=', 'LOTE'),
-            ('company_id', '=', self.company_id.id),
-        ], limit=1)
-        if not journal_lote:
-            raise UserError(_("Verifique la existencia de un diario con el código 'LOTE'; de lo contrario, proceda a crearlo"))
+        # journal_lote = self.env['account.journal'].search([
+        #     ('code', '=', 'LOTE'),
+        #     ('company_id', '=', self.company_id.id),
+        # ], limit=1)
+        # if not journal_lote:
+        #     raise UserError(_("Verifique la existencia de un diario con el código 'LOTE'; de lo contrario, proceda a crearlo"))
 
         max_intentos = 3
         dte_x_lote = int(config_utils.get_config_value(self.env, 'cantidad_factura', self.company_id.id)) if config_utils else 100
@@ -1968,6 +1971,7 @@ class AccountMove(models.Model):
             'sit_es_configencia': True,
             'sit_tipo_contingencia': tipo_contingencia.id if tipo_contingencia else False,
         })
+
         _logger.info("Guardando DTE en contingencia (%s): %s", tipo_contingencia.codigo if tipo_contingencia else "", self.name)
 
         _logger.info("Buscando contingencia activa para empresa: %s", self.company_id.name)
@@ -2052,14 +2056,14 @@ class AccountMove(models.Model):
                         _logger.info("Cantidad lotes existentes en contingencia %s: %d", contingencia_activa.name, num_lotes)
 
                         if num_lotes < lotes_x_contin:
-                            nuevo_nombre_lote = self.env['account.lote'].generar_nombre_lote(journal=journal_lote, actualizar_secuencia=True)
+                            nuevo_nombre_lote = self.env['account.lote'].generar_nombre_lote(journal=self.journal_id, actualizar_secuencia=True, empresa=self.company_id)
                             if not nuevo_nombre_lote or not nuevo_nombre_lote.strip():
                                 raise UserError(_("El nombre generado para el lote es inválido, no puede ser vacío."))
                             lote_asignado = Lote.create({
                                 'name': nuevo_nombre_lote,
                                 'sit_contingencia': contingencia_activa.id,
                                 'lote_activo': True,
-                                'journal_id': journal_lote.id,
+                                # 'journal_id': journal_lote.id,
                                 'company_id': contingencia_activa.company_id.id,
                             })
                             self.write({'sit_lote_contingencia': lote_asignado.id})
@@ -2075,11 +2079,11 @@ class AccountMove(models.Model):
 
         # Si no hay contingencia activa o válida, crear una nueva
         if not contingencia_activa:
-            nuevo_name = Contingencia._generate_contingencia_name(journal=journal_contingencia, actualizar_secuencia=True)
+            nuevo_name = Contingencia._generate_contingencia_name(journal=self.journal_id, actualizar_secuencia=True, empresa=self.company_id)
             contingencia_activa = Contingencia.create({
                 'name': nuevo_name,
                 'company_id': self.company_id.id,
-                'journal_id': journal_contingencia.id,
+                # 'journal_id': journal_contingencia.id,
                 'sit_tipo_contingencia': tipo_contingencia.id if tipo_contingencia else False,
                 'contingencia_activa': True,
                 'hacienda_codigoGeneracion_identificacion': self.sit_generar_uuid(),
@@ -2093,14 +2097,14 @@ class AccountMove(models.Model):
                 contingencia_activa.sit_bloque = usar_bloque
 
             if usar_lotes:
-                nuevo_nombre_lote = Lote.generar_nombre_lote(journal=journal_lote, actualizar_secuencia=True)
+                nuevo_nombre_lote = Lote.generar_nombre_lote(journal=self.journal_id, actualizar_secuencia=True, empresa=self.company_id)
                 if not nuevo_nombre_lote or not nuevo_nombre_lote.strip():
                     raise UserError(_("El nombre generado para el lote es inválido, no puede ser vacío."))
                 lote_asignado = Lote.create({
                     'name': nuevo_nombre_lote,
                     'sit_contingencia': contingencia_activa.id,
                     'lote_activo': True,
-                    'journal_id': journal_lote.id,
+                    # 'journal_id': journal_lote.id,
                     'company_id': contingencia_activa.company_id.id,
                 })
                 self.write({
@@ -2268,10 +2272,10 @@ class AccountMove(models.Model):
                     _logger.warning("SIT | Faltan datos requeridos en factura de sujeto excluido (%s).", inv.name)
                     raise ValidationError(
                         "Debe completar todos los campos requeridos para facturas de sujeto excluido:\n"
-                        "- Tipo de costo o gasto\n"
                         "- Tipo de operación\n"
                         "- Clasificación\n"
-                        "- Sector"
+                        "- Sector\n"
+                        "- Tipo de costo o gasto"
                     )
 
                 # Validación solo si el cliente usa "Factura por factura"

@@ -5,6 +5,7 @@
     "depends": ["accountant", "product", "contacts", "uom"],
     "data": [
         "security/ir.model.access.csv",
+        "data/dte_import_sequence.xml",
         "views/menu.xml",
         "views/dte_import_wizard_views.xml",
     ],

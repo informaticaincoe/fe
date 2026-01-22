@@ -140,8 +140,8 @@ class sit_account_lote(models.Model):
 
     # Generar secuencia para lotes
     @api.model
-    def generar_nombre_lote(self, journal=None, actualizar_secuencia=False):
-        journal = journal or self.journal_id
+    def generar_nombre_lote(self, journal=None, actualizar_secuencia=False, empresa=False):
+        journal = journal # or self.journal_id
 
         # Validaciones
         version_lote = config_utils.get_config_value(
@@ -159,13 +159,18 @@ class sit_account_lote(models.Model):
         if not journal.sit_codpuntoventa:
             raise UserError(_("Configure el Punto de Venta en el diario '%s'.") % journal.name)
 
-        if not journal.sequence_id:
-            raise UserError(_("Configure una secuencia de lote en el diario '%s'.") % journal.name)
+        # if not journal.sequence_id:
+        #     raise UserError(_("Configure una secuencia de lote en el diario '%s'.") % journal.name)
 
         # Obtener secuencia configurada para actualizar el número, no para generar el nombre
-        sequence = journal.sequence_id
+        # sequence = journal.sequence_id
+        sequence = self.env['ir.sequence'].search([
+            ('code', '=', 'LOT'),
+            ('company_id', '=', empresa.id),
+        ], limit=1)
+        _logger.info("Secuencia lote: %s | Empresa: %s", sequence, empresa.id)
         if not sequence or not sequence.exists():
-            raise UserError(_("El diario '%s' no tiene una secuencia configurada para lotes.") % journal.name)
+            raise UserError(_("Secuencia no configurada para lotes."))
 
         prefix = sequence.prefix or ''  # prefijo dinámico de la secuencia
         _logger.info("Prefix lote: %s", prefix)
@@ -192,7 +197,7 @@ class sit_account_lote(models.Model):
         _logger.info("Prefijo dinámico final lote: %s", pattern_prefix)
 
         # Buscar último nombre generado con formato LOT-version-0000estable-
-        ultimo = self.search([('journal_id', '=', journal.id), ('name', 'like', f'{pattern_prefix}%')], order='name desc', limit=1)
+        ultimo = self.search([('company_id', '=', empresa.id), ('name', 'like', f'{pattern_prefix}%')], order='name desc', limit=1)
         if ultimo:
             try:
                 ultima_parte = int(ultimo.name.split('-')[-1])
@@ -206,7 +211,7 @@ class sit_account_lote(models.Model):
         nuevo_name = f"{pattern_prefix}{str(nuevo_numero).zfill(15)}"
 
         # Verificar duplicado
-        if self.search_count([('name', '=', nuevo_name), ('journal_id', '=', journal.id)]):
+        if self.search_count([('name', '=', nuevo_name), ('company_id', '=', empresa.id)]):
             raise UserError(_("El número de lote generado ya existe: %s") % nuevo_name)
 
         _logger.info("Nombre de lote generado dinámicamente con prefix: %s", nuevo_name)
