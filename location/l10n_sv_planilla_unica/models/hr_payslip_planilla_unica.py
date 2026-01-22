@@ -373,10 +373,6 @@ class HrPayslipPlanillaUnica(models.TransientModel):
             _logger.info("mes_actual_numero %s", mes_actual_numero)
             _logger.info("contract_start_date %s", contract_start_date)
 
-
-
-
-
             codes = []
             ct_code = getattr(getattr(rec.contract_id, 'contract_type_id', False), 'code', '')
             if ct_code == 'Apprenticeship' and '03' not in codes:
@@ -385,8 +381,8 @@ class HrPayslipPlanillaUnica(models.TransientModel):
                 codes.append('10')
             if has_incap and '06' not in codes:
                 codes.append('06')
-            if is_ipsfa and '04' not in codes:
-                codes.append('04')
+            if is_ipsfa and '13' not in codes:
+                codes.append('13')
             if has_pagos and '10' not in codes:
                 codes.append('02')
             if has_vacas and '10' not in codes:
