@@ -62,36 +62,39 @@ class AccountMove(models.Model):
         return journal.refund_sequence_id or journal.sequence_id
 
     def _post(self, soft=True):
+        # Siempre permitir que Odoo postee primero (puede ser masivo)
+        result = super(AccountMove, self)._post(soft=soft)
 
-        if self.move_type in (constants.TYPE_ENTRY, constants.OUT_RECEIPT, constants.IN_RECEIPT):
-            return super()._post(soft=soft)
-        if (self.move_type in (constants.IN_INVOICE, constants.IN_REFUND) and self.journal_id and
-                (not self.journal_id.sit_tipo_documento or self.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)):
-            return super()._post(soft=soft)
+        # Si la empresa no usa facturación electrónica, no hago nada
         if not self.env.company.sit_facturacion:
-            return super()._post(soft=soft)
+            return result
 
-        # 1) Solo asigno la secuencia estándar para diarios NO sale
-        non_sales = self.filtered(lambda m: m.journal_id.type != constants.TYPE_VENTA)
-        for move in non_sales:
-            _logger.info("Revisando move %s con diario %s (%s)", move.id, move.journal_id.name, move.journal_id.type)
-
-            if not (move.company_id and move.company_id.sit_facturacion) or not move.journal_id.sit_tipo_documento:
-                _logger.warning("Move %s omitido: sin company_id.sit_facturacion y sin tipo de documento en el diario %s", move.id, move.journal_id.id)
+        # Procesar SIEMPRE por movimiento
+        for move in self:
+            # Movimientos que no deben tocarse
+            if move.move_type in (constants.TYPE_ENTRY, constants.OUT_RECEIPT, constants.IN_RECEIPT):
+                continue
+            if (move.move_type in (constants.IN_INVOICE, constants.IN_REFUND) and move.journal_id
+                    and (not move.journal_id.sit_tipo_documento or move.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE)):
                 continue
 
-            _logger.info("Move %s pasa validaciones, continúa con el flujo", move.id)
+            # Los diarios de venta siguen su propio flujo
+            if move.journal_id.type == constants.TYPE_VENTA:
+                continue
+
+            # Validaciones mínimas
+            if not move.journal_id or not move.journal_id.sit_tipo_documento:
+                continue
+
+            # Asignar secuencia estándar solo si aún no tiene número
             if move.name == '/':
-                journal = move.journal_id
-                if not journal:
-                    raise UserError(_('Debe seleccionar un Diario antes de confirmar el documento.'))
                 sequence = move._get_standard_sequence()
                 if not sequence:
                     raise UserError(
-                        _('Por favor defina una secuencia para el Diario "%s".') %
-                        journal.display_name
+                        _('Por favor defina una secuencia para el Diario "%s".')
+                        % move.journal_id.display_name
                     )
-                # Asigno el siguiente número de la secuencia normal
+
                 move.name = sequence.with_context(
                     ir_sequence_date=move.date
                 ).next_by_id()
@@ -99,7 +102,7 @@ class AccountMove(models.Model):
         # 2) Delego al super(), de modo que:
         #    - los diarios sale pasen a tu flujo DTE (con “DTE-…”)
         #    - todo lo demás continúe con la lógica de Odoo
-        return super(AccountMove, self)._post(soft=soft)
+        return result
 
     @api.onchange('journal_id')
     def onchange_journal_id(self):

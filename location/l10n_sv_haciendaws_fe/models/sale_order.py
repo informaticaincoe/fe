@@ -111,8 +111,17 @@ class SaleOrder(models.Model):
                 if not order.recintoFiscal:
                     raise ValidationError("Debe seleccionar un recinto fiscal.")
 
-        return super()._create_invoices(
+        moves = super()._create_invoices(
             grouped=grouped,
             final=final,
             **kwargs
         )
+
+        # Asignar fecha de documento inmediatamente
+        today = fields.Date.context_today(self)
+
+        for move in moves:
+            if move.move_type == constants.OUT_INVOICE and not move.invoice_date:
+                move.invoice_date = today
+
+        return moves
