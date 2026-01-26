@@ -167,34 +167,59 @@ class sit_account_move(models.Model):
         super(sit_account_move, self)._onchange_partner_id()
 
         for move in self:
-            if not move.partner_id or not move.is_sale_document(include_receipts=True):
+            if not move.partner_id:
+                _logger.info("[ONCHANGE VENTAS] Skip: no hay partner asignado")
+                continue
+
+            if not move.is_sale_document(include_receipts=True):
+                _logger.info("[ONCHANGE VENTAS] Skip: no es documento de venta")
                 continue
             p = move.partner_id.with_company(move.company_id)
 
             # 1) Términos de pago (venta)
             if not move.invoice_payment_term_id and p.terminos_pago_venta_id:
                 move.invoice_payment_term_id = p.terminos_pago_venta_id
+                _logger.info("[ONCHANGE VENTAS] Asignado invoice_payment_term_id=%s", p.terminos_pago_venta_id.id)
 
             # 2) Condición de pago (Hacienda)
             if not move.condiciones_pago and p.condicion_pago_venta_id:
                 move.condiciones_pago = p.condicion_pago_venta_id
+                _logger.info("[ONCHANGE VENTAS] Asignada condiciones_pago=%s", p.condicion_pago_venta_id.id)
 
             # 3) Forma de pago
             if not move.forma_pago and p.formas_pago_venta_id:
                 move.forma_pago = p.formas_pago_venta_id
+                _logger.info("[ONCHANGE VENTAS] Asignada forma_pago=%s", p.formas_pago_venta_id.id)
+        _logger.info("[ONCHANGE VENTAS] Finalizado")
 
     def _apply_partner_defaults_ventas_if_needed(self):
         """Cubre creaciones sin UI (import/API), donde no corre el onchange."""
+
         for move in self:
-            if not move.partner_id or not move.is_sale_document(include_receipts=True):
+            if not move.partner_id:
+                _logger.info("[DEFAULTS VENTAS - NO UI] Skip: no hay partner")
+                continue
+
+            if not move.is_sale_document(include_receipts=True):
+                _logger.info("[DEFAULTS VENTAS - NO UI] Skip: no es venta")
                 continue
             p = move.partner_id.with_company(move.company_id)
-            if not move.invoice_payment_term_id and p.terminos_pago_venta_id:
+
+            # 1) Términos de pago (Many2one)
+            if p.terminos_pago_venta_id:
                 move.invoice_payment_term_id = p.terminos_pago_venta_id
+                _logger.info("[DEFAULTS VENTAS - NO UI] Asignado invoice_payment_term_id=%s", p.terminos_pago_venta_id.id)
+
+            # 2) Condición de pago (Selection)
             if not move.condiciones_pago and p.condicion_pago_venta_id:
                 move.condiciones_pago = p.condicion_pago_venta_id
+                _logger.info("[DEFAULTS VENTAS - NO UI] Asignada condiciones_pago=%s", p.condicion_pago_venta_id)
+
+            # 3) Forma de pago (Many2one)
             if not move.forma_pago and p.formas_pago_venta_id:
                 move.forma_pago = p.formas_pago_venta_id
+                _logger.info("[DEFAULTS VENTAS - NO UI] Asignada forma_pago=%s", p.formas_pago_venta_id.id)
+        _logger.info("[DEFAULTS VENTAS - NO UI] Finalizado")
 
     @api.onchange('partner_id', 'company_id', 'move_type')
     def _onchange_partner_defaults_compras(self):
@@ -264,7 +289,7 @@ class sit_account_move(models.Model):
             if not move.partner_id or not move.is_purchase_document(include_receipts=True):
                 continue
             p = move.partner_id.with_company(move.company_id)
-            if not move.invoice_payment_term_id and p.terminos_pago_compras_id:
+            if p.terminos_pago_compras_id:
                 move.invoice_payment_term_id = p.terminos_pago_compras_id
             if not move.condiciones_pago and p.condicion_pago_compras_id:
                 move.condiciones_pago = p.condicion_pago_compras_id
