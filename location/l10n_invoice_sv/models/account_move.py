@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from traceback import print_tb
+
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError, ValidationError
 from .amount_to_text_sv import to_word
@@ -1300,6 +1302,15 @@ class AccountMove(models.Model):
 
             if nuevas_lineas:
                 move.write({'line_ids': nuevas_lineas})
+
+    def action_print_by_journal(self):
+        reporte = self.journal_id.report_xml
+
+        if not reporte:
+            raise UserError(_("El diario '%s' no tiene un reporte XML configurado.") % self.journal_id.name)
+
+        # Retornamos la acción del reporte configurado
+        return reporte.report_action(self)
 
 class AccountMoveSend(models.AbstractModel):
     _inherit = 'account.move.send'
