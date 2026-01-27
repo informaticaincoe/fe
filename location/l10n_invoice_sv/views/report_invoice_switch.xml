@@ -1,0 +1,59 @@
+<odoo>
+
+    <!-- SWITCH: plantilla por tipo de documento -->
+    <template id="report_invoice_document_switch">
+        <t t-set="dte" t-value="(o.journal_id.sit_tipo_documento.codigo or '')"/>
+        <t t-if="dte == '01'">
+            <t t-call="l10n_invoice_sv.report_invoice_fcf"/>
+        </t>
+        <t t-elif="dte == '03'">
+            <t t-call="l10n_invoice_sv.report_invoice_ccf"/>
+        </t>
+        <t t-elif="dte == '05'">
+            <t t-call="l10n_invoice_sv.report_invoice_ndc"/>
+        </t>
+        <t t-elif="dte == '05'">
+            <t t-call="l10n_invoice_sv.report_invoice_ndd"/>
+        </t>
+        <t t-elif="dte == '11'">
+            <t t-call="l10n_invoice_sv.report_invoice_exp"/>
+        </t>
+        <t t-elif="dte == '14'">
+            <t t-call="l10n_invoice_sv.report_invoice_compra_sujeto_excluido"/>
+        </t>
+        <t t-else="">
+            <t t-call="l10n_invoice_sv.report_invoice_fcf"/>
+        </t>
+    </template>
+
+    <!-- PDF de la factura: account.report_invoice_with_payments -->
+    <template id="report_invoice_with_payments_switch"
+              inherit_id="account.report_invoice_with_payments">
+        <xpath expr="." position="replace">
+            <t t-name="account.report_invoice_with_payments">
+
+                <!-- Tomar SOLO 1 factura (única) aunque docs venga duplicado -->
+                <t t-set="docid" t-value="(sorted(set(docs.ids)) or [False])[0]"/>
+                <t t-if="docid">
+                    <t t-set="o" t-value="env['account.move'].browse(docid)"/>
+                    <t t-call="l10n_invoice_sv.report_invoice_document_switch"/>
+                </t>
+
+            </t>
+        </xpath>
+    </template>
+
+    <!-- ✅ PDF sin pago: UN SOLO PDF con TODAS las facturas seleccionadas -->
+    <template id="report_invoice_switch"
+              inherit_id="account.report_invoice">
+        <xpath expr="." position="replace">
+            <t t-name="account.report_invoice">
+                <t t-foreach="sorted(set(docs.ids))" t-as="docid">
+                    <t t-set="o" t-value="env['account.move'].browse(docid)"/>
+                    <t t-call="l10n_invoice_sv.report_invoice_document_switch"/>
+                </t>
+            </t>
+        </xpath>
+    </template>
+
+</odoo>

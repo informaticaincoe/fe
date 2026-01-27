@@ -61,6 +61,9 @@
         'data/account_discount.xml',
         'views/res_partner_contribuyente.xml',
         'views/account_move_fechas_view.xml',
+        'views/report_invoice_switch.xml',
+        'views/account_move_print_pdf.xml'
+
     ],
     'demo': [],
     'installable': True,
