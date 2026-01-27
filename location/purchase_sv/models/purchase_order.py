@@ -18,4 +18,9 @@ class PurchaseOrder(models.Model):
         res = super()._prepare_invoice()
         if self.journal_id:
             res['journal_id'] = self.journal_id.id
+
+        # Asignar fecha de documento al crear la factura
+        if not res.get('invoice_date'):
+            res['invoice_date'] = fields.Date.context_today(self)
+
         return res
