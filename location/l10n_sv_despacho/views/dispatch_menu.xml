@@ -6,6 +6,39 @@
         sequence="10"
         web_icon="l10n_sv_despacho,static/description/icon.png"
     />
+
+    <menuitem
+        id="menu_routes"
+        name="Rutas"
+        parent="menu_despachos_root"
+        sequence="10"
+    />
+    <menuitem
+        id="menu_despacho_zonas"
+        name="Rutas"
+        parent="menu_routes"
+        sequence="10"
+    />
+    <menuitem
+        id="menu_despacho_zonas"
+        name="Zonas"
+        action="action_despacho_zonas"
+        parent="menu_routes"
+        sequence="10"
+    />
+    <menuitem
+        id="menu_despacho_zonas"
+        name="Vehiculos"
+        parent="menu_routes"
+        sequence="10"
+    />
+    <menuitem
+        id="menu_reception_routes"
+        name="Recepción de rutas"
+        parent="menu_despachos_root"
+        sequence="10"
+    />
+
 </odoo>
 
 
