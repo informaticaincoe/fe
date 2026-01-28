@@ -1,2 +1,3 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 access_dispatch_route_user,dispatch.route user,model_dispatch_route,base.group_user,1,1,1,1
+access_dispatch_zones_user,dispatch.zones user,model_dispatch_zones,base.group_user,1,1,1,1

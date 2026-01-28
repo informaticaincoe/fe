@@ -21,6 +21,7 @@
         'views/dispatch_action.xml',
         'views/dispatch_menu.xml',
         'views/dispatch_route_view.xml',
+        'views/dispatch_zones_view.xml',
     ],
     'application': True,
     'installable': True,

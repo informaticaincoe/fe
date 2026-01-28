@@ -1,0 +1,29 @@
+<odoo>
+    <record id="dispatch_zones_tree" model="ir.ui.view">
+        <field name="name">dispatch.zones.list</field>
+        <field name="model">dispatch.zones</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="dpto_id"/>
+                <field name="name"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="dispatch_zones_form" model="ir.ui.view">
+        <field name="name">dispatch.zones.form</field>
+        <field name="model">dispatch.zones</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <field name="name" placeholder="Ej. Zona Occidental"/>
+                        <field name="dpto_id"
+                               widget="many2many_tags"
+                               options="{'no_create': True}"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+</odoo>
