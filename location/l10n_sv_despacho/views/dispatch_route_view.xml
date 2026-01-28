@@ -53,7 +53,9 @@
                             <field name="account_move_ids" context="{'default_dispatch_route_id': id, 'default_company_id': company_id}">
                                 <list editable="bottom">
                                     <field name="name" string="Número"/>
-                                    <field name="partner_id"/>
+                                    <field name="partner_id" string="Cliente"/>
+                                    <field name="partner_phone"/>
+                                    <field name="partner_address"/>
                                     <field name="invoice_date"/>
                                     <field name="amount_total"/>
                                     <field name="state"/>
