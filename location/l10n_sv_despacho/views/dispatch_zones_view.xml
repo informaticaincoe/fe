@@ -21,6 +21,9 @@
                         <field name="dpto_id"
                                widget="many2many_tags"
                                options="{'no_create': True}"/>
+                        <field name="munic_id"
+                               widget="many2many_tags"
+                               options="{'no_create': True}"/>
                     </group>
                 </sheet>
             </form>

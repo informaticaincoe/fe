@@ -4,4 +4,4 @@ access_dispatch_route_reception_user,dispatch.route.reception user,model_dispatc
 access_dispatch_route_reception_line_user,dispatch.route.reception.line user,model_dispatch_route_reception_line,base.group_user,1,1,1,1
 access_dispatch_route_reception_wizard_user,dispatch.route.reception.wizard user,model_dispatch_route_reception_wizard,base.group_user,1,1,1,1
 access_dispatch_route_reception_line_wizard_user,dispatch.route.reception.line.wizard user,model_dispatch_route_reception_line_wizard,base.group_user,1,1,1,1
-
+access_dispatch_zones_user,dispatch.zones user,model_dispatch_zones,base.group_user,1,1,1,1
