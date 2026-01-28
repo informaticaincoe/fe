@@ -1,0 +1,12 @@
+<odoo>
+    <menuitem
+        id="menu_despachos_root"
+        name="Despachos"
+        action="action_despachos"
+        sequence="10"
+        web_icon="l10n_sv_despacho,static/description/icon.png"
+    />
+</odoo>
+
+
+
