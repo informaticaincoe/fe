@@ -9,6 +9,7 @@
     'category': 'Inventory',
     'version': '18.0.1.0.1',
     'depends': [
+        'l10n_sv_hacienda',
         'stock',
         'sale',
         'fleet',
@@ -17,16 +18,14 @@
         'mail',
     ],
     'data': [
+        'data/res.configuration.csv',
         'security/ir.model.access.csv',
         'views/dispatch_action.xml',
         'views/dispatch_menu.xml',
         'views/dispatch_route_view.xml',
-<<<<<<< Updated upstream
         'views/dispatch_route_list_view.xml',
-=======
         'views/dispatch_route_reception_wizard_view.xml',
         'views/dispatch_route_reception_view.xml',
->>>>>>> Stashed changes
     ],
     'application': True,
     'installable': True,

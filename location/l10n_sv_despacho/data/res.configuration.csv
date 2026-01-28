@@ -1,0 +1,2 @@
+id,company_id:id,pwd,value_type,value_text,description,active,clave
+config_cant_auxiliar,base.main_company,,int,3,Máximo permitido de auxiliares por registro en el módulo de Despachos,True,cant_aux_ruta
