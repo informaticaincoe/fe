@@ -1,6 +1,4 @@
 <odoo>
-<<<<<<< Updated upstream
-=======
     <record id="dispatch_route_tree" model="ir.ui.view">
         <field name="name">dispatch.route.list</field>
         <field name="model">dispatch.route</field>
@@ -13,8 +11,6 @@
             </list>
         </field>
     </record>
-
->>>>>>> Stashed changes
     <record id="dispatch_route_form" model="ir.ui.view">
         <field name="name">dispatch.route.form</field>
         <field name="model">dispatch.route</field>
