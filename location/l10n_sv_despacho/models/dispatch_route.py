@@ -17,14 +17,14 @@ class DispatchRoute(models.Model):
     _inherit = ['mail.thread', 'mail.activity.mixin'] # chatter + actividades
 
     route_manager_id = fields.Many2one('res.users', string='Responsable de ruta', default=lambda self: self.env.user)
-    route_supervisor_id = fields.Many2one('res.users', string='Supervisor de ruta', default=lambda self: self.env.user)
+    route_supervisor_id = fields.Many2one('res.users', string='Supervisor de ruta')
 
     vehicle_id = fields.Many2one('fleet.vehicle', string='Vehículo')
-    zone = fields.Text(string='Zona de Destino')
+    zone = fields.Text(string='Zona de Destino', required=True)
     route_date = fields.Date(string="Fecha de ruta", default=fields.Date.context_today)
 
     assistant_ids = fields.Many2many('hr.employee', string='Auxiliares')
-    route_driver_id = fields.Many2one('hr.employee', string='Conductor')
+    route_driver_id = fields.Many2one('hr.employee', string='Conductor', required=True)
     departure_datetime = fields.Datetime(string="Hora de salida")
     arrival_datetime = fields.Datetime(string="Hora de llegada")
 
@@ -50,10 +50,16 @@ class DispatchRoute(models.Model):
         string="Estado"
     )
 
-    account_move_ids = fields.One2many(
+    account_move_ids = fields.Many2many(
         'account.move',
-        'dispatch_route_id',
-        string='Documentos electrónicos'
+        domain=[
+            ('dispatch_route_id', '=', False),
+            ('move_type', 'in', ('out_invoice', 'out_refund')),
+            ('state', '=', 'posted'),
+            ('payment_state', 'not in', ('paid', 'in_payment')),
+        ],
+        string='Documentos electrónicos',
+        required=True
     )
 
     #AGREGADO POR FRAN
