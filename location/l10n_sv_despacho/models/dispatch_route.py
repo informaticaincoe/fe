@@ -1,5 +1,15 @@
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError, ValidationError
+import logging
+
+_logger = logging.getLogger(__name__)
+
+try:
+    from odoo.addons.common_utils.utils import config_utils
+    _logger.info("SIT Modulo config_utils [Despacho - dispatch_route]")
+except ImportError as e:
+    _logger.error(f"Error al importar 'config_utils' en modelo dispatch_route: {e}")
+    config_utils = None
 
 class DispatchRoute(models.Model):
     _name = "dispatch.route"
@@ -7,13 +17,16 @@ class DispatchRoute(models.Model):
     _inherit = ['mail.thread', 'mail.activity.mixin'] # chatter + actividades
 
     route_manager_id = fields.Many2one('res.users', string='Responsable de ruta', default=lambda self: self.env.user)
+    route_supervisor_id = fields.Many2one('res.users', string='Supervisor de ruta', default=lambda self: self.env.user)
 
     vehicle_id = fields.Many2one('fleet.vehicle', string='Vehículo')
     zone = fields.Text(string='Zona de Destino')
     route_date = fields.Date(string="Fecha de ruta", default=fields.Date.context_today)
+
     assistant_ids = fields.Many2many('hr.employee', string='Auxiliares')
-    departure_time = fields.Float(string='Hora de salida', help='Hora de salida')
-    arrival_time = fields.Float(string='Hora de llegada', help='Hora de llegada')
+    route_driver_id = fields.Many2one('hr.employee', string='Conductor')
+    departure_datetime = fields.Datetime(string="Hora de salida")
+    arrival_datetime = fields.Datetime(string="Hora de llegada")
 
     ####FRANCISCO FLORES
     company_id = fields.Many2one(
@@ -23,7 +36,6 @@ class DispatchRoute(models.Model):
         related="company_id.currency_id", string="Moneda", readonly=True
     )
     ######
-
     state = fields.Selection(
         [
             ('draft', 'Borrador'),
@@ -34,7 +46,8 @@ class DispatchRoute(models.Model):
         ],
         default='draft',
         tracking=True,
-        copy=False
+        copy=False,
+        string="Estado"
     )
 
     account_move_ids = fields.One2many(
@@ -53,10 +66,18 @@ class DispatchRoute(models.Model):
     last_reception_id = fields.Many2one("dispatch.route.reception", string="Última recepción", readonly=True)
 
     @api.constrains('assistant_ids')
-    def _check_max_three_assistants(self):
+    def _check_max_assistants(self):
+        company = self.env.company
+
+        max_allowed_assistants = config_utils.get_config_value(self.env, 'cant_aux_ruta', company.id)
+        if max_allowed_assistants is None:
+            raise ValidationError(_('No se ha configurado la cantidad máxima de auxiliares para la empresa %s.') % company.name)
+
         for record in self:
-            if len(record.assistant_ids) > 3:
-                raise ValidationError('Solo se pueden seleccionar hasta 3 auxiliares.')
+            if len(record.assistant_ids) > int(max_allowed_assistants):
+                raise ValidationError(
+                    _('El número máximo permitido de auxiliares es %s.') % (int(max_allowed_assistants))
+                )
 
     #####FRANCISCO FLORES
 
