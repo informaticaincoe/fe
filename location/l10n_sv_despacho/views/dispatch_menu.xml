@@ -1,5 +1,6 @@
 <odoo>
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 <menuitem
         id="menu_despachos_root"
         name="Despachos"
@@ -54,6 +55,18 @@
                   sequence="10"/>
 >>>>>>> Stashed changes
 
+=======
+    <data>
+        <!-- Menú raíz -->
+        <menuitem id="menu_despacho_root" name="Despacho" sequence="10"/>
+
+        <!-- Submenús -->
+        <menuitem id="menu_despacho_operaciones"
+                  name="Operaciones"
+                  parent="l10n_sv_despacho.menu_despacho_root"
+                  sequence="10"/>
+
+>>>>>>> Stashed changes
         <menuitem id="menu_despacho_recepcion_root"
                   name="Recepción"
                   parent="l10n_sv_despacho.menu_despacho_root"
