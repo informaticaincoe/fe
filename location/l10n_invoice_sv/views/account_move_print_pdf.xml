@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+    <odoo>
+        <data>
+            <record id="view_move_form_inherit_custom" model="ir.ui.view">
+                <field name="name">account.move.form.inherit.custom</field>
+                <field name="model">account.move</field>
+                <field name="inherit_id" ref="account.view_move_form"/>
+                <field name="arch" type="xml">
+                    <xpath expr="//button[@name='action_print_pdf']" position="attributes">
+                        <attribute name="invisible">1</attribute>
+                    </xpath>
+                    <xpath expr="//button[@name='action_print_pdf']" position="after">
+                        <button name="action_print_by_journal"
+                                string="Imprimir"
+                                type="object"
+                                class="oe_highlight"/>
+                    </xpath>
+                </field>
+            </record>
+        </data>
+    </odoo>

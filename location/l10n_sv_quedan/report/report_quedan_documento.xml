@@ -51,6 +51,10 @@
                         font-kerning: normal;
                         }
 
+                        table {
+                        auto-layout: fixed;
+                        }
+
                         /* Si tienes H1/H2 con peso “bold” */
                         h1, h2, h3 {
                         font-family: 'Inter', Arial, sans-serif !important;
@@ -104,6 +108,50 @@
                         .header td.header-meta .row { white-space:nowrap; line-height:1.2; margin:0 0 2px 0; }
                         .header td.header-meta .label { display:inline-block; width:100px; font-weight:600; }
                         .header td.header-meta .value { display:inline-block; }
+
+                        /* --- HEADERS en 2 líneas --- */
+                        .qdn-table thead th{
+                        white-space: normal !important; /* permitir salto */
+                        word-break: break-word;
+                        line-height: 1.15;
+                        font-size: 11px; /* opcional: ayuda */
+                        text-align: center;
+                        }
+
+                        /* Forzar salto solo donde quieras (sin depender del ancho) */
+                        .qdn-th-2line{
+                        white-space: normal !important;
+                        }
+
+                        /* Si quieres controlar exactamente el salto con
+                        <br/>
+                        */
+                        .qdn-th-2line br{ display: inline; }
+                        .qdn-table{
+                        width: 100% !important;
+                        border-collapse: collapse;
+                        table-layout: fixed; /* CLAVE: respeta anchos de columnas */
+                        }
+
+                        .qdn-table th,
+                        .qdn-table td{
+                        padding: 6px 6px;
+                        font-size: 12px; /* opcional: ayuda a que quepa */
+                        vertical-align: top;
+                        overflow: hidden; /* evita que “invada” otra celda */
+                        }
+
+                        /* Por defecto, que el texto pueda partir */
+                        .qdn-table th,
+                        .qdn-table td{
+                        white-space: normal;
+                        word-break: break-word;
+                        }
+
+                        /* Opcional: encabezados sin wrap para que no crezcan en alto */
+                        .qdn-table thead th{
+                        white-space: nowrap;
+                        }
                     </style>
                     <div class="page">
                         <table class="header">
@@ -164,22 +212,43 @@
                         </div>
                         <br/>
                         <p>Quedan en nuestro poder para su correspondiente revisión los siguientes documentos:</p>
-                        <table style="width:100%; border-collapse:collapse; border: solid #0000004d 1px;" border="1">
+                        <table class="qdn-table" style="border: solid #0000004d 1px;" border="1">
+                            <colgroup>
+                                <col style="width:9%"/>
+                                <col style="width:17%"/>  <!-- Número (más ancho) -->
+                                <col style="width:10%"/>
+                                <col style="width:10%"/>
+                                <col style="width:11%"/>
+                                <col style="width:9%"/>
+                                <col style="width:10%"/>
+                                <col style="width:10%"/>
+                                <col style="width:9%"/>
+                                <col style="width:9%"/>
+                            </colgroup>
+
                             <thead>
                                 <tr>
-                                    <th style="border: solid #0000004d 1px; padding: 1% 1%;">Tipo</th>
-                                    <th style="border: solid #0000004d 1px; padding: 1% 1%;">Número</th>
-                                    <th style="border: solid #0000004d 1px; padding: 1% 1%;">Fecha</th>
-                                    <th style="border: solid #0000004d 1px; padding: 1% 1%;">Total</th>
-                                    <th style="border: solid #0000004d 1px; padding: 1% 1%;">Retención IVA
+                                    <th>Tipo</th>
+                                    <th>Número</th>
+                                    <th>Fecha</th>
+                                    <th>Total</th>
+                                    <th>Retención
+                                        <br/>
+                                        IVA
                                     </th>
-                                    <th style="border: solid #0000004d 1px; padding: 1% 1%;">Percepción</th>
-                                    <th style="border: solid #0000004d 1px; padding: 1% 1%;">Retención renta
+                                    <th>Percepción</th>
+                                    <th>Retención
+                                        <br/>
+                                        renta
                                     </th>
-                                    <th style="border: solid #0000004d 1px; padding: 1% 1%;">Impuesto</th>
-                                    <th style="border: solid #0000004d 1px; padding: 1% 1%;">Monto impuesto
+                                    <th>Impuesto</th>
+                                    <th>Monto
+                                        <br/>
+                                        impuesto
                                     </th>
-                                    <th style="border: solid #0000004d 1px; padding: 1% 1%;">Total a pagar
+                                    <th>Total
+                                        <br/>
+                                        a pagar
                                     </th>
                                 </tr>
                             </thead>
@@ -275,8 +344,6 @@
                         <tr>
                             <td style="width:50%; vertical-align:top;">
                                 <p>Elaborado por:
-
-
                                     <t t-esc="doc.create_uid.name or ''"/>
                                 </p>
                             </td>
