@@ -1,15 +1,81 @@
 <odoo>
+<<<<<<< Updated upstream
+=======
+    <record id="dispatch_route_tree" model="ir.ui.view">
+        <field name="name">dispatch.route.list</field>
+        <field name="model">dispatch.route</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="route_date"/>
+                <field name="vehicle_id"/>
+                <field name="route_manager_id"/>
+                <field name="state"/>
+            </list>
+        </field>
+    </record>
+
+>>>>>>> Stashed changes
     <record id="dispatch_route_form" model="ir.ui.view">
         <field name="name">dispatch.route.form</field>
         <field name="model">dispatch.route</field>
         <field name="arch" type="xml">
             <form>
+                <header>
+                    <button name="action_confirm" type="object" string="Confirmar" class="btn-primary"
+                            invisible="state != 'draft'"/>
+                    <button name="action_start_transit" type="object" string="Enviar a tránsito" class="btn-primary"
+                            invisible="state != 'confirmed'"/>
+                    <button name="action_open_reception_wizard" type="object" string="Recibir ruta (CxC)" class="btn-primary"
+                            invisible="state != 'in_transit'"/>
+                    <button name="action_cancel" type="object" string="Cancelar" class="btn-secondary"
+                            invisible="state in ('cancel','received')"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,confirmed,in_transit,received,cancel"/>
+                </header>
+
                 <sheet>
                     <group>
-                        <field name="route_date"/>
-                        <field name="vehicle_id"/>
-                        <field name="state" string="Estado"/>
+                        <group>
+                            <field name="route_date"/>
+                            <field name="vehicle_id"/>
+                            <field name="zone"/>
+                        </group>
+                        <group>
+                            <field name="route_manager_id"/>
+                            <field name="assistant_ids" widget="many2many_tags"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                        </group>
                     </group>
+
+                    <notebook>
+                        <page string="Facturas">
+                            <field name="account_move_ids" context="{'default_dispatch_route_id': id}">
+                                <list editable="bottom">
+                                    <field name="name" string="Número"/>
+                                    <field name="partner_id"/>
+                                    <field name="invoice_date"/>
+                                    <field name="amount_total"/>
+                                    <field name="state"/>
+                                    <field name="payment_state"/>
+                                </list>
+                            </field>
+                        </page>
+
+                        <page string="Recepción (resumen)" invisible="state != 'received'">
+                            <group>
+                                <field name="received_by_id"/>
+                                <field name="received_date"/>
+                            </group>
+                            <group>
+                                <field name="expected_cash_total"/>
+                                <field name="cash_received"/>
+                                <field name="cash_difference"/>
+                            </group>
+
+                            <group>
+                                <field name="last_reception_id" readonly="1"/>
+                            </group>
+                        </page>
+                    </notebook>
                 </sheet>
             </form>
         </field>
