@@ -1,42 +1,45 @@
 <odoo>
-    <menuitem
+<menuitem
         id="menu_despachos_root"
         name="Despachos"
-        action="action_despachos"
         sequence="10"
         web_icon="l10n_sv_despacho,static/description/icon.png"
     />
 
     <menuitem
-        id="menu_routes"
-        name="Rutas"
+        id="menu_routes_cat"
+        name="Gestión de Rutas"
         parent="menu_despachos_root"
         sequence="10"
     />
+
     <menuitem
-        id="menu_despacho_zonas"
+        id="menu_despacho_rutas_list"
         name="Rutas"
-        parent="menu_routes"
+        parent="menu_routes_cat"
         sequence="10"
     />
+
     <menuitem
         id="menu_despacho_zonas"
         name="Zonas"
+        parent="menu_routes_cat"
         action="action_despacho_zonas"
-        parent="menu_routes"
-        sequence="10"
+        sequence="20"
     />
+
     <menuitem
-        id="menu_despacho_zonas"
-        name="Vehiculos"
-        parent="menu_routes"
+        id="menu_despacho_vehiculos"
+        name="Vehículos"
+        parent="menu_routes_cat"
         sequence="10"
     />
     <menuitem
         id="menu_reception_routes"
         name="Recepción de rutas"
         parent="menu_despachos_root"
-        sequence="10"
+        action="action_despacho_reception"
+        sequence="20"
     />
 
 </odoo>
