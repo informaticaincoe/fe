@@ -1,0 +1,12 @@
+<odoo>
+    <record id="dispatch_route_tree" model="ir.ui.view">
+        <field name="name">dispatch.route.list</field>
+        <field name="model">dispatch.route</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="route_date"/>
+                <field name="vehicle_id"/>
+            </list>
+        </field>
+    </record>
+</odoo>
