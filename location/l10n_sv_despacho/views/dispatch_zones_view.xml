@@ -4,27 +4,34 @@
         <field name="model">dispatch.zones</field>
         <field name="arch" type="xml">
             <list>
-                <field name="dpto_id"/>
                 <field name="name"/>
             </list>
         </field>
     </record>
 
     <record id="dispatch_zones_form" model="ir.ui.view">
-        <field name="name">dispatch.zones.form</field>
         <field name="model">dispatch.zones</field>
         <field name="arch" type="xml">
             <form>
                 <sheet>
                     <group>
                         <field name="name" placeholder="Ej. Zona Occidental"/>
-                        <field name="dpto_id"
-                               widget="many2many_tags"
-                               options="{'no_create': True}"/>
-                        <field name="munic_id"
-                               widget="many2many_tags"
-                               options="{'no_create': True}"/>
                     </group>
+                    <notebook>
+                        <page string="Cobertura por Departamento">
+                            <field name="zone_line_ids">
+                                <list editable="bottom">
+                                    <field name="dpto_id" options="{'no_create': True}"/>
+
+                                    <field name="munic_ids"
+                                           widget="many2many_tags"
+                                           options="{'no_create': True}"
+                                           domain="[('dpto_id', '=', dpto_id)]"
+                                           placeholder="Seleccione municipios..."/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
                 </sheet>
             </form>
         </field>

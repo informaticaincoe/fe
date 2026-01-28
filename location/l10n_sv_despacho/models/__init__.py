@@ -3,3 +3,4 @@ from . import account_move
 from . import dispatch_route_reception
 from . import dispatch_route_reception_wizard
 from . import dispatch_zones
+from . import dispatch_zone_line
