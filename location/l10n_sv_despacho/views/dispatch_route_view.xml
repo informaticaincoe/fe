@@ -50,7 +50,7 @@
 
                     <notebook>
                         <page string="Facturas">
-                            <field name="account_move_ids" context="{'default_dispatch_route_id': id}">
+                            <field name="account_move_ids" context="{'default_dispatch_route_id': id, 'default_company_id': company_id}">
                                 <list editable="bottom">
                                     <field name="name" string="Número"/>
                                     <field name="partner_id"/>

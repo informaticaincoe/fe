@@ -18,6 +18,7 @@
         id="menu_despacho_rutas_list"
         name="Rutas"
         parent="menu_routes_cat"
+        action="action_despachos"
         sequence="10"
     />
 
