@@ -6,10 +6,13 @@
     </record>
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
     <record id="action_despacho_zonas" model="ir.actions.act_window">
         <field name="name">Zonas</field>
         <field name="res_model">dispatch.zones</field>
 =======
+=======
+>>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
 
@@ -17,12 +20,15 @@
         <field name="name">Recepción</field>
         <field name="res_model">dispatch.route.reception</field>
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 >>>>>>> Stashed changes
         <field name="view_mode">list,form</field>
     </record>
     <record id="action_despacho_reception" model="ir.actions.act_window">
         <field name="name">Recepción</field>
         <field name="res_model">dispatch.route.reception</field>
+=======
+>>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
         <field name="view_mode">list,form</field>
