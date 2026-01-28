@@ -1,0 +1,9 @@
+from odoo import models, fields
+
+class DispatchZones(models.Model):
+    _name = "dispatch.zones"
+    _description = 'Zonas de despacho'
+    _inherit = ['mail.thread', 'mail.activity.mixin'] # chatter + actividades
+
+    dpto_id = fields.Many2many('res.country.state', 'dispatch_zone_state_rel', 'zone_id', 'state_id', string="Departamento", required=True, domain="[('country_id.code', '=', 'SV')]")
+    name = fields.Char(string="Name", required=True, help="Nombre de la zona", )
