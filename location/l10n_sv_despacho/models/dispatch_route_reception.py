@@ -49,6 +49,7 @@ class DispatchRouteReception(models.Model):
                     "is_credit": is_credit,
                 }))
             res["line_ids"] = lines
+            res["route_id"] = route_id
         return res
 
     @api.depends("line_ids.status", "line_ids.move_total", "line_ids.is_credit")
