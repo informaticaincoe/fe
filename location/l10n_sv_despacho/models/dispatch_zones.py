@@ -6,4 +6,5 @@ class DispatchZones(models.Model):
     _inherit = ['mail.thread', 'mail.activity.mixin'] # chatter + actividades
 
     dpto_id = fields.Many2many('res.country.state', 'dispatch_zone_state_rel', 'zone_id', 'state_id', string="Departamento", required=True, domain="[('country_id.code', '=', 'SV')]")
+    munic_id = fields.Many2many('res.municipality', string="Municipios", required=True, domain="[('dpto_id', '=', 'dpto_id')]")
     name = fields.Char(string="Name", required=True, help="Nombre de la zona", )
