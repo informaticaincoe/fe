@@ -49,7 +49,7 @@ class DispatchRouteReception(models.Model):
                     "is_credit": is_credit,
                 }))
             res["line_ids"] = lines
-            res["route_id"] = route_id
+            res["line_ids"] = self._prepare_lines_from_route(route)
         return res
 
     @api.depends("line_ids.status", "line_ids.move_total", "line_ids.is_credit")
@@ -100,14 +100,53 @@ class DispatchRouteReception(models.Model):
     def action_cancel(self):
         self.write({"state": "cancel"})
 
+    ### CARGAR TODOS LOS DUCMENTOS RELACIONADOS A LA RUTA
+    def _prepare_lines_from_route(self, route):
+        """ construye comando O2M para line_ids desde las facturas de la ruta """
+        lines_cmds = [(5, 0, 0)] # limpia lineas actuales
+        for mv in route.account_move_ids:
+            is_credit = bool(mv.invoice_payment_term_id and mv.invoice_payment_term_id.lines_ids)
+            lines_cmds.append((0, 0, {
+                "move_id": mv.id,
+                "status": "delivered",
+                "is_credit": is_credit,
+            }))
+        return lines_cmds
+
+    @api.onchange("route_id")
+    def _onchange_route_id_load_invoices(self):
+        for rec in self:
+            if not rec.route_id:
+                rec.line_ids = [(5, 0, 0)]
+                return
+
+            # solo auto-carga cuando esta en borrador (para no pisar recepcion confirmada)
+            if rec.state != "draft":
+                return
+
+            # evitar cargar lineas cuando ya hay carga
+            if rec.line_ids:
+                return
+
+            rec.line_ids = rec._prepare_lines_from_route(rec.route_id)
+
+            # resetear fectivo si se cambia la ruta
+            rec.cash_received = 0.0
 
 class DispatchRouteReceptionLine(models.Model):
     _name = "dispatch.route.reception.line"
     _description = "Línea Recepción de Ruta (CxC)"
 
     reception_id = fields.Many2one("dispatch.route.reception", string="Recepción", required=True, ondelete="cascade")
-    route_id = fields.Many2one(related="reception_id.route_id", store=True, readonly=True)
-
+    #route_id = fields.Many2one(related="reception_id.route_id", store=True, readonly=True)
+    route_id = fields.Many2one(
+        "dispatch.route",
+        string="Ruta",
+        required=True,
+        ondelete="cascade",
+        index=True,
+        domain=[("state", "=", "in_transit")],
+    )
     move_id = fields.Many2one("account.move", string="Factura", required=True, index=True)
     partner_id = fields.Many2one(related="move_id.partner_id", store=True, readonly=True)
     move_total = fields.Monetary(related="move_id.amount_total", store=True, readonly=True, currency_field="currency_id")
