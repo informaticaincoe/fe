@@ -1,0 +1,7 @@
+<odoo>
+    <record id="action_despachos" model="ir.actions.act_window">
+        <field name="name">Rutas</field>
+        <field name="res_model">dispatch.route</field>
+        <field name="view_mode">list,form</field>
+    </record>
+</odoo>
