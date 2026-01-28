@@ -1,4 +1,20 @@
 <odoo>
+<<<<<<< Updated upstream
+=======
+    <record id="dispatch_route_tree" model="ir.ui.view">
+        <field name="name">dispatch.route.list</field>
+        <field name="model">dispatch.route</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="route_date"/>
+                <field name="vehicle_id"/>
+                <field name="route_manager_id"/>
+                <field name="state"/>
+            </list>
+        </field>
+    </record>
+
+>>>>>>> Stashed changes
     <record id="dispatch_route_form" model="ir.ui.view">
         <field name="name">dispatch.route.form</field>
         <field name="model">dispatch.route</field>
@@ -9,7 +25,7 @@
                             invisible="state != 'draft'"/>
                     <button name="action_start_transit" type="object" string="Enviar a tránsito" class="btn-primary"
                             invisible="state != 'confirmed'"/>
-                    <button name="action_open_reception_wizard" type="object" string="Recibir ruta (CxC)" class="btn-primary"
+                    <button name="action_create_reception" type="object" string="Recepción (CxC)" class="btn-primary"
                             invisible="state != 'in_transit'"/>
                     <button name="action_cancel" type="object" string="Cancelar" class="btn-secondary"
                             invisible="state in ('cancel','received')"/>

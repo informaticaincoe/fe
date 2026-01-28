@@ -30,7 +30,7 @@ class DispatchRoute(models.Model):
 
     ####FRANCISCO FLORES
     company_id = fields.Many2one(
-        'res.company', string="Compañia", default=lambda self: self.env.company, required=True
+        'res.company', string="Compañia", required=True
     )
     currency_id = fields.Many2one(
         related="company_id.currency_id", string="Moneda", readonly=True
@@ -111,6 +111,42 @@ class DispatchRoute(models.Model):
                 "default_route_id": self.id,
             },
         }
+
+    def action_open_reception(self):
+        self.ensure_one()
+        if self.state != "in_transit":
+            raise UserError(_("Solo se puede recibir una ruta cuando está En tránsito."))
+
+        return {
+            "type": "ir.actions.act_window",
+            "name": _("Recepción de Ruta (CxC)"),
+            "res_model": "dispatch.route.reception",
+            "view_mode": "form",
+            "target": "current",
+            "context": {
+                "default_route_id": self.id,
+            },
+        }
+
+    def action_create_reception(self):
+        self.ensure_one()
+
+        if self.state != "in_transit":
+            raise UserError(_("Solo se puede crear la recepción cuando la ruta está En tránsito."))
+
+        existing = self.env["dispatch.route.reception"].search([
+            ("route_id", "=", self.id),
+            ("state", "!=", "cancel"),
+        ], limit=1)
+        if existing:
+            return {
+                "type": "ir.actions.act_window",
+                "name": _("Recepción (CxC)"),
+                "res_model": "dispatch.route.reception",
+                "res_id": existing.id,
+                "view_mode": "form",
+                "target": "current",
+            }
 
     #########
 

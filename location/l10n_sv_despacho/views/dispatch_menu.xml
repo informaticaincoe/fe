@@ -1,4 +1,5 @@
 <odoo>
+<<<<<<< Updated upstream
 <menuitem
         id="menu_despachos_root"
         name="Despachos"
@@ -41,8 +42,33 @@
         action="action_despacho_reception"
         sequence="20"
     />
+=======
+    <data>
+        <!-- Menú raíz -->
+        <menuitem id="menu_despacho_root" name="Despacho" sequence="10"/>
 
+        <!-- Submenús -->
+        <menuitem id="menu_despacho_operaciones"
+                  name="Operaciones"
+                  parent="l10n_sv_despacho.menu_despacho_root"
+                  sequence="10"/>
+>>>>>>> Stashed changes
+
+        <menuitem id="menu_despacho_recepcion_root"
+                  name="Recepción"
+                  parent="l10n_sv_despacho.menu_despacho_root"
+                  sequence="20"/>
+
+        <menuitem id="menu_despacho_recepcion"
+                  name="Recepción"
+                  parent="l10n_sv_despacho.menu_despacho_recepcion_root"
+                  action="l10n_sv_despacho.action_dispatch_receptions"
+                  sequence="10"/>
+
+        <menuitem id="menu_despacho_rutas"
+                  name="Rutas"
+                  parent="l10n_sv_despacho.menu_despacho_operaciones"
+                  action="l10n_sv_despacho.action_despachos"
+                  sequence="10"/>
+    </data>
 </odoo>
-
-
-
