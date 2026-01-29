@@ -4,6 +4,8 @@ from . import dispatch_route_reception
 from . import dispatch_zones
 from . import dispatch_zone_line
 from . import dispatch_route_return
+from . import dispatch_route_return_line
 from . import dispatch_route_invoice_return
+from . import dispatch_route_invoice_return_line
 from . import dispatch_route_reception_line
 from . import res_municipality

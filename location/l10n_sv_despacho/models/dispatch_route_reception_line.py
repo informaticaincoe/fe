@@ -74,15 +74,33 @@ class DispatchRouteReceptionLine(models.Model):
     # ==========================
     # ACCIÓN DEVOLUCIÓN FACTURA
     # ==========================
+    # def action_open_return_form(self):
+    #     self.ensure_one()
+    #
+    #     if not self.move_id:
+    #         raise ValidationError(_("La línea no tiene factura asociada."))
+    #
+    #     return {
+    #         "type": "ir.actions.act_window",
+    #         "name": _("Devolución de factura"),
+    #         "res_model": "dispatch.route.invoice.return",
+    #         "view_mode": "form",
+    #         "target": "current",
+    #         "context": {
+    #             "default_reception_id": self.reception_id.id,
+    #             "default_reception_line_id": self.id,
+    #             "default_move_id": self.move_id.id,
+    #             "default_company_id": self.reception_id.company_id.id,
+    #             "allowed_company_ids": [self.reception_id.company_id.id],
+    #         },
+    #     }
+
     def action_open_return_form(self):
         self.ensure_one()
 
-        if not self.move_id:
-            raise ValidationError(_("La línea no tiene factura asociada."))
-
         return {
             "type": "ir.actions.act_window",
-            "name": _("Devolución de factura"),
+            "name": "Devolución de factura",
             "res_model": "dispatch.route.invoice.return",
             "view_mode": "form",
             "target": "current",
@@ -90,7 +108,5 @@ class DispatchRouteReceptionLine(models.Model):
                 "default_reception_id": self.reception_id.id,
                 "default_reception_line_id": self.id,
                 "default_move_id": self.move_id.id,
-                "default_company_id": self.reception_id.company_id.id,
-                "allowed_company_ids": [self.reception_id.company_id.id],
             },
         }

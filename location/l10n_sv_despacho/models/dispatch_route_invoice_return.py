@@ -174,3 +174,26 @@ class DispatchRouteInvoiceReturn(models.Model):
             record.line_ids = lines_cmds
 
         return record
+
+        # 🔑 ESTE ES EL CORAZÓN
+        @api.onchange("move_id")
+        def _onchange_move_id_load_products(self):
+            for rec in self:
+                rec.line_ids = [(5, 0, 0)]
+
+                if not rec.move_id:
+                    return
+
+                lines = []
+                for inv_line in rec.move_id.invoice_line_ids.filtered(
+                        lambda l: l.product_id and not l.display_type
+                ):
+                    lines.append((0, 0, {
+                        "product_id": inv_line.product_id.id,
+                        "uom_id": inv_line.product_uom_id.id,
+                        "qty_invoiced": inv_line.quantity,
+                        "qty_return": 0.0,
+                        "reason": "other",
+                    }))
+
+                rec.line_ids = lines
