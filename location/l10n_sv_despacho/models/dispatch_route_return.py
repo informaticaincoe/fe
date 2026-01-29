@@ -23,38 +23,7 @@ class DispatchRouteReturn(models.Model):
                 raise ValidationError("Debe registrar al menos un producto devuelto")
             rec.state = "confirmed"
 
-class DispatchRouteReturnLine(models.Model):
-    _name = "dispatch.route.return.line"
-    _description = "Línea Devolución por Ruta"
 
-    return_id = fields.Many2one("dispatch.route.return", required=True, ondelete="cascade")
-
-    product_id = fields.Many2one("product.product", string="Producto", required=True)
-    uom_id = fields.Many2one("uom.uom", string="UdM", required=True)
-    qty_invoiced = fields.Float(string="Cant. facturada", readonly=True)
-    qty_return = fields.Float(string="Cant. devuelta", required=True, default=0.0)
-
-    reason = fields.Selection(
-        [
-            ("damaged", "Avería"),
-            ("wrong", "Producto equivocado"),
-            ("expired", "Vencido"),
-            ("customer_reject", "Rechazado por cliente"),
-            ("other", "Otro"),
-        ],
-        string="Motivo",
-        required=True,
-        default="Rechazado por cliente",
-    )
-    note = fields.Char(string="Detalle")
-
-    @api.constrains("qty_return", "qty_invoiced")
-    def _check_qty(self):
-        for ln in self:
-            if ln.qty_return <0:
-                raise ValidationError("la cantidad devuelta no puede ser negativo")
-            if ln.qty_return > ln.qty_invoiced:
-                raise ValidationError(_("La cantidad devuelta no puede exceder la cantidad facturada."))
 
 
 
