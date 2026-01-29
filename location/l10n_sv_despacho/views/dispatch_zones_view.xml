@@ -22,15 +22,24 @@
                             <field name="zone_line_ids">
                                 <list editable="bottom">
                                     <field name="dpto_id" options="{'no_create': True}"/>
-
-                                    <field name="munic_ids"
-                                           widget="many2many_tags"
+                                    <field name="munic_ids" widget="many2many_tags"
                                            options="{'no_create': True}"
-                                           domain="[('dpto_id', '=', dpto_id)]"
-                                           placeholder="Seleccione municipios..."/>
+                                           domain="[('dpto_id', '=', dpto_id)]"/>
                                 </list>
                             </field>
+
+                            <!--  <field name="selected_munic_pcdes_json" readonly="1" invisible="1"/>-->
                         </page>
+
+                        <page string="Mapa de Zona">
+                            <field name="map_url" readonly="1" force_save="1"/>
+                        </page>
+
+                        <!-- ......................... CODIGO LEAFLET ......................... -->
+                        <!--  <page string="Mapa de Zona">-->
+                        <!--        <field name="map_dummy" widget="leaflet_zone_map" nolabel="1" readonly="1"/>-->
+                        <!--  </page>-->
+
                     </notebook>
                 </sheet>
             </form>

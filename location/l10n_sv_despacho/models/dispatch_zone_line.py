@@ -19,6 +19,5 @@ class DispatchZoneLine(models.Model):
     munic_ids = fields.Many2many(
         'res.municipality',
         string="Municipios",
-        # Aquí el dominio usa dpto_id (el de esta fila)
         domain="[('dpto_id', '=', dpto_id)]"
     )
