@@ -1,0 +1,9 @@
+<odoo noupdate="1">
+    <record id="seq_dispatch_route" model="ir.sequence">
+        <field name="name">Ruta de Despacho Secuencia</field>
+        <field name="code">dispatch.route</field>
+        <field name="prefix">RT/</field>
+        <field name="padding">6</field>
+        <field name="company_id" eval="False"/>
+    </record>
+</odoo>
