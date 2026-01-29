@@ -102,22 +102,6 @@ class DispatchRoute(models.Model):
     def action_cancel(self):
         self.write({'state': 'cancel'})
 
-    def action_open_reception_wizard(self):
-        self.ensure_one()
-        if self.state != "in_transit":
-            raise UserError(_("Solo se puede recibir una ruta cuando esta en transito"))
-
-        return{
-            "type": "ir.actions.act_window",
-            "name": _("Recepción de Ruta (CxC)"),
-            "res_model": "dispatch.route.reception.wizard",
-            "view_mode": "form",
-            "target": "new",
-            "context": {
-                "default_route_id": self.id,
-            },
-        }
-
     def action_open_reception(self):
         self.ensure_one()
         if self.state != "in_transit":
@@ -140,19 +124,30 @@ class DispatchRoute(models.Model):
         if self.state != "in_transit":
             raise UserError(_("Solo se puede crear la recepción cuando la ruta está En tránsito."))
 
-        existing = self.env["dispatch.route.reception"].search([
+        Reception = self.env["dispatch.route.reception"]
+
+        # 🔎 Buscar si ya existe recepción para esta ruta
+        reception = Reception.search([
             ("route_id", "=", self.id),
-            ("state", "!=", "cancel"),
+            # ("state", "!=", "cancel"),
         ], limit=1)
-        if existing:
-            return {
-                "type": "ir.actions.act_window",
-                "name": _("Recepción (CxC)"),
-                "res_model": "dispatch.route.reception",
-                "res_id": existing.id,
-                "view_mode": "form",
-                "target": "current",
-            }
+
+        # ➕ Si no existe, crearla
+        if not reception:
+            reception = Reception.create({
+                "route_id": self.id,
+                "company_id": self.company_id.id,
+            })
+
+        # 🔁 Abrir la recepción (existente o recién creada)
+        return {
+            "type": "ir.actions.act_window",
+            "name": _("Recepción de Ruta"),
+            "res_model": "dispatch.route.reception",
+            "res_id": reception.id,
+            "view_mode": "form",
+            "target": "current",
+        }
 
     #########
 
