@@ -3,11 +3,26 @@ from odoo import api, fields, models, _
 class AccountMove(models.Model):
     _inherit = 'account.move'
 
+    ##FRANCISCO FLORES
+
+    dispatch_state = fields.Selection([
+        ("free", "Libre"),
+        ("assigned", "Asignada a ruta"),
+        ("delivered", "Entregada"),
+        ("returned", "Devuelta"),
+    ], default="free", copy=False)
+
+    dispatch_reception_line_id = fields.Many2one("dispatch.route.reception.line", copy=False)
+    dispatch_return_id = fields.Many2one("dispatch.route.invoice.return", copy=False)
+
+    ############
+
     dispatch_route_id = fields.Many2one(
         'dispatch.route',
         string='Ruta de despacho',
         ondelete='set null',
-        index=True
+        index=True,
+        copy=False
     )
 
     partner_phone = fields.Char(

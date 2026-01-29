@@ -21,33 +21,36 @@
         <field name="arch" type="xml">
             <form>
                 <header>
+
                     <button name="action_confirm" type="object" string="Confirmar" class="btn-primary"
                             invisible="state != 'draft'"/>
+                    <button name="action_set_draft" type="object" string="Restablecer a borrador" class="btn-secondary"
+                            invisible="state != 'confirmed'"/>
                     <button name="action_cancel" type="object" string="Cancelar" class="btn-secondary"
-                            invisible="state != 'draft'"/>
+                            invisible="state not in ('draft','confirmed')"/>
                     <field name="state" widget="statusbar" statusbar_visible="draft,confirmed,cancel"/>
                 </header>
 
                 <sheet>
                     <group>
                         <group>
-                            <field name="route_id"/>
+                            <field name="route_id" readonly="state != 'draft'"/>
                             <field name="received_by_id" readonly="1"/>
-                            <field name="received_date"/>
+                            <field name="received_date" readonly="state != 'draft'"/>
                         </group>
                         <group>
                             <field name="expected_cash_total" readonly="1"/>
-                            <field name="cash_received"/>
+                            <field name="cash_received" readonly="state != 'draft'"/>
                             <field name="cash_difference" readonly="1"/>
                         </group>
                     </group>
 
                     <group>
-                        <field name="notes"/>
+                        <field name="notes" readonly="state != 'draft'"/>
                     </group>
 
                     <group string="Facturas">
-                        <field name="line_ids">
+                        <field name="line_ids" readonly="state != 'draft'">
                             <list editable="bottom">
                                 <field name="move_id"/>
                                 <field name="partner_id" readonly="1"/>
@@ -56,6 +59,12 @@
                                 <field name="status"/>
                                 <field name="not_delivered_reason" invisible="status != 'not_delivered'"/>
                                 <field name="partial_note" invisible="status != 'partial'"/>
+                                <button name="action_open_return_form"
+                                        type="object"
+                                        string="Devolución"
+                                        class="btn-secondary"
+                                        invisible="status not in ('partial','not_delivered') or has_return"/>
+                                <field name="has_return" invisible="1"/>
                             </list>
                         </field>
                     </group>
