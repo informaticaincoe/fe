@@ -10,6 +10,7 @@
                 <field name="expected_cash_total"/>
                 <field name="cash_received"/>
                 <field name="cash_difference"/>
+                <field name="state"/>
             </list>
         </field>
     </record>
@@ -19,31 +20,42 @@
         <field name="model">dispatch.route.reception</field>
         <field name="arch" type="xml">
             <form>
+                <header>
+                    <button name="action_confirm" type="object" string="Confirmar" class="btn-primary"
+                            invisible="state != 'draft'"/>
+                    <button name="action_cancel" type="object" string="Cancelar" class="btn-secondary"
+                            invisible="state != 'draft'"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,confirmed,cancel"/>
+                </header>
+
                 <sheet>
                     <group>
-                        <field name="route_id" readonly="1"/>
-                        <field name="received_by_id" readonly="1"/>
-                        <field name="received_date" readonly="1"/>
+                        <group>
+                            <field name="route_id"/>
+                            <field name="received_by_id" readonly="1"/>
+                            <field name="received_date"/>
+                        </group>
+                        <group>
+                            <field name="expected_cash_total" readonly="1"/>
+                            <field name="cash_received"/>
+                            <field name="cash_difference" readonly="1"/>
+                        </group>
                     </group>
+
                     <group>
-                        <field name="expected_cash_total" readonly="1"/>
-                        <field name="cash_received" readonly="1"/>
-                        <field name="cash_difference" readonly="1"/>
-                    </group>
-                    <group>
-                        <field name="notes" readonly="1"/>
+                        <field name="notes"/>
                     </group>
 
                     <group string="Facturas">
                         <field name="line_ids">
-                            <list>
+                            <list editable="bottom">
                                 <field name="move_id"/>
-                                <field name="partner_id"/>
-                                <field name="move_total"/>
+                                <field name="partner_id" readonly="1"/>
+                                <field name="move_total" readonly="1"/>
                                 <field name="is_credit"/>
                                 <field name="status"/>
-                                <field name="not_delivered_reason"/>
-                                <field name="partial_note"/>
+                                <field name="not_delivered_reason" invisible="status != 'not_delivered'"/>
+                                <field name="partial_note" invisible="status != 'partial'"/>
                             </list>
                         </field>
                     </group>
