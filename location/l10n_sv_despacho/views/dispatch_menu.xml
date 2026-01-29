@@ -44,4 +44,10 @@
         sequence="20"
     />
 
+    <menuitem id="menu_reception_returns"
+          name="Devoluciones"
+          parent="menu_reception_routes"
+          action="action_dispatch_route_invoice_return"
+          sequence="30"/>
+
 </odoo>
