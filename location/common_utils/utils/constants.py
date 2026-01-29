@@ -205,6 +205,8 @@ CA_CODES = {'SV', 'GT', 'HN', 'NI', 'CR'}
 
 # Claves de pagos
 NOT_PAID = "not_paid"
+PAID = "paid"
+IN_PAYMENT = "in_payment"
 PARTIAL = "partial"
 
 #Campos fiscales reqieridos
