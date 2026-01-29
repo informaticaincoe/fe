@@ -1,5 +1,5 @@
 from odoo import api, fields, models, _, Command
-from odoo.exceptions import ValidationError
+from odoo.exceptions import ValidationError, UserError
 
 class DispatchRouteInvoiceReturn(models.Model):
     _name = "dispatch.route.invoice.return"
@@ -197,3 +197,9 @@ class DispatchRouteInvoiceReturn(models.Model):
                     }))
 
                 rec.line_ids = lines
+
+        def unlink(self):
+            for rec in self:
+                if rec.state == "confirmed":
+                    raise UserError(_("No puedes eliminar una recepción confirmada."))
+            return super().unlink()
