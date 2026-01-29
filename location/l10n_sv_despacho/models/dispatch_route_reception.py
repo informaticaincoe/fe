@@ -133,41 +133,99 @@ class DispatchRouteReception(models.Model):
             # resetear fectivo si se cambia la ruta
             rec.cash_received = 0.0
 
-class DispatchRouteReceptionLine(models.Model):
-    _name = "dispatch.route.reception.line"
-    _description = "Línea Recepción de Ruta (CxC)"
+    def action_set_draft(self):
+        for rec in self:
+            if rec.state == "cancel":
+                raise UserError(_("No puedes restablecer a borrador una recepción cancelada."))
+            rec.route_id.write({"state": "in_transit"})
+            rec.state = "draft"
 
-    reception_id = fields.Many2one("dispatch.route.reception", string="Recepción", required=True, ondelete="cascade")
-    #route_id = fields.Many2one(related="reception_id.route_id", store=True, readonly=True)
-    route_id = fields.Many2one(
-        "dispatch.route",
-        string="Ruta",
-        required=True,
-        ondelete="cascade",
-        index=True,
-        domain=[("state", "=", "in_transit")],
-    )
-    move_id = fields.Many2one("account.move", string="Factura", required=True, index=True)
-    partner_id = fields.Many2one(related="move_id.partner_id", store=True, readonly=True)
-    move_total = fields.Monetary(related="move_id.amount_total", store=True, readonly=True, currency_field="currency_id")
-    currency_id = fields.Many2one(related="reception_id.currency_id", store=True, readonly=True)
+    def write(self, vals):
+        for rec in self:
+            if rec.state == "confirmed":
+                # permitir solo cambiar state para restablecer/cancelar si lo deseas
+                allowed = {"state"}
+                if set(vals.keys()) - allowed:
+                    raise UserError(_("No puedes modificar una recepción confirmada."))
+        return super().write(vals)
 
-    status = fields.Selection(
-        [
-            ("delivered", "Entregada"),
-            ("not_delivered", "No entregada"),
-            ("partial", "Parcial / Avería"),
-        ],
-        required=True,
-        default="delivered",
-    )
+    def unlink(self):
+        for rec in self:
+            if rec.state == "confirmed":
+                raise UserError(_("No puedes eliminar una recepción confirmada."))
+        return super().unlink()
 
-    is_credit = fields.Boolean(string="Crédito", default=False)
-    not_delivered_reason = fields.Text(string="Motivo no entregada")
-    partial_note = fields.Text(string="Detalle parcial/avería")
 
-    @api.constrains("status", "not_delivered_reason")
-    def _check_reason(self):
+class DispatchRouteInvoiceReturnLine(models.Model):
+    _name = "dispatch.route.invoice.return.line"
+    _description = "Línea devolución factura ruta"
+
+    return_id = fields.Many2one("dispatch.route.invoice.return", required=True, ondelete="cascade")
+    select = fields.Boolean(default=True, string="Devolver")
+
+    product_id = fields.Many2one("product.product", required=True)
+    uom_id = fields.Many2one("uom.uom", required=True)
+
+    qty_invoiced = fields.Float(readonly=True)
+    qty_return = fields.Float(default=0.0)
+
+    reason = fields.Selection([
+        ("damaged", "Avería"),
+        ("wrong", "Producto equivocado"),
+        ("expired", "Vencido"),
+        ("customer_reject", "Rechazado por cliente"),
+        ("other", "Otro"),
+    ], default="other", required=True)
+
+    note = fields.Char("Detalle")
+
+    @api.onchange("product_id")
+    def _onchange_product_id(self):
         for ln in self:
-            if ln.status == "not_delivered" and not (ln.not_delivered_reason or "").strip():
-                raise ValidationError(_("Debe ingresar el motivo cuando una factura es 'No entregada'."))
+            if ln.product_id and not ln.uom_id:
+                ln.uom_id = ln.product_id.uom_id.id
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

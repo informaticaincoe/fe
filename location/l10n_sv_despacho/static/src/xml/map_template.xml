@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="l10n_sv_despacho.MapContainer">
+        <div class="o_map_container" style="width: 100%; height: 500px; position: relative;">
+            <div t-ref="map" style="width: 100%; height: 100%; min-height: 500px; background-color: #e5e3df;"/>
+        </div>
+    </t>
+</templates>

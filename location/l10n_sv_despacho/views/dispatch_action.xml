@@ -15,4 +15,10 @@
         <field name="res_model">dispatch.route.reception</field>
         <field name="view_mode">list,form</field>
     </record>
+
+    <record id="action_dispatch_route_invoice_return" model="ir.actions.act_window">
+        <field name="name">Devoluciones por factura</field>
+        <field name="res_model">dispatch.route.invoice.return</field>
+        <field name="view_mode">list,form</field>
+    </record>
 </odoo>

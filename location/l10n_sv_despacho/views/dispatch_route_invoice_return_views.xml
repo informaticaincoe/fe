@@ -1,0 +1,86 @@
+<odoo>
+  <record id="action_dispatch_route_invoice_return" model="ir.actions.act_window">
+        <field name="name">Devoluciones por factura</field>
+        <field name="res_model">dispatch.route.invoice.return</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+  <!-- LISTA -->
+  <record id="view_dispatch_route_invoice_return_tree" model="ir.ui.view">
+    <field name="name">dispatch.route.invoice.return.tree</field>
+    <field name="model">dispatch.route.invoice.return</field>
+    <field name="arch" type="xml">
+      <list>
+        <field name="name"/>
+        <field name="reception_id"/>
+        <field name="move_id"/>
+        <field name="partner_id"/>
+        <field name="return_type"/>
+        <field name="state"/>
+        <field name="create_date"/>
+      </list>
+    </field>
+  </record>
+
+  <!-- FORM (si no tenés vista propia, te conviene crearla) -->
+  <record id="view_dispatch_route_invoice_return_form" model="ir.ui.view">
+    <field name="name">dispatch.route.invoice.return.form</field>
+    <field name="model">dispatch.route.invoice.return</field>
+    <field name="arch" type="xml">
+      <form>
+        <header>
+          <button name="action_confirm" type="object" string="Confirmar" class="btn-primary"
+                  invisible="state != 'draft'"/>
+          <button name="action_liberate_invoice" type="object" string="Liberar factura" class="btn-secondary"
+                  invisible="state != 'confirmed'"/>
+          <field name="state" widget="statusbar" statusbar_visible="draft,confirmed,cancelled"/>
+        </header>
+
+        <sheet>
+          <group>
+            <group>
+              <field name="reception_id"/>
+              <field name="move_id"/>
+              <field name="partner_id" readonly="1"/>
+            </group>
+            <group>
+              <field name="return_type"/>
+              <field name="notes"/>
+            </group>
+          </group>
+
+          <group string="Productos devueltos">
+            <field name="line_ids">
+              <list editable="bottom">
+                <field name="select"/>
+                <field name="product_id"/>
+                <field name="uom_id"/>
+                <field name="qty_invoiced" readonly="1"/>
+                <field name="qty_return"/>
+                <field name="reason"/>
+                <field name="note"/>
+              </list>
+            </field>
+          </group>
+        </sheet>
+      </form>
+    </field>
+  </record>
+
+  <!-- ACCIÓN GLOBAL -->
+  <record id="action_dispatch_route_invoice_returns" model="ir.actions.act_window">
+    <field name="name">Devoluciones por recepción</field>
+    <field name="res_model">dispatch.route.invoice.return</field>
+    <field name="view_mode">list,form</field>
+  </record>
+
+  <!-- ACCIÓN FILTRADA DESDE UNA RECEPCIÓN -->
+  <record id="action_dispatch_route_invoice_returns_from_reception" model="ir.actions.act_window">
+    <field name="name">Devoluciones</field>
+    <field name="res_model">dispatch.route.invoice.return</field>
+    <field name="view_mode">list,form</field>
+    <field name="domain">[('reception_id', '=', active_id)]</field>
+    <field name="context">{'default_reception_id': active_id}</field>
+  </record>
+
+</odoo>
