@@ -151,6 +151,21 @@ class DispatchRoute(models.Model):
 
     #########
 
+    def action_download_report_reception(self):
+        self.ensure_one()
+
+        print(">>>>>>> SELF ", self )
+        print(">>>>>>> SELF id", self.id )
+
+        ruta = self.env["dispatch.route"].search([
+            ("id", "=", self.id),
+        ], limit=1)
+
+        print(">>>>>>> RUTA ", ruta )
+        print(">>>>>>> RUTA ID ", ruta.id )
+
+        return self.env.ref('l10n_sv_despacho.action_report_recepcion_ruta').report_action(ruta)
+
 
 
 

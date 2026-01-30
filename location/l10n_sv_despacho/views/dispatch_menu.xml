@@ -1,60 +1,75 @@
 <odoo>
 
-<menuitem
-        id="menu_despachos_root"
-        name="Despachos"
-        sequence="10"
-        web_icon="l10n_sv_despacho,static/description/icon.png"
+    <menuitem
+            id="menu_despachos_root"
+            name="Despachos"
+            sequence="10"
+            web_icon="l10n_sv_despacho,static/description/icon.png"
     />
 
     <menuitem
-        id="menu_routes_cat"
-        name="Gestión de Rutas"
-        parent="menu_despachos_root"
-        sequence="10"
+            id="menu_routes_cat"
+            name="Gestión de Rutas"
+            parent="menu_despachos_root"
+            sequence="10"
     />
 
     <menuitem
-        id="menu_despacho_rutas_list"
-        name="Rutas"
-        parent="menu_routes_cat"
-        action="action_despachos"
-        sequence="10"
+            id="menu_despacho_rutas_list"
+            name="Rutas"
+            parent="menu_routes_cat"
+            action="action_despachos"
+            sequence="10"
     />
 
     <menuitem
-        id="menu_despacho_zonas"
-        name="Zonas"
-        parent="menu_routes_cat"
-        action="action_despacho_zonas"
-        sequence="20"
+            id="menu_despacho_zonas"
+            name="Zonas"
+            parent="menu_routes_cat"
+            action="action_despacho_zonas"
+            sequence="20"
     />
 
     <menuitem
-        id="menu_despacho_vehiculos"
-        name="Vehículos"
-        parent="menu_routes_cat"
-        sequence="10"
+            id="menu_despacho_vehiculos"
+            name="Vehículos"
+            parent="menu_routes_cat"
+            sequence="10"
     />
     <menuitem
-        id="menu_reception_routes"
-        name="Recepción de rutas"
-        parent="menu_despachos_root"
-        sequence="20"
+            id="menu_reception_routes"
+            name="Recepción de rutas"
+            parent="menu_despachos_root"
+            sequence="20"
     />
 
     <menuitem
-        id="submenu_reception_routes"
-        name="Recepción"
-        parent="menu_reception_routes"
-        action="action_dispatch_receptions"
-        sequence="20"
+            id="submenu_reception_routes"
+            name="Recepción"
+            parent="menu_reception_routes"
+            action="action_dispatch_receptions"
+            sequence="20"
     />
 
     <menuitem id="menu_reception_returns"
-          name="Devoluciones"
-          parent="menu_reception_routes"
-          action="action_dispatch_route_invoice_return"
-          sequence="30"/>
+              name="Devoluciones"
+              parent="menu_reception_routes"
+              action="action_dispatch_route_invoice_return"
+              sequence="30"/>
+
+    <menuitem
+            id="menu_reportes_root"
+            name="Reportes"
+            parent="menu_despachos_root"
+            sequence="20"
+    />
+
+<!--    <menuitem-->
+<!--            id="menu_reporte_entrega_ruta"-->
+<!--            name="Entrega de ruta"-->
+<!--            action="action_dispatch_route_reception"-->
+<!--            parent="menu_reportes_root"-->
+<!--            sequence="20"-->
+<!--    />-->
 
 </odoo>

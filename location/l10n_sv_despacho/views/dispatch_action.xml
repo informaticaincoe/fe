@@ -21,4 +21,5 @@
         <field name="res_model">dispatch.route.invoice.return</field>
         <field name="view_mode">list,form</field>
     </record>
+
 </odoo>

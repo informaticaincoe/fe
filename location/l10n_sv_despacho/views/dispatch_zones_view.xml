@@ -28,17 +28,14 @@
                                 </list>
                             </field>
 
-                            <!--  <field name="selected_munic_pcdes_json" readonly="1" invisible="1"/>-->
+                            <!--                              <field name="selected_munic_pcdes_json" readonly="1" invisible="1"/>-->
                         </page>
 
-                        <page string="Mapa de Zona">
-                            <field name="map_url" readonly="1" force_save="1"/>
-                        </page>
+                        <page string="Mapa Dinámico">
+                            <field name="selected_districts_json" invisible="1"/>
 
-                        <!-- ......................... CODIGO LEAFLET ......................... -->
-                        <!--  <page string="Mapa de Zona">-->
-                        <!--        <field name="map_dummy" widget="leaflet_zone_map" nolabel="1" readonly="1"/>-->
-                        <!--  </page>-->
+                            <field name="map_view" widget="map_districts_widget" nolabel="1"/>
+                        </page>
 
                     </notebook>
                 </sheet>
