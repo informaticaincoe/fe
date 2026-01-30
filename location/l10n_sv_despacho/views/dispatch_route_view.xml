@@ -38,11 +38,11 @@
                     </group>
 
                     <notebook>
-                        <page string="Facturas">
+                        <page string="Documentos Electrónicos">
                             <field name="account_move_ids" readonly="state != 'draft'"
                                    context="{'default_dispatch_route_id': id, 'default_company_id': company_id.id, 'default_move_type': 'out_invoice', 'search_default_dte_x_zona': 1}"
                                    options="{'search_view_id': 'view_account_move_filter_inherit'}">
-                                <list editable="bottom" >
+                                <list editable="bottom">
                                     <field name="name" string="Número" readonly="True"/>
                                     <field name="partner_id" string="Cliente" readonly="True"/>
                                     <field name="partner_phone"/>

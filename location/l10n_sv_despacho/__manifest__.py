@@ -41,6 +41,7 @@
         'views/dispatch_menu.xml',
         'report/dispatch_report.xml',
         'report/report_recepcion_ruta_template.xml',
+        'views/vehicule_dispatch_route_view.xml',
     ],
 
     'application': True,
