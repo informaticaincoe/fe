@@ -1,0 +1,19 @@
+<odoo>
+    <!-- Recepción de Ruta -->
+    <record id="seq_dispatch_route_reception" model="ir.sequence">
+        <field name="name">Recepción de Ruta</field>
+        <field name="code">dispatch.route.reception</field>
+        <field name="prefix">REC/%(year)s/</field>
+        <field name="padding">5</field>
+        <field name="company_id" eval="False"/>
+    </record>
+
+    <!-- Devolución de Factura -->
+    <record id="seq_dispatch_route_invoice_return" model="ir.sequence">
+        <field name="name">Devolución de Factura Ruta</field>
+        <field name="code">dispatch.route.invoice.return</field>
+        <field name="prefix">DEV/%(year)s/</field>
+        <field name="padding">5</field>
+        <field name="company_id" eval="False"/>
+    </record>
+</odoo>
