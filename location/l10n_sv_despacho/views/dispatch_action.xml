@@ -37,11 +37,10 @@
 
     <record id="action_dispatch_route_invoice_returns_from_reception"
             model="ir.actions.act_window">
-        <field name="name">Devoluciones por recepción</field>
+        <field name="name">Devoluciones</field>
         <field name="res_model">dispatch.route.invoice.return</field>
         <field name="view_mode">tree,form</field>
-        <field name="domain">[('reception_id', '=', active_id)]</field>
-        <field name="context">{'default_reception_id': active_id}</field>
+        <field name="context">{}</field>
     </record>
 
 </odoo>

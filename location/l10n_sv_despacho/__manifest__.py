@@ -34,6 +34,8 @@
 
         'security/ir.model.access.csv',
 
+        'views/dispatch_action.xml',
+
         'views/dispatch_route_view.xml',
         'views/dispatch_route_list_view.xml',
         'views/dispatch_route_reception_view.xml',
@@ -41,7 +43,6 @@
         'views/dispatch_route_invoice_return_views.xml',
         'views/vehicule_dispatch_route_view.xml',
 
-        'views/dispatch_action.xml',
         'views/dispatch_menu.xml',
 
         'report/dispatch_report.xml',
