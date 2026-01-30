@@ -208,13 +208,12 @@ class DispatchRoute(models.Model):
                 raise ValidationError(_('Solo las rutas canceladas pueden regresar a estado Borrador.'))
             record.state = 'draft'
 
-    @api.model
-    def create(self, vals):
-        if vals.get('name', '/') == '/':
-            vals['name'] = self.env['ir.sequence'].next_by_code(
-                'dispatch.route'
-            ) or '/'
-        return super().create(vals)
+    @api.model_create_multi
+    def create(self, vals_list):
+        for vals in vals_list:
+            if vals.get('name', '/') == '/':
+                vals['name'] = self.env['ir.sequence'].next_by_code('dispatch.route') or '/'
+        return super().create(vals_list)
 
 
     def action_download_report_reception(self):

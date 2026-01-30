@@ -1,0 +1,55 @@
+<odoo>
+    <!-- Vista lista agrupada por vehículo -->
+    <record id="vehicle_dispatch_route_list" model="ir.ui.view">
+        <field name="name">vehicle.dispatch.route.list</field>
+        <field name="model">dispatch.route</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name" string="Ruta"/>
+                <field name="route_driver_id"/>
+                <field name="departure_datetime"/>
+                <field name="arrival_datetime"/>
+                <field name="state"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Vista form personalizada -->
+    <record id="vehicle_dispatch_route_form" model="ir.ui.view">
+        <field name="name">vehicle.dispatch.route.form</field>
+        <field name="model">dispatch.route</field>
+        <field name="arch" type="xml">
+            <form readonly="True">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="vehicle_id" readonly="True"/>
+                            <field name="route_driver_id" readonly="True"/>
+                            <field name="assistant_ids" widget="many2many_tags" readonly="True"/>
+                        </group>
+                        <group>
+                            <field name="name" string="Ruta"/>
+                            <field name="departure_datetime" readonly="True"/>
+                            <field name="arrival_datetime" readonly="True"/>
+                        </group>
+                    </group>
+
+                    <notebook>
+                        <page string="Documentos Electrónicos">
+                            <field name="account_move_ids" readonly="True">
+                                <list editable="bottom" readonly="True">
+                                    <field name="name" string="Número" readonly="True"/>
+                                    <field name="partner_id" string="Cliente" readonly="True"/>
+                                    <field name="partner_phone"/>
+                                    <field name="partner_address"/>
+                                    <field name="invoice_date"/>
+                                    <field name="amount_total"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+</odoo>
