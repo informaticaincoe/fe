@@ -1,10 +1,10 @@
 <odoo>
 
-    <menuitem
-            id="menu_despachos_root"
-            name="Despachos"
-            sequence="10"
-            web_icon="l10n_sv_despacho,static/description/icon.png"
+<menuitem
+        id="menu_despachos_root"
+        name="Despachos"
+        sequence="5"
+        web_icon="l10n_sv_despacho,static/description/icon.png"
     />
 
     <menuitem
@@ -15,11 +15,11 @@
     />
 
     <menuitem
-            id="menu_despacho_rutas_list"
-            name="Rutas"
-            parent="menu_routes_cat"
-            action="action_despachos"
-            sequence="10"
+        id="menu_despacho_rutas_list"
+        name="Rutas"
+        parent="menu_routes_cat"
+        action="action_despachos"
+        sequence="15"
     />
 
     <menuitem
@@ -31,10 +31,10 @@
     />
 
     <menuitem
-            id="menu_despacho_vehiculos"
-            name="Vehículos"
-            parent="menu_routes_cat"
-            sequence="10"
+        id="menu_despacho_vehiculos"
+        name="Vehículos"
+        parent="menu_routes_cat"
+        sequence="25"
     />
     <menuitem
             id="menu_reception_routes"
@@ -44,11 +44,11 @@
     />
 
     <menuitem
-            id="submenu_reception_routes"
-            name="Recepción"
-            parent="menu_reception_routes"
-            action="action_dispatch_receptions"
-            sequence="20"
+        id="submenu_reception_routes"
+        name="Recepción"
+        parent="menu_reception_routes"
+        action="action_dispatch_receptions"
+        sequence="30"
     />
 
     <menuitem id="menu_reception_returns"

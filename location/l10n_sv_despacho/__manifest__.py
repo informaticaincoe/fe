@@ -29,6 +29,7 @@
     'data': [
         'data/res.configuration.csv',
         'data/res.municipality.csv',
+        'data/dispatch_route_sequence.xml',
         'security/ir.model.access.csv',
 
         'views/dispatch_route_view.xml',

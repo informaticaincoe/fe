@@ -1,18 +1,4 @@
 <odoo>
-
-    <record id="dispatch_route_tree" model="ir.ui.view">
-        <field name="name">dispatch.route.list</field>
-        <field name="model">dispatch.route</field>
-        <field name="arch" type="xml">
-            <list>
-                <field name="route_date"/>
-                <field name="vehicle_id"/>
-                <field name="route_manager_id"/>
-                <field name="state"/>
-            </list>
-        </field>
-    </record>
-
     <record id="dispatch_route_form" model="ir.ui.view">
         <field name="name">dispatch.route.form</field>
         <field name="model">dispatch.route</field>
@@ -27,33 +13,38 @@
                             invisible="state != 'in_transit'"/>
                     <button name="action_cancel" type="object" string="Cancelar" class="btn-secondary"
                             invisible="state in ('cancel','received')"/>
+                    <button name="action_set_draft" type="object" string="Establecer a borrador" class="btn-secondary"
+                            invisible="state != ('cancel')"/>
                     <field name="state" widget="statusbar" statusbar_visible="draft,confirmed,in_transit,received,cancel"/>
                 </header>
 
                 <sheet>
                     <group>
                         <group>
-                            <field name="route_manager_id"/>
-                            <field name="route_supervisor_id"/>
-                            <field name="route_driver_id"/>
-                            <field name="vehicle_id"/>
-                            <field name="assistant_ids" widget="many2many_tags"/>
-                            <field name="company_id" groups="base.group_multi_company"/>
+                            <field name="name" readonly="True"/>
+                            <field name="route_manager_id" readonly="state != 'draft'"/>
+                            <field name="route_supervisor_id" readonly="state != 'draft'"/>
+                            <field name="vehicle_id" readonly="state != 'draft'"/>
+                            <field name="route_driver_id" readonly="state != 'draft'"/>
+                            <field name="assistant_ids" widget="many2many_tags" readonly="state != 'draft'"/>
                         </group>
                         <group>
-                            <field name="zone"/>
-                            <field name="route_date"/>
-                            <field name="departure_datetime" widget="datetime"/>
-                            <field name="arrival_datetime" widget="datetime"/>
+                            <field name="company_id" groups="base.group_multi_company" readonly="state != 'draft'"/>
+                            <field name="zone_id" readonly="state != 'draft'"/>
+                            <field name="route_date" readonly="state != 'draft'"/>
+                            <field name="departure_datetime" widget="datetime" readonly="state != 'draft'"/>
+                            <field name="arrival_datetime" widget="datetime" readonly="state not in('draft','in_transit')"/>
                         </group>
                     </group>
 
                     <notebook>
                         <page string="Facturas">
-                            <field name="account_move_ids" context="{'default_dispatch_route_id': id, 'default_company_id': company_id.id}">
-                                <list editable="bottom">
-                                    <field name="name" string="Número"/>
-                                    <field name="partner_id" string="Cliente"/>
+                            <field name="account_move_ids" readonly="state != 'draft'"
+                                   context="{'default_dispatch_route_id': id, 'default_company_id': company_id.id, 'default_move_type': 'out_invoice', 'search_default_dte_x_zona': 1}"
+                                   options="{'search_view_id': 'view_account_move_filter_inherit'}">
+                                <list editable="bottom" >
+                                    <field name="name" string="Número" readonly="True"/>
+                                    <field name="partner_id" string="Cliente" readonly="True"/>
                                     <field name="partner_phone"/>
                                     <field name="partner_address"/>
                                     <field name="invoice_date"/>
@@ -82,6 +73,19 @@
                     </notebook>
                 </sheet>
             </form>
+        </field>
+    </record>
+
+    <!-- Filtro de facturas-->
+    <record id="view_account_move_filter_inherit" model="ir.ui.view">
+        <field name="name">account.move.search.inherit</field>
+        <field name="model">account.move</field>
+        <field name="arch" type="xml">
+            <xpath expr="//search" position="inside">
+                <filter string="DTEs de la zona"
+                    name="dte_x_zona"
+                    domain="[('dte_x_zona', '=', True)]"/>
+            </xpath>
         </field>
     </record>
 </odoo>

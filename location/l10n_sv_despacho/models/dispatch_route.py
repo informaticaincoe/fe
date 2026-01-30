@@ -16,15 +16,29 @@ class DispatchRoute(models.Model):
     _description = 'Ruta de Despacho'
     _inherit = ['mail.thread', 'mail.activity.mixin'] # chatter + actividades
 
+    name = fields.Char(string='Referencia', readonly=True, copy=False, default='/')
     route_manager_id = fields.Many2one('res.users', string='Responsable de ruta', default=lambda self: self.env.user)
-    route_supervisor_id = fields.Many2one('res.users', string='Supervisor de ruta')
+    route_supervisor_id = fields.Many2one(
+        'res.users',
+        string='Supervisor de ruta',
+        help="Encargado de la supervisión y control de las rutas cuando el responsable principal no se encuentra disponible."
+    )
 
     vehicle_id = fields.Many2one('fleet.vehicle', string='Vehículo')
-    zone = fields.Text(string='Zona de Destino', required=True)
+    zone_id = fields.Many2one('dispatch.zones', string='Zona de Destino', required=True, ondelete='restrict')
     route_date = fields.Date(string="Fecha de ruta", default=fields.Date.context_today)
 
-    assistant_ids = fields.Many2many('hr.employee', string='Auxiliares')
-    route_driver_id = fields.Many2one('hr.employee', string='Conductor', required=True)
+    assistant_ids = fields.Many2many(
+        'hr.employee',
+        string='Auxiliares',
+        domain="[('id', '!=', route_driver_id)]"
+    )
+    route_driver_id = fields.Many2one(
+        'hr.employee',
+        string='Conductor',
+        required=True,
+        domain="[('id', 'not in', assistant_ids)]"
+    )
     departure_datetime = fields.Datetime(string="Hora de salida")
     arrival_datetime = fields.Datetime(string="Hora de llegada")
 
@@ -52,12 +66,15 @@ class DispatchRoute(models.Model):
 
     account_move_ids = fields.Many2many(
         'account.move',
+        'dispatch_route_id',
         domain=[
             ('dispatch_route_id', '=', False),
             ('move_type', 'in', ('out_invoice', 'out_refund')),
             ('state', '=', 'posted'),
             ('payment_state', 'not in', ('paid', 'in_payment')),
         ],
+        compute='_compute_account_moves',
+        inverse='_inverse_account_moves',
         string='Documentos electrónicos',
         required=True
     )
@@ -84,6 +101,32 @@ class DispatchRoute(models.Model):
                 raise ValidationError(
                     _('El número máximo permitido de auxiliares es %s.') % (int(max_allowed_assistants))
                 )
+
+    def _compute_account_moves(self):
+        for route in self:
+            route.account_move_ids = self.env['account.move'].search([
+                ('dispatch_route_id', '=', route.id)
+            ])
+
+    def _inverse_account_moves(self):
+        for route in self:
+            # Facturas actualmente asignadas a esta ruta
+            current_moves = self.env['account.move'].search([
+                ('dispatch_route_id', '=', route.id)
+            ])
+
+            # Facturas seleccionadas en la UI
+            selected_moves = route.account_move_ids
+
+            # Quitar las que ya no están seleccionadas
+            (current_moves - selected_moves).write({
+                'dispatch_route_id': False
+            })
+
+            # Asignar las nuevas
+            (selected_moves - current_moves).write({
+                'dispatch_route_id': route.id
+            })
 
     #####FRANCISCO FLORES
 
@@ -123,6 +166,8 @@ class DispatchRoute(models.Model):
 
         if self.state != "in_transit":
             raise UserError(_("Solo se puede crear la recepción cuando la ruta está En tránsito."))
+        if not self.arrival_datetime:
+            raise ValidationError(_('La hora de llegada es requerida para enviar la ruta a Recepción (CxC).'))
 
         Reception = self.env["dispatch.route.reception"]
 
@@ -150,6 +195,27 @@ class DispatchRoute(models.Model):
         }
 
     #########
+
+    @api.constrains('assistant_ids', 'route_driver_id')
+    def _check_driver_not_in_assistants(self):
+        for rec in self:
+            if rec.route_driver_id and rec.route_driver_id in rec.assistant_ids:
+                raise ValidationError(_("El conductor no puede estar incluido dentro de los auxiliares."))
+
+    def action_set_draft(self):
+        for record in self:
+            if record.state not in('cancel'):
+                raise ValidationError(_('Solo las rutas canceladas pueden regresar a estado Borrador.'))
+            record.state = 'draft'
+
+    @api.model
+    def create(self, vals):
+        if vals.get('name', '/') == '/':
+            vals['name'] = self.env['ir.sequence'].next_by_code(
+                'dispatch.route'
+            ) or '/'
+        return super().create(vals)
+
 
     def action_download_report_reception(self):
         self.ensure_one()
