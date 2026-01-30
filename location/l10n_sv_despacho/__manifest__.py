@@ -21,7 +21,9 @@
     ],
     'assets': {
         'web.assets_backend': [
-            'l10n_sv_despacho/static/src/js/leaflet_zone_map_field.js',
+            'l10n_sv_despacho/static/src/js/map_field.js',
+            'l10n_sv_despacho/static/src/xml/map_template.xml',
+            'https://maps.googleapis.com/maps/api/js?key=AIzaSyCrGkTd0pXFZ1lZbj4DJrmsnmmXvT_DKjg',
         ],
     },
     'data': [
@@ -35,11 +37,10 @@
         'views/dispatch_route_reception_view.xml',
         'views/dispatch_zones_view.xml',
         'views/dispatch_route_invoice_return_views.xml',
-
         'views/dispatch_action.xml',
-
         'views/dispatch_menu.xml',
-
+        'report/dispatch_report.xml',
+        'report/report_recepcion_ruta_template.xml',
     ],
 
     'application': True,

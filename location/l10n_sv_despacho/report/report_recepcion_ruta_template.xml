@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="report_recepcion_ruta_template">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="o">
+                <div class="page">
+                    <div class="oe_structure"/>
+
+                    <h2 class="text-center">Recepción de Ruta:
+                        <span t-field="o.route_id.id"/>
+                    </h2>
+
+<!--                    <div class="row mt32 mb32">-->
+<!--                        <div class="col-6">-->
+<!--                            <strong>Recibido por:</strong>-->
+<!--                            <span t-field="o.received_by_id"/>-->
+<!--                            <br/>-->
+<!--                            <strong>Fecha:</strong>-->
+<!--                            <span t-field="o.received_date"/>-->
+<!--                        </div>-->
+<!--                        <div class="col-6 text-right">-->
+<!--                            <strong>Estado:</strong>-->
+<!--                            <span t-field="o.state"/>-->
+<!--                        </div>-->
+<!--                    </div>-->
+
+<!--                    <table class="table table-sm o_main_table">-->
+<!--                        <thead>-->
+<!--                            <tr>-->
+<!--                                <th>Factura</th>-->
+<!--                                <th>Estado Entrega</th>-->
+<!--                                <th>Tipo</th>-->
+<!--                                <th class="text-right">Total</th>-->
+<!--                            </tr>-->
+<!--                        </thead>-->
+<!--                        <tbody>-->
+<!--                            <t t-foreach="o.line_ids" t-as="line">-->
+<!--                                <tr>-->
+<!--                                    <td>-->
+<!--                                        <span t-field="line.move_id"/>-->
+<!--                                    </td>-->
+<!--                                    <td>-->
+<!--                                        <span t-field="line.status"/>-->
+<!--                                        <t t-if="line.not_delivered_reason">- -->
+<!--                                            <span t-field="line.not_delivered_reason"/>-->
+<!--                                        </t>-->
+<!--                                    </td>-->
+<!--                                    <td>-->
+<!--                                        <span t-if="line.is_credit">Crédito</span>-->
+<!--                                        <span t-else="">Contado</span>-->
+<!--                                    </td>-->
+<!--                                    <td class="text-right">-->
+<!--                                        <span t-field="line.move_total"/>-->
+<!--                                    </td>-->
+<!--                                </tr>-->
+<!--                            </t>-->
+<!--                        </tbody>-->
+<!--                    </table>-->
+
+<!--                    <div class="row justify-content-end">-->
+<!--                        <div class="col-4">-->
+<!--                            <table class="table table-sm">-->
+<!--                                <tr>-->
+<!--                                    <td>-->
+<!--                                        <strong>Esperado (Contado):</strong>-->
+<!--                                    </td>-->
+<!--                                    <td class="text-right">-->
+<!--                                        <span t-field="o.expected_cash_total"/>-->
+<!--                                    </td>-->
+<!--                                </tr>-->
+<!--                                <tr>-->
+<!--                                    <td>-->
+<!--                                        <strong>Efectivo Recibido:</strong>-->
+<!--                                    </td>-->
+<!--                                    <td class="text-right">-->
+<!--                                        <span t-field="o.cash_received"/>-->
+<!--                                    </td>-->
+<!--                                </tr>-->
+<!--                                <tr class="border-black o_total">-->
+<!--                                    <td>-->
+<!--                                        <strong>Diferencia:</strong>-->
+<!--                                    </td>-->
+<!--                                    <td class="text-right">-->
+<!--                                        <span t-field="o.cash_difference"/>-->
+<!--                                    </td>-->
+<!--                                </tr>-->
+<!--                            </table>-->
+<!--                        </div>-->
+<!--                    </div>-->
+                </div>
+            </t>
+        </t>
+    </template>
+</odoo>
