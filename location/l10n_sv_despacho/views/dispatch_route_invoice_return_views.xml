@@ -11,7 +11,7 @@
     <field name="model">dispatch.route.invoice.return</field>
     <field name="arch" type="xml">
       <list>
-        <field name="name"/>
+        <field name="name" readonly="1"/>
         <field name="reception_id"/>
         <field name="move_id"/>
         <field name="partner_id"/>
@@ -27,6 +27,7 @@
     <field name="name">dispatch.route.invoice.return.form</field>
     <field name="model">dispatch.route.invoice.return</field>
     <field name="arch" type="xml">
+
       <form>
         <header>
           <button name="action_confirm" type="object" string="Confirmar" class="btn-primary"
@@ -34,29 +35,36 @@
           <button name="action_liberate_invoice" type="object" string="Liberar factura" class="btn-secondary"
                   invisible="state != 'confirmed'"/>
           <field name="state" widget="statusbar" statusbar_visible="draft,confirmed,cancelled"/>
+          <button name="action_delete_return" type="object" string="Eliminar" class="btn-danger" invisible="state != 'draft'"/>
+          <button name="action_load_invoice_lines"
+            type="object"
+            string="Cargar productos"
+            class="btn-primary"
+            invisible="move_id == False or state != 'draft'"/>
         </header>
 
         <sheet>
-          <group>
+          <group readonly="state != 'draft'">
             <group>
-              <field name="reception_id"/>
-              <field name="move_id"/>
+              <field name="name" readonly="1"/>
+              <field name="reception_id" readonly="state != 'draft'"/>
+              <field name="move_id" readonly="state != 'draft'"/>
               <field name="partner_id" readonly="1"/>
             </group>
             <group>
-              <field name="return_type"/>
-              <field name="notes"/>
+              <field name="return_type" readonly="state != 'draft'"/>
+              <field name="notes" readonly="state != 'draft'"/>
             </group>
           </group>
 
           <group string="Productos devueltos">
-            <field name="line_ids">
+            <field name="line_ids" readonly="state != 'draft'">
               <list editable="bottom">
                 <field name="select"/>
                 <field name="product_id"/>
                 <field name="uom_id"/>
                 <field name="qty_invoiced" readonly="1"/>
-                <field name="qty_return"/>
+                <field name="qty_return" />
                 <field name="reason"/>
                 <field name="note"/>
               </list>

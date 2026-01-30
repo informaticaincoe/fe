@@ -29,7 +29,9 @@
     'data': [
         'data/res.configuration.csv',
         'data/res.municipality.csv',
+        "data/dispatch_sequences.xml",
         'data/dispatch_route_sequence.xml',
+
         'security/ir.model.access.csv',
 
         'views/dispatch_route_view.xml',
@@ -37,11 +39,14 @@
         'views/dispatch_route_reception_view.xml',
         'views/dispatch_zones_view.xml',
         'views/dispatch_route_invoice_return_views.xml',
+        'views/vehicule_dispatch_route_view.xml',
+
         'views/dispatch_action.xml',
         'views/dispatch_menu.xml',
+
         'report/dispatch_report.xml',
         'report/report_recepcion_ruta_template.xml',
-        'views/vehicule_dispatch_route_view.xml',
+
     ],
 
     'application': True,

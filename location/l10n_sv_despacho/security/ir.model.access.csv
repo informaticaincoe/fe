@@ -11,3 +11,6 @@ access_dispatch_route_return_line_user,dispatch.route.return.line user,model_dis
 
 access_dispatch_return_user,access_dispatch_return_user,model_dispatch_route_invoice_return,base.group_user,1,1,1,0
 access_dispatch_return_line_user,access_dispatch_return_line_user,model_dispatch_route_invoice_return_line,base.group_user,1,1,1,0
+
+access_dispatch_route_invoice_return_user,dispatch.route.invoice.return user,model_dispatch_route_invoice_return,base.group_user,1,1,1,1
+access_dispatch_route_invoice_return_line_user,dispatch.route.invoice.return.line user,model_dispatch_route_invoice_return_line,base.group_user,1,1,1,1
