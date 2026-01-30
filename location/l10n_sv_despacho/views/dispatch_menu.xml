@@ -34,6 +34,7 @@
         id="menu_despacho_vehiculos"
         name="Vehículos"
         parent="menu_routes_cat"
+        action="action_vehiculos"
         sequence="25"
     />
     <menuitem
