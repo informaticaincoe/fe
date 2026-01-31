@@ -42,6 +42,8 @@
         'report/dispatch_report.xml',
         'report/report_recepcion_ruta_template.xml',
         'views/vehicule_dispatch_route_view.xml',
+        'report/report_carga_ruta_template.xml',
+
     ],
 
     'application': True,
