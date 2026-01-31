@@ -79,15 +79,15 @@
     </record>
 
     <!-- Filtro de facturas-->
-    <record id="view_account_move_filter_inherit" model="ir.ui.view">
-        <field name="name">account.move.search.inherit</field>
-        <field name="model">account.move</field>
-        <field name="arch" type="xml">
-            <xpath expr="//search" position="inside">
-                <filter string="DTEs de la zona"
-                    name="dte_x_zona"
-                    domain="[('dte_x_zona', '=', True)]"/>
-            </xpath>
-        </field>
-    </record>
+<!--    <record id="view_account_move_filter_inherit" model="ir.ui.view">-->
+<!--        <field name="name">account.move.search.inherit</field>-->
+<!--        <field name="model">account.move</field>-->
+<!--        <field name="arch" type="xml">-->
+<!--            <xpath expr="//search" position="inside">-->
+<!--                <filter string="DTEs de la zona"-->
+<!--                    name="dte_x_zona"-->
+<!--                    domain="[('dte_x_zona', '=', True)]"/>-->
+<!--            </xpath>-->
+<!--        </field>-->
+<!--    </record>-->
 </odoo>

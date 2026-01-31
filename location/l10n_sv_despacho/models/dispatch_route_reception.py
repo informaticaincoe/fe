@@ -6,21 +6,26 @@ class DispatchRouteReception(models.Model):
     _name = "dispatch.route.reception"
     _description = "Recepción de Ruta (CxC)"
     _order = "create_date desc"
+    _inherit = ["mail.thread", "mail.activity.mixin"]
+
+    name = fields.Char(
+        string="Número",
+        required=True,
+        copy=False,
+        readonly=True,
+        default="/"
+    )
 
     route_id = fields.Many2one("dispatch.route", string="Ruta", required=True, ondelete="cascade", index=True)
     company_id = fields.Many2one(related="route_id.company_id", store=True, readonly=True)
     currency_id = fields.Many2one(related="route_id.currency_id", store=True, readonly=True)
 
-    state = fields.Selection(
-        [
-            ("draft", "Borrador"),
-            ("confirmed", "Confirmado"),
-            ("cancel", "Cancelado"),
-        ],
-        default="draft",
-        tracking=True,
-        copy=False,
-    )
+    state = fields.Selection([
+        ("draft", "Borrador"),
+        ("confirmed", "Confirmada"),
+        ("done", "Finalizada"),
+        ("cancel", "Cancelada"),
+    ], default="draft", tracking=True)
 
     received_by_id = fields.Many2one("res.users", string="Recibido por", default=lambda self: self.env.user, required=True)
     received_date = fields.Datetime(string="Fecha recepción", default=fields.Datetime.now, required=True)
@@ -32,6 +37,32 @@ class DispatchRouteReception(models.Model):
     notes = fields.Text(string="Observaciones")
 
     line_ids = fields.One2many("dispatch.route.reception.line", "reception_id", string="Facturas")
+
+    @api.model
+    def create(self, vals):
+        reception = super().create(vals)
+
+        if vals.get("name", "/") == "/":
+            vals["name"] = self.env["ir.sequence"].next_by_code(
+                "dispatch.route.reception"
+            ) or "/"
+
+        if reception.route_id:
+            lines = []
+            for move in reception.route_id.account_move_ids.filtered(
+                lambda m: m.move_type in ("out_invoice", "out_refund")
+            ):
+                lines.append((0, 0, {
+                    "move_id": move.id,
+                    "partner_id": move.partner_id.id,
+                    "move_total": move.amount_total,
+                    "is_credit": bool(move.invoice_payment_term_id),
+                    "status": "delivered",
+                }))
+
+            reception.write({"line_ids": lines})
+
+        return reception
 
     @api.model
     def default_get(self, fields_list):
@@ -68,6 +99,7 @@ class DispatchRouteReception(models.Model):
 
     def action_confirm(self):
         for rec in self:
+
             if rec.state != "draft":
                 continue
 
@@ -94,6 +126,12 @@ class DispatchRouteReception(models.Model):
                 "cash_difference": rec.cash_difference,
                 "last_reception_id": rec.id,
             })
+
+            # Secuencia
+            if rec.name == "/":
+                rec.name = self.env["ir.sequence"].next_by_code(
+                    "dispatch.route.reception"
+                ) or "/"
 
             rec.state = "confirmed"
 
@@ -135,8 +173,8 @@ class DispatchRouteReception(models.Model):
 
     def action_set_draft(self):
         for rec in self:
-            if rec.state == "cancel":
-                raise UserError(_("No puedes restablecer a borrador una recepción cancelada."))
+            if rec.state != "cancel":
+                raise UserError(_("Solo se puede restablecer a borrador una recepcion cancelada."))
             rec.route_id.write({"state": "in_transit"})
             rec.state = "draft"
 

@@ -14,6 +14,7 @@ except ImportError as e:
 class AccountMove(models.Model):
     _inherit = 'account.move'
 
+
     ##FRANCISCO FLORES
 
     dispatch_state = fields.Selection([
