@@ -245,3 +245,35 @@ class DispatchRoute(models.Model):
         for rec in self:
             if rec.zone_id:
                 rec.name = rec.zone_id.name
+
+    def action_download_report_cargar_ruta(self):
+        self.ensure_one()
+
+        print(">>>>>>> SELF ", self )
+        print(">>>>>>> SELF id", self.id )
+
+        ruta = self.env["dispatch.route"].search([
+            ("id", "=", self.id),
+        ], limit=1)
+
+        print(">>>>>>> RUTA ", ruta )
+        print(">>>>>>> RUTA ID ", ruta.id )
+
+        return self.env.ref('l10n_sv_despacho.action_report_carga_ruta').report_action(ruta)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

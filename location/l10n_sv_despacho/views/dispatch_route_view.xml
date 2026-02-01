@@ -9,6 +9,8 @@
                             invisible="state != 'draft'"/>
                     <button name="action_start_transit" type="object" string="Enviar a tránsito" class="btn-primary"
                             invisible="state != 'confirmed'"/>
+                    <button name="action_download_report_cargar_ruta" type="object" string="Reporte de carga" class="btn-primary"
+                            invisible="state != 'confirmed'"/>
                     <button name="action_create_reception" type="object" string="Recepción (CxC)" class="btn-primary"
                             invisible="state != 'in_transit'"/>
                     <button name="action_cancel" type="object" string="Cancelar" class="btn-secondary"

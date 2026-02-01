@@ -1,4 +1,4 @@
-<odoo>
+<?xml version="1.0" encoding="utf-8"?><odoo>
     <data>
         <record id="paperformat_dispatch_reception" model="report.paperformat">
             <field name="name">Recepción de ruta</field>
@@ -15,6 +15,29 @@
             <field name="report_type">qweb-pdf</field>
             <field name="report_name">l10n_sv_despacho.report_recepcion_ruta_template</field>
             <field name="report_file">l10n_sv_despacho.report_recepcion_ruta_template</field>
+            <field name="binding_model_id" ref="model_dispatch_route"/>
+            <field name="binding_type">report</field>
+        </record>
+
+        <record id="paperformat_dispatch_carga_ruta" model="report.paperformat">
+            <field name="name">Carga de ruta</field>
+            <field name="default" eval="True"/>
+            <field name="format">Letter</field>
+            <field name="margin_top">10</field>
+            <field name="margin_bottom">10</field>
+            <field name="margin_left">15</field>
+            <field name="margin_right">15</field>
+            <field name="orientation">Portrait</field>
+            <field name="dpi">90</field>
+        </record>
+
+        <record id="action_report_carga_ruta" model="ir.actions.report">
+            <field name="name">Reporte de carga de Ruta</field>
+            <field name="model">dispatch.route</field>
+            <field name="paperformat_id" ref="paperformat_dispatch_carga_ruta"/>
+            <field name="report_type">qweb-pdf</field>
+            <field name="report_name">l10n_sv_despacho.report_carga_de_ruta_template</field>
+            <field name="report_file">l10n_sv_despacho.report_carga_de_ruta_template</field>
             <field name="binding_model_id" ref="model_dispatch_route"/>
             <field name="binding_type">report</field>
         </record>
