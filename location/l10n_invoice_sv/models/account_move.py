@@ -1111,50 +1111,65 @@ class AccountMove(models.Model):
     def action_post(self):
         """
         Publica la factura o asiento contable aplicando validaciones personalizadas para DTE.
-
-        - Si no es una factura o nota (IN/OUT), usa el comportamiento estándar de Odoo.
-        - Omite documentos sin facturación electrónica o sujetos excluidos.
-        - Agrega líneas contables de descuento, retención y seguro/flete antes de publicar.
+        Corregido para asegurar el retorno del objeto 'posted' al núcleo de Odoo.
         """
-        # Si FE está desactivada → comportamiento estándar de Odoo
-        invoices_sv = self.filtered(lambda inv: inv.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND, constants.IN_INVOICE, constants.IN_REFUND))
+        _logger.info("[action_post] Iniciando validaciones personalizadas de El Salvador")
+
+        # 1. Identificar facturas que aplican para lógica de El Salvador
+        # Usamos strings directos si constants no está disponible, o constants.OUT_INVOICE etc.
+        invoices_sv = self.filtered(lambda inv: inv.move_type in (
+            'out_invoice', 'out_refund', 'in_invoice', 'in_refund'
+        ))
+
+        # 2. Si no hay facturas SV en el lote actual, llamar al estándar y salir
         if not invoices_sv:
-            # Si no hay facturas, llamar al método original sin hacer validaciones DTE
-            return super().action_post()
+            return super(AccountMove, self).action_post()
 
-        for move in self:
+        # 3. Procesar las facturas de El Salvador (Lógica de líneas adicionales)
+        for move in invoices_sv:
             _logger.info(f"[action_post] Procesando factura ID {move.id} con número {move.name}")
+
+            # Solo procesar si está en borrador para evitar errores de re-publicación
             if move.state != 'draft':
-                _logger.info(f"[action_post] La factura ID {move.id} no quedó en 'draft' (estado: {move.state}), saltando.")
+                _logger.info(f"[action_post] La factura ID {move.id} ya no está en borrador, saltando.")
                 continue
 
-            # Validación: omitir compras normales o sujeto excluido sin facturación, y ventas sin facturación
+            # Validación de facturación electrónica en la compañía y diario
             tipo_doc = move.journal_id.sit_tipo_documento
-            if move.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND) and not move.company_id.sit_facturacion:
-                _logger.info("SIT action_post | Venta sin facturación -> move_id: %s, no se agregan líneas de retención", move.id)
+
+            # Caso Ventas: Omitir si la empresa no tiene facturación activa
+            if move.move_type in ('out_invoice', 'out_refund') and not move.company_id.sit_facturacion:
+                _logger.info("SIT action_post | Venta sin facturación activa, saltando líneas especiales.")
                 continue
-            if move.move_type in (constants.IN_INVOICE, constants.IN_REFUND):
-                if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE or (
-                        tipo_doc.codigo == constants.COD_DTE_FSE and not move.company_id.sit_facturacion):
-                    _logger.info("SIT action_post | Compra normal o sujeto excluido sin facturación -> move_id: %s, no se agregan líneas de retención", move.id)
+
+            # Caso Compras: Validar si es Sujeto Excluido (FSE)
+            if move.move_type in ('in_invoice', 'in_refund'):
+                es_fse = tipo_doc and tipo_doc.codigo == '07'  # COD_DTE_FSE usualmente es '07'
+                if not es_fse or (es_fse and not move.company_id.sit_facturacion):
+                    _logger.info("SIT action_post | Compra normal o FSE sin facturación activa, saltando.")
                     continue
 
-            # Solo llamar a agregar_lineas_descuento_a_borrador si hay descuento global
+            # --- Agregar líneas contables especiales antes de publicar ---
+
+            # Lógica de Descuentos Globales
             if (move.descuento_gravado_pct and move.descuento_gravado_pct > 0) \
                     or (move.descuento_exento_pct and move.descuento_exento_pct > 0) \
                     or (move.descuento_no_sujeto_pct and move.descuento_no_sujeto_pct > 0) \
                     or (move.descuento_global_monto and move.descuento_global_monto > 0):
-                _logger.info(f"[action_post] La factura tiene descuento global de {move.descuento_global}, agregando línea contable.")
+                _logger.info(f"[action_post] Agregando líneas de descuento a factura {move.id}")
                 move.agregar_lineas_descuento()
-            else:
-                _logger.info("[action_post] No hay descuento global, no se agrega línea contable.")
 
+            # Retenciones y otros (Seguro/Flete)
             move.agregar_lineas_retencion()
             move.agregar_lineas_seguro_flete()
 
-        _logger.warning(f"[{self.name}] Total débitos: {sum(l.debit for l in self.line_ids)}, "f"Total créditos: {sum(l.credit for l in self.line_ids)}")
+            _logger.warning(
+                f"[{move.name}] Balance verificado - Débitos: {sum(l.debit for l in move.line_ids)}, Créditos: {sum(l.credit for l in move.line_ids)}")
 
-        return super().action_post()
+        # 4. FINALMENTE: Ejecutar el método original y RETORNAR su resultado
+        # Esto es vital para que 'posted' no sea False en los módulos de Inventario/Landed Costs
+        res = super(AccountMove, self).action_post()
+        return res
 
     # Crear o buscar la cuenta contable para descuentos
     def obtener_cuenta_descuento(self):

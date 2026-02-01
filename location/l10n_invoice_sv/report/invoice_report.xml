@@ -28,12 +28,10 @@
             <field name="name">Factura Consumidor Final</field>
             <field name="model">account.move</field>
             <field name="report_name">l10n_invoice_sv.report_invoice_main_fcf</field>
-            <field name="print_report_name">object.partner_id.display_name + ' - ' + object.name + ' - '
-                +object.journal_id.name
+            <field name="print_report_name">object.partner_id.display_name + ' - ' + object.name + ' - ' + object.journal_id.name
             </field>
             <field name="paperformat_id" ref="paperformat_invoice_fcf"/>
-            <field name="attachment">object.partner_id.display_name + ' - ' + object.name + ' - ' +
-                object.journal_id.name
+            <field name="attachment">object.partner_id.display_name + ' - ' + object.name + ' - ' + object.journal_id.name
             </field>
             <field name="attachment_use" eval="False"/>
         </record>
@@ -65,12 +63,10 @@
             <field name="name">Credito Fiscal</field>
             <field name="model">account.move</field>
             <field name="report_name">l10n_invoice_sv.report_invoice_main_ccf</field>
-            <field name="print_report_name">object.partner_id.display_name + ' - ' + object.name + ' -
-                '+object.journal_id.name
+            <field name="print_report_name">object.partner_id.display_name + ' - ' + object.name + ' -' + object.journal_id.name
             </field>
             <field name="paperformat_id" ref="paperformat_invoice_ccf"/>
-            <field name="attachment">object.partner_id.display_name + ' - ' + object.name + ' - '
-                +object.journal_id.name
+            <field name="attachment">object.partner_id.display_name + ' - ' + object.name + ' - ' + object.journal_id.name
             </field>
             <field name="attachment_use" eval="False"/>
         </record>
@@ -103,12 +99,10 @@
             <field name="model">account.move</field>
             <field name="report_name">l10n_invoice_sv.report_invoice_main_exp</field>
             <field name="print_report_name">
-                (object.partner_id.display_name or '') + ' - ' + (object.name or '') + ' - ' + (object.journal_id.name
-                or '')
+                (object.partner_id.display_name or '') + ' - ' + (object.name or '') + ' - ' + (object.journal_id.name or '')
             </field>
             <field name="paperformat_id" ref="paperformat_invoice_exportacion"/>
-            <field name="attachment">object.partner_id.display_name + ' - ' + object.name + ' - ' +
-                object.journal_id.name
+            <field name="attachment">object.partner_id.display_name + ' - ' + object.name + ' - ' + object.journal_id.name
             </field>
             <field name="attachment_use" eval="False"/>
         </record>
@@ -138,12 +132,10 @@
             <field name="name">Nota de Credito</field>
             <field name="model">account.move</field>
             <field name="report_name">l10n_invoice_sv.report_invoice_main_ndc</field>
-            <field name="print_report_name">object.partner_id.display_name + ' - ' + object.name + ' - ' +
-                object.journal_id.name
+            <field name="print_report_name">object.partner_id.display_name + ' - ' + object.name + ' - ' + object.journal_id.name
             </field>
             <field name="paperformat_id" ref="paperformat_invoice_ndc"/>
-            <field name="attachment">object.partner_id.display_name + ' - ' + object.name + ' - ' +
-                object.journal_id.name
+            <field name="attachment">object.partner_id.display_name + ' - ' + object.name + ' - ' + object.journal_id.name
             </field>
             <field name="attachment_use" eval="False"/>
         </record>
@@ -175,12 +167,10 @@
             <field name="name">Factura Digital</field>
             <field name="model">account.move</field>
             <field name="report_name">l10n_invoice_sv.report_invoice_main_digital</field>
-            <field name="print_report_name">object.partner_id.display_name + ' - ' + object.name + ' - ' +
-                object.journal_id.name
+            <field name="print_report_name">object.partner_id.display_name + ' - ' + object.name + ' - ' + object.journal_id.name
             </field>
             <field name="paperformat_id" ref="paperformat_invoice_fcf"/>
-            <field name="attachment">object.partner_id.display_name + ' - ' + object.name + ' - ' +
-                object.journal_id.name
+            <field name="attachment">object.partner_id.display_name + ' - ' + object.name + ' - ' + object.journal_id.name
             </field>
             <field name="attachment_use" eval="False"/>
         </record>
@@ -219,12 +209,10 @@
             <field name="name">Nota de Debito</field>
             <field name="model">account.move</field>
             <field name="report_name">l10n_invoice_sv.report_invoice_main_ndd</field>
-            <field name="print_report_name">(object.partner_id.display_name or '') + ' - ' + (object.name or '') + ' - '
-                + (object.journal_id.name or '')
+            <field name="print_report_name">(object.partner_id.display_name or '') + ' - ' + (object.name or '') + ' - ' + (object.journal_id.name or '')
             </field>
             <field name="paperformat_id" ref="paperformat_invoice_ndd"/>
-            <field name="attachment">(object.partner_id.display_name or '') + ' - ' + (object.name or '') + ' - ' +
-                (object.journal_id.name or '')
+            <field name="attachment">(object.partner_id.display_name or '') + ' - ' + (object.name or '') + ' - ' + (object.journal_id.name or '')
             </field>
             <field name="attachment_use" eval="False"/>
         </record>
