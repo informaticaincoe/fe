@@ -4,8 +4,8 @@
         <field name="name">vehicle.dispatch.route.list</field>
         <field name="model">dispatch.route</field>
         <field name="arch" type="xml">
-            <list>
-                <field name="name" string="Ruta"/>
+            <list create="0" edit="0" delete="0" open_form_view="0">
+                <field name="code_route" string="Código de ruta" readonly="True"/>
                 <field name="route_driver_id"/>
                 <field name="departure_datetime"/>
                 <field name="arrival_datetime"/>
@@ -28,7 +28,7 @@
                             <field name="assistant_ids" widget="many2many_tags" readonly="True"/>
                         </group>
                         <group>
-                            <field name="name" string="Ruta"/>
+                            <field name="code_route" string="Código de Ruta" readonly="True"/>
                             <field name="departure_datetime" readonly="True"/>
                             <field name="arrival_datetime" readonly="True"/>
                         </group>

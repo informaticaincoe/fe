@@ -141,35 +141,39 @@ class DispatchRouteInvoiceReturn(models.Model):
             })
 
     #AQUÍ ESTÁ LA CLAVE
-    @api.model
-    def create(self, vals):
-        record = super().create(vals)
+    @api.model_create_multi
+    def create(self, vals_list):
+        records = super().create(vals_list)
 
-        if not record.move_id:
-            return record
+        for record, vals in zip(records, vals_list):
 
-        if vals.get("name", "/") == "/":
-            vals["name"] = self.env["ir.sequence"].next_by_code(
-                "dispatch.route.invoice.return"
-            ) or "/"
+            if not record.move_id:
+                continue
 
-        lines = []
-        for il in record.move_id.invoice_line_ids.filtered(
-                lambda l: l.product_id and not l.display_type
-        ):
-            lines.append((0, 0, {
-                "product_id": il.product_id.id,
-                "uom_id": il.product_uom_id.id,
-                "qty_invoiced": il.quantity,
-                "qty_return": 0.0,
-            }))
+            if vals.get("name", "/") == "/":
+                record.name = self.env["ir.sequence"].next_by_code(
+                    "dispatch.route.invoice.return"
+                ) or "/"
 
-        record.write({"line_ids": lines})
+            lines = []
+            for il in record.move_id.invoice_line_ids.filtered(
+                    lambda l: l.product_id and not l.display_type
+            ):
+                lines.append((0, 0, {
+                    "product_id": il.product_id.id,
+                    "uom_id": il.product_uom_id.id,
+                    "qty_invoiced": il.quantity,
+                    "qty_return": 0.0,
+                }))
 
-        # marcar que la factura ya tiene devolución
-        record.reception_line_id.write({"has_return": True})
+            if lines:
+                record.write({"line_ids": lines})
 
-        return record
+            # marcar que la factura ya tiene devolución
+            if record.reception_line_id:
+                record.reception_line_id.write({"has_return": True})
+
+        return records
 
     def _load_invoice_products(self):
         """Carga los productos de la factura"""

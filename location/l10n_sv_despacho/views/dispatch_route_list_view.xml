@@ -4,7 +4,7 @@
         <field name="model">dispatch.route</field>
         <field name="arch" type="xml">
             <list>
-                <field name="name"/>
+                <field name="code_route" readonly="True"/>
                 <field name="route_date"/>
                 <field name="vehicle_id"/>
             </list>

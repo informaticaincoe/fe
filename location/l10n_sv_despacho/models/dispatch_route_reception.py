@@ -1,6 +1,8 @@
 from odoo import api, fields, models, _
 from odoo.exceptions import ValidationError, UserError
+import logging
 
+_logger = logging.getLogger(__name__)
 
 class DispatchRouteReception(models.Model):
     _name = "dispatch.route.reception"
@@ -38,42 +40,68 @@ class DispatchRouteReception(models.Model):
 
     line_ids = fields.One2many("dispatch.route.reception.line", "reception_id", string="Facturas")
 
-    @api.model
-    def create(self, vals):
-        reception = super().create(vals)
+    @api.model_create_multi
+    def create(self, vals_list):
+        receptions = super().create(vals_list)
 
-        if vals.get("name", "/") == "/":
-            vals["name"] = self.env["ir.sequence"].next_by_code(
-                "dispatch.route.reception"
-            ) or "/"
+        for reception, vals in zip(receptions, vals_list):
 
-        if reception.route_id:
-            lines = []
-            for move in reception.route_id.account_move_ids.filtered(
-                lambda m: m.move_type in ("out_invoice", "out_refund")
-            ):
-                lines.append((0, 0, {
-                    "move_id": move.id,
-                    "partner_id": move.partner_id.id,
-                    "move_total": move.amount_total,
-                    "is_credit": bool(move.invoice_payment_term_id),
-                    "status": "delivered",
-                }))
+            if vals.get("name", "/") == "/":
+                reception.name = self.env["ir.sequence"].next_by_code(
+                    "dispatch.route.reception"
+                ) or "/"
 
-            reception.write({"line_ids": lines})
+            if reception.route_id:
+                lines = []
+                for move in reception.route_id.account_move_ids.filtered(
+                        lambda m: m.move_type in ("out_invoice", "out_refund")
+                ):
+                    is_credit = bool(
+                        move.invoice_payment_term_id
+                        and any(
+                            line.nb_days > 0
+                            for line in move.invoice_payment_term_id.line_ids)
+                    )
+                    _logger.info(
+                        "[Reception] create() Factura %s → is_credit=%s",
+                        move.name,
+                        is_credit,
+                    )
+                    lines.append((0, 0, {
+                        "move_id": move.id,
+                        "partner_id": move.partner_id.id,
+                        "move_total": move.amount_total,
+                        "is_credit": is_credit,
+                        "status": "delivered",
+                    }))
 
-        return reception
+                reception.line_ids = lines
+
+        return receptions
 
     @api.model
     def default_get(self, fields_list):
         res = super().default_get(fields_list)
         route_id = res.get("route_id") or self.env.context.get("default_route_id")
+        _logger.debug("default_get route_id=%s", route_id)
         if route_id:
             route = self.env["dispatch.route"].browse(route_id)
             lines = []
             for mv in route.account_move_ids:
                 # Heurística simple: si tiene término de pago => crédito
-                is_credit = bool(mv.invoice_payment_term_id and mv.invoice_payment_term_id.line_ids)
+                # is_credit = bool(mv.invoice_payment_term_id and mv.invoice_payment_term_id.line_ids)
+                is_credit = bool(
+                    mv.invoice_payment_term_id
+                    and any(
+                        line.nb_days > 0
+                        for line in mv.invoice_payment_term_id.line_ids)
+                )
+                _logger.info(
+                    "[ROUTE %s] default_get() Factura %s → is_credit=%s",
+                    route.id,
+                    mv.name,
+                    is_credit,
+                )
                 lines.append((0, 0, {
                     "move_id": mv.id,
                     "status": "delivered",
@@ -141,9 +169,33 @@ class DispatchRouteReception(models.Model):
     ### CARGAR TODOS LOS DUCMENTOS RELACIONADOS A LA RUTA
     def _prepare_lines_from_route(self, route):
         """ construye comando O2M para line_ids desde las facturas de la ruta """
+        _logger.info(
+            "[ROUTE %s] Iniciando preparación de líneas desde facturas (%s documentos)",
+            route.id,
+            len(route.account_move_ids),
+        )
+
         lines_cmds = [(5, 0, 0)] # limpia lineas actuales
         for mv in route.account_move_ids:
-            is_credit = bool(mv.invoice_payment_term_id and mv.invoice_payment_term_id.lines_ids)
+            _logger.debug(
+                "[ROUTE %s] Procesando factura %s (id=%s, payment_term=%s)",
+                route.id,
+                mv.name,
+                mv.id,
+                mv.invoice_payment_term_id.display_name if mv.invoice_payment_term_id else None,
+            )
+            is_credit = bool(
+                mv.invoice_payment_term_id
+                and any(
+                    line.nb_days > 0
+                    for line in mv.invoice_payment_term_id.line_ids)
+            )
+            _logger.info(
+                "[ROUTE %s] Factura %s → is_credit=%s",
+                route.id,
+                mv.name,
+                is_credit,
+            )
             lines_cmds.append((0, 0, {
                 "move_id": mv.id,
                 "status": "delivered",
