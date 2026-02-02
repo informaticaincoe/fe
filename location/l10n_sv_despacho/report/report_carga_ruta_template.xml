@@ -176,6 +176,7 @@
                                 </style>
 
                                 <div class="report-title text-center">Despacho de Carga</div>
+                                <p class="text-center" style="font-size: 12px;" t-esc="o.name"/>
                                 <div class="header-container">
                                     <div class="info-block">
                                         <table class="info-table">
@@ -219,7 +220,7 @@
                                             <tr>
                                                 <td class="label">Zona:</td>
                                                 <td class="value">
-                                                    <span t-field="o.zone"/>
+                                                    <span t-field="o.zone_id.name"/>
                                                 </td>
                                             </tr>
                                             <tr>
