@@ -1,0 +1,17 @@
+<odoo>
+  <!-- Tree view solo para el popup de selección de Cliente -->
+  <record id="res_partner_tree_customer_picker" model="ir.ui.view">
+    <field name="name">res.partner.tree.customer.picker</field>
+    <field name="model">res.partner</field>
+    <field name="arch" type="xml">
+      <list string="Clientes" create="false" edit="false" delete="false">
+        <field name="display_name" string="Cliente"/>
+        <field name="munic_id" string="Municipio"/>
+        <field name="state_id" string="Departamento"/>
+        <field name="phone" string="Teléfono"/>
+        <field name="vat" string="NIT"/>
+        <!-- Aquí NO ponemos ni activity_ids ni company_id -->
+      </list>
+    </field>
+  </record>
+</odoo>
