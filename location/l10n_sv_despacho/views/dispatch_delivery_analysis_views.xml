@@ -1,0 +1,57 @@
+<odoo>
+    <record id="view_dispatch_delivery_analysis_tree" model="ir.ui.view">
+        <field name="name">dispatch.delivery.analysis.tree</field>
+        <field name="model">dispatch.delivery.analysis</field>
+        <field name="arch" type="xml">
+            <list string="Estados de Ruta" create="0" edit="0" delete="0">
+                <header>
+                    <button name="action_refresh_report" type="object" string="Actualizar" display="always" class="btn-secondary"/>
+                    <button name="action_print_pdf" type="object" string="Descargar PDF" display="always" class="btn-primary"/>
+                </header>
+                <field name="date"/>
+                <field name="route_id"/>
+                <field name="route_state"/>
+                <field name="delivery_status"/>
+                <field name="move_id"/>
+                <field name="partner_id"/>
+                <field name="move_total"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_dispatch_delivery_analysis_search" model="ir.ui.view">
+        <field name="name">dispatch.delivery.analysis.search</field>
+        <field name="model">dispatch.delivery.analysis</field>
+        <field name="arch" type="xml">
+            <search string="Buscar estados de ruta">
+                <field name="route_id"/>
+                <field name="move_id"/>
+                <field name="partner_id"/>
+                <field name="date"/>
+
+                <separator/>
+
+                <filter string="Confirmadas" name="rt_confirmed" domain="[('route_state','=','confirmed')]"/>
+                <filter string="En tránsito" name="rt_in_transit" domain="[('route_state','=','in_transit')]"/>
+                <filter string="Recibidas (CxC)" name="rt_received" domain="[('route_state','=','received')]"/>
+                <filter string="Canceladas" name="rt_cancel" domain="[('route_state','=','cancel')]"/>
+
+                <separator/>
+
+                <filter string="Entregadas" name="dl_delivered" domain="[('delivery_status','=','delivered')]"/>
+                <filter string="Parciales" name="dl_partial" domain="[('delivery_status','=','partial')]"/>
+                <filter string="No entregadas" name="dl_not_delivered"
+                        domain="[('delivery_status','=','not_delivered')]"/>
+                <filter string="Pendientes" name="dl_pending" domain="[('delivery_status','=','pending')]"/>
+
+                <group expand="0" string="Agrupar por">
+                    <filter string="Ruta" name="grp_route" context="{'group_by':'route_id'}"/>
+                    <filter string="Estado Ruta" name="grp_route_state" context="{'group_by':'route_state'}"/>
+                    <filter string="Resultado" name="grp_delivery_status" context="{'group_by':'delivery_status'}"/>
+                    <filter string="Cliente" name="grp_partner" context="{'group_by':'partner_id'}"/>
+                    <filter string="Fecha" name="grp_date" context="{'group_by':'date'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+</odoo>

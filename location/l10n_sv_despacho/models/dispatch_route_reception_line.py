@@ -91,3 +91,6 @@ class DispatchRouteReceptionLine(models.Model):
                 "default_move_id": self.move_id.id,
             }
         }
+
+
+

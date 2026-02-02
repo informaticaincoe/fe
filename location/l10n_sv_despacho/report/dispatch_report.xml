@@ -1,4 +1,5 @@
-<?xml version="1.0" encoding="utf-8"?><odoo>
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
     <data>
         <record id="paperformat_dispatch_reception" model="report.paperformat">
             <field name="name">Recepción de ruta</field>
@@ -9,13 +10,13 @@
         </record>
 
         <record id="action_report_recepcion_ruta" model="ir.actions.report">
-            <field name="name">Reporte de Recepción de Ruta</field>
-            <field name="model">dispatch.route</field>
-            <field name="paperformat_id" ref="paperformat_dispatch_reception"/>
+            <field name="name">Recepción de Ruta</field>
+            <field name="model">dispatch.route.reception</field>
             <field name="report_type">qweb-pdf</field>
             <field name="report_name">l10n_sv_despacho.report_recepcion_ruta_template</field>
             <field name="report_file">l10n_sv_despacho.report_recepcion_ruta_template</field>
-            <field name="binding_model_id" ref="model_dispatch_route"/>
+            <field name="print_report_name">'Recepcion_Ruta_%s' % (object.name or '')</field>
+            <field name="binding_model_id" ref="model_dispatch_route_reception"/>
             <field name="binding_type">report</field>
         </record>
 
@@ -41,5 +42,16 @@
             <field name="binding_model_id" ref="model_dispatch_route"/>
             <field name="binding_type">report</field>
         </record>
+
+            <record id="action_report_dispatch_delivery_analysis_pdf" model="ir.actions.report">
+                <field name="name">Estados de Ruta (PDF)</field>
+                <field name="model">dispatch.delivery.analysis</field>
+                <field name="report_type">qweb-pdf</field>
+                <field name="report_name">l10n_sv_despacho.report_dispatch_delivery_analysis_pdf</field>
+                <field name="report_file">l10n_sv_despacho.report_dispatch_delivery_analysis_pdf</field>
+                <field name="print_report_name">'Estados de Ruta - %s' % (object and object[0].create_date or '')
+                </field>
+            </record>
+
     </data>
 </odoo>
