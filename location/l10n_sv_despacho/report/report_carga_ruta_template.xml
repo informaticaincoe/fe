@@ -273,29 +273,59 @@
                                                 <td>
                                                     <div class="bold" style="font-size: 14px; color: #2C3E50;"
                                                          t-field="factura.name"/>
-                                                    <t t-set="ubicaciones"
-                                                       t-value="factura.invoice_line_ids.sale_line_ids.move_ids.move_line_ids.mapped('location_id')"/>
-                                                    <t t-foreach="ubicaciones" t-as="loc">
-                                                        <div class="loc-container">
-                                                            <span class="loc-header">Ubicación:
-                                                                <span t-field="loc.display_name"/>
-                                                            </span>
-                                                            <t t-foreach="factura.invoice_line_ids" t-as="line">
-                                                                <t t-set="detalles"
-                                                                   t-value="line.sale_line_ids.move_ids.move_line_ids.filtered(lambda ml: ml.location_id == loc)"/>
-                                                                <div t-if="detalles" class="product-line">
-                                                                    <span class="product-bullet">•</span>
-                                                                    (<span t-field="line.product_id.default_code"/>)
-                                                                    <span t-field="line.product_id.name"/>
-                                                                    <strong>(
-                                                                        <span t-esc="sum(detalles.mapped('quantity'))"/>
-                                                                        <span t-field="line.product_uom_id"/>)
-                                                                    </strong>
-                                                                </div>
-                                                            </t>
-                                                        </div>
+
+                                                    <!-- Movimientos (move lines) -->
+                                                    <t t-set="move_lines"
+                                                       t-value="factura.invoice_line_ids.sale_line_ids.move_ids.move_line_ids"/>
+
+                                                    <!-- Si NO hay movimientos: solo info del producto -->
+                                                    <t t-if="not move_lines">
+                                                        <t t-foreach="factura.invoice_line_ids" t-as="line">
+                                                            <div class="product-line">
+                                                                <span class="product-bullet">•</span>
+                                                                (<span t-field="line.product_id.default_code"/>)
+                                                                <span t-field="line.product_id.name"/>
+                                                                <strong>(
+                                                                    <span t-field="line.quantity"/>
+                                                                    <span t-field="line.product_uom_id"/>
+                                                                    )
+                                                                </strong>
+                                                            </div>
+                                                        </t>
+                                                    </t>
+
+                                                    <!-- Si SÍ hay movimientos: agrupar por ubicación -->
+                                                    <t t-else="">
+                                                        <t t-set="ubicaciones"
+                                                           t-value="move_lines.mapped('location_id')"/>
+
+                                                        <t t-foreach="ubicaciones" t-as="loc">
+                                                            <div class="loc-container">
+                                                                <span class="loc-header">Ubicación:
+                                                                    <span t-field="loc.display_name"/>
+                                                                </span>
+
+                                                                <t t-foreach="factura.invoice_line_ids" t-as="line">
+                                                                    <t t-set="detalles"
+                                                                       t-value="line.sale_line_ids.move_ids.move_line_ids.filtered(lambda ml: ml.location_id == loc)"/>
+
+                                                                    <div t-if="detalles" class="product-line">
+                                                                        <span class="product-bullet">•</span>
+                                                                        (<span t-field="line.product_id.default_code"/>)
+                                                                        <span t-field="line.product_id.name"/>
+                                                                        <strong>(
+                                                                            <span t-esc="sum(detalles.mapped('quantity'))"/>
+                                                                            <span t-field="line.product_uom_id"/>
+                                                                            )
+                                                                        </strong>
+                                                                    </div>
+                                                                </t>
+
+                                                            </div>
+                                                        </t>
                                                     </t>
                                                 </td>
+
                                                 <td>
                                                     <span t-field="factura.partner_id.name"/>
                                                 </td>
