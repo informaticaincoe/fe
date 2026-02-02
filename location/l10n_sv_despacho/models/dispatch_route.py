@@ -87,6 +87,11 @@ class DispatchRoute(models.Model):
     expected_cash_total = fields.Monetary(string="Esperado contado entregado", currency_field="currency_id", readonly=True)
     cash_difference = fields.Monetary(string="Diferencia", currency_field="currency_id", readonly=True)
     last_reception_id = fields.Many2one("dispatch.route.reception", string="Última recepción", readonly=True)
+    invoice_names = fields.Text(string="Facturas", compute="_compute_invoice_names", store=False)
+
+    def _compute_invoice_names(self):
+        for r in self:
+            r.invoice_names = "\n".join([f"• {x}" for x in r.account_move_ids.mapped("name")])
 
     @api.constrains('assistant_ids')
     def _check_max_assistants(self):
