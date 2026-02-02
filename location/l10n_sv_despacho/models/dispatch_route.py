@@ -16,6 +16,22 @@ class DispatchRoute(models.Model):
     _description = 'Ruta de Despacho'
     _inherit = ['mail.thread', 'mail.activity.mixin'] # chatter + actividades
 
+    sale_order_ids = fields.Many2many(
+        "sale.order",
+        string="Órdenes de facturación",
+        compute="_compute_sale_orders",
+        inverse="_inverse_sale_orders",
+        domain=[("dispatch_route_id", "=", False)],
+        required=True,
+    )
+
+    invoice_ids = fields.Many2many(
+        "account.move",
+        string="Facturas relacionadas",
+        compute="_compute_invoices_from_orders",
+        readonly=True,
+    )
+
     name = fields.Char(string='Referencia', readonly=True, copy=False, default='/')
     route_manager_id = fields.Many2one('res.users', string='Responsable de ruta', default=lambda self: self.env.user)
     route_supervisor_id = fields.Many2one(
@@ -76,7 +92,6 @@ class DispatchRoute(models.Model):
         compute='_compute_account_moves',
         inverse='_inverse_account_moves',
         string='Documentos electrónicos',
-        required=True
     )
 
     #AGREGADO POR FRAN
@@ -87,6 +102,25 @@ class DispatchRoute(models.Model):
     expected_cash_total = fields.Monetary(string="Esperado contado entregado", currency_field="currency_id", readonly=True)
     cash_difference = fields.Monetary(string="Diferencia", currency_field="currency_id", readonly=True)
     last_reception_id = fields.Many2one("dispatch.route.reception", string="Última recepción", readonly=True)
+
+    def _compute_sale_orders(self):
+        for route in self:
+            route.sale_order_ids = self.env["sale.order"].search([("dispatch_route_id", "=", route.id)])
+
+    def _inverse_sale_orders(self):
+        for route in self:
+            current = self.env["sale.order"].search([("dispatch_route_id", "=", route.id)])
+            selected = route.sale_order_ids
+
+            (current - selected).write({"dispatch_route_id": False})
+            (selected - current).write({"dispatch_route_id": route.id})
+
+    def _compute_invoices_from_orders(self):
+        for route in self:
+            route.invoice_ids = route.sale_order_ids.mapped("invoice_ids").filtered(
+                lambda m: m.move_type in ("out_invoice", "out_refund")
+            )
+
 
     @api.constrains('assistant_ids')
     def _check_max_assistants(self):

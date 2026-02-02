@@ -10,6 +10,9 @@ class DispatchRouteInvoiceReturnLine(models.Model):
         ondelete="cascade"
     )
 
+    order_id = fields.Many2one("sale.order", related="return_id.order_id", store=True, readonly=True)
+    move_id = fields.Many2one("account.move", related="return_id.move_id", store=True, readonly=True)
+
     select = fields.Boolean(default=True, string="Devolver")
 
     product_id = fields.Many2one(
