@@ -31,12 +31,17 @@ class DispatchRouteReception(models.Model):
     received_date = fields.Datetime(string="Fecha recepción", default=fields.Datetime.now, required=True)
 
     cash_received = fields.Monetary(string="Efectivo recibido", currency_field="currency_id", required=True, default=0.0)
-    expected_cash_total = fields.Monetary(string="Esperado contado entregado", currency_field="currency_id", compute="_compute_expected_cash_total", store=True)
+    expected_cash_total = fields.Monetary(
+        compute="_compute_expected_cash_total",
+        store=True,
+    )
     cash_difference = fields.Monetary(string="Diferencia", currency_field="currency_id", compute="_compute_difference", store=True)
 
     notes = fields.Text(string="Observaciones")
 
     line_ids = fields.One2many("dispatch.route.reception.line", "reception_id", string="Facturas")
+
+
 
     @api.model
     def create(self, vals):
@@ -49,14 +54,11 @@ class DispatchRouteReception(models.Model):
 
         if reception.route_id:
             lines = []
-            for move in reception.route_id.account_move_ids.filtered(
-                lambda m: m.move_type in ("out_invoice", "out_refund")
-            ):
+            for so in reception.route_id.sale_order_ids:
+                is_credit = bool(so.payment_term_id)  # o tu regla real
                 lines.append((0, 0, {
-                    "move_id": move.id,
-                    "partner_id": move.partner_id.id,
-                    "move_total": move.amount_total,
-                    "is_credit": bool(move.invoice_payment_term_id),
+                    "order_id": so.id,
+                    "is_credit": is_credit,
                     "status": "delivered",
                 }))
 
@@ -71,7 +73,7 @@ class DispatchRouteReception(models.Model):
         if route_id:
             route = self.env["dispatch.route"].browse(route_id)
             lines = []
-            for mv in route.account_move_ids:
+            for mv in route.invoice_ids:
                 # Heurística simple: si tiene término de pago => crédito
                 is_credit = bool(mv.invoice_payment_term_id and mv.invoice_payment_term_id.line_ids)
                 lines.append((0, 0, {
@@ -83,13 +85,14 @@ class DispatchRouteReception(models.Model):
             res["line_ids"] = self._prepare_lines_from_route(route)
         return res
 
-    @api.depends("line_ids.status", "line_ids.move_total", "line_ids.is_credit")
+    @api.depends("line_ids.status", "line_ids.is_credit", "line_ids.order_total")
     def _compute_expected_cash_total(self):
         for rec in self:
             total = 0.0
-            for ln in rec.line_ids:
-                if ln.status == "delivered" and not ln.is_credit:
-                    total += ln.move_total
+            for line in rec.line_ids:
+                # Solo efectivo (no crédito) y solo lo entregado/parcial si es tu regla
+                if not line.is_credit and line.status in ("delivered", "partial"):
+                    total += (line.order_total or 0.0)
             rec.expected_cash_total = total
 
     @api.depends("cash_received", "expected_cash_total")
@@ -140,12 +143,11 @@ class DispatchRouteReception(models.Model):
 
     ### CARGAR TODOS LOS DUCMENTOS RELACIONADOS A LA RUTA
     def _prepare_lines_from_route(self, route):
-        """ construye comando O2M para line_ids desde las facturas de la ruta """
-        lines_cmds = [(5, 0, 0)] # limpia lineas actuales
-        for mv in route.account_move_ids:
-            is_credit = bool(mv.invoice_payment_term_id and mv.invoice_payment_term_id.lines_ids)
+        lines_cmds = [(5, 0, 0)]
+        for so in route.sale_order_ids:
+            is_credit = bool(so.payment_term_id)
             lines_cmds.append((0, 0, {
-                "move_id": mv.id,
+                "order_id": so.id,
                 "status": "delivered",
                 "is_credit": is_credit,
             }))

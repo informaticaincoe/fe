@@ -41,18 +41,29 @@
 
                     <notebook>
                         <page string="Documentos Electrónicos">
-                            <field name="account_move_ids" readonly="state != 'draft'"
+                            <field name="sale_order_ids" readonly="state != 'draft'"
                                    context="{'default_dispatch_route_id': id, 'default_company_id': company_id.id, 'default_move_type': 'out_invoice', 'search_default_dte_x_zona': 1}"
                                    options="{'search_view_id': 'view_account_move_filter_inherit'}">
                                 <list editable="bottom">
-                                    <field name="name" string="Número" readonly="True"/>
-                                    <field name="partner_id" string="Cliente" readonly="True"/>
-                                    <field name="partner_phone"/>
-                                    <field name="partner_address"/>
-                                    <field name="invoice_date"/>
+                                    <field name="name"/>
+                                    <field name="partner_id"/>
+                                    <field name="date_order"/>
+                                    <field name="state"/>
+                                    <field name="invoice_status"/>
                                     <field name="amount_total"/>
+                                </list>
+                            </field>
+                        </page>
+
+                        <page string="Facturas (si ya existen)">
+                            <field name="invoice_ids">
+                                <list create="false" delete="false" edit="false">
+                                    <field name="name"/>
+                                    <field name="partner_id"/>
+                                    <field name="invoice_date"/>
                                     <field name="state"/>
                                     <field name="payment_state"/>
+                                    <field name="amount_total"/>
                                 </list>
                             </field>
                         </page>
