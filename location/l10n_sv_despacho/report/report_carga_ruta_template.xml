@@ -2,306 +2,346 @@
 <odoo>
     <data>
         <template id="report_carga_de_ruta_template">
-            <t t-name="l10n_sv_despacho.report_carga_de_ruta_template">
+            <t t-name="l10n_sv_despacho.report_recepcion_ruta_template">
                 <t t-call="web.html_container">
                     <t t-call-assets="web.assets_pdf" t-js="false"/>
                     <t t-foreach="docs" t-as="o">
                         <t t-call="web.basic_layout">
-                            <div class="page" style="padding: 20px; color: #333;">
+                            <div class="page" style="padding: 20px; color:#333;">
                                 <style>
-                                    /* ===== Base ===== */
-                                    body{
-                                    font-family: "DejaVu Sans","Liberation Sans",Arial,sans-serif;
-                                    }
-                                    .page{
-                                    font-family: "DejaVu Sans","Liberation Sans",Arial,sans-serif;
-                                    font-size: 13px;
-                                    color: #333;
-                                    }
+                                    body,.page{font-family:"Inter",Arial,sans-serif;font-size:12px;color:#333;}
+                                    .text-right{text-align:right;} .text-center{text-align:center;}
+                                    .bold{font-weight:bold;}
+                                    .title{font-size:20px;font-weight:700;color:#2C3E50;text-transform:uppercase;margin:0;}
+                                    .subtitle{font-size:12px;margin:6px 0 18px 0;color:#444;}
+                                    .badge{display:inline-block;padding:4px
+                                    10px;border-radius:12px;font-size:11px;font-weight:700;}
+                                    .badge-draft{background:#f0f0f0;color:#555;}
+                                    .badge-confirm{background:#e8f7ee;color:#1e8449;}
+                                    .wrap{width:100%;display:table !important;table-layout:fixed
+                                    !important;margin-bottom:18px;}
+                                    .cell{display:table-cell !important;vertical-align:top;border:1px solid
+                                    #E0E0E0;border-radius:8px;padding:12px;background:#fff;}
+                                    .gap{display:table-cell !important;width:15px !important;}
+                                    .info-table{width:100% !important;border:0 !important;}
+                                    .info-table td{padding:4px 0 !important;border:0 !important;}
+                                    .label{font-weight:700;color:#555;width:120px;}
+                                    .main{width:100%;border-collapse:collapse;margin-top:8px;border:1px solid #E0E0E0;}
+                                    .main thead{background:#2C3E50;color:#fff;}
+                                    .main th{padding:10px 6px;font-size:11px;text-transform:uppercase;border:1px solid
+                                    #2C3E50;}
+                                    .main td{padding:8px 6px;border-bottom:1px solid #E0E0E0;vertical-align:middle;}
+                                    .muted{color:#666;font-size:10px;}
+                                    .status-pill{display:inline-block;padding:2px
+                                    8px;border-radius:10px;font-size:10px;font-weight:700;}
+                                    .st-del{background:#e8f7ee;color:#1e8449;}
+                                    .st-par{background:#fff3e0;color:#e67e22;}
+                                    .st-nodel{background:#fdecea;color:#c0392b;}
+                                    .st-ret{background:#eef2ff;color:#3b5bdb;}
+                                    .note-row{font-size:10px;background:#fff9db;}
+                                    .summary{width:100%;display:table !important;margin-top:18px;}
+                                    .notes{display:table-cell !important;width:60%
+                                    !important;vertical-align:top;border:1px solid
+                                    #E0E0E0;border-radius:8px;padding:10px;}
+                                    .totals{display:table-cell !important;width:40%
+                                    !important;vertical-align:top;padding-left:15px;}
+                                    .totals table{width:100%;}
+                                    .totals td{padding:3px 0;}
+                                    .divider{border-top:1px solid #333;}
 
-                                    .text-right{ text-align:right; }
-                                    .text-center{ text-align:center; }
-                                    .bold{ font-weight:bold; }
+                                    table, tr, td, th {
+                                    border: noe!important;
+                                    border-color: #fff!important;
 
-                                    /* ===== Título ===== */
-                                    .report-title{
-                                    text-transform: uppercase;
-                                    color: #2C3E50;
-                                    border-bottom: 2px solid #2C3E5040;
-                                    padding-bottom: 10px;
-                                    margin-bottom: 20px;
-                                    font-size: 22px;
-                                    font-weight: 600;
-                                    }
-
-                                    /* ===== Header (2 bloques) ===== */
-                                    .header-container{
-                                    width: 100%;
-                                    margin-bottom: 30px;
-
-                                    display: table !important;
-                                    table-layout: fixed !important; /* fuerza 50/50 real */
-                                    border-collapse: separate !important
-                                    padding: 0 10px !important; /* mitad del espacio total */
-                                    margin: 0 -10px !important; /* lo compensa para que no crezca hacia afuera */
-                                    }
-
-                                    .header-container .info-block{
-                                    display: table-cell !important;
-                                    width: 50% !important;
-                                    vertical-align: top;
-
-                                    box-sizing: border-box;
-                                    border: 1px solid #E0E0E0;
-                                    border-radius: 0.5rem;
-                                    background: #fff;
-                                    padding:12px;
-                                    }
-
-
-                                    .info-block{
-                                    flex: 1 1 0; /* ambos ocupan el mismo ancho */
-                                    width: 50%;
-                                    box-sizing: border-box;
-                                    border: 1px solid #E0E0E0;
-                                    border-radius: 0.5rem;
-                                    background: #fff;
-                                    vertical-align: top;
-                                    }
-
-                                    /* Tabla superior SIN cuadrícula interna */
-                                    .info-table{
-                                    width: 100% !important;
-                                    border: 0 !important;
-                                    border-collapse: separate !important;
-                                    border-spacing: 0 !important;
-                                    }
-                                    .info-table tr,
-                                    .info-table td,
-                                    .info-table th{
-                                    border: 0 !important;
-                                    outline: 0 !important;
-                                    box-shadow: none !important;
-                                    background: transparent !important;
-                                    }
-                                    .info-table td{
-                                    padding: 6px 0 !important;
-                                    vertical-align: top;
-                                    }
-
-                                    .label-responsables{
-                                    font-weight: 600;
-                                    color: #555;
-                                    width: 100px;
-                                    }
-                                    .label{
-                                    font-weight: 700;
-                                    color: #555;
-                                    width: 65px;
-                                    }
-                                    .value{ color:#000; }
-
-                                    /* ===== Tabla principal ===== */
-                                    .main-table{
-                                    width: 100%;
-                                    border-collapse: collapse;
-                                    margin-top: 20px;
-                                    border: 1px solid #E0E0E0; /* borde exterior */
-                                    border-radius: 5px;
-                                    overflow: hidden;
-                                    }
-
-                                    .main-table thead{
-                                    font-size:14px;
-                                    font-weight: 900;
-                                    border: 1px solid #E0E0E0;
-                                    background-color:#2C3E50;
-                                    color: #fff;
-                                    }
-                                    .main-table th{
-                                    padding: 12px 8px;
-                                    text-align: left;
-                                    font-size: 12px;
-                                    text-transform: uppercase;
-                                    border: 0 !important; /* evita líneas raras en header */
-                                    }
-
-                                    /* sin líneas verticales */
-                                    .main-table th,
-                                    .main-table td{
-                                    border-left: none !important;
-                                    border-right: none !important;
-                                    }
-
-                                    /* separadores horizontales */
-                                    .main-table td{
-                                    padding: 10px 8px;
-                                    vertical-align: top;
-                                    border-bottom: 1px solid #E0E0E0;
-                                    }
-                                    .main-table tbody tr:last-child td{
-                                    border-bottom: 0;
-                                    }
-
-                                    /* ===== Detalle de ubicación ===== */
-                                    .loc-container{
-                                    margin: 8px 0 0 10px;
-                                    border-left: 2px solid #DDE1E6;
-                                    padding-left: 10px;
-                                    }
-                                    .loc-header{
-                                    background-color: #F8F9FA;
-                                    font-weight: bold;
-                                    font-size: 13px;
-                                    padding: 3px 8px;
-                                    display: block;
-                                    color: #495057;
-                                    border-radius: 3px;
-                                    }
-                                    .product-line{
-                                    font-size: 13px;
-                                    color: #666;
-                                    padding: 2px 0 2px 13px;
-                                    }
-                                    .product-bullet{
-                                    color: #2C3E50;
-                                    font-weight: bold;
-                                    margin-right: 5px;
-                                    }
-
-                                    .header-container .info-gap{
-                                    display: table-cell !important;
-                                    width: 16px !important;
                                     }
                                 </style>
 
-                                <div class="report-title text-center">Despacho de Carga</div>
-                                <p class="text-center" style="font-size: 12px;" t-esc="o.name"/>
-                                <div class="header-container">
-                                    <div class="info-block">
+                                <!-- Header -->
+                                <div class="text-center">
+                                    <p class="title">RECEPCIÓN DE RUTA</p>
+                                    <div class="subtitle">
+                                        Liquidación Previa:
+                                        <span class="bold" t-field="o.name"/>
+                                        <span style="margin-left:10px;">
+                                            <t t-if="o.state == 'confirmed'">
+                                                <span class="badge badge-confirm">CONFIRMADA (EFECTIVO RECIBIDO)</span>
+                                            </t>
+                                            <t t-else="">
+                                                <span class="badge badge-draft">BORRADOR (PENDIENTE DE RECEPCIÓN)</span>
+                                            </t>
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <!-- Info blocks -->
+                                <div class="wrap">
+                                    <div class="cell">
                                         <table class="info-table">
                                             <tr>
-                                                <td class="label-responsables">Responsable:</td>
-                                                <td class="value">
-                                                    <span t-field="o.route_manager_id"/>
+                                                <td class="label">Ruta:</td>
+                                                <td>
+                                                    <span t-field="o.route_id.name"/>
                                                 </td>
                                             </tr>
                                             <tr>
-                                                <td class="label-responsables">Supervisor:</td>
-                                                <td class="value">
-                                                    <span t-field="o.route_supervisor_id"/>
+                                                <td class="label">Responsable:</td>
+                                                <td>
+                                                    <span t-field="o.route_id.route_manager_id.name"/>
                                                 </td>
                                             </tr>
                                             <tr>
-                                                <td class="label-responsables">Conductor:</td>
-                                                <td class="value">
-                                                    <span t-field="o.route_driver_id"/>
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td class="label-responsables">Vehículo:</td>
-                                                <td class="value">
-                                                    <span t-field="o.vehicle_id"/>
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td class="label-responsables">Auxiliares:</td>
-                                                <td class="value">
-                                                    <t t-foreach="o.assistant_ids" t-as="assistant">
-                                                        <div t-field="assistant.name"/>
-                                                    </t>
+                                                <td class="label">Vehículo:</td>
+                                                <td>
+                                                    <span t-field="o.route_id.vehicle_id.name"/>
+                                                    (<span t-field="o.route_id.vehicle_id.license_plate"/>)
                                                 </td>
                                             </tr>
                                         </table>
                                     </div>
-                                    <div class="info-gap"/>
-                                    <div class="info-block">
-                                        <table class="info-table" style="margin-left: auto;">
+                                    <div class="gap"/>
+                                    <div class="cell">
+                                        <table class="info-table">
+                                            <tr>
+                                                <td class="label">Fecha recepción:</td>
+                                                <td>
+                                                    <span t-field="o.received_date"/>
+                                                </td>
+                                            </tr>
                                             <tr>
                                                 <td class="label">Zona:</td>
-                                                <td class="value">
-                                                    <span t-field="o.zone_id.name"/>
+                                                <td>
+                                                    <span t-field="o.route_id.zone_id.name"/>
                                                 </td>
                                             </tr>
                                             <tr>
-                                                <td class="label">Fecha:</td>
-                                                <td class="value">
-                                                    <span t-field="o.route_date"/>
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td class="label">Salida:</td>
-                                                <td class="value">
-                                                    <span t-field="o.departure_datetime"
-                                                          t-options="{&quot;widget&quot;: &quot;datetime&quot;, &quot;time_only&quot;: True}"/>
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td class="label">Llegada:</td>
-                                                <td class="value">
-                                                    <span t-field="o.arrival_datetime"
-                                                          t-options="{&quot;widget&quot;: &quot;datetime&quot;, &quot;time_only&quot;: True}"/>
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td class="label">Facturas:</td>
-                                                <td class="value bold">
-                                                    <span t-esc="len(o.account_move_ids)"/>
+                                                <td class="label">Recibió (CxC/Caja):</td>
+                                                <td>
+                                                    <span t-field="o.received_by_id.name"/>
                                                 </td>
                                             </tr>
                                         </table>
                                     </div>
                                 </div>
-                                <table class="main-table">
+
+                                <!-- Confirmed receipt block -->
+                                <t t-if="o.state == 'confirmed'">
+                                    <div class="wrap" style="margin-top:0;">
+                                        <div class="cell">
+                                            <div class="bold" style="margin-bottom:6px;">RECIBO DE EFECTIVO</div>
+                                            <table class="info-table">
+                                                <tr>
+                                                    <td class="label">Efectivo Recibido:</td>
+                                                    <td class="text-right bold">
+                                                        <span t-field="o.cash_received"/>
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="label">Efectivo esperado:</td>
+                                                    <td class="text-right">
+                                                        <span t-field="o.expected_cash_total"/>
+                                                    </td>
+                                                </tr>
+                                                <tr class="divider">
+                                                    <td class="label bold">Diferencia:</td>
+                                                    <td class="text-right bold">
+                                                        <span t-attf-style="color: #{'red' if o.cash_difference &lt; 0 else 'green'}"
+                                                              t-field="o.cash_difference"/>
+                                                    </td>
+                                                </tr>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </t>
+
+                                <!-- Main table -->
+                                <table class="main">
                                     <thead>
                                         <tr>
-                                            <th width="5%" class="text-center bold">Nº</th>
-                                            <th width="50%" class="text-right bold">Factura / Desglose por Estante</th>
-                                            <th width="30%" class="text-right bold">Cliente</th>
-                                            <th width="15%" class="text-right bold">Total</th>
+                                            <th width="16%">Factura</th>
+                                            <th width="28%">Cliente / Entrega</th>
+                                            <th width="10%">Tipo</th>
+                                            <th width="12%">Estatus</th>
+                                            <th width="12%" class="text-right">Total Fact.</th>
+                                            <th width="11%" class="text-right" style="background:#34495e;">Crédito
+                                                (CxC)
+                                            </th>
+                                            <th width="11%" class="text-right" style="background:#1e8449;">Contado
+                                                (Entregable)
+                                            </th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        <t t-foreach="o.account_move_ids" t-as="factura">
-                                            <tr>
-                                                <td class="text-center" style="border-right: 1px solid #000;">
-                                                    <span t-esc="factura_index + 1"/>
-                                                </td>
-                                                <td>
-                                                    <div class="bold" style="font-size: 14px; color: #2C3E50;"
-                                                         t-field="factura.name"/>
-                                                    <t t-set="ubicaciones"
-                                                       t-value="factura.invoice_line_ids.sale_line_ids.move_ids.move_line_ids.mapped('location_id')"/>
-                                                    <t t-foreach="ubicaciones" t-as="loc">
-                                                        <div class="loc-container">
-                                                            <span class="loc-header">Ubicación:
-                                                                <span t-field="loc.display_name"/>
-                                                            </span>
-                                                            <t t-foreach="factura.invoice_line_ids" t-as="line">
-                                                                <t t-set="detalles"
-                                                                   t-value="line.sale_line_ids.move_ids.move_line_ids.filtered(lambda ml: ml.location_id == loc)"/>
-                                                                <div t-if="detalles" class="product-line">
-                                                                    <span class="product-bullet">•</span>
-                                                                    <span t-field="line.product_id.name"/>
-                                                                    <strong>(
-                                                                        <span t-esc="sum(detalles.mapped('quantity'))"/>
-                                                                        <span t-field="line.product_uom_id"/>)
-                                                                    </strong>
-                                                                </div>
-                                                            </t>
-                                                        </div>
+                                        <t t-foreach="o.line_ids" t-as="line">
+                                            <!-- Nota por incidencia (debajo de la factura para que sea más claro) -->
+                                            <tr t-if="line.status in ['partial','not_delivered','returned']"
+                                                class="note-row">
+                                                <td colspan="7">
+                                                    <strong>Notas de entrega:</strong>
+                                                    <t t-if="line.not_delivered_reason">
+                                                        <span t-field="line.not_delivered_reason"/>
+                                                    </t>
+                                                    <t t-if="line.partial_note">|
+                                                        <span t-field="line.partial_note"/>
                                                     </t>
                                                 </td>
-                                                <td>
-                                                    <span t-field="factura.partner_id.name"/>
+                                            </tr>
+                                            <tr>
+                                                <td class="bold"
+                                                    style="border: 1px solid #E0E0E0 !important; border-top: 0px solid #fff !important;">
+                                                    <span t-field="line.move_id.name"/>
                                                 </td>
-                                                <td class="text-left bold">
-                                                    <span t-field="factura.amount_total"/>
+                                                <td style="border: 1px solid #E0E0E0 !important; border-top: 0px solid #fff !important;">
+                                                    <span t-field="line.partner_id.name"/>
+                                                    <br/>
+                                                    <span class="muted">Entrega / notas según estado</span>
+                                                </td>
+
+                                                <!-- Tipo -->
+                                                <td style="border: 1px solid #E0E0E0 !important; border-top: 0px solid #fff !important;">
+                                                    <t t-if="line.is_credit">
+                                                        <span class="bold">Crédito</span>
+                                                    </t>
+                                                    <t t-else="">
+                                                        <span class="bold">Contado</span>
+                                                    </t>
+                                                </td>
+
+                                                <!-- Estatus -->
+                                                <td style="border: 1px solid #E0E0E0 !important; border-top: 0px solid #fff !important;">
+                                                    <t t-if="line.status == 'delivered'">Entregado</t>
+                                                    <t t-elif="line.status == 'partial'">Parcial</t>
+                                                    <t t-elif="line.status == 'not_delivered'">No Entregado</t>
+                                                    <t t-else="">
+                                                        <span class="status-pill st-ret">Devuelto</span>
+                                                    </t>
+                                                </td>
+
+                                                <td class="text-right"
+                                                    style="border: 1px solid #E0E0E0 !important; border-top: 0px solid #fff !important;">
+                                                    <span t-field="line.move_total"/>
+                                                </td>
+
+                                                <!-- Crédito -->
+                                                <td class="text-right"
+                                                    style="border: 1px solid #E0E0E0 !important; border-top: 0px solid #fff !important;">
+                                                    <t t-if="line.is_credit and line.status in ['delivered','partial']">
+                                                        <span t-field="line.move_total"/>
+                                                    </t>
+                                                    <t t-else="">-</t>
+                                                </td>
+
+                                                <!-- Contado Entregable -->
+                                                <td class="text-right"
+                                                    style="border: 1px solid #E0E0E0 !important; border-top: 0px solid #fff !important;">
+                                                    <t t-if="(not line.is_credit) and line.status in ['delivered','partial']">
+                                                        <span t-field="line.move_total"/>
+                                                    </t>
+                                                    <t t-else="">-</t>
                                                 </td>
                                             </tr>
                                         </t>
                                     </tbody>
                                 </table>
+
+                                <!-- Summary -->
+                                <div class="summary">
+                                    <div class="notes">
+                                        <strong>Observaciones generales:</strong>
+                                        <br/>
+                                        <span t-field="o.notes"/>
+                                    </div>
+
+                                    <div class="totals">
+                                        <table>
+                                            <!-- conteos -->
+                                            <tr>
+                                                <td>Facturas:</td>
+                                                <td class="text-right">
+                                                    <span t-esc="len(o.line_ids)"/>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td>Entregadas:</td>
+                                                <td class="text-right">
+                                                    <span t-esc="len([l for l in o.line_ids if l.status == 'delivered'])"/>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td>Parciales:</td>
+                                                <td class="text-right">
+                                                    <span t-esc="len([l for l in o.line_ids if l.status == 'partial'])"/>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td>No entregadas:</td>
+                                                <td class="text-right">
+                                                    <span t-esc="len([l for l in o.line_ids if l.status == 'not_delivered'])"/>
+                                                </td>
+                                            </tr>
+
+                                            <tr>
+                                                <td colspan="2">
+                                                    <div class="divider" style="margin:6px 0;"/>
+                                                </td>
+                                            </tr>
+
+                                            <!-- totales de negocio -->
+                                            <tr>
+                                                <td>Total crédito (CxC):</td>
+                                                <td class="text-right">
+                                                    <span t-esc="sum(l.move_total for l in o.line_ids if l.is_credit and l.status in ['delivered','partial'])"
+                                                          t-options="{&quot;widget&quot;:&quot;monetary&quot;,&quot;display_currency&quot;:o.currency_id}"/>
+                                                </td>
+                                            </tr>
+                                            <tr class="bold">
+                                                <td>Efectivo esperado:</td>
+                                                <td class="text-right">
+                                                    <span t-esc="sum(l.move_total for l in o.line_ids if (not l.is_credit) and l.status in ['delivered','partial'])"
+                                                          t-options="{&quot;widget&quot;:&quot;monetary&quot;,&quot;display_currency&quot;:o.currency_id}"/>
+                                                </td>
+                                            </tr>
+
+                                            <!-- si está confirmado, mostrar recibido/diferencia aquí también -->
+                                            <t t-if="o.state == 'confirmed'">
+                                                <tr>
+                                                    <td class="bold">Efectivo Recibido:</td>
+                                                    <td class="text-right bold">
+                                                        <span t-field="o.cash_received"/>
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="bold">Diferencia:</td>
+                                                    <td class="text-right bold">
+                                                        <span t-attf-style="color: #{'red' if o.cash_difference &lt; 0 else 'green'}"
+                                                              t-field="o.cash_difference"/>
+                                                    </td>
+                                                </tr>
+                                            </t>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                <!-- Signatures -->
+                                <table style="width:100%;margin-top:60px;">
+                                    <tr>
+                                        <td class="text-center" width="50%">
+                                            <div style="border-top:1px solid #000;width:80%;margin:0 auto;padding-top:5px;">
+                                                <strong>Entregó (Responsable)</strong>
+                                                <br/>
+                                                <span t-field="o.route_id.route_manager_id.name"/>
+                                            </div>
+                                        </td>
+                                        <td class="text-center" width="50%">
+                                            <div style="border-top:1px solid #000;width:80%;margin:0 auto;padding-top:5px;">
+                                                <strong>Recibió (Caja / CxC)</strong>
+
+                                                <br/>
+                                                <span t-field="o.received_by_id.name"/>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </table>
+
                             </div>
                         </t>
                     </t>

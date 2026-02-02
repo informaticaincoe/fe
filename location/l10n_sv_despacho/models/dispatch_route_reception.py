@@ -193,6 +193,11 @@ class DispatchRouteReception(models.Model):
                 raise UserError(_("No puedes eliminar una recepción confirmada."))
         return super().unlink()
 
+    def action_download_reporte_reception(self):
+        self.ensure_one()
+
+        return self.env.ref("l10n_sv_despacho.action_report_recepcion_ruta").report_action(self)
+
 
 class DispatchRouteInvoiceReturnLine(models.Model):
     _name = "dispatch.route.invoice.return.line"
@@ -222,8 +227,6 @@ class DispatchRouteInvoiceReturnLine(models.Model):
         for ln in self:
             if ln.product_id and not ln.uom_id:
                 ln.uom_id = ln.product_id.uom_id.id
-
-
 
 
 

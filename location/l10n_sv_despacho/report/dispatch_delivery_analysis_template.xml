@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="report_dispatch_delivery_analysis_pdf">
+        <t t-name="l10n_sv_despacho.report_dispatch_delivery_analysis_pdf">
+            <t t-call="web.html_container">
+                <t t-call="web.basic_layout">
+                    <div class="page" style="padding:16px;color:#333;">
+                        <style>
+                            body,.page{font-family:"DejaVu Sans",Arial,sans-serif;font-size:11px;color:#333;}
+                            .title{font-size:18px;font-weight:700;color:#2C3E50;text-transform:uppercase;margin:0 0 6px
+                            0;text-align:center;}
+                            .subtitle{font-size:11px;text-align:center;margin:0 0 12px 0;color:#444;}
+                            .box{border:1px solid #E0E0E0;border-radius:8px;padding:10px;margin-bottom:10px;}
+                            table{width:100%;border-collapse:collapse;}
+                            th{background:#2C3E50;color:#fff;font-size:10px;text-transform:uppercase;padding:7px;border:1px
+                            solid #2C3E50;}
+                            td{padding:6px;border-bottom:1px solid #E0E0E0;vertical-align:middle;}
+                            .text-right{text-align:right;}
+                            .muted{color:#666;font-size:10px;}
+                            .badge{display:inline-block;padding:2px
+                            8px;border-radius:10px;font-size:10px;font-weight:700;}
+                            .b-confirmed{background:#e8f7ee;color:#1e8449;}
+                            .b-transit{background:#eef2ff;color:#3b5bdb;}
+                            .b-received{background:#fff3e0;color:#e67e22;}
+                            .b-cancel{background:#fdecea;color:#c0392b;}
+                            .b-del{background:#e8f7ee;color:#1e8449;}
+                            .b-par{background:#fff3e0;color:#e67e22;}
+                            .b-nodel{background:#fdecea;color:#c0392b;}
+                            .b-pend{background:#f0f0f0;color:#555;}
+                            .totals td{border:0;padding:3px 0;}
+                            .divider{border-top:1px solid #333;margin:6px 0;}
+                            table, tr, td, th {
+                            border: noe!important;
+                            border-color: #fff!important;
+                            }
+                        </style>
+
+                        <p class="title">Estados de Ruta</p>
+                        <p class="subtitle">
+                            Generado el:
+                            <t t-esc="time.strftime('%d/%m/%Y %H:%M:%S')"/>
+                            <span class="muted">| Usuario:
+                                <t t-esc="env.user.name"/>
+                            </span>
+                        </p>
+
+                        <div class="box">
+                            <table class="totals">
+                                <tr>
+                                    <td>
+                                        <strong>Registros:</strong>
+                                        <t t-esc="len(docs)"/>
+                                    </td>
+                                    <td class="text-right">
+                                        <strong>Total Monto:</strong>
+                                        <t t-set="cur"
+                                           t-value="docs and docs[0].currency_id or env.company.currency_id"/>
+                                        <t t-esc="sum(d.move_total or 0.0 for d in docs)"
+                                           t-options="{'widget':'monetary','display_currency': cur}"/>
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th width="10%">Fecha</th>
+                                    <th width="16%">Ruta</th>
+                                    <th width="14%">Estado Ruta</th>
+                                    <th width="14%">Resultado</th>
+                                    <th width="16%">Factura</th>
+                                    <th width="20%">Cliente</th>
+                                    <th width="10%" class="text-right">Monto</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <t t-foreach="docs" t-as="r">
+                                    <tr>
+                                        <td>
+                                            <t t-esc="r.date or ''"/>
+                                        </td>
+                                        <td>
+                                            <t t-esc="r.route_id.display_name or ''"/>
+                                        </td>
+
+                                        <td>
+                                            <t t-if="r.route_state == 'confirmed'">
+                                                <span class="badge b-confirmed">Confirmado</span>
+                                            </t>
+                                            <t t-elif="r.route_state == 'in_transit'">
+                                                <span class="badge b-transit">En tránsito</span>
+                                            </t>
+                                            <t t-elif="r.route_state == 'received'">
+                                                <span class="badge b-received">Recibido</span>
+                                            </t>
+                                            <t t-else="">
+                                                <span class="badge b-cancel">Cancelado</span>
+                                            </t>
+                                        </td>
+
+                                        <td>
+                                            <t t-if="r.delivery_status == 'delivered'">
+                                                <span class="badge b-del">Entregado</span>
+                                            </t>
+                                            <t t-elif="r.delivery_status == 'partial'">
+                                                <span class="badge b-par">Parcial</span>
+                                            </t>
+                                            <t t-elif="r.delivery_status == 'not_delivered'">
+                                                <span class="badge b-nodel">No entregado</span>
+                                            </t>
+                                            <t t-else="">
+                                                <span class="badge b-pend">Pendiente</span>
+                                            </t>
+                                        </td>
+
+                                        <td>
+                                            <t t-esc="r.move_id.name or ''"/>
+                                        </td>
+                                        <td>
+                                            <t t-esc="r.partner_id.display_name or ''"/>
+                                        </td>
+                                        <td class="text-right">
+                                            <t t-esc="r.move_total"
+                                               t-options="{'widget':'monetary','display_currency': (r.currency_id or env.company.currency_id)}"/>
+                                        </td>
+                                    </tr>
+                                </t>
+                            </tbody>
+                        </table>
+
+                        <div class="divider"/>
+
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+</odoo>
