@@ -50,8 +50,9 @@
                                     <field name="name"/>
                                     <field name="partner_id"/>
                                     <field name="date_order"/>
-                                    <field name="partner_munic_id"/>
                                     <field name="partner_state_id"/>
+                                    <field name="partner_munic_id"/>
+                                    <field name="partner_address" string="Dirección"/>
                                     <field name="user_id"/>
                                     <field name="amount_total"/>
                                 </list>
