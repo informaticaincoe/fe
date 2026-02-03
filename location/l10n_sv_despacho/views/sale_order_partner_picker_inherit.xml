@@ -1,0 +1,19 @@
+<odoo>
+  <record id="sale_order_form_inherit_partner_picker" model="ir.ui.view">
+    <field name="name">sale.order.form.inherit.partner.picker</field>
+    <field name="model">sale.order</field>
+    <field name="inherit_id" ref="sale.view_order_form"/>
+    <field name="arch" type="xml">
+      <xpath expr="//field[@name='partner_id']" position="attributes">
+        <attribute name="context">
+          {
+            'res_partner_search_mode': 'customer',
+            'show_address': 1,
+            'show_vat': True,
+            'tree_view_ref': 'l10n_sv_despacho.res_partner_tree_customer_picker'
+          }
+        </attribute>
+      </xpath>
+    </field>
+  </record>
+</odoo>

@@ -38,7 +38,10 @@
         'views/dispatch_delivery_analysis_views.xml',
 
         'views/dispatch_route_view.xml',
+        'views/sale_order_partner_picker_inherit.xml',
+        'views/dispatch_route_sale_order_picker_view.xml',
         'views/sale_order_dispatch_route_view.xml',
+        'views/sale_order_route_picker_views.xml',
         'views/dispatch_route_list_view.xml',
         'views/dispatch_route_reception_view.xml',
         'views/dispatch_zones_view.xml',
