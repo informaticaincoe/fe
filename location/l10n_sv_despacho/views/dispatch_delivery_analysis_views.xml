@@ -12,9 +12,9 @@
                 <field name="route_id"/>
                 <field name="route_state"/>
                 <field name="delivery_status"/>
-                <field name="move_id"/>
+                <field name="invoice_id"/>
                 <field name="partner_id"/>
-                <field name="move_total"/>
+                <field name="order_total"/>
             </list>
         </field>
     </record>
@@ -25,7 +25,7 @@
         <field name="arch" type="xml">
             <search string="Buscar estados de ruta">
                 <field name="route_id"/>
-                <field name="move_id"/>
+                <field name="invoice_id"/>
                 <field name="partner_id"/>
                 <field name="date"/>
 

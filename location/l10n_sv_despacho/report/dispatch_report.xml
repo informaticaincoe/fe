@@ -12,6 +12,7 @@
         <record id="action_report_recepcion_ruta" model="ir.actions.report">
             <field name="name">Recepción de Ruta</field>
             <field name="model">dispatch.route.reception</field>
+            <field name="paperformat_id" ref="paperformat_dispatch_carga_ruta"/>
             <field name="report_type">qweb-pdf</field>
             <field name="report_name">l10n_sv_despacho.report_recepcion_ruta_template</field>
             <field name="report_file">l10n_sv_despacho.report_recepcion_ruta_template</field>
@@ -46,6 +47,7 @@
             <record id="action_report_dispatch_delivery_analysis_pdf" model="ir.actions.report">
                 <field name="name">Estados de Ruta (PDF)</field>
                 <field name="model">dispatch.delivery.analysis</field>
+                <field name="paperformat_id" ref="paperformat_dispatch_carga_ruta"/>
                 <field name="report_type">qweb-pdf</field>
                 <field name="report_name">l10n_sv_despacho.report_dispatch_delivery_analysis_pdf</field>
                 <field name="report_file">l10n_sv_despacho.report_dispatch_delivery_analysis_pdf</field>
