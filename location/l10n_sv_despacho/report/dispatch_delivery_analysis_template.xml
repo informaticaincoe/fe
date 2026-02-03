@@ -55,8 +55,8 @@
                                         <strong>Total Monto:</strong>
                                         <t t-set="cur"
                                            t-value="docs and docs[0].currency_id or env.company.currency_id"/>
-                                        <t t-esc="sum(d.move_total or 0.0 for d in docs)"
-                                           t-options="{'widget':'monetary','display_currency': cur}"/>
+                                        <t t-esc="sum(d.order_total or 0.0 for d in docs)" t-options="{'widget':'monetary','display_currency': cur}"/>
+
                                     </td>
                                 </tr>
                             </table>
@@ -115,14 +115,13 @@
                                         </td>
 
                                         <td>
-                                            <t t-esc="r.move_id.name or ''"/>
+                                            <t t-esc="r.invoice_id.name or ''"/>
                                         </td>
                                         <td>
                                             <t t-esc="r.partner_id.display_name or ''"/>
                                         </td>
                                         <td class="text-right">
-                                            <t t-esc="r.move_total"
-                                               t-options="{'widget':'monetary','display_currency': (r.currency_id or env.company.currency_id)}"/>
+                                            <t t-esc="r.order_total"/>
                                         </td>
                                     </tr>
                                 </t>

@@ -12,7 +12,7 @@ class DispatchDeliveryAnalysis(models.TransientModel):
     user_id = fields.Many2one("res.users", default=lambda self: self.env.user, index=True, readonly=True)
 
     route_id = fields.Many2one("dispatch.route", string="Ruta", readonly=True)
-    move_id = fields.Many2one("account.move", string="Factura", readonly=True)
+    invoice_id = fields.Many2one("account.move", string="Factura", readonly=True)
     partner_id = fields.Many2one("res.partner", string="Cliente", readonly=True)
 
     route_state = fields.Selection([
@@ -30,7 +30,7 @@ class DispatchDeliveryAnalysis(models.TransientModel):
     ], string="Resultado Entrega", readonly=True)
 
     currency_id = fields.Many2one("res.currency", string="Moneda", readonly=True)
-    move_total = fields.Monetary(string="Monto Factura", currency_field="currency_id", readonly=True)
+    order_total = fields.Monetary(string="Monto", currency_field="currency_id", readonly=True)
 
     date = fields.Date(string="Fecha de Ruta", readonly=True)
 
@@ -57,23 +57,26 @@ class DispatchDeliveryAnalysis(models.TransientModel):
             ("reception_id.route_id.state", "!=", "draft"),
         ])
 
-        # move_ids ya recibidos (para excluir del bloque B)
-        received_move_ids = set(lines.mapped("move_id").ids)
+        received_invoice_ids = set(lines.mapped("invoice_id").ids)
 
         vals = []
         for l in lines:
             route = l.reception_id.route_id
             # moneda: la de la recepción/route (ambas relacionadas en tu modelo)
-            currency = l.reception_id.currency_id or route.currency_id or l.move_id.currency_id
+            currency = (
+                    l.reception_id.currency_id
+                    or route.currency_id
+                    or (l.invoice_id.currency_id if l.invoice_id else False)
+            )
 
             vals.append({
                 "user_id": uid,
                 "route_id": route.id,
-                "move_id": l.move_id.id,
+                "invoice_id": l.invoice_id.id if l.invoice_id else False,
                 "partner_id": l.partner_id.id,
                 "route_state": route.state,
                 "delivery_status": l.status,
-                "move_total": l.move_total,
+                "order_total": l.order_total,
                 "currency_id": currency.id if currency else False,
                 "date": route.route_date,
             })
@@ -85,8 +88,8 @@ class DispatchDeliveryAnalysis(models.TransientModel):
             ("dispatch_route_id", "!=", False),
             ("dispatch_route_id.state", "in", ("confirmed", "in_transit")),
         ]
-        if received_move_ids:
-            domain_pending.append(("id", "not in", list(received_move_ids)))
+        if received_invoice_ids:
+            domain_pending.append(("id", "not in", list(received_invoice_ids)))
 
         pending_moves = Move.search(domain_pending)
 
@@ -95,11 +98,11 @@ class DispatchDeliveryAnalysis(models.TransientModel):
             vals.append({
                 "user_id": uid,
                 "route_id": route.id,
-                "move_id": m.id,
+                "invoice_id": m.id,
                 "partner_id": m.partner_id.id,
                 "route_state": route.state,
                 "delivery_status": "pending",
-                "move_total": m.amount_total,
+                "order_total": m.amount_total,
                 "currency_id": m.currency_id.id,
                 "date": route.route_date,
             })

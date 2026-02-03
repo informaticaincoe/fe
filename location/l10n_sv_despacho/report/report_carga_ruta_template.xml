@@ -247,9 +247,9 @@
                                                 </td>
                                             </tr>
                                             <tr>
-                                                <td class="label">Facturas:</td>
+                                                <td class="label">Ordenes:</td>
                                                 <td class="value bold">
-                                                    <span t-esc="len(o.account_move_ids)"/>
+                                                    <span t-esc="len(o.sale_order_ids)"/>
                                                 </td>
                                             </tr>
                                         </table>
@@ -315,6 +315,27 @@
                                             </tr>
                                         </t>
                                     </tbody>
+                                </table>
+                                <table style="width:100%; display:relative; bottom:0;">
+                                    <tr style="display:flex; justify-content: between;">
+                                        <td style="width: 40vw; border: 1px solid #fff!important; margin-rigth:1rem;">
+                                            <p style="padding: 0px; padding-top:0.5rem; margin-top: 4rem; margin-bottom:0.5rem; border: 1px solid #fff!important; border-top: 1px solid #000!important; text-align: center;">
+                                                Firma responsable
+                                            </p>
+                                            <p t-field="o.route_manager_id"
+                                               style="font-size: 11px; color: #858585; text-align: center; margin: 0px; padding: 0px;"/>
+                                        </td>
+                                        <td style="width: 20vw; border: 1px solid #fff!important; margin: 0rem 2rem;">
+                                            <p style="width: 20vw; color:#fff;">------------</p>
+                                        </td>
+                                        <td style="width: 40vw; border: 1px solid #fff!important; margin-left:1rem;">
+                                            <p style="padding: 0px; padding-top:0.5rem; margin-top: 4rem; margin-bottom:0.5rem; border: 1px solid #fff!important; border-top: 1px solid #000!important; text-align: center;">
+                                                Firma supervisor
+                                            </p>
+                                            <p t-field="o.route_supervisor_id"
+                                               style="font-size: 11px; color: #858585; text-align: center; margin: 0px; padding: 0px;"/>
+                                        </td>
+                                    </tr>
                                 </table>
                             </div>
                         </t>

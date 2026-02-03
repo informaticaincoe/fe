@@ -143,8 +143,7 @@
                                                 <tr class="divider">
                                                     <td class="label bold">Diferencia:</td>
                                                     <td class="text-right bold">
-                                                        <span t-attf-style="color: #{'red' if o.cash_difference &lt; 0 else 'green'}"
-                                                              t-field="o.cash_difference"/>
+                                                        <span t-attf-style="color: #{'red' if o.cash_difference &lt; 0 else 'green'}" t-field="o.cash_difference"/>
                                                     </td>
                                                 </tr>
                                             </table>
@@ -161,19 +160,16 @@
                                             <th width="10%">Tipo</th>
                                             <th width="12%">Estatus</th>
                                             <th width="12%" class="text-right">Total Fact.</th>
-                                            <th width="11%" class="text-right" style="background:#34495e;">Crédito
-                                                (CxC)
+                                            <th width="11%" class="text-right" style="background:#34495e;">Crédito (CxC)
                                             </th>
-                                            <th width="11%" class="text-right" style="background:#1e8449;">Contado
-                                                (Entregable)
+                                            <th width="11%" class="text-right" style="background:#1e8449;">Contado (Entregable)
                                             </th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         <t t-foreach="o.line_ids" t-as="line">
                                             <!-- Nota por incidencia (debajo de la factura para que sea más claro) -->
-                                            <tr t-if="line.status in ['partial','not_delivered','returned']"
-                                                class="note-row">
+                                            <tr t-if="line.status in ['partial','not_delivered','returned']" class="note-row">
                                                 <td colspan="7">
                                                     <strong>Notas de entrega:</strong>
                                                     <t t-if="line.not_delivered_reason">
@@ -185,14 +181,13 @@
                                                 </td>
                                             </tr>
                                             <tr>
-                                                <td class="bold"
-                                                    style="border: 1px solid #E0E0E0 !important; border-top: 0px solid #fff !important;">
-                                                    <span t-field="line.move_id.name"/>
+                                                <td class="bold" style="border: 1px solid #E0E0E0 !important; border-top: 0px solid #fff !important;">
+                                                    <span t-field="line.invoice_id.name"/>
                                                 </td>
                                                 <td style="border: 1px solid #E0E0E0 !important; border-top: 0px solid #fff !important;">
                                                     <span t-field="line.partner_id.name"/>
                                                     <br/>
-                                                    <span class="muted">Entrega / notas según estado</span>
+                    <span class="muted">Entrega / notas según estado</span>
                                                 </td>
 
                                                 <!-- Tipo -->
@@ -215,25 +210,22 @@
                                                     </t>
                                                 </td>
 
-                                                <td class="text-right"
-                                                    style="border: 1px solid #E0E0E0 !important; border-top: 0px solid #fff !important;">
-                                                    <span t-field="line.move_total"/>
+                                                <td class="text-right" style="border: 1px solid #E0E0E0 !important; border-top: 0px solid #fff !important;">
+                                                    <span t-field="line.order_total"/>
                                                 </td>
 
                                                 <!-- Crédito -->
-                                                <td class="text-right"
-                                                    style="border: 1px solid #E0E0E0 !important; border-top: 0px solid #fff !important;">
+                                                <td class="text-right" style="border: 1px solid #E0E0E0 !important; border-top: 0px solid #fff !important;">
                                                     <t t-if="line.is_credit and line.status in ['delivered','partial']">
-                                                        <span t-field="line.move_total"/>
+                                                        <span t-field="line.order_total"/>
                                                     </t>
                                                     <t t-else="">-</t>
                                                 </td>
 
                                                 <!-- Contado Entregable -->
-                                                <td class="text-right"
-                                                    style="border: 1px solid #E0E0E0 !important; border-top: 0px solid #fff !important;">
+                                                <td class="text-right" style="border: 1px solid #E0E0E0 !important; border-top: 0px solid #fff !important;">
                                                     <t t-if="(not line.is_credit) and line.status in ['delivered','partial']">
-                                                        <span t-field="line.move_total"/>
+                                                        <span t-field="line.order_total"/>
                                                     </t>
                                                     <t t-else="">-</t>
                                                 </td>
@@ -245,8 +237,7 @@
                                 <!-- Summary -->
                                 <div class="summary">
                                     <div class="notes">
-                                        <strong>Observaciones generales:</strong>
-                                        <br/>
+                                        <strong>Observaciones generales:</strong><br/>
                                         <span t-field="o.notes"/>
                                     </div>
 
@@ -288,15 +279,13 @@
                                             <tr>
                                                 <td>Total crédito (CxC):</td>
                                                 <td class="text-right">
-                                                    <span t-esc="sum(l.move_total for l in o.line_ids if l.is_credit and l.status in ['delivered','partial'])"
-                                                          t-options="{&quot;widget&quot;:&quot;monetary&quot;,&quot;display_currency&quot;:o.currency_id}"/>
+                                                    <span t-esc="sum(l.order_total for l in o.line_ids if l.is_credit and l.status in ['delivered','partial'])" t-options="{&quot;widget&quot;:&quot;monetary&quot;,&quot;display_currency&quot;:o.currency_id}"/>
                                                 </td>
                                             </tr>
                                             <tr class="bold">
                                                 <td>Efectivo esperado:</td>
                                                 <td class="text-right">
-                                                    <span t-esc="sum(l.move_total for l in o.line_ids if (not l.is_credit) and l.status in ['delivered','partial'])"
-                                                          t-options="{&quot;widget&quot;:&quot;monetary&quot;,&quot;display_currency&quot;:o.currency_id}"/>
+                                                    <span t-esc="sum(l.order_total for l in o.line_ids if (not l.is_credit) and l.status in ['delivered','partial'])" t-options="{&quot;widget&quot;:&quot;monetary&quot;,&quot;display_currency&quot;:o.currency_id}"/>
                                                 </td>
                                             </tr>
 
@@ -311,8 +300,7 @@
                                                 <tr>
                                                     <td class="bold">Diferencia:</td>
                                                     <td class="text-right bold">
-                                                        <span t-attf-style="color: #{'red' if o.cash_difference &lt; 0 else 'green'}"
-                                                              t-field="o.cash_difference"/>
+                                                        <span t-attf-style="color: #{'red' if o.cash_difference &lt; 0 else 'green'}" t-field="o.cash_difference"/>
                                                     </td>
                                                 </tr>
                                             </t>
@@ -325,22 +313,20 @@
                                     <tr>
                                         <td class="text-center" width="50%">
                                             <div style="border-top:1px solid #000;width:80%;margin:0 auto;padding-top:5px;">
-                                                <strong>Entregó (Responsable)</strong>
-                                                <br/>
+                                                <strong>Entregó (Responsable)</strong><br/>
                                                 <span t-field="o.route_id.route_manager_id.name"/>
                                             </div>
                                         </td>
                                         <td class="text-center" width="50%">
                                             <div style="border-top:1px solid #000;width:80%;margin:0 auto;padding-top:5px;">
-                                                <strong>Recibió (Caja / CxC)</strong>
+                                                <strong>Recibió (CxC)</strong>
 
-                                                <br/>
+                                    <br/>
                                                 <span t-field="o.received_by_id.name"/>
                                             </div>
                                         </td>
                                     </tr>
                                 </table>
-
                             </div>
                         </t>
                     </t>
