@@ -16,3 +16,5 @@ access_dispatch_route_invoice_return_user,dispatch.route.invoice.return user,mod
 access_dispatch_route_invoice_return_line_user,dispatch.route.invoice.return.line user,model_dispatch_route_invoice_return_line,base.group_user,1,1,1,1
 
 access_dispatch_delivery_analysis_user,dispatch.delivery.analysis user,l10n_sv_despacho.model_dispatch_delivery_analysis,base.group_user,1,1,1,1
+
+access_previous_municipality_user,res.previous.municipality user,model_res_previous_municipality,base.group_user,1,0,0,0

@@ -22,14 +22,22 @@
                             <field name="zone_line_ids">
                                 <list editable="bottom">
                                     <field name="dpto_id" options="{'no_create': True}"/>
-                                    <field name="munic_ids" widget="many2many_tags"
+
+                                    <field name="munic_ids"
+                                           widget="many2many_tags"
+                                           string="Municipios actuales"
+                                           options="{'no_create': True}"
+                                           domain="[('dpto_id', '=', dpto_id)]"/>
+
+                                    <field name="previous_munic_ids"
+                                           widget="many2many_tags"
+                                           string="Municipios anteriores"
                                            options="{'no_create': True}"
                                            domain="[('dpto_id', '=', dpto_id)]"/>
                                 </list>
                             </field>
-
-                            <!--                              <field name="selected_munic_pcdes_json" readonly="1" invisible="1"/>-->
                         </page>
+
 
                         <page string="Mapa Dinámico">
                             <field name="selected_districts_json" invisible="1"/>
