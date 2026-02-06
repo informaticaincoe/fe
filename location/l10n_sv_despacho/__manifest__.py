@@ -58,6 +58,8 @@
         'report/report_carga_ruta_template.xml',
         'report/dispatch_delivery_analysis_template.xml',
 
+        'data/res.previous.municipality.csv',
+
         # (si necesitas que el reporte exista antes del action que lo llama, también va arriba)
     ],
 
