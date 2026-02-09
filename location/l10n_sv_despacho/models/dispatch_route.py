@@ -107,7 +107,7 @@ class DispatchRoute(models.Model):
 
     def _compute_invoice_names(self):
         for r in self:
-            r.invoice_names = "\n".join([f"• {x}" for x in r.account_move_ids.mapped("name")])
+            r.invoice_names = "\n".join([f"• {x}" for x in r.sale_order_ids.mapped("name")])
 
     def _compute_sale_orders(self):
         for route in self:
@@ -175,8 +175,8 @@ class DispatchRoute(models.Model):
             if r.state != 'draft':
                 continue
 
-            if not r.account_move_ids:
-                raise UserError(_("No es posible confirmar la ruta sin seleccionar al menos un documento electrónico."))
+            if not r.sale_order_ids:
+                raise UserError(_("No es posible confirmar la ruta sin seleccionar al menos una órden de factura."))
             r.state = 'confirmed'
 
     def action_start_transit(self):
@@ -207,6 +207,8 @@ class DispatchRoute(models.Model):
     def action_create_reception(self):
         self.ensure_one()
 
+        _logger.info("Iniciando action_create_reception | Ruta ID=%s | Estado=%s", self.id, self.state)
+
         if self.state != "in_transit":
             raise UserError(_("Solo se puede crear la recepción cuando la ruta está En tránsito."))
         if not self.departure_datetime:
@@ -224,11 +226,15 @@ class DispatchRoute(models.Model):
 
         # ➕ Si no existe, crearla
         if not reception:
+            _logger.info("No existe recepción, creando nueva | Ruta ID=%s | Company ID=%s", self.id, self.company_id.id)
             reception = Reception.create({
                 "route_id": self.id,
                 "company_id": self.company_id.id,
             })
+        else:
+            _logger.info("Recepción existente encontrada | Recepción ID=%s | Ruta ID=%s", reception.id, self.id)
 
+        _logger.info("Abriendo formulario de recepción | Recepción ID=%s", reception.id)
         # 🔁 Abrir la recepción (existente o recién creada)
         return {
             "type": "ir.actions.act_window",
@@ -238,7 +244,6 @@ class DispatchRoute(models.Model):
             "view_mode": "form",
             "target": "current",
         }
-
     #########
 
     @api.constrains('assistant_ids', 'route_driver_id')
