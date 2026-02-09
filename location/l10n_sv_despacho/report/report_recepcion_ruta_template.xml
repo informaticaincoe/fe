@@ -1,94 +1,337 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <template id="report_recepcion_ruta_template">
-        <t t-call="web.html_container">
-            <t t-foreach="docs" t-as="o">
-                <div class="page">
-                    <div class="oe_structure"/>
+    <data>
+        <template id="report_recepcion_ruta_template">
+            <t t-name="l10n_sv_despacho.report_recepcion_ruta_template">
+                <t t-call="web.html_container">
+                    <t t-call-assets="web.assets_pdf" t-js="false"/>
+                    <t t-foreach="docs" t-as="o">
+                        <t t-call="web.basic_layout">
+                            <div class="page" style="padding: 20px; color:#333;">
+                                <style>
+                                    body,.page{font-family:"DejaVu Sans",Arial,sans-serif;font-size:12px;color:#333;}
+                                    .text-right{text-align:right;} .text-center{text-align:center;}
+                                    .bold{font-weight:bold;}
+                                    .title{font-size:20px;font-weight:700;color:#2C3E50;text-transform:uppercase;margin:0;}
+                                    .subtitle{font-size:12px;margin:6px 0 18px 0;color:#444;}
+                                    .badge{display:inline-block;padding:4px
+                                    10px;border-radius:12px;font-size:11px;font-weight:700;}
+                                    .badge-draft{background:#f0f0f0;color:#555;}
+                                    .badge-confirm{background:#e8f7ee;color:#1e8449;}
+                                    .wrap{width:100%;display:table !important;table-layout:fixed
+                                    !important;margin-bottom:18px;}
+                                    .cell{display:table-cell !important;vertical-align:top;border:1px solid
+                                    #E0E0E0;border-radius:8px;padding:12px;background:#fff;}
+                                    .gap{display:table-cell !important;width:15px !important;}
+                                    .info-table{width:100% !important;border:0 !important;}
+                                    .info-table td{padding:4px 0 !important;border:0 !important;}
+                                    .label{font-weight:700;color:#555;width:120px;}
+                                    .main{width:100%;border-collapse:collapse;margin-top:8px;border:1px solid #E0E0E0;}
+                                    .main thead{background:#2C3E50;color:#fff;}
+                                    .main th{padding:10px 6px;font-size:11px;text-transform:uppercase;border:1px solid
+                                    #2C3E50;}
+                                    .main td{padding:8px 6px;border-bottom:1px solid #E0E0E0;vertical-align:middle;}
+                                    .muted{color:#666;font-size:10px;}
+                                    .status-pill{display:inline-block;padding:2px
+                                    8px;border-radius:10px;font-size:10px;font-weight:700;}
+                                    .st-del{background:#e8f7ee;color:#1e8449;}
+                                    .st-par{background:#fff3e0;color:#e67e22;}
+                                    .st-nodel{background:#fdecea;color:#c0392b;}
+                                    .st-ret{background:#eef2ff;color:#3b5bdb;}
+                                    .note-row{font-size:10px;background:#fff9db;}
+                                    .summary{width:100%;display:table !important;margin-top:18px;}
+                                    .notes{display:table-cell !important;width:60%
+                                    !important;vertical-align:top;border:1px solid
+                                    #E0E0E0;border-radius:8px;padding:10px;}
+                                    .totals{display:table-cell !important;width:40%
+                                    !important;vertical-align:top;padding-left:15px;}
+                                    .totals table{width:100%;}
+                                    .totals td{padding:3px 0;}
+                                    .divider{border-top:1px solid #333;}
 
-                    <h2 class="text-center">Recepción de Ruta:
-                        <span t-field="o.route_id.id"/>
-                    </h2>
+                                    table, tr, td, th {
+                                    border: noe!important;
+                                    border-color: #fff!important;
+                                    }
+                                </style>
 
-<!--                    <div class="row mt32 mb32">-->
-<!--                        <div class="col-6">-->
-<!--                            <strong>Recibido por:</strong>-->
-<!--                            <span t-field="o.received_by_id"/>-->
-<!--                            <br/>-->
-<!--                            <strong>Fecha:</strong>-->
-<!--                            <span t-field="o.received_date"/>-->
-<!--                        </div>-->
-<!--                        <div class="col-6 text-right">-->
-<!--                            <strong>Estado:</strong>-->
-<!--                            <span t-field="o.state"/>-->
-<!--                        </div>-->
-<!--                    </div>-->
+                                <!-- Header -->
+                                <div class="text-center">
+                                    <p class="title">RECEPCIÓN DE RUTA</p>
+                                    <div class="subtitle">
+                                        Liquidación Previa:
+                                        <span class="bold" t-field="o.name"/>
+                                        <span style="margin-left:10px;">
+                                            <t t-if="o.state == 'confirmed'">
+                                                <span class="badge badge-confirm">CONFIRMADA (EFECTIVO RECIBIDO)</span>
+                                            </t>
+                                            <t t-else="">
+                                                <span class="badge badge-draft">BORRADOR (PENDIENTE DE RECEPCIÓN)</span>
+                                            </t>
+                                        </span>
+                                    </div>
+                                </div>
 
-<!--                    <table class="table table-sm o_main_table">-->
-<!--                        <thead>-->
-<!--                            <tr>-->
-<!--                                <th>Factura</th>-->
-<!--                                <th>Estado Entrega</th>-->
-<!--                                <th>Tipo</th>-->
-<!--                                <th class="text-right">Total</th>-->
-<!--                            </tr>-->
-<!--                        </thead>-->
-<!--                        <tbody>-->
-<!--                            <t t-foreach="o.line_ids" t-as="line">-->
-<!--                                <tr>-->
-<!--                                    <td>-->
-<!--                                        <span t-field="line.move_id"/>-->
-<!--                                    </td>-->
-<!--                                    <td>-->
-<!--                                        <span t-field="line.status"/>-->
-<!--                                        <t t-if="line.not_delivered_reason">- -->
-<!--                                            <span t-field="line.not_delivered_reason"/>-->
-<!--                                        </t>-->
-<!--                                    </td>-->
-<!--                                    <td>-->
-<!--                                        <span t-if="line.is_credit">Crédito</span>-->
-<!--                                        <span t-else="">Contado</span>-->
-<!--                                    </td>-->
-<!--                                    <td class="text-right">-->
-<!--                                        <span t-field="line.move_total"/>-->
-<!--                                    </td>-->
-<!--                                </tr>-->
-<!--                            </t>-->
-<!--                        </tbody>-->
-<!--                    </table>-->
+                                <!-- Info blocks -->
+                                <div class="wrap">
+                                    <div class="cell">
+                                        <table class="info-table">
+                                            <tr>
+                                                <td class="label">Ruta:</td>
+                                                <td>
+                                                    <span t-field="o.route_id.name"/>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td class="label">Responsable:</td>
+                                                <td>
+                                                    <span t-field="o.route_id.route_manager_id.name"/>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td class="label">Vehículo:</td>
+                                                <td>
+                                                    <span t-field="o.route_id.vehicle_id.name"/>
+                                                    (<span t-field="o.route_id.vehicle_id.license_plate"/>)
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </div>
+                                    <div class="gap"/>
+                                    <div class="cell">
+                                        <table class="info-table">
+                                            <tr>
+                                                <td class="label">Fecha recepción:</td>
+                                                <td>
+                                                    <span t-field="o.received_date"/>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td class="label">Zona:</td>
+                                                <td>
+                                                    <span t-field="o.route_id.zone_id.name"/>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td class="label">Recibió (CxC/Caja):</td>
+                                                <td>
+                                                    <span t-field="o.received_by_id.name"/>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </div>
+                                </div>
 
-<!--                    <div class="row justify-content-end">-->
-<!--                        <div class="col-4">-->
-<!--                            <table class="table table-sm">-->
-<!--                                <tr>-->
-<!--                                    <td>-->
-<!--                                        <strong>Esperado (Contado):</strong>-->
-<!--                                    </td>-->
-<!--                                    <td class="text-right">-->
-<!--                                        <span t-field="o.expected_cash_total"/>-->
-<!--                                    </td>-->
-<!--                                </tr>-->
-<!--                                <tr>-->
-<!--                                    <td>-->
-<!--                                        <strong>Efectivo Recibido:</strong>-->
-<!--                                    </td>-->
-<!--                                    <td class="text-right">-->
-<!--                                        <span t-field="o.cash_received"/>-->
-<!--                                    </td>-->
-<!--                                </tr>-->
-<!--                                <tr class="border-black o_total">-->
-<!--                                    <td>-->
-<!--                                        <strong>Diferencia:</strong>-->
-<!--                                    </td>-->
-<!--                                    <td class="text-right">-->
-<!--                                        <span t-field="o.cash_difference"/>-->
-<!--                                    </td>-->
-<!--                                </tr>-->
-<!--                            </table>-->
-<!--                        </div>-->
-<!--                    </div>-->
-                </div>
+                                <!-- Confirmed receipt block -->
+                                <t t-if="o.state == 'confirmed'">
+                                    <div class="wrap" style="margin-top:0;">
+                                        <div class="cell">
+                                            <div class="bold" style="margin-bottom:6px;">RECIBO DE EFECTIVO</div>
+                                            <table class="info-table">
+                                                <tr>
+                                                    <td class="label">Efectivo Recibido:</td>
+                                                    <td class="text-right bold">
+                                                        <span t-field="o.cash_received"/>
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="label">Efectivo esperado:</td>
+                                                    <td class="text-right">
+                                                        <span t-field="o.expected_cash_total"/>
+                                                    </td>
+                                                </tr>
+                                                <tr class="divider">
+                                                    <td class="label bold">Diferencia:</td>
+                                                    <td class="text-right bold">
+                                                        <span t-attf-style="color: #{'red' if o.cash_difference &lt; 0 else 'green'}" t-field="o.cash_difference"/>
+                                                    </td>
+                                                </tr>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </t>
+
+                                <!-- Main table -->
+                                <table class="main">
+                                    <thead>
+                                        <tr>
+                                            <th width="16%">Factura</th>
+                                            <th width="28%">Cliente / Entrega</th>
+                                            <th width="10%">Tipo</th>
+                                            <th width="12%">Estatus</th>
+                                            <th width="12%" class="text-right">Total Fact.</th>
+                                            <th width="11%" class="text-right" style="background:#34495e;">Crédito (CxC)
+                                            </th>
+                                            <th width="11%" class="text-right" style="background:#1e8449;">Contado (Entregable)
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <t t-foreach="o.line_ids" t-as="line">
+                                            <!-- Nota por incidencia (debajo de la factura para que sea más claro) -->
+                                            <tr t-if="line.status in ['partial','not_delivered','returned']" class="note-row">
+                                                <td colspan="7">
+                                                    <strong>Notas de entrega:</strong>
+                                                    <t t-if="line.not_delivered_reason">
+                                                        <span t-field="line.not_delivered_reason"/>
+                                                    </t>
+                                                    <t t-if="line.partial_note">|
+                                                        <span t-field="line.partial_note"/>
+                                                    </t>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td class="bold" style="border: 1px solid #E0E0E0 !important; border-top: 0px solid #fff !important;">
+                                                    <span t-field="line.invoice_id.name"/>
+                                                </td>
+                                                <td style="border: 1px solid #E0E0E0 !important; border-top: 0px solid #fff !important;">
+                                                    <span t-field="line.partner_id.name"/>
+                                                    <br/>
+                    <span class="muted">Entrega / notas según estado</span>
+                                                </td>
+
+                                                <!-- Tipo -->
+                                                <td style="border: 1px solid #E0E0E0 !important; border-top: 0px solid #fff !important;">
+                                                    <t t-if="line.is_credit">
+                                                        <span class="bold">Crédito</span>
+                                                    </t>
+                                                    <t t-else="">
+                                                        <span class="bold">Contado</span>
+                                                    </t>
+                                                </td>
+
+                                                <!-- Estatus -->
+                                                <td style="border: 1px solid #E0E0E0 !important; border-top: 0px solid #fff !important;">
+                                                    <t t-if="line.status == 'delivered'">Entregado</t>
+                                                    <t t-elif="line.status == 'partial'">Parcial</t>
+                                                    <t t-elif="line.status == 'not_delivered'">No Entregado</t>
+                                                    <t t-else="">
+                                                        <span class="status-pill st-ret">Devuelto</span>
+                                                    </t>
+                                                </td>
+
+                                                <td class="text-right" style="border: 1px solid #E0E0E0 !important; border-top: 0px solid #fff !important;">
+                                                    <span t-field="line.order_total"/>
+                                                </td>
+
+                                                <!-- Crédito -->
+                                                <td class="text-right" style="border: 1px solid #E0E0E0 !important; border-top: 0px solid #fff !important;">
+                                                    <t t-if="line.is_credit and line.status in ['delivered','partial']">
+                                                        <span t-field="line.order_total"/>
+                                                    </t>
+                                                    <t t-else="">-</t>
+                                                </td>
+
+                                                <!-- Contado Entregable -->
+                                                <td class="text-right" style="border: 1px solid #E0E0E0 !important; border-top: 0px solid #fff !important;">
+                                                    <t t-if="(not line.is_credit) and line.status in ['delivered','partial']">
+                                                        <span t-field="line.order_total"/>
+                                                    </t>
+                                                    <t t-else="">-</t>
+                                                </td>
+                                            </tr>
+                                        </t>
+                                    </tbody>
+                                </table>
+
+                                <!-- Summary -->
+                                <div class="summary">
+                                    <div class="notes">
+                                        <strong>Observaciones generales:</strong><br/>
+                                        <span t-field="o.notes"/>
+                                    </div>
+
+                                    <div class="totals">
+                                        <table>
+                                            <!-- conteos -->
+                                            <tr>
+                                                <td>Facturas:</td>
+                                                <td class="text-right">
+                                                    <span t-esc="len(o.line_ids)"/>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td>Entregadas:</td>
+                                                <td class="text-right">
+                                                    <span t-esc="len([l for l in o.line_ids if l.status == 'delivered'])"/>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td>Parciales:</td>
+                                                <td class="text-right">
+                                                    <span t-esc="len([l for l in o.line_ids if l.status == 'partial'])"/>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td>No entregadas:</td>
+                                                <td class="text-right">
+                                                    <span t-esc="len([l for l in o.line_ids if l.status == 'not_delivered'])"/>
+                                                </td>
+                                            </tr>
+
+                                            <tr>
+                                                <td colspan="2">
+                                                    <div class="divider" style="margin:6px 0;"/>
+                                                </td>
+                                            </tr>
+
+                                            <!-- totales de negocio -->
+                                            <tr>
+                                                <td>Total crédito (CxC):</td>
+                                                <td class="text-right">
+                                                    <span t-esc="sum(l.order_total for l in o.line_ids if l.is_credit and l.status in ['delivered','partial'])" t-options="{&quot;widget&quot;:&quot;monetary&quot;,&quot;display_currency&quot;:o.currency_id}"/>
+                                                </td>
+                                            </tr>
+                                            <tr class="bold">
+                                                <td>Efectivo esperado:</td>
+                                                <td class="text-right">
+                                                    <span t-esc="sum(l.order_total for l in o.line_ids if (not l.is_credit) and l.status in ['delivered','partial'])" t-options="{&quot;widget&quot;:&quot;monetary&quot;,&quot;display_currency&quot;:o.currency_id}"/>
+                                                </td>
+                                            </tr>
+
+                                            <!-- si está confirmado, mostrar recibido/diferencia aquí también -->
+                                            <t t-if="o.state == 'confirmed'">
+                                                <tr>
+                                                    <td class="bold">Efectivo Recibido:</td>
+                                                    <td class="text-right bold">
+                                                        <span t-field="o.cash_received"/>
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="bold">Diferencia:</td>
+                                                    <td class="text-right bold">
+                                                        <span t-attf-style="color: #{'red' if o.cash_difference &lt; 0 else 'green'}" t-field="o.cash_difference"/>
+                                                    </td>
+                                                </tr>
+                                            </t>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                <!-- Signatures -->
+                                <table style="width:100%;margin-top:60px;">
+                                    <tr>
+                                        <td class="text-center" width="50%">
+                                            <div style="border-top:1px solid #000;width:80%;margin:0 auto;padding-top:5px;">
+                                                <strong>Entregó (Responsable)</strong><br/>
+                                                <span t-field="o.route_id.route_manager_id.name"/>
+                                            </div>
+                                        </td>
+                                        <td class="text-center" width="50%">
+                                            <div style="border-top:1px solid #000;width:80%;margin:0 auto;padding-top:5px;">
+                                                <strong>Recibió (CxC)</strong>
+
+                                    <br/>
+                                                <span t-field="o.received_by_id.name"/>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </t>
+                    </t>
+                </t>
             </t>
-        </t>
-    </template>
+        </template>
+    </data>
 </odoo>

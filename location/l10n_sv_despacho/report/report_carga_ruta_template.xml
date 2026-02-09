@@ -27,11 +27,12 @@
                                     .report-title{
                                     text-transform: uppercase;
                                     color: #2C3E50;
-                                    border-bottom: 2px solid #2C3E5040;
-                                    padding-bottom: 10px;
-                                    margin-bottom: 20px;
                                     font-size: 22px;
                                     font-weight: 600;
+                                    }
+
+                                    .report-num-despacho {
+                                    padding-bottom: 10px;
                                     }
 
                                     /* ===== Header (2 bloques) ===== */
@@ -174,8 +175,11 @@
                                     width: 16px !important;
                                     }
                                 </style>
-
                                 <div class="report-title text-center">Despacho de Carga</div>
+                                <p class="text-center report-num-despacho" style="font-size: 12px;">Referencia:
+
+                                    <span t-esc="o.name"/>
+                                </p>
                                 <div class="header-container">
                                     <div class="info-block">
                                         <table class="info-table">
@@ -219,7 +223,7 @@
                                             <tr>
                                                 <td class="label">Zona:</td>
                                                 <td class="value">
-                                                    <span t-field="o.zone"/>
+                                                    <span t-field="o.zone_id.name"/>
                                                 </td>
                                             </tr>
                                             <tr>
@@ -243,9 +247,9 @@
                                                 </td>
                                             </tr>
                                             <tr>
-                                                <td class="label">Facturas:</td>
+                                                <td class="label">Ordenes:</td>
                                                 <td class="value bold">
-                                                    <span t-esc="len(o.account_move_ids)"/>
+                                                    <span t-esc="len(o.sale_order_ids)"/>
                                                 </td>
                                             </tr>
                                         </table>
@@ -255,51 +259,83 @@
                                     <thead>
                                         <tr>
                                             <th width="5%" class="text-center bold">Nº</th>
-                                            <th width="50%" class="text-right bold">Factura / Desglose por Estante</th>
+                                            <th width="50%" class="text-right bold">Orden</th>
                                             <th width="30%" class="text-right bold">Cliente</th>
                                             <th width="15%" class="text-right bold">Total</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        <t t-foreach="o.account_move_ids" t-as="factura">
+                                        <t t-foreach="o.sale_order_ids" t-as="sale">
                                             <tr>
                                                 <td class="text-center" style="border-right: 1px solid #000;">
-                                                    <span t-esc="factura_index + 1"/>
+                                                    <span t-esc="sale_index + 1"/>
                                                 </td>
                                                 <td>
                                                     <div class="bold" style="font-size: 14px; color: #2C3E50;"
-                                                         t-field="factura.name"/>
-                                                    <t t-set="ubicaciones"
-                                                       t-value="factura.invoice_line_ids.sale_line_ids.move_ids.move_line_ids.mapped('location_id')"/>
-                                                    <t t-foreach="ubicaciones" t-as="loc">
-                                                        <div class="loc-container">
-                                                            <span class="loc-header">Ubicación:
-                                                                <span t-field="loc.display_name"/>
-                                                            </span>
-                                                            <t t-foreach="factura.invoice_line_ids" t-as="line">
-                                                                <t t-set="detalles"
-                                                                   t-value="line.sale_line_ids.move_ids.move_line_ids.filtered(lambda ml: ml.location_id == loc)"/>
-                                                                <div t-if="detalles" class="product-line">
+                                                         t-field="sale.name"/>
+                                                    <t t-if="sale.order_line">
+                                                        <t t-foreach="sale.order_line" t-as="line">
+                                                            <t t-if="not line.display_type">
+                                                                <div class="product-line">
                                                                     <span class="product-bullet">•</span>
                                                                     <span t-field="line.product_id.name"/>
-                                                                    <strong>(
-                                                                        <span t-esc="sum(detalles.mapped('quantity'))"/>
-                                                                        <span t-field="line.product_uom_id"/>)
-                                                                    </strong>
+                                                                    |
+
+                                                                    <t t-set="move_lines"
+                                                                       t-value="line.move_ids.mapped('move_line_ids').filtered(lambda l: l.lot_id)"/>
+
+                                                                    <t t-if="move_lines">
+                                                                        <span style="color: #666; font-size: 0.9em; margin-left: 10px;">
+                                                                            [Lote:
+
+                                                                            <t t-foreach="move_lines" t-as="ml">
+                                                                                <t t-esc="ml.lot_id.name"/>
+                                                                                <t t-if="not ml_last">,</t>
+                                                                            </t>
+                                                                            ]
+
+                                                                        </span>
+                                                                        |
+                                                                    </t>
+
+
+                                                                    <span t-field="line.product_uom_qty"/>
+                                                                    <span t-field="line.product_uom"/>
                                                                 </div>
                                                             </t>
-                                                        </div>
+                                                        </t>
                                                     </t>
                                                 </td>
                                                 <td>
-                                                    <span t-field="factura.partner_id.name"/>
+                                                    <span t-field="sale.partner_id.name"/>
                                                 </td>
                                                 <td class="text-left bold">
-                                                    <span t-field="factura.amount_total"/>
+                                                    <span t-field="sale.amount_total"/>
                                                 </td>
                                             </tr>
                                         </t>
                                     </tbody>
+                                </table>
+                                <table style="width:100%; display:relative; bottom:0;">
+                                    <tr style="display:flex; justify-content: between;">
+                                        <td style="width: 40vw; border: 1px solid #fff!important; margin-rigth:1rem;">
+                                            <p style="padding: 0px; padding-top:0.5rem; margin-top: 4rem; margin-bottom:0.5rem; border: 1px solid #fff!important; border-top: 1px solid #000!important; text-align: center;">
+                                                Firma responsable
+                                            </p>
+                                            <p t-field="o.route_manager_id"
+                                               style="font-size: 11px; color: #858585; text-align: center; margin: 0px; padding: 0px;"/>
+                                        </td>
+                                        <td style="width: 20vw; border: 1px solid #fff!important; margin: 0rem 2rem;">
+                                            <p style="width: 20vw; color:#fff;">------------</p>
+                                        </td>
+                                        <td style="width: 40vw; border: 1px solid #fff!important; margin-left:1rem;">
+                                            <p style="padding: 0px; padding-top:0.5rem; margin-top: 4rem; margin-bottom:0.5rem; border: 1px solid #fff!important; border-top: 1px solid #000!important; text-align: center;">
+                                                Firma supervisor
+                                            </p>
+                                            <p t-field="o.route_supervisor_id"
+                                               style="font-size: 11px; color: #858585; text-align: center; margin: 0px; padding: 0px;"/>
+                                        </td>
+                                    </tr>
                                 </table>
                             </div>
                         </t>

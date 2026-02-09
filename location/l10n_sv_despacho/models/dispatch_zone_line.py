@@ -21,3 +21,9 @@ class DispatchZoneLine(models.Model):
         string="Municipios",
         domain="[('dpto_id', '=', dpto_id)]"
     )
+
+    previous_munic_ids = fields.Many2many(
+        'res.previous.municipality',
+        string="Municipios anteriores",
+        domain="[('dpto_id', '=', dpto_id)]"
+    )

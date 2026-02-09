@@ -27,8 +27,10 @@ class DispatchRouteInvoiceReturn(models.Model):
     )
     currency_id = fields.Many2one(related="move_id.currency_id", store=True)
 
-    move_id = fields.Many2one("account.move", string="Factura", required=True)
-    partner_id = fields.Many2one(related="move_id.partner_id", store=True, readonly=True)
+    order_id = fields.Many2one("sale.order", string="Orden", required=True)
+    move_id = fields.Many2one("account.move", string="Factura")  # ya NO required
+
+    partner_id = fields.Many2one(related="order_id.partner_id", store=True, readonly=True)
 
     reception_id = fields.Many2one("dispatch.route.reception", required=True)
     reception_line_id = fields.Many2one("dispatch.route.reception.line", string="Línea de recepción", tracking=True)
@@ -47,6 +49,36 @@ class DispatchRouteInvoiceReturn(models.Model):
         "return_id",
         string="Productos devueltos"
     )
+
+    def action_load_products(self):
+        cmds = [Command.clear()]
+        if self.move_id:
+            src_lines = self.move_id.invoice_line_ids.filtered(lambda l: l.product_id and not l.display_type)
+            for il in src_lines:
+                uom = il.product_uom_id or il.product_id.uom_id
+                cmds.append(Command.create({
+                    "select": True,
+                    "product_id": il.product_id.id,
+                    "uom_id": uom.id,
+                    "qty_invoiced": il.quantity or 0.0,
+                    "qty_return": 0.0,
+                    "reason": "other",
+                    "note": False,
+                }))
+        else:
+            src_lines = self.order_id.order_line.filtered(lambda l: l.product_id and not l.display_type)
+            for sl in src_lines:
+                uom = sl.product_uom.id if sl.product_uom else sl.product_id.uom_id.id
+                cmds.append(Command.create({
+                    "select": True,
+                    "product_id": sl.product_id.id,
+                    "uom_id": uom,
+                    "qty_invoiced": sl.product_uom_qty or 0.0,  # “qty ordenada”
+                    "qty_return": 0.0,
+                    "reason": "other",
+                    "note": False,
+                }))
+        return cmds
 
     def _prepare_lines_from_invoice(self, move):
         cmds = [Command.clear()]

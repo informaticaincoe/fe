@@ -1,10 +1,10 @@
 <odoo>
 
-<menuitem
-        id="menu_despachos_root"
-        name="Despachos"
-        sequence="5"
-        web_icon="l10n_sv_despacho,static/description/icon.png"
+    <menuitem
+            id="menu_despachos_root"
+            name="Despachos"
+            sequence="5"
+            web_icon="l10n_sv_despacho,static/description/icon.png"
     />
 
     <menuitem
@@ -15,12 +15,13 @@
     />
 
     <menuitem
-        id="menu_despacho_rutas_list"
-        name="Rutas"
-        parent="menu_routes_cat"
-        action="action_despachos"
-        sequence="15"
+            id="menu_despacho_rutas_list"
+            name="Rutas"
+            parent="menu_routes_cat"
+            action="action_despachos"
+            sequence="15"
     />
+
 
     <menuitem
             id="menu_despacho_zonas"
@@ -31,11 +32,11 @@
     />
 
     <menuitem
-        id="menu_despacho_vehiculos"
-        name="Vehículos"
-        parent="menu_routes_cat"
-        action="action_vehiculos"
-        sequence="25"
+            id="menu_despacho_vehiculos"
+            name="Vehículos"
+            parent="menu_routes_cat"
+            action="action_vehiculos"
+            sequence="25"
     />
     <menuitem
             id="menu_reception_routes"
@@ -45,11 +46,11 @@
     />
 
     <menuitem
-        id="submenu_reception_routes"
-        name="Recepción"
-        parent="menu_reception_routes"
-        action="action_dispatch_receptions"
-        sequence="30"
+            id="submenu_reception_routes"
+            name="Recepción"
+            parent="menu_reception_routes"
+            action="action_dispatch_receptions"
+            sequence="30"
     />
 
     <menuitem id="menu_reception_returns"
@@ -65,12 +66,18 @@
             sequence="20"
     />
 
-<!--    <menuitem-->
-<!--            id="menu_reporte_entrega_ruta"-->
-<!--            name="Entrega de ruta"-->
-<!--            action="action_dispatch_route_reception"-->
-<!--            parent="menu_reportes_root"-->
-<!--            sequence="20"-->
-<!--    />-->
+    <!--    <menuitem-->
+    <!--            id="menu_reporte_entrega_ruta"-->
+    <!--            name="Entrega de ruta"-->
+    <!--            action="action_dispatch_route_reception"-->
+    <!--            parent="menu_reportes_root"-->
+    <!--            sequence="20"-->
+    <!--    />-->
+
+<menuitem id="menu_dispatch_reports"
+          name="Reportes de Ruta"
+          parent="menu_despachos_root"
+          action="action_dispatch_report_analysis_open"
+          sequence="50"/>
 
 </odoo>

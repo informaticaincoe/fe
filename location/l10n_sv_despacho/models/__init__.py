@@ -9,3 +9,7 @@ from . import dispatch_route_invoice_return
 from . import dispatch_route_invoice_return_line
 from . import dispatch_route_reception_line
 from . import res_municipality
+from . import dispatch_delivery_analysis
+from . import sale_order_dispatch_route
+from . import sale_order_route_fields
+from . import res_previous_municipality

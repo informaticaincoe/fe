@@ -1,4 +1,21 @@
 <odoo>
+
+    <record id="action_dispatch_report_analysis_server" model="ir.actions.act_window">
+        <field name="name">Reportes de Ruta</field>
+        <field name="res_model">dispatch.delivery.analysis</field>
+        <field name="view_mode">list</field>
+        <field name="view_id" ref="view_dispatch_delivery_analysis_tree"/>
+        <field name="search_view_id" ref="view_dispatch_delivery_analysis_search"/>
+        <field name="context">{}</field>
+    </record>
+
+    <record id="action_dispatch_report_analysis_open" model="ir.actions.server">
+        <field name="name">Reportes de Ruta</field>
+        <field name="model_id" ref="model_dispatch_delivery_analysis"/>
+        <field name="state">code</field>
+        <field name="code">action = env['dispatch.delivery.analysis'].action_open_report()</field>
+    </record>
+
     <record id="action_despachos" model="ir.actions.act_window">
         <field name="name">Rutas</field>
         <field name="res_model">dispatch.route</field>
@@ -26,11 +43,11 @@
         <field name="name">Vehículos</field>
         <field name="res_model">dispatch.route</field>
         <field name="view_mode">form,list</field>
-<!--        <field name="view_ids" eval="[-->
-<!--            (5,0,0),-->
-<!--            (0,0,{'view_mode':'list','view_id':ref('vehicle_dispatch_route_list')}),-->
-<!--            (0,0,{'view_mode':'form','view_id':ref('vehicle_dispatch_route_form')})-->
-<!--        ]"/>-->
+        <!--        <field name="view_ids" eval="[-->
+        <!--            (5,0,0),-->
+        <!--            (0,0,{'view_mode':'list','view_id':ref('vehicle_dispatch_route_list')}),-->
+        <!--            (0,0,{'view_mode':'form','view_id':ref('vehicle_dispatch_route_form')})-->
+        <!--        ]"/>-->
         <field name="view_mode">list,form</field>
         <field name="domain">[('vehicle_id','!=',False)]</field>
         <field name="context">{'group_by': ['vehicle_id']}</field>
@@ -40,8 +57,9 @@
             model="ir.actions.act_window">
         <field name="name">Devoluciones</field>
         <field name="res_model">dispatch.route.invoice.return</field>
-        <field name="view_mode">tree,form</field>
+        <field name="view_mode">list,form</field>
         <field name="context">{}</field>
     </record>
+
 
 </odoo>

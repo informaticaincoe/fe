@@ -33,7 +33,10 @@ class DispatchRouteReception(models.Model):
     received_date = fields.Datetime(string="Fecha recepción", default=fields.Datetime.now, required=True)
 
     cash_received = fields.Monetary(string="Efectivo recibido", currency_field="currency_id", required=True, default=0.0)
-    expected_cash_total = fields.Monetary(string="Esperado contado entregado", currency_field="currency_id", compute="_compute_expected_cash_total", store=True)
+    expected_cash_total = fields.Monetary(
+        compute="_compute_expected_cash_total",
+        store=True,
+    )
     cash_difference = fields.Monetary(string="Diferencia", currency_field="currency_id", compute="_compute_difference", store=True)
 
     notes = fields.Text(string="Observaciones")
@@ -45,37 +48,49 @@ class DispatchRouteReception(models.Model):
         receptions = super().create(vals_list)
 
         for reception, vals in zip(receptions, vals_list):
-
-            if vals.get("name", "/") == "/":
+          
+          if vals.get("name", "/") == "/":
                 reception.name = self.env["ir.sequence"].next_by_code(
                     "dispatch.route.reception"
                 ) or "/"
 
-            if reception.route_id:
-                lines = []
-                for move in reception.route_id.account_move_ids.filtered(
-                        lambda m: m.move_type in ("out_invoice", "out_refund")
-                ):
-                    is_credit = bool(
-                        move.invoice_payment_term_id
-                        and any(
-                            line.nb_days > 0
-                            for line in move.invoice_payment_term_id.line_ids)
-                    )
-                    _logger.info(
-                        "[Reception] create() Factura %s → is_credit=%s",
-                        move.name,
-                        is_credit,
-                    )
-                    lines.append((0, 0, {
-                        "move_id": move.id,
-                        "partner_id": move.partner_id.id,
-                        "move_total": move.amount_total,
-                        "is_credit": is_credit,
-                        "status": "delivered",
-                    }))
+           if reception.route_id:
+              lines = []
+              for so in reception.route_id.sale_order_ids:
+                  is_credit = bool(so.payment_term_id)  # o tu regla real
+                  lines.append((0, 0, {
+                      "order_id": so.id,
+                      "is_credit": is_credit,
+                      "status": "delivered",
+                  }))
 
-                reception.line_ids = lines
+              reception.write({"line_ids": lines})
+
+              if reception.route_id:
+                  lines = []
+                  for move in reception.route_id.account_move_ids.filtered(
+                          lambda m: m.move_type in ("out_invoice", "out_refund")
+                  ):
+                      is_credit = bool(
+                          move.invoice_payment_term_id
+                          and any(
+                              line.nb_days > 0
+                              for line in move.invoice_payment_term_id.line_ids)
+                      )
+                      _logger.info(
+                          "[Reception] create() Factura %s → is_credit=%s",
+                          move.name,
+                          is_credit,
+                      )
+                      lines.append((0, 0, {
+                          "move_id": move.id,
+                          "partner_id": move.partner_id.id,
+                          "move_total": move.amount_total,
+                          "is_credit": is_credit,
+                          "status": "delivered",
+                      }))
+
+                  reception.line_ids = lines
 
         return receptions
 
@@ -87,7 +102,7 @@ class DispatchRouteReception(models.Model):
         if route_id:
             route = self.env["dispatch.route"].browse(route_id)
             lines = []
-            for mv in route.account_move_ids:
+            for mv in route.invoice_ids:
                 # Heurística simple: si tiene término de pago => crédito
                 # is_credit = bool(mv.invoice_payment_term_id and mv.invoice_payment_term_id.line_ids)
                 is_credit = bool(
@@ -111,13 +126,14 @@ class DispatchRouteReception(models.Model):
             res["line_ids"] = self._prepare_lines_from_route(route)
         return res
 
-    @api.depends("line_ids.status", "line_ids.move_total", "line_ids.is_credit")
+    @api.depends("line_ids.status", "line_ids.is_credit", "line_ids.order_total")
     def _compute_expected_cash_total(self):
         for rec in self:
             total = 0.0
-            for ln in rec.line_ids:
-                if ln.status == "delivered" and not ln.is_credit:
-                    total += ln.move_total
+            for line in rec.line_ids:
+                # Solo efectivo (no crédito) y solo lo entregado/parcial si es tu regla
+                if not line.is_credit and line.status in ("delivered", "partial"):
+                    total += (line.order_total or 0.0)
             rec.expected_cash_total = total
 
     @api.depends("cash_received", "expected_cash_total")
@@ -172,11 +188,11 @@ class DispatchRouteReception(models.Model):
         _logger.info(
             "[ROUTE %s] Iniciando preparación de líneas desde facturas (%s documentos)",
             route.id,
-            len(route.account_move_ids),
+            len(route.sale_order_ids),
         )
 
         lines_cmds = [(5, 0, 0)] # limpia lineas actuales
-        for mv in route.account_move_ids:
+        for mv in route.sale_order_ids:
             _logger.debug(
                 "[ROUTE %s] Procesando factura %s (id=%s, payment_term=%s)",
                 route.id,
@@ -197,7 +213,7 @@ class DispatchRouteReception(models.Model):
                 is_credit,
             )
             lines_cmds.append((0, 0, {
-                "move_id": mv.id,
+                "order_id": so.id,
                 "status": "delivered",
                 "is_credit": is_credit,
             }))
@@ -245,6 +261,11 @@ class DispatchRouteReception(models.Model):
                 raise UserError(_("No puedes eliminar una recepción confirmada."))
         return super().unlink()
 
+    def action_download_reporte_reception(self):
+        self.ensure_one()
+
+        return self.env.ref("l10n_sv_despacho.action_report_recepcion_ruta").report_action(self)
+
 
 class DispatchRouteInvoiceReturnLine(models.Model):
     _name = "dispatch.route.invoice.return.line"
@@ -274,8 +295,6 @@ class DispatchRouteInvoiceReturnLine(models.Model):
         for ln in self:
             if ln.product_id and not ln.uom_id:
                 ln.uom_id = ln.product_id.uom_id.id
-
-
 
 
 

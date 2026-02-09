@@ -27,6 +27,7 @@
                     string="Devoluciones"
                     class="btn-secondary"/>
 
+                    <button name="action_download_reporte_reception" type="object" string="Reporte recepción" class="btn-primary"/>
                     <button name="action_confirm" type="object" string="Confirmar" class="btn-primary"
                             invisible="state != 'draft'"/>
                     <button name="action_set_draft" type="object" string="Restablecer a borrador" class="btn-secondary"
@@ -59,9 +60,10 @@
                     <group string="Facturas">
                         <field name="line_ids" readonly="state != 'draft'">
                             <list editable="bottom">
-                                <field name="move_id"/>
+                                <field name="order_id"/>
+                                <field name="invoice_id" readonly="1"/>
                                 <field name="partner_id" readonly="1"/>
-                                <field name="move_total" readonly="1"/>
+                                <field name="order_total" readonly="1"/>
                                 <field name="is_credit"/>
                                 <field name="status"/>
                                 <field name="not_delivered_reason" invisible="status != 'not_delivered'"/>

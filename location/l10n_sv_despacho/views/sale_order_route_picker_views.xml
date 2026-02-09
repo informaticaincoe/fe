@@ -1,0 +1,20 @@
+<odoo>
+  <record id="sale_order_tree_dispatch_route_picker" model="ir.ui.view">
+    <field name="name">sale.order.tree.dispatch.route.picker</field>
+    <field name="model">sale.order</field>
+    <field name="arch" type="xml">
+      <list string="Órdenes de facturación" create="false" edit="false" delete="false">
+        <field name="name" string="Número"/>
+        <field name="date_order" string="Fecha de la orden"/>
+        <field name="partner_id" string="Cliente"/>
+        <field name="partner_state_id" string="Departamento"/>
+        <field name="partner_munic_id" string="Municipio"/>
+        <field name="partner_address" string="Dirección"/>
+        <field name="user_id" string="Vendedor"/>
+        <!-- Quitamos Empresa -->
+        <!-- <field name="company_id" string="Empresa"/> -->
+        <field name="amount_total" string="Total"/>
+      </list>
+    </field>
+  </record>
+</odoo>
