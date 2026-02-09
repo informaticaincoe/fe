@@ -33,6 +33,7 @@ class DispatchRoute(models.Model):
     )
 
     name = fields.Char(string='Referencia', readonly=True, copy=False, default='/')
+    code_route = fields.Char(string='Codigo', readonly=True, copy=False, default='/', tracking=True)
     route_manager_id = fields.Many2one('res.users', string='Responsable de ruta', default=lambda self: self.env.user)
     route_supervisor_id = fields.Many2one(
         'res.users',
@@ -96,9 +97,9 @@ class DispatchRoute(models.Model):
 
     #AGREGADO POR FRAN
     # ---- DATOS DE RECEPCION (RESUMEN) ----
-    received_by_id = fields.Many2one("res.users", string="Recebido por", readonly=True)
+    received_by_id = fields.Many2one("res.users", string="Recibido por", readonly=True)
     received_date = fields.Datetime(string="Fecha de recepcion", readonly=True)
-    cash_received = fields.Monetary(string="Efectivo Recebido", currency_field="currency_id", readonly=True)
+    cash_received = fields.Monetary(string="Efectivo Recibido", currency_field="currency_id", readonly=True)
     expected_cash_total = fields.Monetary(string="Esperado contado entregado", currency_field="currency_id", readonly=True)
     cash_difference = fields.Monetary(string="Diferencia", currency_field="currency_id", readonly=True)
     last_reception_id = fields.Many2one("dispatch.route.reception", string="Última recepción", readonly=True)
@@ -173,6 +174,9 @@ class DispatchRoute(models.Model):
         for r in self:
             if r.state != 'draft':
                 continue
+
+            if not r.account_move_ids:
+                raise UserError(_("No es posible confirmar la ruta sin seleccionar al menos un documento electrónico."))
             r.state = 'confirmed'
 
     def action_start_transit(self):
@@ -205,6 +209,8 @@ class DispatchRoute(models.Model):
 
         if self.state != "in_transit":
             raise UserError(_("Solo se puede crear la recepción cuando la ruta está En tránsito."))
+        if not self.departure_datetime:
+            raise ValidationError(_('La hora de salida es requerida para enviar la ruta a Recepción (CxC).'))
         if not self.arrival_datetime:
             raise ValidationError(_('La hora de llegada es requerida para enviar la ruta a Recepción (CxC).'))
 
@@ -250,8 +256,11 @@ class DispatchRoute(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         for vals in vals_list:
-            if vals.get('name', '/') == '/':
-                vals['name'] = self.env['ir.sequence'].next_by_code('dispatch.route') or '/'
+            if vals.get('code_route', '/') == '/':
+                vals['code_route'] = self.env['ir.sequence'].next_by_code('dispatch.route') or '/'
+            if vals.get('zone_id'):
+                zone = self.env['dispatch.zones'].browse(vals['zone_id'])
+                vals['name'] = zone.name
         return super().create(vals_list)
 
 
@@ -269,6 +278,12 @@ class DispatchRoute(models.Model):
         print(">>>>>>> RUTA ID ", ruta.id )
 
         return self.env.ref('l10n_sv_despacho.action_report_recepcion_ruta').report_action(ruta)
+
+    @api.onchange('zone_id')
+    def _onchange_zone_id_set_name(self):
+        for rec in self:
+            if rec.zone_id:
+                rec.name = rec.zone_id.name
 
     def action_download_report_cargar_ruta(self):
         self.ensure_one()

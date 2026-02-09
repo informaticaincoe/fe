@@ -23,6 +23,7 @@
                 <sheet>
                     <group>
                         <group>
+                            <field name="code_route" readonly="True"/>
                             <field name="name" readonly="True"/>
                             <field name="route_manager_id" readonly="state != 'draft'"/>
                             <field name="route_supervisor_id" readonly="state != 'draft'"/>
@@ -34,14 +35,14 @@
                             <field name="company_id" groups="base.group_multi_company" readonly="state != 'draft'"/>
                             <field name="zone_id" readonly="state != 'draft'"/>
                             <field name="route_date" readonly="state != 'draft'"/>
-                            <field name="departure_datetime" widget="datetime" readonly="state != 'draft'"/>
+                            <field name="departure_datetime" widget="datetime" readonly="state not in('draft','in_transit')"/>
                             <field name="arrival_datetime" widget="datetime" readonly="state not in('draft','in_transit')"/>
                         </group>
                     </group>
 
                     <notebook>
                         <page string="Documentos Electrónicos">
-                            <field name="sale_order_ids"
+                            <field name="sale_order_ids" readonly="state != 'draft'"
                                    context="{
                                      'tree_view_ref': 'l10n_sv_despacho.sale_order_tree_dispatch_route_picker',
                                      'search_view_ref': 'sale.view_sales_order_filter'
@@ -89,20 +90,21 @@
                         </page>
                     </notebook>
                 </sheet>
+                <chatter/>
             </form>
         </field>
     </record>
 
     <!-- Filtro de facturas-->
-<!--    <record id="view_account_move_filter_inherit" model="ir.ui.view">-->
-<!--        <field name="name">account.move.search.inherit</field>-->
-<!--        <field name="model">account.move</field>-->
-<!--        <field name="arch" type="xml">-->
-<!--            <xpath expr="//search" position="inside">-->
-<!--                <filter string="DTEs de la zona"-->
-<!--                    name="dte_x_zona"-->
-<!--                    domain="[('dte_x_zona', '=', True)]"/>-->
-<!--            </xpath>-->
-<!--        </field>-->
-<!--    </record>-->
+    <record id="view_account_move_filter_inherit" model="ir.ui.view">
+        <field name="name">account.move.search.inherit.dte</field>
+        <field name="model">account.move</field>
+        <field name="arch" type="xml">
+            <xpath expr="//search" position="inside">
+                <filter name="dte_x_zona"
+                        string="DTEs de la zona"
+                        domain="[('dte_x_zona', '=', True)]"/>
+            </xpath>
+        </field>
+    </record>
 </odoo>
