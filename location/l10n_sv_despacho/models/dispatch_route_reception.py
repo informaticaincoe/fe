@@ -45,53 +45,41 @@ class DispatchRouteReception(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
+        _logger.info("[Reception] create() llamado | Registros a crear=%s", len(vals_list))
         receptions = super().create(vals_list)
 
         for reception, vals in zip(receptions, vals_list):
-          
-          if vals.get("name", "/") == "/":
+            _logger.info("[Reception] Registro creado | ID=%s | Route ID=%s | Name=%s",
+                         reception.id, reception.route_id.id if reception.route_id else None, reception.name)
+
+            if vals.get("name", "/") == "/":
                 reception.name = self.env["ir.sequence"].next_by_code(
                     "dispatch.route.reception"
                 ) or "/"
 
-           if reception.route_id:
-              lines = []
-              for so in reception.route_id.sale_order_ids:
-                  is_credit = bool(so.payment_term_id)  # o tu regla real
-                  lines.append((0, 0, {
-                      "order_id": so.id,
-                      "is_credit": is_credit,
-                      "status": "delivered",
-                  }))
+            lines = []
+            if reception.route_id:
+                for so in reception.route_id.sale_order_ids:
+                    is_credit = bool(
+                        so.payment_term_id
+                        and any(
+                            line.nb_days > 0
+                            for line in so.payment_term_id.line_ids)
+                    )
+                    _logger.info("[Reception] SO=%s | PaymentTerm=%s | is_credit=%s", so.name, so.payment_term_id.name if so.payment_term_id else None, is_credit)
+                    # is_credit = bool(so.payment_term_id)  # o tu regla real
+                    lines.append((0, 0, {
+                        "order_id": so.id,
+                        "is_credit": is_credit,
+                        "status": "delivered",
+                    }))
 
-              reception.write({"line_ids": lines})
-
-              if reception.route_id:
-                  lines = []
-                  for move in reception.route_id.account_move_ids.filtered(
-                          lambda m: m.move_type in ("out_invoice", "out_refund")
-                  ):
-                      is_credit = bool(
-                          move.invoice_payment_term_id
-                          and any(
-                              line.nb_days > 0
-                              for line in move.invoice_payment_term_id.line_ids)
-                      )
-                      _logger.info(
-                          "[Reception] create() Factura %s → is_credit=%s",
-                          move.name,
-                          is_credit,
-                      )
-                      lines.append((0, 0, {
-                          "move_id": move.id,
-                          "partner_id": move.partner_id.id,
-                          "move_total": move.amount_total,
-                          "is_credit": is_credit,
-                          "status": "delivered",
-                      }))
-
-                  reception.line_ids = lines
-
+                if lines:
+                    reception.write({"line_ids": lines})
+                    _logger.info("[Reception] Líneas creadas correctamente | Reception ID=%s | Total lineas=%s", reception.id, len(lines))
+                else:
+                    _logger.info("[Reception] Ruta sin órdenes de venta | Route ID=%s", reception.route_id.id)
+        _logger.info("[Reception] create() finalizado | Total creados=%s", len(receptions))
         return receptions
 
     @api.model
@@ -265,7 +253,6 @@ class DispatchRouteReception(models.Model):
         self.ensure_one()
 
         return self.env.ref("l10n_sv_despacho.action_report_recepcion_ruta").report_action(self)
-
 
 class DispatchRouteInvoiceReturnLine(models.Model):
     _name = "dispatch.route.invoice.return.line"

@@ -41,7 +41,7 @@
                     </group>
 
                     <notebook>
-                        <page string="Documentos Electrónicos">
+                        <page string="Órdenes de Factura">
                             <field name="sale_order_ids" readonly="state != 'draft'"
                                    context="{
                                      'tree_view_ref': 'l10n_sv_despacho.sale_order_tree_dispatch_route_picker',
