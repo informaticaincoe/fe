@@ -1,6 +1,8 @@
 from odoo import api, fields, models, _
 from odoo.exceptions import ValidationError, UserError
+import logging
 
+_logger = logging.getLogger(__name__)
 
 class DispatchRouteReception(models.Model):
     _name = "dispatch.route.reception"
@@ -41,41 +43,68 @@ class DispatchRouteReception(models.Model):
 
     line_ids = fields.One2many("dispatch.route.reception.line", "reception_id", string="Facturas")
 
+    @api.model_create_multi
+    def create(self, vals_list):
+        _logger.info("[Reception] create() llamado | Registros a crear=%s", len(vals_list))
+        receptions = super().create(vals_list)
 
+        for reception, vals in zip(receptions, vals_list):
+            _logger.info("[Reception] Registro creado | ID=%s | Route ID=%s | Name=%s",
+                         reception.id, reception.route_id.id if reception.route_id else None, reception.name)
 
-    @api.model
-    def create(self, vals):
-        reception = super().create(vals)
+            if vals.get("name", "/") == "/":
+                reception.name = self.env["ir.sequence"].next_by_code(
+                    "dispatch.route.reception"
+                ) or "/"
 
-        if vals.get("name", "/") == "/":
-            vals["name"] = self.env["ir.sequence"].next_by_code(
-                "dispatch.route.reception"
-            ) or "/"
-
-        if reception.route_id:
             lines = []
-            for so in reception.route_id.sale_order_ids:
-                is_credit = bool(so.payment_term_id)  # o tu regla real
-                lines.append((0, 0, {
-                    "order_id": so.id,
-                    "is_credit": is_credit,
-                    "status": "delivered",
-                }))
+            if reception.route_id:
+                for so in reception.route_id.sale_order_ids:
+                    is_credit = bool(
+                        so.payment_term_id
+                        and any(
+                            line.nb_days > 0
+                            for line in so.payment_term_id.line_ids)
+                    )
+                    _logger.info("[Reception] SO=%s | PaymentTerm=%s | is_credit=%s", so.name, so.payment_term_id.name if so.payment_term_id else None, is_credit)
+                    # is_credit = bool(so.payment_term_id)  # o tu regla real
+                    lines.append((0, 0, {
+                        "order_id": so.id,
+                        "is_credit": is_credit,
+                        "status": "delivered",
+                    }))
 
-            reception.write({"line_ids": lines})
-
-        return reception
+                if lines:
+                    reception.write({"line_ids": lines})
+                    _logger.info("[Reception] Líneas creadas correctamente | Reception ID=%s | Total lineas=%s", reception.id, len(lines))
+                else:
+                    _logger.info("[Reception] Ruta sin órdenes de venta | Route ID=%s", reception.route_id.id)
+        _logger.info("[Reception] create() finalizado | Total creados=%s", len(receptions))
+        return receptions
 
     @api.model
     def default_get(self, fields_list):
         res = super().default_get(fields_list)
         route_id = res.get("route_id") or self.env.context.get("default_route_id")
+        _logger.debug("default_get route_id=%s", route_id)
         if route_id:
             route = self.env["dispatch.route"].browse(route_id)
             lines = []
             for mv in route.invoice_ids:
                 # Heurística simple: si tiene término de pago => crédito
-                is_credit = bool(mv.invoice_payment_term_id and mv.invoice_payment_term_id.line_ids)
+                # is_credit = bool(mv.invoice_payment_term_id and mv.invoice_payment_term_id.line_ids)
+                is_credit = bool(
+                    mv.invoice_payment_term_id
+                    and any(
+                        line.nb_days > 0
+                        for line in mv.invoice_payment_term_id.line_ids)
+                )
+                _logger.info(
+                    "[ROUTE %s] default_get() Factura %s → is_credit=%s",
+                    route.id,
+                    mv.name,
+                    is_credit,
+                )
                 lines.append((0, 0, {
                     "move_id": mv.id,
                     "status": "delivered",
@@ -143,9 +172,34 @@ class DispatchRouteReception(models.Model):
 
     ### CARGAR TODOS LOS DUCMENTOS RELACIONADOS A LA RUTA
     def _prepare_lines_from_route(self, route):
-        lines_cmds = [(5, 0, 0)]
-        for so in route.sale_order_ids:
-            is_credit = bool(so.payment_term_id)
+        """ construye comando O2M para line_ids desde las facturas de la ruta """
+        _logger.info(
+            "[ROUTE %s] Iniciando preparación de líneas desde facturas (%s documentos)",
+            route.id,
+            len(route.sale_order_ids),
+        )
+
+        lines_cmds = [(5, 0, 0)] # limpia lineas actuales
+        for mv in route.sale_order_ids:
+            _logger.debug(
+                "[ROUTE %s] Procesando factura %s (id=%s, payment_term=%s)",
+                route.id,
+                mv.name,
+                mv.id,
+                mv.invoice_payment_term_id.display_name if mv.invoice_payment_term_id else None,
+            )
+            is_credit = bool(
+                mv.invoice_payment_term_id
+                and any(
+                    line.nb_days > 0
+                    for line in mv.invoice_payment_term_id.line_ids)
+            )
+            _logger.info(
+                "[ROUTE %s] Factura %s → is_credit=%s",
+                route.id,
+                mv.name,
+                is_credit,
+            )
             lines_cmds.append((0, 0, {
                 "order_id": so.id,
                 "status": "delivered",
@@ -199,7 +253,6 @@ class DispatchRouteReception(models.Model):
         self.ensure_one()
 
         return self.env.ref("l10n_sv_despacho.action_report_recepcion_ruta").report_action(self)
-
 
 class DispatchRouteInvoiceReturnLine(models.Model):
     _name = "dispatch.route.invoice.return.line"
