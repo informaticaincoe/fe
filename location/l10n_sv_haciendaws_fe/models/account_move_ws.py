@@ -187,8 +187,8 @@ class AccountMove(models.Model):
             nrc = nrc.replace("-", "")
         invoice_info["nrc"] = nrc
         invoice_info["nombre"] = self.company_id.name
-        invoice_info["codActividad"] = self.company_id.codActividad.codigo
-        invoice_info["descActividad"] = self.company_id.codActividad.valores
+        invoice_info["codActividad"] = self.company_id.codActividad.codigo if self.company_id.codActividad else None
+        invoice_info["descActividad"] = self.company_id.codActividad.valores if self.company_id.codActividad else None
         if self.company_id.nombre_comercial:
             invoice_info["nombreComercial"] = self.company_id.nombre_comercial
         else:
@@ -225,25 +225,27 @@ class AccountMove(models.Model):
             nrc = nrc.replace("-", "")
         invoice_info["nrc"] = nrc
         invoice_info["nombre"] = self.partner_id.name
-        invoice_info["codActividad"] = self.partner_id.codActividad.codigo
-        invoice_info["descActividad"] = self.partner_id.codActividad.valores
+        invoice_info["codActividad"] = self.partner_id.codActividad.codigo if self.partner_id.codActividad else None
+        invoice_info["descActividad"] = self.partner_id.codActividad.valores if self.partner_id.codActividad else None
         if self.partner_id.nombreComercial:
             invoice_info["nombreComercial"] = self.partner_id.nombreComercial
         else:
             invoice_info["nombreComercial"] = None
-        if self.partner_id.state_id.code:
-            direccion_rec["departamento"] = self.partner_id.state_id.code
-        else:
-            direccion_rec["departamento"] = None
-        if self.partner_id.munic_id.code:
-            direccion_rec["municipio"] = self.partner_id.munic_id.code
-        else:
-            direccion_rec["municicipio"] = None
-        if self.partner_id.street2:
-            direccion_rec["complemento"] = self.partner_id.street2
-        else:
-            direccion_rec["complemento"] = None
-        invoice_info["direccion"] = direccion_rec
+
+        # Dirección si está completa
+        depto = self.partner_id.state_id.code if self.partner_id.state_id else None
+        muni = self.partner_id.munic_id.code if self.partner_id.munic_id else None
+        comp = self.partner_id.street or ''
+
+        direccion_rec["departamento"] = depto
+        direccion_rec["municipio"] = muni
+        direccion_rec["complemento"] = comp
+        # invoice_info["direccion"] = direccion_rec
+        invoice_info['direccion'] = (
+            {'departamento': depto, 'municipio': muni, 'complemento': comp}
+            if depto and muni and comp else None
+        )
+
         if self.partner_id.phone:
             invoice_info["telefono"] = self.partner_id.phone
         else:
@@ -627,8 +629,8 @@ class AccountMove(models.Model):
             nrc = nrc.replace("-", "")
         invoice_info["nrc"] = nrc
         invoice_info["nombre"] = self.company_id.name
-        invoice_info["codActividad"] = self.company_id.codActividad.codigo
-        invoice_info["descActividad"] = self.company_id.codActividad.valores
+        invoice_info["codActividad"] = self.company_id.codActividad.codigo if self.company_id.codActividad else None
+        invoice_info["descActividad"] = self.company_id.codActividad.valores if self.company_id.codActividad else None
         if self.company_id.nombre_comercial:
             invoice_info["nombreComercial"] = self.company_id.nombre_comercial
         else:
@@ -658,6 +660,7 @@ class AccountMove(models.Model):
 
         # 2) campo base (NIT para 03, DUI para el resto)
         raw_doc = None
+        num_doc = None
         if self.partner_id:
             if self.partner_id.dui:
                 raw_doc = self.partner_id.dui or ''
@@ -686,20 +689,20 @@ class AccountMove(models.Model):
                 raise UserError(_(
                     "Receptor sin documento de identidad (DUI o NIT) para DTE %s.\nCliente: %s"
                 ) % (tipo_dte, self.partner_id.display_name))
-
-        # 3) limpio sólo dígitos
-        cleaned = re.sub(r'\D', '', raw_doc)
-        if not cleaned or not tipo_doc:
-            raise UserError(_("Receptor sin documento válido para DTE %s:\nraw=%r, tipo=%r") % (tipo_dte, raw_doc, tipo_doc))
-
-        # # 4) si es DTE 13, poner guión xxxxxxxx-x
-        num_doc = raw_doc  # None
-        if tipo_doc is not None and tipo_doc == constants.COD_TIPO_DOCU_DUI: #if tipo_dte == '13':
-            if len(cleaned) != 9:
-                raise UserError(_("Para DTE 01 el DUI debe ser 9 dígitos (8+1). Se dieron %d.") % len(cleaned))
-            num_doc = f"{cleaned[:8]}-{cleaned[8]}"
         else:
-            num_doc = cleaned
+            # 3) limpio sólo dígitos
+            cleaned = re.sub(r'\D', '', raw_doc)
+            if not cleaned or not tipo_doc:
+                raise UserError(_("Receptor sin documento válido para DTE %s:\nraw=%r, tipo=%r") % (tipo_dte, raw_doc, tipo_doc))
+
+            # # 4) si es DTE 13, poner guión xxxxxxxx-x
+            num_doc = raw_doc  # None
+            if tipo_doc is not None and tipo_doc == constants.COD_TIPO_DOCU_DUI: #if tipo_dte == '13':
+                if len(cleaned) != 9:
+                    raise UserError(_("Para DTE 01 el DUI debe ser 9 dígitos (8+1). Se dieron %d.") % len(cleaned))
+                num_doc = f"{cleaned[:8]}-{cleaned[8]}"
+            else:
+                num_doc = cleaned
 
         invoice_info['numDocumento'] = num_doc
         invoice_info['tipoDocumento'] = tipo_doc if num_doc else None
@@ -710,8 +713,8 @@ class AccountMove(models.Model):
 
         # 6) Nombre y actividad
         invoice_info['nombre'] = self.partner_id.name or ''
-        invoice_info['codActividad'] = getattr(self.partner_id.codActividad, 'codigo', '')
-        invoice_info['descActividad'] = getattr(self.partner_id.codActividad, 'valores', '')
+        invoice_info['codActividad'] = self.partner_id.codActividad.codigo if self.partner_id.codActividad else None
+        invoice_info['descActividad'] = self.partner_id.codActividad.valores if self.partner_id.codActividad else None
 
         # 7) Dirección si está completa
         depto = getattr(self.partner_id.state_id, 'code', None)
@@ -1315,8 +1318,8 @@ class AccountMove(models.Model):
             nrc = nrc.replace("-", "")
         invoice_info["nrc"] = nrc
         invoice_info["nombre"] = self.company_id.name
-        invoice_info["codActividad"] = self.company_id.codActividad.codigo
-        invoice_info["descActividad"] = self.company_id.codActividad.valores
+        invoice_info["codActividad"] = self.company_id.codActividad.codigo if self.company_id.codActividad else None
+        invoice_info["descActividad"] = self.company_id.codActividad.valores if self.company_id.codActividad else None
         if self.company_id.nombre_comercial:
             invoice_info["nombreComercial"] = self.company_id.nombre_comercial
         else:

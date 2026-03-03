@@ -156,6 +156,8 @@ DEVOLUCION_RENTA_CODE = 'DEV_RENTA'
 
 TYPE_REPORT_CCF = "ccf"
 TYPE_REPORT_NDC = "ndc"
+TYPE_REPORT_FCF = "fcf"
+TYPE_REPORT_NDD = "ndd"
 
 # Tipos de movimiento
 IN_INVOICE = "in_invoice"

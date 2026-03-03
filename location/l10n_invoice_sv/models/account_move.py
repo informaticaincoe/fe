@@ -321,8 +321,11 @@ class AccountMove(models.Model):
         return self.env.ref('account.account_invoices').with_user(user_admin).report_action(self)
 
     def msg_error(self, campo):
-        raise ValidationError("No puede emitir un documento si falta un campo Legal " \
-                              "Verifique %s" % campo)
+        # raise ValidationError("No puede emitir un documento si falta un campo Legal " \
+        #                       "Verifique %s" % campo)
+        _logger.error("SIT VALIDACION DTE | Invoice ID=%s | Name=%s | Partner=%s (ID=%s) | Campo faltante=%s | Usuario=%s | Context=%s",
+            self.id, self.name, self.partner_id.name, self.partner_id.id, campo, self.env.user.login, dict(self.env.context) )
+        raise UserError("No puede emitir un documento si falta un campo Legal Verifique %s" % campo)
 
     # ---------------------------------------------------------------------------------------------------------
     def sit_action_send_mail(self):
