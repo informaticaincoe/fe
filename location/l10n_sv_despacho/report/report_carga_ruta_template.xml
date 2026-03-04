@@ -176,9 +176,8 @@
                                     }
                                 </style>
                                 <div class="report-title text-center">Despacho de Carga</div>
-                                <p class="text-center report-num-despacho" style="font-size: 12px;">Referencia:
-
-                                    <span t-esc="o.name"/>
+                                <p class="text-center report-num-despacho" style="font-size: 12px;">
+                                  <span t-esc="o.code_route"/> - <span t-esc="o.name"/>
                                 </p>
                                 <div class="header-container">
                                     <div class="info-block">
@@ -235,15 +234,13 @@
                                             <tr>
                                                 <td class="label">Salida:</td>
                                                 <td class="value">
-                                                    <span t-field="o.departure_datetime"
-                                                          t-options="{&quot;widget&quot;: &quot;datetime&quot;, &quot;time_only&quot;: True}"/>
+                                                    <span t-field="o.departure_datetime" t-options="{&quot;widget&quot;: &quot;datetime&quot;, &quot;time_only&quot;: True}"/>
                                                 </td>
                                             </tr>
                                             <tr>
                                                 <td class="label">Llegada:</td>
                                                 <td class="value">
-                                                    <span t-field="o.arrival_datetime"
-                                                          t-options="{&quot;widget&quot;: &quot;datetime&quot;, &quot;time_only&quot;: True}"/>
+                                                    <span t-field="o.arrival_datetime" t-options="{&quot;widget&quot;: &quot;datetime&quot;, &quot;time_only&quot;: True}"/>
                                                 </td>
                                             </tr>
                                             <tr>
@@ -259,60 +256,54 @@
                                     <thead>
                                         <tr>
                                             <th width="5%" class="text-center bold">Nº</th>
-                                            <th width="50%" class="text-right bold">Orden</th>
+                                            <th width="10%" class="text-right bold">Orden</th>
+                                            <th width="10%" class="text-right bold">Lote</th>
+                                            <th width="30%" class="text-right bold">Producto</th>
+                                            <th width="10%" class="text-right bold">Cantidad</th>
                                             <th width="30%" class="text-right bold">Cliente</th>
-                                            <th width="15%" class="text-right bold">Total</th>
+                                            <th width="10%" class="text-right bold">Total</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         <t t-foreach="o.sale_order_ids" t-as="sale">
-                                            <tr>
-                                                <td class="text-center" style="border-right: 1px solid #000;">
-                                                    <span t-esc="sale_index + 1"/>
-                                                </td>
-                                                <td>
-                                                    <div class="bold" style="font-size: 14px; color: #2C3E50;"
-                                                         t-field="sale.name"/>
-                                                    <t t-if="sale.order_line">
-                                                        <t t-foreach="sale.order_line" t-as="line">
-                                                            <t t-if="not line.display_type">
-                                                                <div class="product-line">
-                                                                    <span class="product-bullet">•</span>
-                                                                    <span t-field="line.product_id.name"/>
-                                                                    |
-
-                                                                    <t t-set="move_lines"
-                                                                       t-value="line.move_ids.mapped('move_line_ids').filtered(lambda l: l.lot_id)"/>
-
-                                                                    <t t-if="move_lines">
-                                                                        <span style="color: #666; font-size: 0.9em; margin-left: 10px;">
-                                                                            [Lote:
-
-                                                                            <t t-foreach="move_lines" t-as="ml">
-                                                                                <t t-esc="ml.lot_id.name"/>
-                                                                                <t t-if="not ml_last">,</t>
-                                                                            </t>
-                                                                            ]
-
-                                                                        </span>
-                                                                        |
-                                                                    </t>
-
-
-                                                                    <span t-field="line.product_uom_qty"/>
-                                                                    <span t-field="line.product_uom"/>
-                                                                </div>
-                                                            </t>
+                                            <t t-foreach="sale.order_line" t-as="line">
+                                                <tr>
+                                                    <td class="text-center" style="border-right: 1px solid #000;">
+                                                        <span t-esc="sale_index + 1"/>
+                                                    </td>
+                                                    <td>
+                                                        <div class="bold" style="font-size: 14px; color: #2C3E50;" t-field="sale.name"/>
+                                                    </td>
+                                                    <td>
+                                                        <t t-set="lots" t-value="line.move_ids.filtered(lambda m: m.state == 'done').mapped('move_line_ids.lot_id')"/>
+                                                        <t t-if="lots">
+                                                            <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+                                                                <t t-foreach="lots" t-as="lot">
+                                                                    <span style="background-color:#F3D8CB; padding: 2px 8px; border-radius: 10px; display: inline-block; margin-bottom: 2px;">
+                                                                        <t t-esc="lot.name"/>
+                                                                    </span>
+                                                                </t>
+                                                            </div>
                                                         </t>
-                                                    </t>
-                                                </td>
-                                                <td>
-                                                    <span t-field="sale.partner_id.name"/>
-                                                </td>
-                                                <td class="text-left bold">
-                                                    <span t-field="sale.amount_total"/>
-                                                </td>
-                                            </tr>
+                                                        <t t-else="">
+                                                            <span style="color: #AAA; font-style: italic;">Sin lote asignado</span>
+                                                        </t>
+                                                    </td>
+                                                    <td>
+                                                        <span t-field="line.product_id.name"/>
+                                                    </td>
+                                                    <td>
+                                                        <span t-field="line.product_uom_qty"/>
+                                                        <span t-field="line.product_uom"/>
+                                                    </td>
+                                                    <td>
+                                                        <span t-field="sale.partner_id.name"/>
+                                                    </td>
+                                                    <td class="text-left bold">
+                                                        <span t-esc="line.price_total"/>
+                                                    </td>
+                                                </tr>
+                                            </t>
                                         </t>
                                     </tbody>
                                 </table>
@@ -322,8 +313,7 @@
                                             <p style="padding: 0px; padding-top:0.5rem; margin-top: 4rem; margin-bottom:0.5rem; border: 1px solid #fff!important; border-top: 1px solid #000!important; text-align: center;">
                                                 Firma responsable
                                             </p>
-                                            <p t-field="o.route_manager_id"
-                                               style="font-size: 11px; color: #858585; text-align: center; margin: 0px; padding: 0px;"/>
+                                            <p t-field="o.route_manager_id" style="font-size: 11px; color: #858585; text-align: center; margin: 0px; padding: 0px;"/>
                                         </td>
                                         <td style="width: 20vw; border: 1px solid #fff!important; margin: 0rem 2rem;">
                                             <p style="width: 20vw; color:#fff;">------------</p>
@@ -332,8 +322,7 @@
                                             <p style="padding: 0px; padding-top:0.5rem; margin-top: 4rem; margin-bottom:0.5rem; border: 1px solid #fff!important; border-top: 1px solid #000!important; text-align: center;">
                                                 Firma supervisor
                                             </p>
-                                            <p t-field="o.route_supervisor_id"
-                                               style="font-size: 11px; color: #858585; text-align: center; margin: 0px; padding: 0px;"/>
+                                            <p t-field="o.route_supervisor_id" style="font-size: 11px; color: #858585; text-align: center; margin: 0px; padding: 0px;"/>
                                         </td>
                                     </tr>
                                 </table>

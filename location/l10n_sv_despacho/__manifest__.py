@@ -43,13 +43,15 @@
         'views/sale_order_dispatch_route_view.xml',
         'views/sale_order_route_picker_views.xml',
         'views/dispatch_route_list_view.xml',
+
+        'views/dispatch_action.xml',
         'views/dispatch_route_reception_view.xml',
+
         'views/dispatch_zones_view.xml',
         'views/dispatch_route_invoice_return_views.xml',
         'views/vehicule_dispatch_route_view.xml',
 
         # 2) DESPUÉS actions y menus
-        'views/dispatch_action.xml',
         'views/dispatch_menu.xml',
 
         # 3) Reportes

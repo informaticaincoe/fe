@@ -32,6 +32,45 @@ class DispatchRoute(models.Model):
         readonly=True,
     )
 
+    # Campo técnico para recolectar los IDs de municipios de la zona
+    zone_municipality_ids = fields.Many2many(
+        'res.municipality',
+        compute="_compute_zone_municipality_ids",
+        string="Municipios permitidos",
+        store=False
+    )
+
+    @api.depends('zone_id', 'zone_id.zone_line_ids', 'zone_id.zone_line_ids.munic_ids')
+    def _compute_zone_municipality_ids(self):
+        for rec in self:
+            municipios = self.env['res.municipality']
+            if rec.zone_id and rec.zone_id.zone_line_ids:
+                municipios = rec.zone_id.zone_line_ids.mapped('munic_ids')
+
+            rec.zone_municipality_ids = municipios
+
+            # ---- BLOQUE DE DEBUG PARA FILTRADO ----
+            ids_zona = municipios.ids
+            _logger.info("=== DEBUG FILTRADO DE ÓRDENES ===")
+            _logger.info("IDs Municipios en Zona '%s': %s", rec.zone_id.name, ids_zona)
+
+            # Buscamos órdenes borradores o confirmadas sin ruta para inspeccionar sus clientes
+            ordenes_libres = self.env['sale.order'].search([
+                ('dispatch_route_id', '=', False),
+                ('state', 'not in', ['cancel'])
+            ], limit=10)  # Limitamos a 10 para no saturar el log
+
+            for so in ordenes_libres:
+                m_id = so.partner_id.munic_id.id
+                m_nombre = so.partner_id.munic_id.name
+
+                esta_en_zona = m_id in ids_zona
+                _logger.info(
+                    "Orden: %s | Cliente: %s | Municipio Cliente ID: %s (%s) | ¿Pasaría el filtro?: %s",
+                    so.name, so.partner_id.name, m_id, m_nombre, "SÍ" if esta_en_zona else "NO"
+                )
+            _logger.info("=================================")
+
     name = fields.Char(string='Referencia', readonly=True, copy=False, default='/')
     code_route = fields.Char(string='Codigo', readonly=True, copy=False, default='/', tracking=True)
     route_manager_id = fields.Many2one('res.users', string='Responsable de ruta', default=lambda self: self.env.user)
@@ -132,6 +171,9 @@ class DispatchRoute(models.Model):
     def _check_max_assistants(self):
         company = self.env.company
 
+        if not config_utils:
+            raise ValidationError(_("Falta el módulo/common_utils (config_utils). Verifica addons_path e instalación."))
+
         max_allowed_assistants = config_utils.get_config_value(self.env, 'cant_aux_ruta', company.id)
         if max_allowed_assistants is None:
             raise ValidationError(_('No se ha configurado la cantidad máxima de auxiliares para la empresa %s.') % company.name)
@@ -221,21 +263,31 @@ class DispatchRoute(models.Model):
         # 🔎 Buscar si ya existe recepción para esta ruta
         reception = Reception.search([
             ("route_id", "=", self.id),
-            # ("state", "!=", "cancel"),
         ], limit=1)
 
         # ➕ Si no existe, crearla
         if not reception:
-            _logger.info("No existe recepción, creando nueva | Ruta ID=%s | Company ID=%s", self.id, self.company_id.id)
+            _logger.info("No existe recepción, creando nueva | Ruta ID=%s", self.id)
+
+            # 1. Preparamos las líneas usando el método del modelo de recepción
+            # Pasamos 'self' que es el registro de la ruta actual
+            line_values = Reception._prepare_lines_from_route(self)
+
+            # 2. Creamos la recepción con las líneas ya incluidas
             reception = Reception.create({
                 "route_id": self.id,
                 "company_id": self.company_id.id,
+                "line_ids": line_values,  # <--- Esto inyecta las facturas
             })
         else:
-            _logger.info("Recepción existente encontrada | Recepción ID=%s | Ruta ID=%s", reception.id, self.id)
+            _logger.info("Recepción existente encontrada | Recepción ID=%s", reception.id)
+            # Opcional: Si existe pero por algún error no tiene líneas, las cargamos
+            if not reception.line_ids and reception.state == 'draft':
+                line_values = reception._prepare_lines_from_route(self)
+                reception.write({"line_ids": line_values})
 
         _logger.info("Abriendo formulario de recepción | Recepción ID=%s", reception.id)
-        # 🔁 Abrir la recepción (existente o recién creada)
+
         return {
             "type": "ir.actions.act_window",
             "name": _("Recepción de Ruta"),
@@ -244,7 +296,6 @@ class DispatchRoute(models.Model):
             "view_mode": "form",
             "target": "current",
         }
-    #########
 
     @api.constrains('assistant_ids', 'route_driver_id')
     def _check_driver_not_in_assistants(self):
@@ -305,19 +356,41 @@ class DispatchRoute(models.Model):
 
         return self.env.ref('l10n_sv_despacho.action_report_carga_ruta').report_action(ruta)
 
+    # VEHICULOS
+    vehicle_capacity = fields.Float(
+        related='vehicle_id.car_value',  # O el campo de capacidad de tu modelo de flota
+        string="Capacidad Vehículo (kg)",
+        readonly=True
+    )
 
+    total_weight = fields.Float(
+        string="Carga Total (kg)",
+        compute="_compute_total_weight",
+        store=True,
+        help="Suma del peso de todos los productos en las órdenes seleccionadas"
+    )
 
+    capacity_list_view = fields.Char(
+        string="Carga",
+        compute="_compute_capacity_list_view",
+        store=False,
+        help="Capacidad utilizada del vehiculo"
+    )
 
+    @api.depends('sale_order_ids', 'sale_order_ids.order_line.product_id.weight')
+    def _compute_total_weight(self):
+        for route in self:
+            weight = 0.0
+            for order in route.sale_order_ids:
+                # Sumamos el peso de cada línea (peso unitario * cantidad)
+                for line in order.order_line:
+                    weight += line.product_id.weight * line.product_uom_qty
+            route.total_weight = weight
 
-
-
-
-
-
-
-
-
-
-
-
-
+    @api.depends('sale_order_ids', 'sale_order_ids.order_line.product_id.weight', 'vehicle_id')
+    def _compute_capacity_list_view(self):
+        for route in self:
+            # por si vienen nulos
+            total = route.total_weight or 0.0
+            cap = route.vehicle_capacity or 0.0
+            route.capacity_list_view = f'{total} / {cap} kg'
