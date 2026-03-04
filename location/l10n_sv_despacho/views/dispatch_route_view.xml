@@ -9,7 +9,8 @@
                             invisible="state != 'draft'"/>
                     <button name="action_start_transit" type="object" string="Enviar a tránsito" class="btn-primary"
                             invisible="state != 'confirmed'"/>
-                    <button name="action_download_report_cargar_ruta" type="object" string="Reporte de carga" class="btn-primary"
+                    <button name="action_download_report_cargar_ruta" type="object" string="Reporte de carga"
+                            class="btn-primary"
                             invisible="state != 'confirmed'"/>
                     <button name="action_create_reception" type="object" string="Recepción (CxC)" class="btn-primary"
                             invisible="state != 'in_transit'"/>
@@ -17,10 +18,12 @@
                             invisible="state in ('cancel','received')"/>
                     <button name="action_set_draft" type="object" string="Establecer a borrador" class="btn-secondary"
                             invisible="state != ('cancel')"/>
-                    <field name="state" widget="statusbar" statusbar_visible="draft,confirmed,in_transit,received,cancel"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,confirmed,in_transit,received,cancel"/>
                 </header>
 
                 <sheet>
+                    <field name="zone_municipality_ids" invisible="1"/>
                     <group>
                         <group>
                             <field name="code_route" readonly="True"/>
@@ -28,21 +31,40 @@
                             <field name="route_manager_id" readonly="state != 'draft'"/>
                             <field name="route_supervisor_id" readonly="state != 'draft'"/>
                             <field name="vehicle_id" readonly="state != 'draft'"/>
+<!--                            <label for="total_weight" string="Estado de Carga"/>-->
+                            <label for="total_weight" string="Capacidad de Carga"/>
+                            <div class="o_row" name="weight_container">
+                                <field name="total_weight" nolabel="1" string="capacidad"/>
+                                <span> / </span>
+                                <field name="vehicle_capacity" nolabel="1"/>
+                                <span> kg</span>
+                            </div>
                             <field name="route_driver_id" readonly="state != 'draft'"/>
                             <field name="assistant_ids" widget="many2many_tags" readonly="state != 'draft'"/>
                         </group>
+
                         <group>
                             <field name="company_id" groups="base.group_multi_company" readonly="state != 'draft'"/>
                             <field name="zone_id" readonly="state != 'draft'"/>
                             <field name="route_date" readonly="state != 'draft'"/>
-                            <field name="departure_datetime" widget="datetime" readonly="state not in('draft','in_transit')"/>
-                            <field name="arrival_datetime" widget="datetime" readonly="state not in('draft','in_transit')"/>
+                            <field name="departure_datetime" widget="datetime"
+                                   readonly="state not in('draft','in_transit')"/>
+                            <field name="arrival_datetime" widget="datetime"
+                                   readonly="state not in('draft','in_transit')"/>
                         </group>
                     </group>
 
                     <notebook>
                         <page string="Órdenes de Factura">
-                            <field name="sale_order_ids" readonly="state != 'draft'"
+                            <!-- Mensaje cuando no hay zona -->
+                            <div class="alert alert-warning" role="alert" invisible="zone_id">
+                                <i class="fa fa-exclamation-triangle me-1"/>
+                                Seleccione una zona para poder elegir órdenes de venta.
+                            </div>
+                            <field name="sale_order_ids"
+                                   invisible="not zone_id"
+                                   readonly="state != 'draft' or not zone_id"
+                                   domain="[('dispatch_route_id', '=', False), ('partner_id.munic_id', 'in', zone_municipality_ids)]"
                                    context="{
                                      'tree_view_ref': 'l10n_sv_despacho.sale_order_tree_dispatch_route_picker',
                                      'search_view_ref': 'sale.view_sales_order_filter'
@@ -57,6 +79,8 @@
                                     <field name="user_id"/>
                                     <field name="amount_total"/>
                                 </list>
+
+
                             </field>
                         </page>
 
@@ -99,6 +123,7 @@
     <record id="view_account_move_filter_inherit" model="ir.ui.view">
         <field name="name">account.move.search.inherit.dte</field>
         <field name="model">account.move</field>
+        <field name="inherit_id" ref="account.view_account_move_filter"/>
         <field name="arch" type="xml">
             <xpath expr="//search" position="inside">
                 <filter name="dte_x_zona"

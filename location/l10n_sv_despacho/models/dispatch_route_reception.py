@@ -43,74 +43,99 @@ class DispatchRouteReception(models.Model):
 
     line_ids = fields.One2many("dispatch.route.reception.line", "reception_id", string="Facturas")
 
+    # @api.model_create_multi
+    # def create(self, vals_list):
+    #     _logger.info("[Reception] create() llamado | Registros a crear=%s", len(vals_list))
+    #     receptions = super().create(vals_list)
+    #
+    #     for reception, vals in zip(receptions, vals_list):
+    #         _logger.info("[Reception] Registro creado | ID=%s | Route ID=%s | Name=%s",
+    #                      reception.id, reception.route_id.id if reception.route_id else None, reception.name)
+    #
+    #         if vals.get("name", "/") == "/":
+    #             reception.name = self.env["ir.sequence"].next_by_code(
+    #                 "dispatch.route.reception"
+    #             ) or "/"
+    #
+    #         lines = []
+    #         if reception.route_id:
+    #             for so in reception.route_id.sale_order_ids:
+    #                 is_credit = bool(
+    #                     so.payment_term_id
+    #                     and any(
+    #                         line.nb_days > 0
+    #                         for line in so.payment_term_id.line_ids)
+    #                 )
+    #                 _logger.info("[Reception] SO=%s | PaymentTerm=%s | is_credit=%s", so.name, so.payment_term_id.name if so.payment_term_id else None, is_credit)
+    #                 # is_credit = bool(so.payment_term_id)  # o tu regla real
+    #                 lines.append((0, 0, {
+    #                     "order_id": so.id,
+    #                     "is_credit": is_credit,
+    #                     "status": "delivered",
+    #                 }))
+    #
+    #             if lines:
+    #                 reception.write({"line_ids": lines})
+    #                 _logger.info("[Reception] Líneas creadas correctamente | Reception ID=%s | Total lineas=%s", reception.id, len(lines))
+    #             else:
+    #                 _logger.info("[Reception] Ruta sin órdenes de venta | Route ID=%s", reception.route_id.id)
+    #     _logger.info("[Reception] create() finalizado | Total creados=%s", len(receptions))
+    #     return receptions
+
     @api.model_create_multi
     def create(self, vals_list):
-        _logger.info("[Reception] create() llamado | Registros a crear=%s", len(vals_list))
-        receptions = super().create(vals_list)
-
-        for reception, vals in zip(receptions, vals_list):
-            _logger.info("[Reception] Registro creado | ID=%s | Route ID=%s | Name=%s",
-                         reception.id, reception.route_id.id if reception.route_id else None, reception.name)
-
+        for vals in vals_list:
+            # Generar secuencia si no tiene una
             if vals.get("name", "/") == "/":
-                reception.name = self.env["ir.sequence"].next_by_code(
+                vals["name"] = self.env["ir.sequence"].next_by_code(
                     "dispatch.route.reception"
                 ) or "/"
 
-            lines = []
-            if reception.route_id:
-                for so in reception.route_id.sale_order_ids:
-                    is_credit = bool(
-                        so.payment_term_id
-                        and any(
-                            line.nb_days > 0
-                            for line in so.payment_term_id.line_ids)
-                    )
-                    _logger.info("[Reception] SO=%s | PaymentTerm=%s | is_credit=%s", so.name, so.payment_term_id.name if so.payment_term_id else None, is_credit)
-                    # is_credit = bool(so.payment_term_id)  # o tu regla real
-                    lines.append((0, 0, {
-                        "order_id": so.id,
-                        "is_credit": is_credit,
-                        "status": "delivered",
-                    }))
+        # Odoo se encarga de guardar las line_ids que vienen en 'vals'
+        return super().create(vals_list)
 
-                if lines:
-                    reception.write({"line_ids": lines})
-                    _logger.info("[Reception] Líneas creadas correctamente | Reception ID=%s | Total lineas=%s", reception.id, len(lines))
-                else:
-                    _logger.info("[Reception] Ruta sin órdenes de venta | Route ID=%s", reception.route_id.id)
-        _logger.info("[Reception] create() finalizado | Total creados=%s", len(receptions))
-        return receptions
+    # @api.model
+    # def default_get(self, fields_list):
+    #     res = super().default_get(fields_list)
+    #     route_id = res.get("route_id") or self.env.context.get("default_route_id")
+    #     _logger.debug("default_get route_id=%s", route_id)
+    #     if route_id:
+    #         route = self.env["dispatch.route"].browse(route_id)
+    #         lines = []
+    #         for mv in route.invoice_ids:
+    #             # Heurística simple: si tiene término de pago => crédito
+    #             # is_credit = bool(mv.invoice_payment_term_id and mv.invoice_payment_term_id.line_ids)
+    #             is_credit = bool(
+    #                 mv.invoice_payment_term_id
+    #                 and any(
+    #                     line.nb_days > 0
+    #                     for line in mv.invoice_payment_term_id.line_ids)
+    #             )
+    #             _logger.info(
+    #                 "[ROUTE %s] default_get() Factura %s → is_credit=%s",
+    #                 route.id,
+    #                 mv.name,
+    #                 is_credit,
+    #             )
+    #             lines.append((0, 0, {
+    #                 "move_id": mv.id,
+    #                 "status": "delivered",
+    #                 "is_credit": is_credit,
+    #             }))
+    #         res["line_ids"] = lines
+    #         res["line_ids"] = self._prepare_lines_from_route(route)
+    #     return res
 
     @api.model
     def default_get(self, fields_list):
+        """ Caso 1: Se abre desde el botón 'Recepción (CxC)' en la ruta """
         res = super().default_get(fields_list)
+        # Buscamos el ID de la ruta en los valores por defecto o el contexto
         route_id = res.get("route_id") or self.env.context.get("default_route_id")
-        _logger.debug("default_get route_id=%s", route_id)
+
         if route_id:
             route = self.env["dispatch.route"].browse(route_id)
-            lines = []
-            for mv in route.invoice_ids:
-                # Heurística simple: si tiene término de pago => crédito
-                # is_credit = bool(mv.invoice_payment_term_id and mv.invoice_payment_term_id.line_ids)
-                is_credit = bool(
-                    mv.invoice_payment_term_id
-                    and any(
-                        line.nb_days > 0
-                        for line in mv.invoice_payment_term_id.line_ids)
-                )
-                _logger.info(
-                    "[ROUTE %s] default_get() Factura %s → is_credit=%s",
-                    route.id,
-                    mv.name,
-                    is_credit,
-                )
-                lines.append((0, 0, {
-                    "move_id": mv.id,
-                    "status": "delivered",
-                    "is_credit": is_credit,
-                }))
-            res["line_ids"] = lines
+            # Cargamos las líneas para que el usuario las vea al abrirse la ventana
             res["line_ids"] = self._prepare_lines_from_route(route)
         return res
 
@@ -186,13 +211,13 @@ class DispatchRouteReception(models.Model):
                 route.id,
                 mv.name,
                 mv.id,
-                mv.invoice_payment_term_id.display_name if mv.invoice_payment_term_id else None,
+                mv.payment_term_id.display_name if mv.payment_term_id else None,
             )
             is_credit = bool(
-                mv.invoice_payment_term_id
+                mv.payment_term_id
                 and any(
                     line.nb_days > 0
-                    for line in mv.invoice_payment_term_id.line_ids)
+                    for line in mv.payment_term_id.line_ids)
             )
             _logger.info(
                 "[ROUTE %s] Factura %s → is_credit=%s",
@@ -201,11 +226,28 @@ class DispatchRouteReception(models.Model):
                 is_credit,
             )
             lines_cmds.append((0, 0, {
-                "order_id": so.id,
+                "order_id": mv.id,
                 "status": "delivered",
                 "is_credit": is_credit,
             }))
         return lines_cmds
+
+    # def _prepare_lines_from_route(self, route):
+    #     """ Genera los comandos para cargar las líneas de la ruta """
+    #     lines_cmds = [(5, 0, 0)]  # limpia lineas actuales
+    #     for so in route.sale_order_ids:
+    #         # Lógica de crédito basada en el término de pago de la Orden
+    #         is_credit = bool(
+    #             so.payment_term_id and
+    #             any(line.nb_days > 0 for line in so.payment_term_id.line_ids)
+    #         )
+    #
+    #         lines_cmds.append((0, 0, {
+    #             "order_id": so.id,
+    #             "status": "delivered",
+    #             "is_credit": is_credit,
+    #         }))
+    #     return lines_cmds
 
     @api.onchange("route_id")
     def _onchange_route_id_load_invoices(self):
@@ -226,6 +268,19 @@ class DispatchRouteReception(models.Model):
 
             # resetear fectivo si se cambia la ruta
             rec.cash_received = 0.0
+
+    # @api.onchange("route_id")
+    # def _onchange_route_id_load_invoices(self):
+    #     """ Caso 2: El usuario selecciona la ruta manualmente en el formulario """
+    #     for rec in self:
+    #         if not rec.route_id:
+    #             rec.line_ids = [(5, 0, 0)]  # Limpia si quitan la ruta
+    #             return
+    #
+    #         # Solo auto-carga en borrador y si no hay líneas para no sobreescribir
+    #         if rec.state == "draft" and not rec.line_ids:
+    #             rec.line_ids = rec._prepare_lines_from_route(rec.route_id)
+    #             rec.cash_received = 0.0
 
     def action_set_draft(self):
         for rec in self:

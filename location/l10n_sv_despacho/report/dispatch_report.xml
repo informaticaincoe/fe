@@ -9,6 +9,18 @@
             <field name="dpi">90</field>
         </record>
 
+         <record id="paperformat_dispatch_carga_ruta" model="report.paperformat">
+            <field name="name">Carga de ruta</field>
+            <field name="default" eval="True"/>
+            <field name="format">Letter</field>
+            <field name="margin_top">10</field>
+            <field name="margin_bottom">10</field>
+            <field name="margin_left">15</field>
+            <field name="margin_right">15</field>
+            <field name="orientation">Portrait</field>
+            <field name="dpi">90</field>
+        </record>
+
         <record id="action_report_recepcion_ruta" model="ir.actions.report">
             <field name="name">Recepción de Ruta</field>
             <field name="model">dispatch.route.reception</field>
@@ -21,17 +33,7 @@
             <field name="binding_type">report</field>
         </record>
 
-        <record id="paperformat_dispatch_carga_ruta" model="report.paperformat">
-            <field name="name">Carga de ruta</field>
-            <field name="default" eval="True"/>
-            <field name="format">Letter</field>
-            <field name="margin_top">10</field>
-            <field name="margin_bottom">10</field>
-            <field name="margin_left">15</field>
-            <field name="margin_right">15</field>
-            <field name="orientation">Portrait</field>
-            <field name="dpi">90</field>
-        </record>
+
 
         <record id="action_report_carga_ruta" model="ir.actions.report">
             <field name="name">Reporte de carga de Ruta</field>
