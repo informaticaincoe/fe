@@ -260,6 +260,8 @@ class AccountMove(models.Model):
             if move.apply_retencion_iva:
                 if tipo_doc.codigo in [constants.COD_DTE_FSE]:  # FSE
                     move.retencion_iva_amount = float_round(base_total * iva_retencion, precision_rounding=move.currency_id.rounding)
+                elif tipo_doc.codigo in [constants.COD_DTE_CCF, constants.COD_DTE_NC, constants.COD_DTE_ND]:
+                    move.retencion_iva_amount = float_round((move.sub_total_ventas - move.descuento_global) * retencion, precision_rounding=move.currency_id.rounding)
                 else:
                     move.retencion_iva_amount = float_round(((move.sub_total_ventas / 1.13) - move.descuento_global) * retencion, precision_rounding=move.currency_id.rounding)
             if move.apply_iva_percibido:
