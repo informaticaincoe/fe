@@ -18,7 +18,7 @@ tz_el_salvador = pytz.timezone('America/El_Salvador')
 import logging
 import json
 import uuid
-
+from decimal import Decimal, ROUND_HALF_UP
 _logger = logging.getLogger(__name__)
 
 try:
@@ -34,6 +34,27 @@ class AccountMove(models.Model):
     _inherit = "account.move"
 
 ######################################### FCE-SUJETO EXCLUIDO
+    def _sit_round(self, amount):
+        """
+        Redondeo centralizado para DTE.
+        """
+        DECIMALES_PERMITIDOS = 8
+
+        _logger.info("SIT_ROUND → Valor recibido: %s", amount)
+        if not amount:
+            _logger.info("SIT_ROUND → Valor vacío o cero. Retornando 0.0")
+            return 0.0
+
+        try:
+            monto_float = float(amount)
+            resultado = round(monto_float, DECIMALES_PERMITIDOS)
+            _logger.info("SIT_ROUND → Valor convertido: %s | Decimales: %s | Resultado: %s", monto_float, DECIMALES_PERMITIDOS, resultado)
+
+            return resultado
+        except Exception as e:
+            _logger.error("SIT_ROUND → Error al redondear valor %s. Error: %s", amount, str(e))
+            return 0.0
+
     @only_fe
     def sit_base_map_invoice_info_fse(self):
         _logger.info("SIT sit_base_map_invoice_info self FSE= %s", self)
@@ -178,7 +199,7 @@ class AccountMove(models.Model):
         invoice_info["descActividad"] = descActividad
         direccion_rec["departamento"] = self.partner_id.state_id.code
         direccion_rec["municipio"] =   self.partner_id.munic_id.code
-        direccion_rec["complemento"] =  self.partner_id.street
+        direccion_rec["complemento"] =  self.partner_id.street if self.partner_id.street else None
         _logger.info("SIT direccion self = %s", direccion_rec)
         invoice_info["direccion"] = direccion_rec
         if self.partner_id.phone:
@@ -234,7 +255,7 @@ class AccountMove(models.Model):
                     line_temp["uniMedida"] = int(uniMedida)
 
                 line_temp["descripcion"] = line.name
-                line_temp["precioUni"] = float_round(line.price_unit, precision_rounding=line.move_id.currency_id.rounding)
+                line_temp["precioUni"] = self._sit_round(line.price_unit)
                 line_temp["montoDescu"] = (
                     line_temp["cantidad"]  * (line.price_unit * (line.discount / 100))
                     or 0.0
@@ -259,7 +280,7 @@ class AccountMove(models.Model):
                     vat_taxes_amount = 0
                     sit_amount_base = float_round(line.quantity * line.price_unit, precision_rounding=line.move_id.currency_id.rounding)
                 compraS = line_temp["cantidad"] * (line.price_unit - (line.price_unit * (line.discount / 100)))
-                line_temp["compra"] = float_round(compraS, precision_rounding=line.move_id.currency_id.rounding)
+                line_temp["compra"] = self._sit_round(compraS)
                 _logger.info("line_temp['compra']=%s", line_temp["compra"])
 
                 totalIva += 0

@@ -207,7 +207,7 @@ class AccountMoveLine(models.Model):
             _logger.info("Valores base -> price_unit: %s, quantity: %s, discount: %s", base_price_unit, cantidad, descuento)
 
             subtotal_linea_con_descuento = base_price_unit * cantidad * (1 - descuento / 100.0)
-            precio_total = currency.round(subtotal_linea_con_descuento)
+            precio_total = subtotal_linea_con_descuento # currency.round(subtotal_linea_con_descuento)
             _logger.info("Subtotal con descuento: %s, precio_total redondeado: %s", subtotal_linea_con_descuento, precio_total)
 
             # Ajuste para ventas

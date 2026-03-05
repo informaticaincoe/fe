@@ -17,7 +17,7 @@ import logging
 import json
 import uuid
 from odoo.tools import float_round
-
+from decimal import Decimal, ROUND_HALF_UP
 _logger = logging.getLogger(__name__)
 
 try:
@@ -33,6 +33,26 @@ class AccountMove(models.Model):
     _inherit = "account.move"
 
 ######################################### FCE-EXPORTACION
+    def _sit_round(self, amount):
+        """
+        Redondeo centralizado para DTE.
+        """
+        DECIMALES_PERMITIDOS = 8
+
+        _logger.info("SIT_ROUND → Valor recibido: %s", amount)
+        if not amount:
+            _logger.info("SIT_ROUND → Valor vacío o cero. Retornando 0.0")
+            return 0.0
+
+        try:
+            monto_float = float(amount)
+            resultado = round(monto_float, DECIMALES_PERMITIDOS)
+            _logger.info("SIT_ROUND → Valor convertido: %s | Decimales: %s | Resultado: %s", monto_float, DECIMALES_PERMITIDOS, resultado)
+
+            return resultado
+        except Exception as e:
+            _logger.error("SIT_ROUND → Error al redondear valor %s. Error: %s", amount, str(e))
+            return 0.0
 
     def sit_base_map_invoice_info_fex(self):
         if not self.env.company.sit_facturacion:
@@ -210,8 +230,8 @@ class AccountMove(models.Model):
             2 if self.partner_id.company_type == constants.PERSONA_JURIDICA else 0)
         invoice_info["tipoPersona"] = tipoPersona
         invoice_info["nombreComercial"] = self.partner_id.nombreComercial or None
-        invoice_info["descActividad"] = getattr(self.partner_id.codActividad, 'valores', None)
-        invoice_info["complemento"] = self.partner_id.street
+        invoice_info["descActividad"] = self.partner_id.codActividad.valores if self.partner_id.codActividad else None
+        invoice_info["complemento"] = self.partner_id.street if self.partner_id.street else None
         invoice_info["telefono"] = self.partner_id.phone or None
         invoice_info["correo"] = self.partner_id.email or None
         return invoice_info
@@ -249,8 +269,8 @@ class AccountMove(models.Model):
             uniMedida = 99 if is_serv else int(getattr(line.product_id.uom_hacienda, 'codigo', 7) or 7)
             line_temp["uniMedida"] = int(uniMedida)
 
-            line_temp["montoDescu"] = float_round(line.quantity * (line.price_unit * (line.discount / 100.0)), precision_rounding=line.move_id.currency_id.rounding) or 0.0
-            ventaGravada = float_round(getattr(line, 'precio_gravado', 0.0), precision_rounding=line.move_id.currency_id.rounding)
+            line_temp["montoDescu"] = self._sit_round(line.quantity * (line.price_unit * (line.discount / 100.0))) or 0.0
+            ventaGravada = self._sit_round(getattr(line, 'precio_gravado', 0.0))
             line_temp["ventaGravada"] = ventaGravada
 
             codigo_tributo_codigo = None
@@ -280,13 +300,13 @@ class AccountMove(models.Model):
             line_temp["noGravado"] = 0.0
 
             # Precio unitario final a reportar (tu campo personalizado)
-            line_temp["precioUni"] = float_round(getattr(line, 'precio_unitario', line.price_unit), precision_rounding=line.move_id.currency_id.rounding)
+            line_temp["precioUni"] = self._sit_round(getattr(line, 'precio_unitario', line.price_unit))
 
             # Recalcular venta gravada con descuentos
             ventaGravada = line.quantity * (getattr(line, 'precio_unitario', line.price_unit) - (
                         getattr(line, 'precio_unitario', line.price_unit) * (line.discount / 100.0)))
             total_Gravada += ventaGravada
-            line_temp["ventaGravada"] = float_round(ventaGravada, precision_rounding=line.move_id.currency_id.rounding)
+            line_temp["ventaGravada"] = self._sit_round(ventaGravada)
 
             totalIva += float_round(
                 vat_taxes_amount - ( ((line.price_unit * line.quantity) * (line.discount / 100.0)) * 0.13), precision_rounding=line.move_id.currency_id.rounding)
