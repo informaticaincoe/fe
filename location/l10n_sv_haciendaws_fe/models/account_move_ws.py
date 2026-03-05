@@ -65,7 +65,7 @@ class AccountMove(models.Model):
         """
         Redondeo centralizado para DTE.
         """
-        DECIMALES_PERMITIDOS = 8
+        DECIMALES_PERMITIDOS = 6
 
         _logger.info("SIT_ROUND → Valor recibido: %s", amount)
         if not amount:
