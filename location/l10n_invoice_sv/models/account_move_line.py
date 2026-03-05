@@ -136,6 +136,7 @@ class AccountMoveLine(models.Model):
                     if 'IVA' in tax.name and tax.amount_type == 'percent':
                         if line.quantity and line.quantity != 0:
                             vat_amount += ((line.price_subtotal * tax.amount) / 100.0) / line.quantity
+                            _logger.info("IVA unitario la línea: %s", vat_amount)
                         else:
                             _logger.warning(
                                 "SIT _compute_iva_unitario | Línea con cantidad 0. Se omite cálculo de IVA unitario. "
@@ -218,7 +219,7 @@ class AccountMoveLine(models.Model):
                 _logger.info("Evaluando impuestos: %s → alguno tax_excluded=%s", [t.name for t in line.tax_ids], tax_excluded,)
 
                 if line.journal_id.code == 'FCF' and tax_excluded:
-                    line.precio_unitario = line.price_unit + line.iva_unitario
+                    line.precio_unitario = (line.price_subtotal * self.move_id.get_valor_iva_divisor_config()) / line.quantity
                     _logger.info("Precio unitario FCF con IVA incluido: %s", line.precio_unitario)
                 else:
                     line.precio_unitario = line.price_unit
@@ -231,7 +232,7 @@ class AccountMoveLine(models.Model):
                 tax_excluded = any(t.price_include_override == constants.IMP_EXCLUIDO for t in line.tax_ids)
 
                 if line.journal_id.code == 'FCF' and tax_excluded:
-                    line.precio_gravado = precio_total + line.total_iva
+                    line.precio_gravado = precio_total * self.move_id.get_valor_iva_divisor_config()
                 else:
                     line.precio_gravado = precio_total
                 _logger.info("Precio gravado asignado: %s", line.precio_gravado)
