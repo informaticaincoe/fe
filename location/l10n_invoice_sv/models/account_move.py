@@ -1149,7 +1149,7 @@ class AccountMove(models.Model):
 
             # Caso Compras: Validar si es Sujeto Excluido (FSE)
             if move.move_type in ('in_invoice', 'in_refund'):
-                es_fse = tipo_doc and tipo_doc.codigo == COD_DTE_FSE # '07'  # COD_DTE_FSE usualmente es '07'
+                es_fse = tipo_doc and tipo_doc.codigo == constants.COD_DTE_FSE # '07'  # COD_DTE_FSE usualmente es '07'
                 if not es_fse or (es_fse and not move.company_id.sit_facturacion):
                     _logger.info("SIT action_post | Compra normal o FSE sin facturación activa, saltando.")
                     continue
