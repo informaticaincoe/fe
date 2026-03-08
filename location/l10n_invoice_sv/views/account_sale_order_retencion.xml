@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+
+        <record id="view_sale_order_retenciones_form" model="ir.ui.view">
+            <field name="name">sale.order.retenciones</field>
+            <field name="model">sale.order</field>
+            <field name="inherit_id" ref="sale.view_order_form"/>
+            <field name="arch" type="xml">
+
+                <xpath expr="//field[@name='note']" position="before">
+
+                    <group string="Retenciones" col="2">
+
+                        <field name="apply_retencion_renta"/>
+                        <field name="retencion_renta_amount"
+                               readonly="1"
+                               widget="monetary"
+                               options="{'currency_field': 'currency_id'}"/>
+
+                        <field name="apply_retencion_iva"/>
+                        <field name="retencion_iva_amount"
+                               readonly="1"
+                               widget="monetary"
+                               options="{'currency_field': 'currency_id'}"/>
+
+                        <field name="apply_iva_percibido"/>
+                        <field name="iva_percibido_amount"
+                               readonly="1"
+                               widget="monetary"
+                               options="{'currency_field': 'currency_id'}"/>
+
+                    </group>
+
+                    <div class="fw-bold" style="color:#714B67;">
+                        <group string="Retenciones Aplicadas"
+                               invisible="not apply_retencion_renta and not apply_retencion_iva and not apply_iva_percibido">
+                            <div class="fw-bold" style="color:#714B67; font-size:16px;">
+                                <label for="amount_total_retenciones"/>
+                                <field name="amount_total_retenciones"
+                                       readonly="1"
+                                       widget="monetary"
+                                       options="{'currency_field': 'currency_id'}"/>
+                            </div>
+                        </group>
+                    </div>
+                </xpath>
+
+            </field>
+        </record>
+
+        <record id="view_order_form_inherit_sit_observaciones" model="ir.ui.view">
+            <field name="name">sale.order.form.sit.observaciones</field>
+            <field name="model">sale.order</field>
+            <field name="inherit_id" ref="sale.view_order_form"/>
+            <field name="arch" type="xml">
+                <xpath expr="//field[@name='partner_shipping_id']" position="after">
+                    <field name="sit_observaciones_order"/>
+                </xpath>
+            </field>
+        </record>
+    </data>
+</odoo>
