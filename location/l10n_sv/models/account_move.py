@@ -326,6 +326,12 @@ class sit_account_move(models.Model):
             return super().create(vals_list)
 
         for vals in vals_list:
+            _logger.info(
+                "FACTURA CREADA -> ret_iva:%s monto:%s",
+                vals.get("apply_retencion_iva"),
+                vals.get("retencion_iva_amount")
+            )
+
             move_type = vals.get('move_type')
             if not move_type:
                 _logger.warning("SIT | Registro sin move_type detectado, puede ser nómina u otro flujo especial: %s", vals)
@@ -434,10 +440,11 @@ class sit_account_move(models.Model):
 
             # --- Ajustes finales: logs, retenciones y seguro/flete ---
             if rec.partner_id:
-                if rec.partner_id.gran_contribuyente:
-                    rec.apply_retencion_iva = True
-                else:
-                    rec.apply_retencion_iva = False
+                if not rec.apply_retencion_iva:
+                    if rec.partner_id.gran_contribuyente:
+                        rec.apply_retencion_iva = True
+                    else:
+                        rec.apply_retencion_iva = False
             rec.agregar_lineas_seguro_flete()
             rec._copiar_retenciones_desde_documento_relacionado()
 
