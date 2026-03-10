@@ -477,6 +477,9 @@ class sit_account_move(models.Model):
             _logger.info("SIT | write bypass completo para move_type in (entry/receipts)")
             vals_to_write = vals.copy() if vals else {}
             for move in self:
+                _logger.info("SIT | Name (entry): %s", move.name)
+                if not move.name:
+                    vals_to_write['name'] = "/"
                 if move.name == "/" and move.journal_id and move.journal_id.sequence_id and move.journal_id.sequence_id.exists():
                     vals_to_write['name'] = move.journal_id.sequence_id.next_by_id()
                     _logger.info("SIT | Asignado name %s para entry %s", vals_to_write['name'], move.id)

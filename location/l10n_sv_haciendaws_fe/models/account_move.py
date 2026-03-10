@@ -307,6 +307,9 @@ class AccountMove(models.Model):
         for rec in self:
             # --- BYPASS total para movimientos que no son factura/nota ---
             if rec.move_type in (constants.TYPE_ENTRY, constants.OUT_RECEIPT, constants.IN_RECEIPT):
+                # Si realmente está vacío, asignar '/'
+                if not rec.name:
+                    rec.name = '/'
                 _logger.info("[INVERSE-NAME] BYPASS aplicado: move_type=%s (no se modifica name)", rec.move_type)
                 continue
 
