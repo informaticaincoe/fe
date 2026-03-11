@@ -7,11 +7,13 @@
                 <header>
                     <button name="action_confirm" type="object" string="Confirmar" class="btn-primary"
                             invisible="state != 'draft'"/>
-                    <button name="action_start_transit" type="object" string="Enviar a tránsito" class="btn-primary"
+                    <button name="action_load" type="object" string="Cargar" class="btn-primary"
                             invisible="state != 'confirmed'"/>
+                    <button name="action_start_transit" type="object" string="Enviar a tránsito" class="btn-primary"
+                            invisible="state != 'loading'"/>
                     <button name="action_download_report_cargar_ruta" type="object" string="Reporte de carga"
                             class="btn-primary"
-                            invisible="state != 'confirmed'"/>
+                            invisible="state != 'loading'"/>
                     <button name="action_create_reception" type="object" string="Recepción (CxC)" class="btn-primary"
                             invisible="state != 'in_transit'"/>
                     <button name="action_cancel" type="object" string="Cancelar" class="btn-secondary"
@@ -19,7 +21,7 @@
                     <button name="action_set_draft" type="object" string="Establecer a borrador" class="btn-secondary"
                             invisible="state != ('cancel')"/>
                     <field name="state" widget="statusbar"
-                           statusbar_visible="draft,confirmed,in_transit,received,cancel"/>
+                           statusbar_visible="draft,confirmed,loading,in_transit,received,cancel"/>
                 </header>
 
                 <sheet>
@@ -31,7 +33,6 @@
                             <field name="route_manager_id" readonly="state != 'draft'"/>
                             <field name="route_supervisor_id" readonly="state != 'draft'"/>
                             <field name="vehicle_id" readonly="state != 'draft'"/>
-<!--                            <label for="total_weight" string="Estado de Carga"/>-->
                             <label for="total_weight" string="Capacidad de Carga"/>
                             <div class="o_row" name="weight_container">
                                 <field name="total_weight" nolabel="1" string="capacidad"/>

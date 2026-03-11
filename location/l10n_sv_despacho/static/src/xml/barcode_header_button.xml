@@ -1,0 +1,20 @@
+<templates xml:space="preserve">
+
+    <t t-name="l10n_sv_despacho.StockBarcodeKanbanRenderer"
+       t-inherit="stock_barcode.KanbanRenderer"
+       t-inherit-mode="extension"
+       owl="1">
+
+        <xpath expr="//div[hasclass('o_kanban_tip_filter')]" position="after">
+            <div class="w-100 px-3 pb-2 mt-2">
+                <button class="btn btn-primary"
+                        type="button"
+                        t-on-click="onDownloadLoadingRoutesReport">
+                    Descargar rutas en carga
+                </button>
+            </div>
+        </xpath>
+
+    </t>
+
+</templates>
