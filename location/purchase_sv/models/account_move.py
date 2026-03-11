@@ -250,6 +250,13 @@ class AccountMove(models.Model):
         currency_field='currency_id'
     )
 
+    amount_gravado = fields.Monetary(
+        string="Gravado",
+        compute='_compute_amount_exento',
+        store=True,
+        currency_field='currency_id'
+    )
+
     def _get_default_tipo_documento(self):
         """Busca en 'account.journal.tipo_documento.field' el registro con código '01'
         y lo usa como valor por defecto.
@@ -363,6 +370,9 @@ class AccountMove(models.Model):
             _logger.info("SIT | Calculando amount_exento para move_id=%s", move.id)
             for line in move.line_ids:
 
+                if line.display_type and line.display_type != constants.TYPE_PRODUCT:
+                    continue
+
                 if line.move_id.move_type in (constants.TYPE_ENTRY, constants.OUT_RECEIPT, constants.IN_RECEIPT):
                     _logger.info("[SIT] Se omite _compute_amount_exento para movimiento tipo '%s' (ID: %s)", line.move_id.move_type, line.move_id.id)
                     continue
@@ -384,8 +394,21 @@ class AccountMove(models.Model):
                 else:
                     _logger.debug("SIT | Línea con impuestos >0%%: line_id=%s", line.id)
 
-            move.amount_exento = total_exento
-            _logger.info("SIT | Total exento para move_id=%s = %.2f", move.id, total_exento)
+                tipo_producto = line.product_id.tipo_venta if line.product_id and line.product_id.tipo_venta else None
+                _logger.info("SIT | Tipo de producto =%s ", tipo_producto)
+
+                if tipo_producto:
+                    if tipo_producto == constants.TIPO_VENTA_PROD_GRAV:
+                        move.amount_gravado = total_exento
+                        move.amount_exento = 0.0
+                    else:
+                        move.amount_exento = total_exento
+                        move.amount_gravado = 0.0
+                else:
+                    move.amount_exento = 0.0
+                    move.amount_gravado = 0.0
+
+            _logger.info("SIT | Total exento = %.2f| Total gravado = %.2f para move_id=%s = ", move.id, move.amount_exento, move.amount_gravado)
 
     def _sv_requires_tax_override(self):
         """True si es compra y el vencimiento es mayor que la fecha contable."""

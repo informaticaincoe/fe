@@ -307,6 +307,9 @@ class AccountMove(models.Model):
         for rec in self:
             # --- BYPASS total para movimientos que no son factura/nota ---
             if rec.move_type in (constants.TYPE_ENTRY, constants.OUT_RECEIPT, constants.IN_RECEIPT):
+                # Si realmente está vacío, asignar '/'
+                if not rec.name:
+                    rec.name = '/'
                 _logger.info("[INVERSE-NAME] BYPASS aplicado: move_type=%s (no se modifica name)", rec.move_type)
                 continue
 
@@ -847,7 +850,7 @@ class AccountMove(models.Model):
                                 invoice.msg_error("N.I.T O D.U.I.")
                             if not invoice.partner_id.parent_id.codActividad:
                                 invoice.msg_error("Giro o Actividad Económica")
-                    elif type_report and type_report.lower() == constants.TYPE_REPORT_NDC:
+                    elif type_report and (type_report.lower() == constants.TYPE_REPORT_NDC or type_report.lower() == constants.TYPE_REPORT_NDD):
                         # Asignar el partner_id relacionado con el crédito fiscal si no existe parent_id
                         if not invoice.partner_id.parent_id:
                             if not invoice.partner_id.nrc:
@@ -864,6 +867,17 @@ class AccountMove(models.Model):
                                 invoice.msg_error("N.I.T.")
                             if not invoice.partner_id.parent_id.codActividad:
                                 invoice.msg_error("Giro o Actividad Económica")
+                    elif type_report and type_report.lower() == constants.TYPE_REPORT_FCF:
+                        if invoice.partner_id.l10n_latam_identification_type_id:
+                            if invoice.partner_id.l10n_latam_identification_type_id.codigo == constants.COD_TIPO_DOCU_DUI:
+                                if not invoice.partner_id.dui:
+                                    invoice.msg_error("DUI")
+                            elif invoice.partner_id.l10n_latam_identification_type_id.codigo == constants.COD_TIPO_DOCU_NIT:
+                                if not invoice.partner_id.vat:
+                                    invoice.msg_error("NIT")
+
+                    if not invoice.partner_id.phone:
+                        invoice.msg_error("Teléfono")
 
                     ambiente = None
                     ambiente_test = False

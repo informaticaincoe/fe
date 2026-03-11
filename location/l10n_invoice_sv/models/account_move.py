@@ -260,10 +260,12 @@ class AccountMove(models.Model):
             if move.apply_retencion_iva:
                 if tipo_doc.codigo in [constants.COD_DTE_FSE]:  # FSE
                     move.retencion_iva_amount = float_round(base_total * iva_retencion, precision_rounding=move.currency_id.rounding)
+                elif tipo_doc.codigo in [constants.COD_DTE_CCF, constants.COD_DTE_NC, constants.COD_DTE_ND]:
+                    move.retencion_iva_amount = float_round((move.sub_total_ventas - move.descuento_global) * retencion, precision_rounding=move.currency_id.rounding)
                 else:
                     move.retencion_iva_amount = float_round(((move.sub_total_ventas / 1.13) - move.descuento_global) * retencion, precision_rounding=move.currency_id.rounding)
-            if move.apply_iva_percibido:
-                move.iva_percibido_amount = float_round(((move.sub_total_ventas / 1.13) - move.descuento_global) * iva_percibido, precision_rounding=move.currency_id.rounding)
+            if move.apply_iva_percibido and tipo_doc.codigo in [constants.COD_DTE_CCF, constants.COD_DTE_NC, constants.COD_DTE_ND]:
+                move.iva_percibido_amount = float_round((move.sub_total_ventas - move.descuento_global) * iva_percibido, precision_rounding=move.currency_id.rounding)
 
     @api.depends('amount_total')
     def _amount_to_text(self):
@@ -321,8 +323,11 @@ class AccountMove(models.Model):
         return self.env.ref('account.account_invoices').with_user(user_admin).report_action(self)
 
     def msg_error(self, campo):
-        raise ValidationError("No puede emitir un documento si falta un campo Legal " \
-                              "Verifique %s" % campo)
+        # raise ValidationError("No puede emitir un documento si falta un campo Legal " \
+        #                       "Verifique %s" % campo)
+        _logger.error("SIT VALIDACION DTE | Invoice ID=%s | Name=%s | Partner=%s (ID=%s) | Campo faltante=%s | Usuario=%s | Context=%s",
+            self.id, self.name, self.partner_id.name, self.partner_id.id, campo, self.env.user.login, dict(self.env.context) )
+        raise UserError("No puede emitir un documento si falta un campo Legal Verifique %s" % campo)
 
     # ---------------------------------------------------------------------------------------------------------
     def sit_action_send_mail(self):
@@ -1144,7 +1149,7 @@ class AccountMove(models.Model):
 
             # Caso Compras: Validar si es Sujeto Excluido (FSE)
             if move.move_type in ('in_invoice', 'in_refund'):
-                es_fse = tipo_doc and tipo_doc.codigo == '07'  # COD_DTE_FSE usualmente es '07'
+                es_fse = tipo_doc and tipo_doc.codigo == constants.COD_DTE_FSE # '07'  # COD_DTE_FSE usualmente es '07'
                 if not es_fse or (es_fse and not move.company_id.sit_facturacion):
                     _logger.info("SIT action_post | Compra normal o FSE sin facturación activa, saltando.")
                     continue

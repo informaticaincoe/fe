@@ -17,6 +17,7 @@ import logging
 import re
 import json
 from odoo.tools import float_round
+from decimal import Decimal, ROUND_HALF_UP
 
 _logger = logging.getLogger(__name__)
 
@@ -55,6 +56,31 @@ class AccountMove(models.Model):
             except Exception as e:
                 raise UserError(_("Error al obtener configuración 'iva_divisor': %s" % str(e)))
         return 1.13  # Valor por defecto
+
+    # ==========================================
+    # CONFIGURACIÓN CENTRAL DE DECIMALES DTE
+    # ==========================================
+
+    def _sit_round(self, amount):
+        """
+        Redondeo centralizado para DTE.
+        """
+        DECIMALES_PERMITIDOS = 6
+
+        _logger.info("SIT_ROUND → Valor recibido: %s", amount)
+        if not amount:
+            _logger.info("SIT_ROUND → Valor vacío o cero. Retornando 0.0")
+            return 0.0
+
+        try:
+            monto_float = float(amount)
+            resultado = round(monto_float, DECIMALES_PERMITIDOS)
+            _logger.info("SIT_ROUND → Valor convertido: %s | Decimales: %s | Resultado: %s", monto_float, DECIMALES_PERMITIDOS, resultado)
+
+            return resultado
+        except Exception as e:
+            _logger.error("SIT_ROUND → Error al redondear valor %s. Error: %s", amount, str(e))
+            return 0.0
 
     ##------ FEL-COMPROBANTE CREDITO FISCAL----------##
 
@@ -187,8 +213,8 @@ class AccountMove(models.Model):
             nrc = nrc.replace("-", "")
         invoice_info["nrc"] = nrc
         invoice_info["nombre"] = self.company_id.name
-        invoice_info["codActividad"] = self.company_id.codActividad.codigo
-        invoice_info["descActividad"] = self.company_id.codActividad.valores
+        invoice_info["codActividad"] = self.company_id.codActividad.codigo if self.company_id.codActividad else None
+        invoice_info["descActividad"] = self.company_id.codActividad.valores if self.company_id.codActividad else None
         if self.company_id.nombre_comercial:
             invoice_info["nombreComercial"] = self.company_id.nombre_comercial
         else:
@@ -225,25 +251,27 @@ class AccountMove(models.Model):
             nrc = nrc.replace("-", "")
         invoice_info["nrc"] = nrc
         invoice_info["nombre"] = self.partner_id.name
-        invoice_info["codActividad"] = self.partner_id.codActividad.codigo
-        invoice_info["descActividad"] = self.partner_id.codActividad.valores
+        invoice_info["codActividad"] = self.partner_id.codActividad.codigo if self.partner_id.codActividad else None
+        invoice_info["descActividad"] = self.partner_id.codActividad.valores if self.partner_id.codActividad else None
         if self.partner_id.nombreComercial:
             invoice_info["nombreComercial"] = self.partner_id.nombreComercial
         else:
             invoice_info["nombreComercial"] = None
-        if self.partner_id.state_id.code:
-            direccion_rec["departamento"] = self.partner_id.state_id.code
-        else:
-            direccion_rec["departamento"] = None
-        if self.partner_id.munic_id.code:
-            direccion_rec["municipio"] = self.partner_id.munic_id.code
-        else:
-            direccion_rec["municicipio"] = None
-        if self.partner_id.street2:
-            direccion_rec["complemento"] = self.partner_id.street2
-        else:
-            direccion_rec["complemento"] = None
-        invoice_info["direccion"] = direccion_rec
+
+        # Dirección si está completa
+        depto = self.partner_id.state_id.code if self.partner_id.state_id else None
+        muni = self.partner_id.munic_id.code if self.partner_id.munic_id else None
+        comp = self.partner_id.street or ''
+
+        direccion_rec["departamento"] = depto
+        direccion_rec["municipio"] = muni
+        direccion_rec["complemento"] = comp
+        # invoice_info["direccion"] = direccion_rec
+        invoice_info['direccion'] = (
+            {'departamento': depto, 'municipio': muni, 'complemento': comp}
+            if depto and muni and comp else None
+        )
+
         if self.partner_id.phone:
             invoice_info["telefono"] = self.partner_id.phone
         else:
@@ -284,9 +312,9 @@ class AccountMove(models.Model):
             uniMedida = int(line.product_id.uom_hacienda.codigo)
             line_temp["uniMedida"] = uniMedida
 
-            line_temp["montoDescu"] = round(line_temp["cantidad"] * (line.price_unit * (line.discount / 100)), 2) or 0.0
-            line_temp["ventaNoSuj"] = round(line.precio_no_sujeto, 2)  # 0.0
-            line_temp["ventaExenta"] = round(line.precio_exento, 2)  # 0.0
+            line_temp["montoDescu"] = self._sit_round(line_temp["cantidad"] * (line.price_unit * (line.discount / 100))) or 0.0
+            line_temp["ventaNoSuj"] = self._sit_round(line.precio_no_sujeto)  # 0.0
+            line_temp["ventaExenta"] = self._sit_round(line.precio_exento)  # 0.0
 
             # ------ Validar que se haya colocado impuesto de IVA ------
             iva_tax_found = False
@@ -370,7 +398,7 @@ class AccountMove(models.Model):
 
                 _logger.info("SIT TAX vat_taxes_amounts = %s", vat_taxes)
 
-            line_temp['psv'] = line.product_id.sit_psv
+            line_temp['psv'] = self._sit_round(line.product_id.sit_psv)
             line_temp["noGravado"] = 0.0
 
             price_unit = 0.0
@@ -379,11 +407,12 @@ class AccountMove(models.Model):
                 price_unit = round(sit_amount_base / line_temp["cantidad"], 4)
             else:
                 price_unit = 0.00
-            line_temp["precioUni"] = round(line.precio_unitario, 2)
+            line_temp["precioUni"] = self._sit_round(line.precio_unitario)
 
-            ventaGravada = round(line.precio_gravado, 2)
+            ventaGravada = self._sit_round(line.precio_gravado)
             total_Gravada += ventaGravada
             line_temp["ventaGravada"] = ventaGravada
+            _logger.info("SIT_VENTA_GRAVADA JSON → Valor redondeado: %s | Valor original: %s", ventaGravada, line.precio_gravado)
 
             if line.product_id and line.product_id.tipo_venta:
                 if line.product_id.tipo_venta == constants.TIPO_VENTA_PROD_GRAV:
@@ -627,8 +656,8 @@ class AccountMove(models.Model):
             nrc = nrc.replace("-", "")
         invoice_info["nrc"] = nrc
         invoice_info["nombre"] = self.company_id.name
-        invoice_info["codActividad"] = self.company_id.codActividad.codigo
-        invoice_info["descActividad"] = self.company_id.codActividad.valores
+        invoice_info["codActividad"] = self.company_id.codActividad.codigo if self.company_id.codActividad else None
+        invoice_info["descActividad"] = self.company_id.codActividad.valores if self.company_id.codActividad else None
         if self.company_id.nombre_comercial:
             invoice_info["nombreComercial"] = self.company_id.nombre_comercial
         else:
@@ -658,6 +687,7 @@ class AccountMove(models.Model):
 
         # 2) campo base (NIT para 03, DUI para el resto)
         raw_doc = None
+        num_doc = None
         if self.partner_id:
             if self.partner_id.dui:
                 raw_doc = self.partner_id.dui or ''
@@ -686,20 +716,20 @@ class AccountMove(models.Model):
                 raise UserError(_(
                     "Receptor sin documento de identidad (DUI o NIT) para DTE %s.\nCliente: %s"
                 ) % (tipo_dte, self.partner_id.display_name))
-
-        # 3) limpio sólo dígitos
-        cleaned = re.sub(r'\D', '', raw_doc)
-        if not cleaned or not tipo_doc:
-            raise UserError(_("Receptor sin documento válido para DTE %s:\nraw=%r, tipo=%r") % (tipo_dte, raw_doc, tipo_doc))
-
-        # # 4) si es DTE 13, poner guión xxxxxxxx-x
-        num_doc = raw_doc  # None
-        if tipo_doc is not None and tipo_doc == constants.COD_TIPO_DOCU_DUI: #if tipo_dte == '13':
-            if len(cleaned) != 9:
-                raise UserError(_("Para DTE 01 el DUI debe ser 9 dígitos (8+1). Se dieron %d.") % len(cleaned))
-            num_doc = f"{cleaned[:8]}-{cleaned[8]}"
         else:
-            num_doc = cleaned
+            # 3) limpio sólo dígitos
+            cleaned = re.sub(r'\D', '', raw_doc)
+            if not cleaned or not tipo_doc:
+                raise UserError(_("Receptor sin documento válido para DTE %s:\nraw=%r, tipo=%r") % (tipo_dte, raw_doc, tipo_doc))
+
+            # # 4) si es DTE 13, poner guión xxxxxxxx-x
+            num_doc = raw_doc  # None
+            if tipo_doc is not None and tipo_doc == constants.COD_TIPO_DOCU_DUI: #if tipo_dte == '13':
+                if len(cleaned) != 9:
+                    raise UserError(_("Para DTE 01 el DUI debe ser 9 dígitos (8+1). Se dieron %d.") % len(cleaned))
+                num_doc = f"{cleaned[:8]}-{cleaned[8]}"
+            else:
+                num_doc = cleaned
 
         invoice_info['numDocumento'] = num_doc
         invoice_info['tipoDocumento'] = tipo_doc if num_doc else None
@@ -710,8 +740,8 @@ class AccountMove(models.Model):
 
         # 6) Nombre y actividad
         invoice_info['nombre'] = self.partner_id.name or ''
-        invoice_info['codActividad'] = getattr(self.partner_id.codActividad, 'codigo', '')
-        invoice_info['descActividad'] = getattr(self.partner_id.codActividad, 'valores', '')
+        invoice_info['codActividad'] = self.partner_id.codActividad.codigo if self.partner_id.codActividad else None
+        invoice_info['descActividad'] = self.partner_id.codActividad.valores if self.partner_id.codActividad else None
 
         # 7) Dirección si está completa
         depto = getattr(self.partner_id.state_id, 'code', None)
@@ -763,10 +793,10 @@ class AccountMove(models.Model):
             line_temp["uniMedida"] = int(uniMedida)
 
             line_temp["descripcion"] = line.name
-            line_temp["precioUni"] = round(line.precio_unitario, 2)
-            line_temp["montoDescu"] = round( (line_temp["cantidad"] * (line.price_unit * (line.discount / 100)) or 0.0), 2)
+            line_temp["precioUni"] = self._sit_round(line.precio_unitario)
+            line_temp["montoDescu"] = self._sit_round( (line_temp["cantidad"] * (line.price_unit * (line.discount / 100)) or 0.0) )
 
-            line_temp["ventaNoSuj"] = round(line.precio_no_sujeto, 2)  # 0.0
+            line_temp["ventaNoSuj"] = self._sit_round(line.precio_no_sujeto)  # 0.0
 
             iva_tax_found = False
             tributo_found = False
@@ -814,26 +844,26 @@ class AccountMove(models.Model):
 
                 sit_amount_base = round(vat_taxes_amounts['taxes'][0]['base'], 2) if vat_taxes_amounts else 0.0
 
-            line_temp['psv'] = line.product_id.sit_psv
+            line_temp['psv'] = self._sit_round(line.product_id.sit_psv)
             line_temp["noGravado"] = 0.0
 
-            ventaGravada = line.precio_gravado
+            ventaGravada = self._sit_round(line.precio_gravado)
             _logger.info("SIT Cantidad= %s, precio gravado= %s, descuento= %s, monto descu= %s, venta gravada= %s",
                          line_temp["cantidad"], line.precio_gravado, (line.discount / 100),
                          (line.precio_gravado * (line.discount / 100)), ventaGravada)
 
-            line_temp["ivaItem"] = round(
-                ((ventaGravada / self.get_valor_iva_divisor_config()) * self.valor_iva_config()),
-                2)
+            line_temp["ivaItem"] = self._sit_round(
+                ((ventaGravada / self.get_valor_iva_divisor_config()) * self.valor_iva_config())
+                )
             _logger.info("SIT Iva item= %s", line_temp["ivaItem"])
             _logger.info("SIT  RENTA = %s", self.retencion_renta_amount)
 
             if line_temp["ivaItem"] == 0.0:
                 ventaGravada = 0.0
-            ventaExenta = round(line.precio_exento, 2)
+            ventaExenta = self._sit_round(line.precio_exento)
             total_Gravada += ventaGravada
-            line_temp["ventaGravada"] = round(ventaGravada, 2)
-            line_temp["ventaExenta"] = round(ventaExenta, 2)
+            line_temp["ventaGravada"] = self._sit_round(ventaGravada)
+            line_temp["ventaExenta"] = self._sit_round(ventaExenta)
 
             if line.product_id and line.product_id.tipo_venta:
                 if line.product_id.tipo_venta == constants.TIPO_VENTA_PROD_GRAV:
@@ -1148,11 +1178,11 @@ class AccountMove(models.Model):
                     uniMedida = int(line.product_id.uom_hacienda.codigo)
 
                 line_temp["uniMedida"] = int(uniMedida)
-                line_temp["montoDescu"] = (round(line_temp["cantidad"] * (line.price_unit * (line.discount / 100)), 2) or 0.0)
-                line_temp["ventaNoSuj"] = round(line.precio_no_sujeto, 2)  # 0.0
-                line_temp["ventaExenta"] = round(line.precio_exento, 2)  # 0.0
-                ventaGravada = round(line.precio_gravado, 2)
-                line_temp["ventaGravada"] = round(ventaGravada, 2)
+                line_temp["montoDescu"] = (self._sit_round(line_temp["cantidad"] * (line.price_unit * (line.discount / 100))) or 0.0)
+                line_temp["ventaNoSuj"] = self._sit_round(line.precio_no_sujeto)  # 0.0
+                line_temp["ventaExenta"] = self._sit_round(line.precio_exento)  # 0.0
+                ventaGravada = self._sit_round(line.precio_gravado)
+                line_temp["ventaGravada"] = self._sit_round(ventaGravada)
 
                 _logger.debug(
                     f"Venta gravada: {ventaGravada}, cantidad: {line_temp['cantidad']}, precio unitario: {line.price_unit}.")  # Log sobre cálculos.
@@ -1220,8 +1250,8 @@ class AccountMove(models.Model):
                                                                                          vat_taxes_amounts[
                                                                                              'taxes'] != "" else 0
 
-                line_temp["precioUni"] = round(line.precio_unitario, 2)
-                total_Gravada += round(ventaGravada, 4)
+                line_temp["precioUni"] = self._sit_round(line.precio_unitario)
+                total_Gravada += self._sit_round(ventaGravada)
 
                 _logger.debug(f"Total gravada acumulado: {total_Gravada}.")  # Log del total gravado.
                 if line.product_id and line.product_id.tipo_venta:
@@ -1315,8 +1345,8 @@ class AccountMove(models.Model):
             nrc = nrc.replace("-", "")
         invoice_info["nrc"] = nrc
         invoice_info["nombre"] = self.company_id.name
-        invoice_info["codActividad"] = self.company_id.codActividad.codigo
-        invoice_info["descActividad"] = self.company_id.codActividad.valores
+        invoice_info["codActividad"] = self.company_id.codActividad.codigo if self.company_id.codActividad else None
+        invoice_info["descActividad"] = self.company_id.codActividad.valores if self.company_id.codActividad else None
         if self.company_id.nombre_comercial:
             invoice_info["nombreComercial"] = self.company_id.nombre_comercial
         else:
@@ -1455,10 +1485,10 @@ class AccountMove(models.Model):
                     uniMedida = int(line.product_id.uom_hacienda.codigo)
 
                 line_temp["uniMedida"] = int(uniMedida)
-                line_temp["montoDescu"] = (round(line_temp["cantidad"] * (line.price_unit * (line.discount / 100)), 2) or 0.0)
-                line_temp["ventaNoSuj"] = round(line.precio_no_sujeto, 2)  # 0.0
-                line_temp["ventaExenta"] = round(line.precio_exento, 2)  # 0.0
-                ventaGravada = round(line.precio_gravado, 2)
+                line_temp["montoDescu"] = (self._sit_round(line_temp["cantidad"] * (line.price_unit * (line.discount / 100))) or 0.0)
+                line_temp["ventaNoSuj"] = self._sit_round(line.precio_no_sujeto)  # 0.0
+                line_temp["ventaExenta"] = self._sit_round(line.precio_exento)  # 0.0
+                ventaGravada = self._sit_round(line.precio_gravado)
                 line_temp["ventaGravada"] = ventaGravada
 
                 _logger.debug(
@@ -1518,8 +1548,8 @@ class AccountMove(models.Model):
                     vat_taxes_amount = vat_taxes_amounts['taxes'][0]['amount']
                     sit_amount_base = round(vat_taxes_amounts['taxes'][0]['base'], 2)
 
-                line_temp["precioUni"] = round(line.precio_unitario, 2)
-                total_Gravada += round(ventaGravada, 4)
+                line_temp["precioUni"] = self._sit_round(line.precio_unitario)
+                total_Gravada += self._sit_round(ventaGravada)
 
                 _logger.debug(f"Total gravada acumulado: {total_Gravada}.")  # Log del total gravado.
                 if line.product_id and line.product_id.tipo_venta:
