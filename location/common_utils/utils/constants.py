@@ -32,6 +32,7 @@ MODELO_DIFERIDO = 2
 PAGO_CONTADO = 1
 PAGO_CREDITO = 2
 PAGO_OTRO = 3
+TYPE_PRODUCT = "product"
 
 #Modulo de retenciones
 DEDUCCION_EMPLEADO = "empleado"
