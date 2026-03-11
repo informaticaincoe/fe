@@ -952,6 +952,7 @@ class DTEImport(models.Model):
             )
 
             self.env["dte.import.product.line"].create({
+                "wizard_id": self.id,
                 "wizard_line_id": wizard_line.id,
                 "product_id": product.id,
                 "name": it.get("descripcion") or product.display_name,
