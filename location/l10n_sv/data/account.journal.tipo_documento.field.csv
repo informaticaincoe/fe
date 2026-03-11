@@ -11,3 +11,5 @@ dc_sv_dcle,"09","Documento contable de liquidación",1
 dc_sv_fexe,"11","Facturas de exportación",1
 dc_sv_fsee,"14","Factura de sujeto excluido",1
 dc_sv_cde,"15","Comprobante de donación",1
+dc_sv_dm,"12","Declaración de Mercancías",1
+dc_sv_mi,"13","Mandamiento de Ingreso",1
