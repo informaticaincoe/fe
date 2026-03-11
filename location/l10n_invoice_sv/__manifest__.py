@@ -62,7 +62,8 @@
         'views/res_partner_contribuyente.xml',
         'views/account_move_fechas_view.xml',
         'views/report_invoice_switch.xml',
-        'views/account_move_print_pdf.xml'
+        'views/account_move_print_pdf.xml',
+        'views/account_sale_order_retencion.xml',
 
     ],
     'demo': [],
