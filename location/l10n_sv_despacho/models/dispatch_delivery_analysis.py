@@ -140,7 +140,7 @@ class DispatchDeliveryAnalysis(models.TransientModel):
     # -----------------------------
     # PDF
     # -----------------------------
-    def action_print_pdf(self):
+    def action_print_pdf_dispatch_delivery(self):
         """
         - Si hay filas seleccionadas: imprime esas (active_ids)
         - Si NO hay selección: intenta usar active_domain (lo que está en pantalla)
