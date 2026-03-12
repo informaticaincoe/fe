@@ -243,11 +243,6 @@ class DispatchRoute(models.Model):
                 lambda p: p.picking_type_id and 'recolectar' in (p.picking_type_id.name or '').lower()
             )
 
-            if not picking_recoleccion:
-                raise UserError(
-                    _("No se encontraron movimientos de recolección asociados a esta ruta.")
-                )
-
             pendientes = picking_recoleccion.filtered(
                 lambda p: p.state not in ["done", "cancel"]
             )
