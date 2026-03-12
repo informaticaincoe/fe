@@ -259,6 +259,8 @@ class DispatchRoute(models.Model):
                     _("No se puede iniciar el tránsito: existen movimientos de recolección pendientes o en borrador.")
                 )
 
+            r.state = "in_transit"
+
     def action_cancel(self):
         self.write({'state': 'cancel'})
 
