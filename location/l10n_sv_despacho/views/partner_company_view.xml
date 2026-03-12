@@ -1,0 +1,13 @@
+<odoo>
+    <record id="view_dispatch_config" model="ir.ui.view">
+        <field name="name">view_dispatch_config</field>
+        <field name="model">res.company</field>
+        <field name="inherit_id" ref="base.view_company_form"/>
+        <field name="priority">70</field>
+        <field name="arch" type="xml">
+            <xpath expr="//page[@name='diarios_config']//field[@name='configuration_journal_ids']" position="after">
+                <field name="dispatch_contact_id"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

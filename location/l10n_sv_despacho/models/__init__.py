@@ -13,3 +13,5 @@ from . import dispatch_delivery_analysis
 from . import sale_order_dispatch_route
 from . import sale_order_route_fields
 from . import res_previous_municipality
+from . import sale_order
+from . import res_company

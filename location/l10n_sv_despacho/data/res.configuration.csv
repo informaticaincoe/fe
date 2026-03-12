@@ -1,2 +1,3 @@
 id,company_id:id,pwd,value_type,value_text,description,active,clave
 config_cant_auxiliar,base.main_company,,int,3,Máximo permitido de auxiliares por registro en el módulo de Despachos,True,cant_aux_ruta
+config_cont_ruta,base.main_company,,text,Contacto,Contacto restringido para la visualización de sus órdenes de factura.,True,contacto_ruta
