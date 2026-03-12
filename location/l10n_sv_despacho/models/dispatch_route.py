@@ -248,13 +248,16 @@ class DispatchRoute(models.Model):
                     _("No se encontraron movimientos de recolección asociados a esta ruta.")
                 )
 
-            pendientes = picking_recoleccion.filtered(lambda p: p.state != "done")
-            if pendientes:
-                raise UserError(
-                    _("No se puede iniciar el tránsito: existen movimientos de recolección que aún no han sido validados.")
-                )
+            pendientes = picking_recoleccion.filtered(
+                lambda p: p.state not in ["done", "cancel"]
+            )
 
-            r.state = "in_transit"
+            if pendientes:
+                # Si 'pendientes' no está vacío, significa que hay al menos un picking
+                # que requiere atención o está incompleto.
+                raise UserError(
+                    _("No se puede iniciar el tránsito: existen movimientos de recolección pendientes o en borrador.")
+                )
 
     def action_cancel(self):
         self.write({'state': 'cancel'})
