@@ -66,6 +66,7 @@
         'report/report_montacarguistas_template.xml',
 
         'data/res.previous.municipality.csv',
+        'views/partner_company_view.xml',
 
         # (si necesitas que el reporte exista antes del action que lo llama, también va arriba)
     ],

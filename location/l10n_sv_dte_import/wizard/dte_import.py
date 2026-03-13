@@ -79,6 +79,7 @@ class DTEImportLine(models.Model):
             "view_mode": "list,form",
             "domain": [("wizard_line_id", "=", self.id)],
             "context": {
+                "default_wizard_id": self.wizard_id.id,
                 "default_wizard_line_id": self.id,
                 "default_company_id": self.wizard_id.company_id.id,
                 "default_move_type": self.wizard_id.move_type,

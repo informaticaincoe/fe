@@ -95,7 +95,7 @@
             </xpath>
 
             <xpath expr="//page[@name='general_info']" position="after">
-                <page string="Diarios" name="diarios_config">
+                <page string="Parámetros" name="diarios_config">
                     <group>
                         <field name="configuration_journal_ids"
                                widget="many2many_tags"

@@ -64,10 +64,12 @@
                             <field name="sale_order_ids"
                                    invisible="not zone_id"
                                    readonly="state != 'draft' or not zone_id"
-                                   domain="[('dispatch_route_id', '=', False), ('partner_id.munic_id', 'in', zone_municipality_ids)]"
+                                   domain="[('dispatch_route_id', '=', False)]"
                                    context="{
                                      'tree_view_ref': 'l10n_sv_despacho.sale_order_tree_dispatch_route_picker',
-                                     'search_view_ref': 'sale.view_sales_order_filter'
+                                     'search_view_ref': 'sale.view_sales_order_filter',
+                                     'dispatch_route_filter': True,
+                                     'dispatch_route_id': id
                                    }">
                                 <list editable="bottom">
                                     <field name="name"/>
