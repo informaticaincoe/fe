@@ -431,8 +431,4 @@ class DispatchRoute(models.Model):
         if not routes:
             raise UserError(_("No hay rutas en estado 'Cargando' para imprimir."))
 
-        return {
-            "type": "ir.actions.act_url",
-            "url": "/l10n_sv_despacho/report/loading_routes_pdf",
-            "target": "self",
-        }
+        return self.env.ref('l10n_sv_despacho.action_report_montacarguista').report_action(routes)

@@ -22,13 +22,13 @@
         </record>
 
          <record id="action_report_montacarguista" model="ir.actions.report">
-            <field name="name">'Reporte de carga de rutas %s' % (time.strftime("%%d-%%m-%%Y %%H-%%M-%%S"))</field>
+            <field name="name">Reporte montacarguista</field>
             <field name="model">dispatch.route</field>
             <field name="paperformat_id" ref="paperformat_dispatch_carga_ruta"/>
             <field name="report_type">qweb-pdf</field>
             <field name="report_name">l10n_sv_despacho.report_montacarguista_template</field>
             <field name="report_file">l10n_sv_despacho.report_montacarguista_template</field>
-             <field name="print_report_name">'Reporte de carga de rutas %s' % (time.strftime("%%d-%%m-%%Y %%H-%%M-%%S"))</field>
+            <field name="print_report_name">'Reporte Montacarguista - ' + object.name</field>
             <field name="binding_model_id" ref="model_dispatch_route"/>
             <field name="binding_type">report</field>
         </record>
