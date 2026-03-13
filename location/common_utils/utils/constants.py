@@ -22,6 +22,7 @@ COD_TIPO_DOC_GENERACION_DTE = 2
 TIPO_VENTA_PROD_GRAV = "gravado"
 TIPO_VENTA_PROD_EXENTO = "exento"
 TIPO_VENTA_PROD_NO_SUJETO = "no_sujeto"
+TYPE_PRODUCTO_SERVICE = "service"
 UNI_MEDIDA_OTRA = 99
 AMBIENTE_TEST = "00"
 PROD_AMBIENTE = "01"
@@ -183,6 +184,7 @@ config_retencion_iva = "retencion_iva"
 config_iva_rete = "retencion_iva_venta"
 config_retencion_venta = "retencion_venta"
 config_iva_percibido_venta = "iva_percibido_venta"
+config_contacto_ruta = "contacto_ruta"
 
 # Tipos de item en ventas
 ITEM_BIEN = 1
