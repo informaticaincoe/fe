@@ -408,7 +408,7 @@ class AccountMove(models.Model):
                     move.amount_exento = 0.0
                     move.amount_gravado = 0.0
 
-            _logger.info("SIT | Total exento = %.2f| Total gravado = %.2f para move_id=%s = ", move.id, move.amount_exento, move.amount_gravado)
+            _logger.info("SIT | Total exento = %.2f | Total gravado = %.2f para move_id=%s ", move.amount_exento, move.amount_gravado, move.id)
 
     def _sv_requires_tax_override(self):
         """True si es compra y el vencimiento es mayor que la fecha contable."""

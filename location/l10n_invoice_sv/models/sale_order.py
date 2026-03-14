@@ -100,6 +100,9 @@ class SaleOrder(models.Model):
             sale.retencion_iva_amount = 0.0
             sale.iva_percibido_amount = 0.0
             tipo_doc = sale.journal_id.sit_tipo_documento
+            retencion_renta = 0.0
+            retencion_iva = 0.0
+            iva_percibido = 0.0
 
             # Ventas → solo si no hay facturación electrónica se resetea
             if not sale.company_id.sit_facturacion:
@@ -141,13 +144,17 @@ class SaleOrder(models.Model):
 
             if sale.apply_retencion_iva:
                 if tipo_doc.codigo in [constants.COD_DTE_FSE]:  # FSE
-                    sale.retencion_iva_amount = float_round(base_total * iva_retencion, precision_rounding=sale.currency_id.rounding)
+                    retencion_iva = base_total * iva_retencion
+                    sale.retencion_iva_amount = float_round(retencion_iva, precision_rounding=sale.currency_id.rounding)
                 elif tipo_doc.codigo in [constants.COD_DTE_CCF, constants.COD_DTE_NC, constants.COD_DTE_ND]:
-                    sale.retencion_iva_amount = float_round(base_total * retencion, precision_rounding=sale.currency_id.rounding)
+                    retencion_iva = base_total * retencion
+                    sale.retencion_iva_amount = float_round(retencion_iva, precision_rounding=sale.currency_id.rounding)
                 else:
-                    sale.retencion_iva_amount = float_round((base_total / 1.13) * retencion, precision_rounding=sale.currency_id.rounding)
+                    retencion_iva = (base_total / 1.13) * retencion
+                    sale.retencion_iva_amount = float_round(retencion_iva, precision_rounding=sale.currency_id.rounding)
             if sale.apply_iva_percibido and tipo_doc.codigo in [constants.COD_DTE_CCF, constants.COD_DTE_NC, constants.COD_DTE_ND]:
-                sale.iva_percibido_amount = float_round(base_total * iva_percibido, precision_rounding=sale.currency_id.rounding)
+                iva_percibido_amount = base_total * iva_percibido
+                sale.iva_percibido_amount = float_round(iva_percibido_amount, precision_rounding=sale.currency_id.rounding)
 
     @api.onchange('partner_id')
     def _onchange_partner_id(self):

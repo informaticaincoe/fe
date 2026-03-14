@@ -71,6 +71,8 @@ class AccountMoveLine(models.Model):
             - renta_amount
         """
         for line in self:
+            percepcion_amount = 0.0
+            retencion_amount = 0.0
             tipo_doc = line.move_id.journal_id.sit_tipo_documento if line.move_id.journal_id else None
 
             # Solo aplica a facturas de compra que no sean FSE
@@ -85,8 +87,9 @@ class AccountMoveLine(models.Model):
                     except (TypeError, ValueError):
                         porc_percepcion = 0.0
 
+                    percepcion_amount = line.price_subtotal * porc_percepcion
                     line.percepcion_amount = float_round(
-                        line.price_subtotal * porc_percepcion,
+                        percepcion_amount,
                         precision_rounding=line.move_id.currency_id.rounding
                     )
                     _logger.info(
@@ -107,8 +110,9 @@ class AccountMoveLine(models.Model):
                     except (TypeError, ValueError):
                         porc_retencion = 0.0
 
+                    retencion_amount = line.price_subtotal * porc_retencion
                     line.retencion_amount = float_round(
-                        line.price_subtotal * porc_retencion,
+                        retencion_amount,
                         precision_rounding=line.move_id.currency_id.rounding
                     )
                     _logger.info(
@@ -121,8 +125,9 @@ class AccountMoveLine(models.Model):
 
                 # === RENTA ===
                 if line.renta_percentage > 0:
+                    renta_amount = line.price_subtotal * (line.renta_percentage / 100)
                     line.renta_amount = float_round(
-                        line.price_subtotal * (line.renta_percentage / 100),
+                        renta_amount,
                         precision_rounding=line.move_id.currency_id.rounding
                     )
                     _logger.info(
