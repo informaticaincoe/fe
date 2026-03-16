@@ -188,7 +188,7 @@ class AccountMoveInvalidation(models.Model):
 
                 # invoice.sit_fec_hor_Anula = fhProcesamiento
 
-                if sit_tipo_documento not in [constants.COD_DTE_FE, constants.COD_DTE_FEX]:
+                if sit_tipo_documento not in [constants.COD_DTE_FE, constants.COD_DTE_FEX, constants.COD_DTE_FSE]:
                     _logger.info("SIT Validando tiempo límite para anulación (24h)")
                     fecha_facturacion_hacienda = None
                     time_diff = None

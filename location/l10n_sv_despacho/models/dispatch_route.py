@@ -20,8 +20,8 @@ class DispatchRoute(models.Model):
     sale_order_ids = fields.Many2many(
         "sale.order",
         string="Órdenes de facturación",
-        compute="_compute_sale_orders",
-        inverse="_inverse_sale_orders",
+        # compute="_compute_sale_orders",
+        # inverse="_inverse_sale_orders",
         domain=[("dispatch_route_id", "=", False)],
         required=True,
     )

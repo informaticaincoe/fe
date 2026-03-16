@@ -211,6 +211,9 @@ class AccountMove(models.Model):
             move.retencion_renta_amount = 0.0
             move.retencion_iva_amount = 0.0
             move.iva_percibido_amount = 0.0
+            retencion_renta = 0.0
+            retencion_iva = 0.0
+            iva_percibido = 0.0
             tipo_doc = move.journal_id.sit_tipo_documento
 
             if move.move_type in (constants.TYPE_ENTRY, constants.OUT_RECEIPT, constants.IN_RECEIPT):
@@ -259,13 +262,17 @@ class AccountMove(models.Model):
 
             if move.apply_retencion_iva:
                 if tipo_doc.codigo in [constants.COD_DTE_FSE]:  # FSE
-                    move.retencion_iva_amount = float_round(base_total * iva_retencion, precision_rounding=move.currency_id.rounding)
+                    retencion_iva = base_total * iva_retencion
+                    move.retencion_iva_amount = float_round(retencion_iva, precision_rounding=move.currency_id.rounding)
                 elif tipo_doc.codigo in [constants.COD_DTE_CCF, constants.COD_DTE_NC, constants.COD_DTE_ND]:
-                    move.retencion_iva_amount = float_round((move.sub_total_ventas - move.descuento_global) * retencion, precision_rounding=move.currency_id.rounding)
+                    retencion_iva = (move.sub_total_ventas - move.descuento_global) * retencion
+                    move.retencion_iva_amount = float_round(retencion_iva, precision_rounding=move.currency_id.rounding)
                 else:
-                    move.retencion_iva_amount = float_round(((move.sub_total_ventas / 1.13) - move.descuento_global) * retencion, precision_rounding=move.currency_id.rounding)
+                    retencion_iva = ((move.sub_total_ventas / 1.13) - move.descuento_global) * retencion
+                    move.retencion_iva_amount = float_round(retencion_iva, precision_rounding=move.currency_id.rounding)
             if move.apply_iva_percibido and tipo_doc.codigo in [constants.COD_DTE_CCF, constants.COD_DTE_NC, constants.COD_DTE_ND]:
-                move.iva_percibido_amount = float_round((move.sub_total_ventas - move.descuento_global) * iva_percibido, precision_rounding=move.currency_id.rounding)
+                iva_percibido_amount = (move.sub_total_ventas - move.descuento_global) * iva_percibido
+                move.iva_percibido_amount = float_round(iva_percibido_amount, precision_rounding=move.currency_id.rounding)
 
     @api.depends('amount_total')
     def _amount_to_text(self):
@@ -675,6 +682,7 @@ class AccountMove(models.Model):
             move.total_exento = 0.0
             move.total_no_sujeto = 0.0
             move.sub_total_ventas = 0.0
+            sub_total_ventas_amount = 0.0
 
             # Asientos
             if move.move_type in (constants.TYPE_ENTRY, constants.OUT_RECEIPT, constants.IN_RECEIPT):
@@ -695,15 +703,15 @@ class AccountMove(models.Model):
             for line in move.invoice_line_ids:
                 tipo = line.product_id.tipo_venta
                 if tipo == constants.TIPO_VENTA_PROD_GRAV:
-                    gravado += float_round(line.precio_gravado, precision_rounding=move.currency_id.rounding)
+                    gravado += line.precio_gravado
                 elif tipo == constants.TIPO_VENTA_PROD_EXENTO:
-                    exento += float_round(line.precio_exento, precision_rounding=move.currency_id.rounding)
+                    exento += line.precio_exento
                 elif tipo == constants.TIPO_VENTA_PROD_NO_SUJETO:
-                    no_sujeto += float_round(line.precio_no_sujeto, precision_rounding=move.currency_id.rounding)
+                    no_sujeto += line.precio_no_sujeto
 
                 # Total de la compra
                 if move.journal_id.sit_tipo_documento.codigo in [constants.COD_DTE_FSE]:
-                    compra += float_round(line.quantity * (line.price_unit - (line.price_unit * (line.discount / 100))), precision_rounding=move.currency_id.rounding)
+                    compra += line.quantity * (line.price_unit - (line.price_unit * (line.discount / 100)))
 
             # Totales finales
             if move.journal_id.sit_tipo_documento.codigo in [constants.COD_DTE_FSE]:
@@ -712,7 +720,8 @@ class AccountMove(models.Model):
                 move.total_gravado = max(gravado, 0.0)
             move.total_exento = max(exento, 0.0)
             move.total_no_sujeto = max(no_sujeto, 0.0)
-            move.sub_total_ventas = float_round(move.total_gravado + move.total_exento + move.total_no_sujeto, precision_rounding=move.currency_id.rounding)
+            sub_total_ventas_amount = move.total_gravado + move.total_exento + move.total_no_sujeto
+            move.sub_total_ventas = float_round(sub_total_ventas_amount, precision_rounding=move.currency_id.rounding)
             _logger.info("SIT Onchange: cambios asignados a los campos en memoria: %s", move.sub_total_ventas)
 
     @api.depends('descuento_gravado', 'descuento_exento', 'descuento_no_sujeto',
@@ -740,20 +749,18 @@ class AccountMove(models.Model):
                 if not tipo_doc or tipo_doc.codigo != constants.COD_DTE_FSE or (tipo_doc.codigo == constants.COD_DTE_FSE and not move.company_id.sit_facturacion):
                     _logger.info("SIT _compute_total_descuento | Compra normal o sujeto excluido sin facturación -> move_id: %s, se omite cálculo de descuentos", move.id)
                     continue
-            total_descuentos_globales = float_round(
-                move.descuento_gravado +
-                move.descuento_exento +
-                move.descuento_no_sujeto,
-                precision_rounding=move.currency_id.rounding
-            )
+            total_descuentos = move.descuento_gravado + move.descuento_exento + move.descuento_no_sujeto
+            total_descuentos_globales = float_round(total_descuentos, precision_rounding=move.currency_id.rounding)
 
             total_descuentos_lineas = 0.0
             for line in move.invoice_line_ids:
                 if line.price_unit and line.quantity and line.discount:
-                    monto_descuento_linea = float_round(line.price_unit * line.quantity * (line.discount / 100.0), precision_rounding=move.currency_id.rounding)
+                    monto_descuento = line.price_unit * line.quantity * (line.discount / 100.0)
+                    monto_descuento_linea = float_round(monto_descuento, precision_rounding=move.currency_id.rounding)
                     total_descuentos_lineas += monto_descuento_linea
 
-            move.total_descuento = float_round(total_descuentos_globales + total_descuentos_lineas, precision_rounding=move.currency_id.rounding)
+            total_descuentos_amount = total_descuentos_globales + total_descuentos_lineas
+            move.total_descuento = float_round(total_descuentos_amount, precision_rounding=move.currency_id.rounding)
 
     @api.depends('descuento_gravado_pct', 'descuento_exento_pct', 'descuento_no_sujeto_pct',
                  'invoice_line_ids.price_unit', 'invoice_line_ids.quantity',
@@ -767,6 +774,9 @@ class AccountMove(models.Model):
             move.descuento_gravado = 0.0
             move.descuento_exento = 0.0
             move.descuento_no_sujeto = 0.0
+            descuento_gravado = 0.0
+            descuento_exento = 0.0
+            descuento_no_sujeto = 0.0
 
             if move.move_type in (constants.TYPE_ENTRY, constants.OUT_RECEIPT, constants.IN_RECEIPT):
                 _logger.info("SIT _compute_descuentos | Asiento detectado -> move_id: %s, se omite cálculo de descuentos", move.id)
@@ -785,9 +795,12 @@ class AccountMove(models.Model):
                     continue
 
             _logger.info(f"Total gravados: {move.total_gravado}, exentos: {move.total_exento}, no sujetos: {move.total_no_sujeto}")
-            move.descuento_gravado = float_round(move.total_gravado * move.descuento_gravado_pct / 100, precision_rounding=move.currency_id.rounding)
-            move.descuento_exento = float_round(move.total_exento * move.descuento_exento_pct / 100, precision_rounding=move.currency_id.rounding)
-            move.descuento_no_sujeto = float_round(move.total_no_sujeto * move.descuento_no_sujeto_pct / 100, precision_rounding=move.currency_id.rounding)
+            descuento_gravado = move.total_gravado * move.descuento_gravado_pct / 100
+            descuento_exento = move.total_exento * move.descuento_exento_pct / 100
+            descuento_no_sujeto = move.total_no_sujeto * move.descuento_no_sujeto_pct / 100
+            move.descuento_gravado = float_round(descuento_gravado, precision_rounding=move.currency_id.rounding)
+            move.descuento_exento = float_round(descuento_exento, precision_rounding=move.currency_id.rounding)
+            move.descuento_no_sujeto = float_round(descuento_no_sujeto, precision_rounding=move.currency_id.rounding)
             _logger.info(f"Descuentos gravados: {move.descuento_gravado}, exentos: {move.descuento_exento}, no sujetos: {move.descuento_no_sujeto}")
 
     @api.depends('amount_total', 'descuento_global', 'sub_total_ventas', 'descuento_no_sujeto', 'descuento_exento',
@@ -826,43 +839,56 @@ class AccountMove(models.Model):
             descuento_global = move.descuento_global
 
             # 2. Aplicar descuento global solo sobre la sumatoria de ventas
-            subtotal_con_descuento_global = float_round(max(subtotal_base - descuento_global, 0.0), precision_rounding=move.currency_id.rounding)
+            subtotal_descuento_global = max(subtotal_base - descuento_global, 0.0)
+            subtotal_con_descuento_global = float_round(subtotal_descuento_global, precision_rounding=move.currency_id.rounding)
             move.amount_total_con_descuento = subtotal_con_descuento_global
             _logger.info(f"[{move.name}] sub_total_ventas: {subtotal_base}, descuento_global: {descuento_global}, subtotal_con_descuento_global: {subtotal_con_descuento_global}")
 
             # 3. Calcular descuentos detalle
-            descuentos_detalle = float_round(move.descuento_no_sujeto + move.descuento_exento + move.descuento_gravado, precision_rounding=move.currency_id.rounding)
+            sum_descuentos = move.descuento_no_sujeto + move.descuento_exento + move.descuento_gravado
+            descuentos_detalle = float_round(sum_descuentos, precision_rounding=move.currency_id.rounding)
 
             # 4. Calcular sub_total final restando otros descuentos
+            sub_total = 0.0
             if move.journal_id.sit_tipo_documento.codigo in [constants.COD_DTE_FSE]:
-                move.sub_total = float_round(max(move.total_gravado - move.descuento_gravado, 0.0), precision_rounding=move.currency_id.rounding)
+                sub_total = max(move.total_gravado - move.descuento_gravado, 0.0)
+                move.sub_total = float_round(sub_total, precision_rounding=move.currency_id.rounding)
             else:
-                move.sub_total = float_round(max(subtotal_con_descuento_global - descuentos_detalle, 0.0), precision_rounding=move.currency_id.rounding)
+                sub_total = max(subtotal_con_descuento_global - descuentos_detalle, 0.0)
+                move.sub_total = float_round(sub_total, precision_rounding=move.currency_id.rounding)
 
             _logger.info(f"[{move.name}] descuentos no sujeto/exento/gravado: "
                          f"{move.descuento_no_sujeto}/{move.descuento_exento}/{move.descuento_gravado}, "
                          f"sub_total final: {move.sub_total}")
 
             # 5. Calcular total_operacion y total_pagar
+            total_operacion = 0.0
             if move.journal_id.sit_tipo_documento.codigo not in [constants.COD_DTE_FE, constants.COD_DTE_FEX, constants.COD_DTE_NC, constants.COD_DTE_ND]:
-                move.total_operacion = float_round(move.sub_total + move.amount_tax, precision_rounding=move.currency_id.rounding)
+                total_operacion = move.sub_total + move.amount_tax
+                move.total_operacion = float_round(total_operacion, precision_rounding=move.currency_id.rounding)
                 # move.total_operacion = float_round( (move.sub_total + move.amount_tax + move.iva_percibido_amount) - move.retencion_iva_amount, precision_rounding=move.currency_id.rounding)
                 _logger.info(f"[{move.name}] Documento no es tipo 01, total_operacion: {move.total_operacion}")
             elif move.journal_id.sit_tipo_documento.codigo in [constants.COD_DTE_NC, constants.COD_DTE_ND]:
-                move.total_operacion = float_round( ((move.sub_total + move.amount_tax + move.iva_percibido_amount) - move.retencion_iva_amount), precision_rounding=move.currency_id.rounding)
+                total_operacion = ((move.sub_total + move.amount_tax + move.iva_percibido_amount) - move.retencion_iva_amount)
+                move.total_operacion = float_round(total_operacion, precision_rounding=move.currency_id.rounding)
                 _logger.info(f"[{move.name}] Documento no es tipo 01, total_operacion: {move.total_operacion}")
             elif move.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FEX:
-                move.total_operacion = float_round((move.total_gravado - move.descuento_gravado - descuento_global) + move.amount_tax + move.seguro + move.flete, precision_rounding=move.currency_id.rounding)
+                total_operacion = (move.total_gravado - move.descuento_gravado - descuento_global) + move.amount_tax + move.seguro + move.flete
+                move.total_operacion = float_round(total_operacion, precision_rounding=move.currency_id.rounding)
             else:
                 move.total_operacion = move.sub_total
                 _logger.info(f"[{move.name}] Documento tipo 01, total_operacion: {move.total_operacion}")
 
+            total_pagar_amount = 0.0
             if move.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FEX:
-                move.total_pagar = float_round(move.total_operacion - move.retencion_renta_amount, precision_rounding=move.currency_id.rounding)
+                total_pagar_amount = move.total_operacion - move.retencion_renta_amount
+                move.total_pagar = float_round(total_pagar_amount, precision_rounding=move.currency_id.rounding)
             elif move.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FSE:
-                move.total_pagar = float_round(move.sub_total - move.retencion_iva_amount - move.retencion_renta_amount, precision_rounding=move.currency_id.rounding)
+                total_pagar_amount = move.sub_total - move.retencion_iva_amount - move.retencion_renta_amount
+                move.total_pagar = float_round(total_pagar_amount, precision_rounding=move.currency_id.rounding)
             else:
-                move.total_pagar = float_round(move.total_operacion - (move.retencion_renta_amount + move.retencion_iva_amount + move.iva_percibido_amount), precision_rounding=move.currency_id.rounding)
+                total_pagar_amount = move.total_operacion - (move.retencion_renta_amount + move.retencion_iva_amount + move.iva_percibido_amount)
+                move.total_pagar = float_round(total_pagar_amount, precision_rounding=move.currency_id.rounding)
 
             _logger.info(f"{move.journal_id.sit_tipo_documento.codigo}] move.journal_id.sit_tipo_documento.codigo")
             _logger.info(f"Seguro= {move.seguro} | Flete= {move.flete} | Total operacion={move.total_operacion}")
@@ -897,10 +923,13 @@ class AccountMove(models.Model):
                     _logger.info("SIT _compute_descuento_global | Compra normal o sujeto excluido sin facturación -> move_id: %s, no se calcula descuento_global", move.id)
                     continue
 
+            descuento_global_amount = 0.0
             if move.journal_id.sit_tipo_documento.codigo in [constants.COD_DTE_FEX]:
-                move.descuento_global = float_round((move.total_gravado or 0.0) * (move.descuento_global_monto or 0.0) / 100, precision_rounding=move.currency_id.rounding)
+                descuento_global_amount = (move.total_gravado or 0.0) * (move.descuento_global_monto or 0.0) / 100
+                move.descuento_global = float_round(descuento_global_amount, precision_rounding=move.currency_id.rounding)
             else:
-                move.descuento_global = float_round((move.sub_total_ventas or 0.0) * (move.descuento_global_monto or 0.0) / 100, precision_rounding=move.currency_id.rounding)
+                descuento_global_amount = (move.sub_total_ventas or 0.0) * (move.descuento_global_monto or 0.0) / 100
+                move.descuento_global = float_round(descuento_global_amount, precision_rounding=move.currency_id.rounding)
                 _logger.info("SIT descuento_global: %.2f aplicado sobre sub_total %.2f (%.2f%%)", move.descuento_global, move.sub_total_ventas, move.descuento_global_monto)
 
     # def _inverse_descuento_global(self):
