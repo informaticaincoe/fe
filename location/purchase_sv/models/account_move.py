@@ -391,6 +391,8 @@ class AccountMove(models.Model):
                 elif all(t.amount == 0 for t in impuestos):
                     _logger.info("SIT | Línea con impuestos 0%%: line_id=%s, subtotal=%.2f", line.id, line.price_subtotal)
                     total_exento += line.price_subtotal
+                elif any(t.amount > 0 for t in impuestos):
+                    total_exento += line.price_subtotal
                 else:
                     _logger.debug("SIT | Línea con impuestos >0%%: line_id=%s", line.id)
 
