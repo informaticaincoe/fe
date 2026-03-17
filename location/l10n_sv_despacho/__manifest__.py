@@ -13,6 +13,7 @@
         'l10n_sv_dpto',
         'l10n_sv_hacienda',
         'stock',
+        'stock_barcode',
         'sale',
         'fleet',
         'hr',
@@ -24,6 +25,9 @@
             'l10n_sv_despacho/static/src/js/map_field.js',
             'l10n_sv_despacho/static/src/xml/map_template.xml',
             'https://maps.googleapis.com/maps/api/js?key=AIzaSyCrGkTd0pXFZ1lZbj4DJrmsnmmXvT_DKjg',
+            # 'l10n_sv_despacho/static/src/js/barcode_header_button.js',
+            'l10n_sv_despacho/static/src/js/barcode_header_button.js',
+            'l10n_sv_despacho/static/src/xml/barcode_header_button.xml',
         ],
     },
     'data': [
@@ -59,6 +63,7 @@
         'report/report_recepcion_ruta_template.xml',
         'report/report_carga_ruta_template.xml',
         'report/dispatch_delivery_analysis_template.xml',
+        'report/report_montacarguistas_template.xml',
 
         'data/res.previous.municipality.csv',
         'views/partner_company_view.xml',

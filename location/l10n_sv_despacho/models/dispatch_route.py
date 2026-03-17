@@ -1,6 +1,7 @@
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError, ValidationError
 import logging
+from datetime import datetime
 
 _logger = logging.getLogger(__name__)
 
@@ -110,6 +111,7 @@ class DispatchRoute(models.Model):
         [
             ('draft', 'Borrador'),
             ('confirmed', 'Confirmado'),
+            ('loading', 'Cargando'),
             ("in_transit", 'En transito'),
             ("received", "Recibido (CxC)"),
             ('cancel', 'Cancelado'),
@@ -221,10 +223,37 @@ class DispatchRoute(models.Model):
                 raise UserError(_("No es posible confirmar la ruta sin seleccionar al menos una órden de factura."))
             r.state = 'confirmed'
 
+    def action_load(self):
+        for r in self:
+            if r.state != 'confirmed':
+                continue
+
+            if not r.sale_order_ids:
+                raise UserError(_("No es posible confirmar la ruta sin seleccionar al menos una órden de factura."))
+            r.state = 'loading'
+
     def action_start_transit(self):
         for r in self:
-            if r.state != "confirmed":
-                raise UserError(_("La ruta debe estar en estado Confirmado para pasar a En tránsito."))
+            if r.state != "loading":
+                raise UserError(_("La ruta debe estar en estado Cargando para pasar a En tránsito."))
+
+            pickings = r.sale_order_ids.mapped("picking_ids")
+
+            picking_recoleccion = pickings.filtered(
+                lambda p: p.picking_type_id and 'recolectar' in (p.picking_type_id.name or '').lower()
+            )
+
+            pendientes = picking_recoleccion.filtered(
+                lambda p: p.state not in ["done", "cancel"]
+            )
+
+            if pendientes:
+                # Si 'pendientes' no está vacío, significa que hay al menos un picking
+                # que requiere atención o está incompleto.
+                raise UserError(
+                    _("No se puede iniciar el tránsito: existen movimientos de recolección pendientes o en borrador.")
+                )
+
             r.state = "in_transit"
 
     def action_cancel(self):
@@ -394,3 +423,12 @@ class DispatchRoute(models.Model):
             total = route.total_weight or 0.0
             cap = route.vehicle_capacity or 0.0
             route.capacity_list_view = f'{total} / {cap} kg'
+
+    @api.model
+    def action_download_loading_routes_report(self):
+        routes = self.search([("state", "=", "loading")])
+
+        if not routes:
+            raise UserError(_("No hay rutas en estado 'Cargando' para imprimir."))
+
+        return self.env.ref('l10n_sv_despacho.action_report_montacarguista').report_action(routes)
