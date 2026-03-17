@@ -476,17 +476,21 @@ class sit_account_move(models.Model):
         if all(m.move_type in (constants.TYPE_ENTRY, constants.OUT_RECEIPT, constants.IN_RECEIPT) for m in self):
             _logger.info("SIT | write bypass completo para move_type in (entry/receipts)")
             vals_to_write = vals.copy() if vals else {}
-            res = True
+            res = super().write(vals)
             for move in self:
                 _logger.info("SIT | Name (entry): %s", move.name)
-                if not move.name:
-                    vals_to_write['name'] = "/"
-                if move.name == "/" and move.journal_id and move.journal_id.sequence_id and move.journal_id.sequence_id.exists():
-                    vals_to_write['name'] = move.journal_id.sequence_id.next_by_id()
-                    _logger.info("SIT | Asignado name %s para entry %s", vals_to_write['name'], move.id)
-                res = res and super(type(move), move).write(vals_to_write)
+                # if not move.name:
+                #     vals_to_write['name'] = "/"
+                # if move.name == "/" and move.journal_id and move.journal_id.sequence_id and move.journal_id.sequence_id.exists():
+                #     vals_to_write['name'] = move.journal_id.sequence_id.next_by_id()
+                #     _logger.info("SIT | Asignado name %s para entry %s", vals_to_write['name'], move.id)
+                if not move.name or move.name == "/":
+                    try:
+                        move.with_context()._ensure_name()
+                        _logger.info("SIT | Name generado %s para entry %s", move.name, move.id)
+                    except Exception:
+                        _logger.exception("SIT | Error en _ensure_name para move_id=%s", move.id)
             return res
-            # return super().write(vals_to_write)
 
         # B) Instalación, autogenerado u órdenes explícitas de saltar validaciones → bypass
         if self.env.context.get('install_mode') or self.env.context.get('_dte_auto_generated'):
