@@ -484,13 +484,19 @@ class sit_account_move(models.Model):
                 # if move.name == "/" and move.journal_id and move.journal_id.sequence_id and move.journal_id.sequence_id.exists():
                 #     vals_to_write['name'] = move.journal_id.sequence_id.next_by_id()
                 #     _logger.info("SIT | Asignado name %s para entry %s", vals_to_write['name'], move.id)
-                if not move.name or move.name == "/":
+                if (not move.name or move.name == "/") and move.journal_id and move.journal_id.sequence_id:
                     try:
-                        move.with_context()._ensure_name()
-                        _logger.info("SIT | Name generado %s para entry %s", move.name, move.id)
+                        new_name = move.journal_id.sequence_id.next_by_id()
+
+                        _logger.info("SIT | Asignando name %s a move %s", new_name, move.id)
+
+                        # ✅ ASIGNACIÓN DIRECTA (NO write)
+                        move.name = new_name
+
                     except Exception:
-                        _logger.exception("SIT | Error en _ensure_name para move_id=%s", move.id)
-            return res
+                        _logger.exception("SIT | Error asignando secuencia a move_id=%s", move.id)
+
+                return res
 
         # B) Instalación, autogenerado u órdenes explícitas de saltar validaciones → bypass
         if self.env.context.get('install_mode') or self.env.context.get('_dte_auto_generated'):
