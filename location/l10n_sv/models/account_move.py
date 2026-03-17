@@ -476,6 +476,7 @@ class sit_account_move(models.Model):
         if all(m.move_type in (constants.TYPE_ENTRY, constants.OUT_RECEIPT, constants.IN_RECEIPT) for m in self):
             _logger.info("SIT | write bypass completo para move_type in (entry/receipts)")
             vals_to_write = vals.copy() if vals else {}
+            res = True
             for move in self:
                 _logger.info("SIT | Name (entry): %s", move.name)
                 if not move.name:
@@ -483,7 +484,9 @@ class sit_account_move(models.Model):
                 if move.name == "/" and move.journal_id and move.journal_id.sequence_id and move.journal_id.sequence_id.exists():
                     vals_to_write['name'] = move.journal_id.sequence_id.next_by_id()
                     _logger.info("SIT | Asignado name %s para entry %s", vals_to_write['name'], move.id)
-            return super().write(vals_to_write)
+                res = res and super(type(move), move).write(vals_to_write)
+            return res
+            # return super().write(vals_to_write)
 
         # B) Instalación, autogenerado u órdenes explícitas de saltar validaciones → bypass
         if self.env.context.get('install_mode') or self.env.context.get('_dte_auto_generated'):
