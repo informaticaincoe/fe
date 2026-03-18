@@ -391,6 +391,8 @@ class AccountMove(models.Model):
                 elif all(t.amount == 0 for t in impuestos):
                     _logger.info("SIT | Línea con impuestos 0%%: line_id=%s, subtotal=%.2f", line.id, line.price_subtotal)
                     total_exento += line.price_subtotal
+                elif any(t.amount > 0 for t in impuestos):
+                    total_exento += line.price_subtotal
                 else:
                     _logger.debug("SIT | Línea con impuestos >0%%: line_id=%s", line.id)
 
@@ -408,7 +410,7 @@ class AccountMove(models.Model):
                     move.amount_exento = 0.0
                     move.amount_gravado = 0.0
 
-            _logger.info("SIT | Total exento = %.2f| Total gravado = %.2f para move_id=%s = ", move.id, move.amount_exento, move.amount_gravado)
+            _logger.info("SIT | Total exento = %.2f | Total gravado = %.2f para move_id=%s ", move.amount_exento, move.amount_gravado, move.id)
 
     def _sv_requires_tax_override(self):
         """True si es compra y el vencimiento es mayor que la fecha contable."""
