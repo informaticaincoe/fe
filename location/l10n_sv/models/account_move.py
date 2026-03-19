@@ -184,7 +184,7 @@ class sit_account_move(models.Model):
             # 2) Condición de pago (Hacienda)
             if not move.condiciones_pago and p.condicion_pago_venta_id:
                 move.condiciones_pago = p.condicion_pago_venta_id
-                _logger.info("[ONCHANGE VENTAS] Asignada condiciones_pago=%s", p.condicion_pago_venta_id.id)
+                _logger.info("[ONCHANGE VENTAS] Asignada condiciones_pago=%s", p.condicion_pago_venta_id)
 
             # 3) Forma de pago
             if not move.forma_pago and p.formas_pago_venta_id:

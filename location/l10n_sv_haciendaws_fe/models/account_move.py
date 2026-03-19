@@ -1587,7 +1587,7 @@ class AccountMove(models.Model):
                                 'title': resultado.get('title', 'Información'),
                                 'message': resultado.get('message', ''),
                                 'type': resultado.get('type', 'info'),
-                                'sticky': False,
+                                'sticky': True,
                             }
                         }
                     raise UserError(_("Error MH estado !=200 (HTTP %s): %s") % (resp.status_code, data or resp.text))
@@ -1613,7 +1613,7 @@ class AccountMove(models.Model):
                                 'title': resultado.get('title', 'Información'),
                                 'message': resultado.get('message', ''),
                                 'type': resultado.get('type', 'info'),
-                                'sticky': False,
+                                'sticky': True,
                             }
                         }
                     raise UserError(_("Rechazado por MH: %s – %s") % (data.get('clasificaMsg'), data.get('descripcionMsg')))
@@ -2239,7 +2239,7 @@ class AccountMove(models.Model):
                 # Verificar si ya se completaron las validaciones esenciales para continuar
 
                 # Validar formato del name
-                if inv.company_id.sit_facturacion or doc_electronico:
+                if (inv.company_id.sit_facturacion or doc_electronico) and not inv.company_id.sit_entorno_test:
                     # Formato general del numero de control: DTE-01-M001P001-000000000000001
                     pattern = r"^DTE-\d{2}-[A-Z0-9]{8}-\d{15}$"
                     if not re.match(pattern, inv.name):
@@ -2350,7 +2350,7 @@ class AccountMove(models.Model):
                         'title': "Éxito",
                         'message': f"El documento electrónico {inv.name} ha sido enviado y procesado correctamente por Hacienda.",
                         'type': 'success',
-                        'sticky': False,
+                        'sticky': True,
                     },
                 }
             elif ambiente_test and inv.hacienda_estado and inv.hacienda_estado.lower() == 'procesado' and inv.state != 'draft':
@@ -2362,7 +2362,7 @@ class AccountMove(models.Model):
                         'title': "Éxito",
                         'message': f"El documento electrónico {inv.name} ha sido procesado correctamente.",
                         'type': 'success',
-                        'sticky': False,
+                        'sticky': True,
                     },
                 }
 
@@ -2376,7 +2376,7 @@ class AccountMove(models.Model):
                         'title': "Aviso",
                         'message': "El correo con el DTE no fue enviado.",
                         'type': 'warning',
-                        'sticky': False,
+                        'sticky': True,
                     },
                 }
             elif not ambiente_test and not inv.env.context.get('correo_enviado', False) and inv.state == 'posted' and inv.correo_enviado:
@@ -2387,7 +2387,7 @@ class AccountMove(models.Model):
                         'title': "Aviso",
                         'message': "El correo con el DTE no fue enviado.",
                         'type': 'warning',
-                        'sticky': False,
+                        'sticky': True,
                     },
                 }
             elif inv.env.context.get('correo_enviado') and inv.state == 'posted':
@@ -2398,7 +2398,7 @@ class AccountMove(models.Model):
                         'title': "Aviso",
                         'message': "El correo fue enviado.",
                         'type': 'success',
-                        'sticky': False,
+                        'sticky': True,
                     },
                 }
 
@@ -2480,7 +2480,7 @@ class AccountMove(models.Model):
                                 'title': "Éxito",
                                 'message': f"El correo del documento {invoice.name} fue enviado correctamente.",
                                 'type': 'success',
-                                'sticky': False,
+                                'sticky': True,
                             },
                         }
 
@@ -2503,7 +2503,7 @@ class AccountMove(models.Model):
                             'title': "Éxito",
                             'message': f"El correo del documento {invoice.name} fue enviado correctamente.",
                             'type': 'success',
-                            'sticky': False,
+                            'sticky': True,
                         },
                     }
                 except Exception as e:
