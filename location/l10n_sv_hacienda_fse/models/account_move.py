@@ -55,7 +55,7 @@ class AccountMove(models.Model):
             return True
 
         # 3 Si la facturación electrónica está desactivada, no hacemos nada
-        if not self.env.company.sit_facturacion:
+        if not self.env.company.sit_facturacion or (self.env.company.sit_facturacion and self.env.company.sit_entorno_test):
             _logger.info("FE OFF: omitiendo sit_debug_mostrar_json_fse")
             return True  # no bloquea la UI
 

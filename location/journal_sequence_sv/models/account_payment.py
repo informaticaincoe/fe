@@ -16,7 +16,7 @@ class AccountPayment(models.Model):
     def _onchange_journal_date(self):
         """Deja este onchange funcionar siempre.
         Si necesitas lógica especial SOLO cuando FE está activa, pon la condición adentro."""
-        if not self.env.company.sit_facturacion:
+        if not self.env.company.sit_facturacion or (self.env.company.sit_facturacion and self.env.company.sit_entorno_test):
             return  # no hagas nada especial
         # aquí tu lógica extra solo si FE=ON (si aplica)
         return
@@ -26,7 +26,7 @@ class AccountPayment(models.Model):
         """Permite postear pagos siempre.
         Si FE está apagada, deja el comportamiento estándar (super()).
         Si FE está encendida y necesitas numerar/cambiar algo, hazlo adentro."""
-        if not self.env.company.sit_facturacion:
+        if not self.env.company.sit_facturacion or (self.env.company.sit_facturacion and self.env.company.sit_entorno_test):
             # FE OFF → comportamiento estándar
             return super(AccountPayment, self).action_post()
 

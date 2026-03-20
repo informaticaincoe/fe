@@ -361,7 +361,7 @@ class AccountMove(models.Model):
             if rec.move_type in (constants.TYPE_ENTRY, constants.OUT_RECEIPT, constants.IN_RECEIPT):
                 continue
 
-            if rec.company_id and rec.company_id.sit_facturacion:
+            if rec.company_id and rec.company_id.sit_facturacion and not rec.company_id.sit_entorno_test:
                 if (rec.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND) or
                         (rec.move_type == constants.IN_INVOICE and rec.journal_id and rec.journal_id.sit_tipo_documento and rec.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FSE)):
                     if not rec.afip_auth_code:
@@ -396,7 +396,7 @@ class AccountMove(models.Model):
                 continue
 
             # Validación 3: la empresa debe tener facturación electrónica activa
-            if not (rec.company_id and rec.company_id.sit_facturacion):
+            if not (rec.company_id and rec.company_id.sit_facturacion) or (rec.company_id and rec.company_id.sit_facturacion and rec.company_id.sit_entorno_test):
                 _logger.info("SIT _compute_qr_code: empresa %s no tiene facturación electrónica activa. Se omite QR.", rec.company_id.name if rec.company_id else None)
                 rec.afip_qr_code = False
                 continue
@@ -458,7 +458,7 @@ class AccountMove(models.Model):
             return self.browse()
 
         # Validación: empresa con facturación electrónica activa
-        if not (self.company_id and self.company_id.sit_facturacion):
+        if not (self.company_id and self.company_id.sit_facturacion) or (self.company_id and self.company_id.sit_facturacion and self.company_id.sit_entorno_test):
             _logger.info("SIT get_related_invoices_data: move_id %s no aplica a facturación electrónica. Se devuelve browse() vacío.", self.id)
             return self.browse()
 
@@ -498,7 +498,7 @@ class AccountMove(models.Model):
             doc_electronico = True
         _logger.info("SIT diario: %s, tipo. %s, | es dte? %s | Actualizar secuencia? %s", journal, journal.type, doc_electronico, actualizar_secuencia)
 
-        if (self.company_id and self.company_id.sit_facturacion and doc_electronico and
+        if (self.company_id and self.company_id.sit_facturacion and not self.company_id.sit_entorno_test and doc_electronico and
                 (self.move_type in(constants.OUT_INVOICE, constants.OUT_REFUND) or
                  (self.move_type == constants.IN_INVOICE and self.journal_id.sit_tipo_documento and self.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FSE))
         ):
@@ -685,7 +685,7 @@ class AccountMove(models.Model):
             return
 
         # Validar empresa
-        if not (self.company_id and self.company_id.sit_facturacion):
+        if not (self.company_id and self.company_id.sit_facturacion) or (self.company_id and self.company_id.sit_facturacion and self.company_id.sit_entorno_test):
             _logger.info("SIT No aplica actualización de secuencia (empresa sin facturación electrónica).")
             return
 
@@ -749,6 +749,10 @@ class AccountMove(models.Model):
         # 2) Facturas que sí aplican a DTE
         for invoice in invoices_to_post:
 
+            if invoice.company_id and invoice.company_id.sit_entorno_test:
+                _logger.info("Factura ID %s entorno pruebas; se omite reproceso.", invoice.id)
+                continue
+
             # -------------------------------------------------------------------------
             # 1) Saltar facturas que ya están publicadas
             # -------------------------------------------------------------------------
@@ -760,7 +764,7 @@ class AccountMove(models.Model):
             # 2) Determinar si aplica facturación electrónica
             # -------------------------------------------------------------------------
             aplica_dte = (
-                    invoice.company_id.sit_facturacion and (
+                    invoice.company_id.sit_facturacion and not invoice.company_id.sit_entorno_test and (
                     invoice.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND)
                     or (invoice.move_type in (constants.IN_INVOICE, constants.IN_REFUND) and invoice.journal_id.sit_tipo_documento and invoice.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FSE)
             )
@@ -783,7 +787,7 @@ class AccountMove(models.Model):
             # -------------------------------------------------------------------------
             # 3) Validación de doble envío
             # -------------------------------------------------------------------------
-            if invoice.hacienda_selloRecibido and invoice.recibido_mh:
+            if invoice.hacienda_selloRecibido and invoice.recibido_mh and not invoice.company_id.sit_entorno_test:
                 raise UserError("El documento ID %s ya fue procesado por Hacienda." % invoice.id)
 
             documento_firmado = None
@@ -1161,7 +1165,7 @@ class AccountMove(models.Model):
             _logger.info("SIT Las compras no aplican. Omite firma de documento.")
             return [{"status": "SKIPPED", "mensaje": "Compra no aplica facturación electrónica"}]
 
-        if not (self.company_id and self.company_id.sit_facturacion):
+        if not (self.company_id and self.company_id.sit_facturacion) or (self.company_id and self.company_id.sit_facturacion and self.company_id.sit_entorno_test):
             _logger.info("SIT La empresa no aplica facturación electrónica. Omite firma de documento.")
             return [{"status": "SKIPPED", "mensaje": "Empresa no aplica facturación electrónica"}]
 
@@ -1294,7 +1298,7 @@ class AccountMove(models.Model):
             return False
 
         # Validar si la empresa aplica facturación electrónica
-        if not (self.company_id and self.company_id.sit_facturacion):
+        if not (self.company_id and self.company_id.sit_facturacion) or (self.company_id and self.company_id.sit_facturacion and self.company_id.sit_entorno_test):
             _logger.info("SIT No aplica facturación electrónica. Se omite payload.")
             return False
 
@@ -1341,7 +1345,7 @@ class AccountMove(models.Model):
             return False
 
         # ——— Validar si aplica facturación electrónica ———
-        if not (self.company_id and self.company_id.sit_facturacion):
+        if not (self.company_id and self.company_id.sit_facturacion) or (self.company_id and self.company_id.sit_facturacion and self.company_id.sit_entorno_test):
             _logger.info("SIT No aplica facturación electrónica. Se omite generación de DTE.")
             return False
 
@@ -1643,7 +1647,7 @@ class AccountMove(models.Model):
                 return False
 
         # Validación de facturación electrónica
-        if not (self.company_id and self.company_id.sit_facturacion):
+        if not (self.company_id and self.company_id.sit_facturacion) or (self.company_id and self.company_id.sit_facturacion and self.company_id.sit_entorno_test):
             _logger.info("SIT No aplica facturación electrónica para la empresa %s. Se omite autenticación.", self.company_id.name if self.company_id else None)
             return False
 
@@ -1689,7 +1693,7 @@ class AccountMove(models.Model):
                 _logger.info("SIT Movimiento de compra sin facturación electrónica requerida (tipo_doc=%s). Se omite generación de QR.", tipo_doc.codigo if tipo_doc else None)
                 return False
 
-        if not (self.company_id and self.company_id.sit_facturacion):
+        if not (self.company_id and self.company_id.sit_facturacion) or (self.company_id and self.company_id.sit_facturacion and self.company_id.sit_entorno_test):
             _logger.info("SIT No aplica facturación electrónica. Se omite generación de QR(_generar_qr).")
             return False
 
@@ -1738,7 +1742,7 @@ class AccountMove(models.Model):
                 return False
 
         # ——— Validación facturación electrónica ———
-        if not (self.company_id and self.company_id.sit_facturacion):
+        if not (self.company_id and self.company_id.sit_facturacion) or (self.company_id and self.company_id.sit_facturacion and self.company_id.sit_entorno_test):
             _logger.info("SIT No aplica facturación electrónica. Se omite generación de QR (generar_qr) para move_id=%s", self.id)
             return False
 
@@ -1791,7 +1795,7 @@ class AccountMove(models.Model):
                 return False
 
         # ——— Validación facturación electrónica ———
-        if not (self.company_id and self.company_id.sit_facturacion):
+        if not (self.company_id and self.company_id.sit_facturacion) or (self.company_id and self.company_id.sit_facturacion and self.company_id.sit_entorno_test):
             _logger.info("SIT No aplica facturación electrónica. Se omite validación de parámetros de firmado para move_id=%s", self.id)
             return False
 
@@ -1835,6 +1839,8 @@ class AccountMove(models.Model):
         _logger.info("SIT Validaciones completadas correctamente para move_id=%s", self.id)
 
     def check_parametros_linea_firmado(self, line_temp):
+        if self.company_id and self.company_id.sit_facturacion and self.company_id.sit_entorno_test:
+            return False
         if not line_temp["codigo"]:
             ERROR = 'El CODIGO del producto  ' + line_temp["descripcion"] + ' no está definido.'
             raise UserError(_(ERROR))
@@ -1863,7 +1869,7 @@ class AccountMove(models.Model):
                 return False
 
         # ——— Validar facturación electrónica ———
-        if not (self.company_id and self.company_id.sit_facturacion):
+        if not (self.company_id and self.company_id.sit_facturacion) or (self.company_id and self.company_id.sit_facturacion and self.company_id.sit_entorno_test):
             _logger.info("SIT No aplica facturación electrónica. Se omite validación de parámetros DTE para move_id=%s", self.id)
             return False
 
@@ -1900,7 +1906,7 @@ class AccountMove(models.Model):
                 return None, False, ""
 
         # ——— Validar facturación electrónica ———
-        if not (self.company_id and self.company_id.sit_facturacion):
+        if not (self.company_id and self.company_id.sit_facturacion) or (self.company_id and self.company_id.sit_facturacion and self.company_id.sit_entorno_test):
             _logger.info("SIT No aplica facturación electrónica. Se omite evaluación de error de contingencia para move_id=%s", self.id)
             return None, False, ""
 
@@ -1939,7 +1945,7 @@ class AccountMove(models.Model):
                 return
 
         # ——— Validar facturación electrónica y tipo de movimiento ———
-        if not (self.company_id and self.company_id.sit_facturacion):
+        if not (self.company_id and self.company_id.sit_facturacion) or (self.company_id and self.company_id.sit_facturacion and self.company_id.sit_entorno_test):
             _logger.info("SIT No aplica facturación electrónica. Se omite creación de contingencia.")
             return
 
@@ -2161,7 +2167,7 @@ class AccountMove(models.Model):
                 return
 
         # ——— Validar facturación electrónica ———
-        if not (self.company_id and self.company_id.sit_facturacion):
+        if not (self.company_id and self.company_id.sit_facturacion) or (self.company_id and self.company_id.sit_facturacion and self.company_id.sit_entorno_test):
             _logger.info("SIT No aplica facturación electrónica. Se omite asignación a bloque.")
             return
 
@@ -2215,7 +2221,7 @@ class AccountMove(models.Model):
             # Verificar si la facturación electrónica aplica para todas las facturas
             _logger.info("SIT Self hacienda_ws: %s, Tipo de Movimiento: %s", inv.id, inv.move_type)
 
-            if inv.company_id and not inv.company_id.sit_facturacion:
+            if inv.company_id and not inv.company_id.sit_facturacion or (inv.company_id and inv.company_id.sit_facturacion and inv.company_id.sit_entorno_test):
                 _logger.info("SIT No aplica facturación electrónica para la factura %s. Se omiten validaciones iniciales.",
                     inv.name)
                 continue
@@ -2340,6 +2346,11 @@ class AccountMove(models.Model):
 
         # Verificar si el DTE ha sido recibido y procesado correctamente
         for inv in self:
+            if inv.company_id and not inv.company_id.sit_facturacion or (inv.company_id and inv.company_id.sit_facturacion and inv.company_id.sit_entorno_test):
+                _logger.info("SIT No aplica facturación electrónica para la factura %s. Se omiten validaciones iniciales.",
+                    inv.name)
+                continue
+
             _logger.info("SIT Estado registro: %s", inv.state)
             if not ambiente_test and inv.hacienda_selloRecibido and inv.state == 'posted':
                 _logger.info("SIT El DTE ha sido recibido y procesado por Hacienda para el documento %s", inv.name)
@@ -2526,7 +2537,7 @@ class AccountMove(models.Model):
                     continue
 
             # Validar si la empresa aplica a facturación electrónica
-            if not (move.company_id and move.company_id.sit_facturacion):
+            if not (move.company_id and move.company_id.sit_facturacion) or (move.company_id and move.company_id.sit_facturacion and move.company_id.sit_entorno_test):
                 _logger.info("SIT | La empresa %s no aplica a facturación electrónica. Se omite retenciones para %s", move.company_id.name if move.company_id else None, move.name)
                 continue
 
@@ -2652,7 +2663,7 @@ class AccountMove(models.Model):
                 return self.env["product.product"]
 
         # --- Validación: solo aplicar si la empresa aplica a facturación electrónica ---
-        if not (self.company_id and self.company_id.sit_facturacion):
+        if not (self.company_id and self.company_id.sit_facturacion) or (self.company_id and self.company_id.sit_facturacion and self.company_id.sit_entorno_test):
             _logger.info("La empresa %s no aplica a facturación electrónica. Validación omitida.", self.company_id.name)
             # return
             return self.env["product.product"]
@@ -2683,7 +2694,7 @@ class AccountMove(models.Model):
                 continue
 
             # Verificar si la empresa aplica facturación electrónica
-            if move.company_id and move.company_id.sit_facturacion:
+            if (move.company_id and move.company_id.sit_facturacion) or (move.company_id and move.company_id.sit_facturacion and move.company_id.sit_entorno_test):
                 _logger.info("SIT | move_id=%s pertenece a empresa con FE, se omite asignación automática", move.id)
                 continue
 

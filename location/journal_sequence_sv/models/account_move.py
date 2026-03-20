@@ -26,10 +26,11 @@ class AccountMove(models.Model):
         if self.move_type in (constants.TYPE_ENTRY, constants.OUT_RECEIPT, constants.IN_RECEIPT) or not journal.refund_sequence:
             return journal.sequence_id
 
+        if not self.env.company.sit_facturacion or (self.env.company.sit_facturacion and self.env.company.sit_entorno_test):
+            return super()._get_sequence()
+
         if (self.move_type in (constants.IN_INVOICE, constants.IN_REFUND) and
              (not self.journal_id.sit_tipo_documento or self.journal_id.sit_tipo_documento.codigo != constants.COD_DTE_FSE) ):
-            return super()._get_sequence()
-        if not self.env.company.sit_facturacion:
             return super()._get_sequence()
 
         # Si es NC y existe refund_sequence -> refund
@@ -52,7 +53,7 @@ class AccountMove(models.Model):
         journal = self.journal_id
         if self.move_type in (constants.TYPE_ENTRY, constants.OUT_RECEIPT, constants.IN_RECEIPT) or not journal.refund_sequence:
             return journal.sequence_id
-        if (not self.env.company.sit_facturacion):
+        if (not self.env.company.sit_facturacion or (self.env.company.sit_facturacion and self.env.company.sit_entorno_test)):
             # respetar core; si no existe en tu versión, puedes retornar self.journal_id.sequence_id
             try:
                 return super()._get_standard_sequence()
@@ -66,7 +67,7 @@ class AccountMove(models.Model):
         result = super(AccountMove, self)._post(soft=soft)
 
         # Si la empresa no usa facturación electrónica, no hago nada
-        if not self.env.company.sit_facturacion:
+        if not self.env.company.sit_facturacion or (self.env.company.sit_facturacion and self.env.company.sit_entorno_test):
             return result
 
         # Procesar SIEMPRE por movimiento
@@ -116,7 +117,7 @@ class AccountMove(models.Model):
         except AttributeError:
             _logger.warning("SIT-ONCHANGE: super().onchange_journal_id no existe en esta versión")
 
-        if self.name != '/' and self.env.company.sit_facturacion and (
+        if self.name != '/' and self.env.company.sit_facturacion and not self.env.company.sit_entorno_test and (
                 self.move_type not in (constants.IN_INVOICE, constants.IN_REFUND) or
                 (self.move_type == constants.IN_INVOICE and self.journal_id.sit_tipo_documento and self.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FSE)
         ):
@@ -125,7 +126,7 @@ class AccountMove(models.Model):
             ) % self.name)
 
         # Si quieres forzar reset del nombre cuando FE ON:
-        if self.env.company.sit_facturacion and self.name == '/' and (
+        if self.env.company.sit_facturacion and not self.env.company.sit_entorno_test and self.name == '/' and (
                 self.move_type not in (constants.IN_INVOICE, constants.IN_REFUND) or
                 (self.move_type == constants.IN_INVOICE and self.journal_id.sit_tipo_documento and self.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FSE)
         ):

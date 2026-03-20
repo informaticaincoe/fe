@@ -47,7 +47,7 @@ class AccountJournal(models.Model):
         _logger.info("📌 _create_sequence llamada con vals=%s refund=%s FE=%s",
                      vals, refund, self.env.company.sit_facturacion)
 
-        if not self.env.company.sit_facturacion:
+        if not self.env.company.sit_facturacion or (self.env.company.sit_facturacion and self.env.company.sit_entorno_test):
             # Delegar al comportamiento estándar si tu versión lo espera; si no existe, crea simple.
             code = vals.get('code') or vals.get('name') or 'JOURNAL'
             seq_vals = {
@@ -93,7 +93,7 @@ class AccountJournal(models.Model):
         _logger.info("📌 create_sequence llamada en diario=%s refund=%s FE=%s",
                      self.display_name, refund, self.env.company.sit_facturacion)
 
-        if not self.env.company.sit_facturacion:
+        if not self.env.company.sit_facturacion or (self.env.company.sit_facturacion and self.env.company.sit_entorno_test):
             seq_vals = {
                 'name': _('%s Sequence') % (refund and f"{self.code}: Refund" or self.code),
                 'implementation': 'no_gap',
@@ -178,7 +178,7 @@ class AccountJournal(models.Model):
     def _get_sequence_prefix(self, code, refund=False):
         """Devuelve un prefix SEGURO. Siempre retorna str. No depende del decorador."""
         # Si FE OFF, devuelve algo simple (sin placeholders) para evitar interpolaciones.
-        if not self.env.company.sit_facturacion:
+        if not self.env.company.sit_facturacion or (self.env.company.sit_facturacion and self.env.company.sit_entorno_test):
             base = (code or 'JOURNAL').upper()
             pref = ('R' + base + '/') if refund else (base + '/')
             _logger.debug("ℹ️ Prefix generado (FE OFF): %s", pref)
@@ -217,7 +217,7 @@ class AccountJournal(models.Model):
         res = super().write(vals)
 
         # Mantener prefijos alineados cuando FE ON y se cambie dte_prefix
-        if self.env.company.sit_facturacion and 'dte_prefix' in vals:
+        if self.env.company.sit_facturacion and not self.env.company.sit_entorno_test and 'dte_prefix' in vals:
             for journal in self:
                 new_pref = (journal.dte_prefix or journal.code or 'DTE').upper()
                 if journal.sequence_id:

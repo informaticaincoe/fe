@@ -375,7 +375,7 @@ class sit_account_move(models.Model):
                 _logger.info("SIT | Asignando name secuencial %s para move_id=%s", rec.name, rec.id)
 
                 # Verificar si el diario tiene secuencia configurada
-                if company and not company.sit_facturacion and rec.journal_id.sequence_id:
+                if company and (not company.sit_facturacion or (company.sit_facturacion and company.sit_entorno_test)) and rec.journal_id.sequence_id:
                     # Asignar el nombre secuencial si existe la secuencia
                     rec.name = rec.journal_id.sequence_id.next_by_id()
                     _logger.info("SIT | Secuencia asignada a move_id=%s: %s", rec.id, rec.name)
@@ -525,7 +525,7 @@ class sit_account_move(models.Model):
             return super().write(vals)
 
         # F) Si ninguna compañía de los moves tiene facturación activa → bypass
-        if not any(m.company_id.sit_facturacion for m in self):
+        if any(not m.company_id.sit_facturacion or (m.company_id.sit_facturacion and m.company_id.sit_entorno_test) for m in self):
             _logger.info("SIT-write: Compañías sin facturación activa, write estándar.")
             return super().write(vals)
 

@@ -1010,8 +1010,9 @@ class sit_account_contingencia(models.Model):
             raise UserError(_('El receptor no tiene MUNICIPIO configurado.'))
         if not self.partner_id.email:
             raise UserError(_('El receptor no tiene CORREO configurado.'))
-        if not self.invoice_line_ids:
-            raise UserError(_('La factura no tiene LINEAS DE PRODUCTOS asociada.'))
+        if self.company_id and not self.company_id.sit_entorno_test:
+            if not self.invoice_line_ids:
+                raise UserError(_('La factura no tiene LINEAS DE PRODUCTOS asociada.'))
 
     def check_parametros_dte(self, generacion_dte, ambiente_test):
         _logger.info("SIT-Contingencia Validaciones check_parametros_dte")

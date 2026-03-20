@@ -58,7 +58,7 @@ class AccountMove(models.Model):
             # Si no hay facturas, llamar al método original sin hacer validaciones DTE
             return super().action_post()
 
-        if not self.env.company.sit_facturacion:
+        if not self.env.company.sit_facturacion or (self.env.company.sit_facturacion and self.env.company.sit_entorno_test):
             return super().action_post()
 
         # FE activa → aplica tus validaciones extra solo en facturacion de ventas y luego deja que Odoo postee
@@ -121,7 +121,7 @@ class AccountMove(models.Model):
                 _logger.info("Omitiendo validación de línea en %s: tipo=%s, codigo_dte=%s", self._name, move_type, codigo_dte)
                 return None
 
-        if not self.env.company.sit_facturacion:
+        if not self.env.company.sit_facturacion or (self.env.company.sit_facturacion and self.env.company.sit_entorno_test):
             _logger.info("FE OFF: omitiendo check_parametros_linea_firmado_fex en %s", self._name)
             return None
 

@@ -158,7 +158,8 @@ class AccountMoveInvalidation(models.Model):
         '''Generamos la Anulación de la Factura'''
         _logger.info("SIT [INICIO] button_anul para invoices: %s", self.ids)
 
-        if not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion):
+        if (not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion) or
+                (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion and self.sit_factura_a_reemplazar.company_id.sit_entorno_test)):
             _logger.info("SIT No aplica facturación electrónica. Se omite invalidacion de documentos electronicos.")
             return False
 
@@ -530,7 +531,8 @@ class AccountMoveInvalidation(models.Model):
                 return False
 
         # 2 Validación de facturación electrónica
-        if not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion):
+        if (not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion) or
+                (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion and self.sit_factura_a_reemplazar.company_id.sit_entorno_test)):
             # raise UserError(_("Solo se pueden firmar documentos de empresas con facturación electrónica."))
             _logger.info("SIT No aplica facturación electrónica. Se omite firma de documento.")
             return False
@@ -586,7 +588,8 @@ class AccountMoveInvalidation(models.Model):
         _logger.info("SIT  Obteniendo payload")
 
         # Validación de empresa
-        if not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion):
+        if (not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion) or
+                (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion and self.sit_factura_a_reemplazar.company_id.sit_entorno_test)):
             _logger.info("SIT La empresa %s no aplica a facturación electrónica, se detiene la obtención de obtener payload.", self.sit_factura_a_reemplazar.company_id.id if self.sit_factura_a_reemplazar.company_id else None)
             return
 
@@ -608,7 +611,8 @@ class AccountMoveInvalidation(models.Model):
                 return False
 
         # 2 Validación de facturación electrónica
-        if not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion):
+        if (not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion) or
+                (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion and self.sit_factura_a_reemplazar.company_id.sit_entorno_test)):
             _logger.info("SIT La empresa %s no aplica a facturación electrónica, se detiene la generación de DTE.", self.sit_factura_a_reemplazar.company_id.id if self.sit_factura_a_reemplazar.company_id else None,)
             return False
 
@@ -712,7 +716,8 @@ class AccountMoveInvalidation(models.Model):
                 return False
 
         # 2 Validación de facturación electrónica
-        if not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion):
+        if (not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion) or
+                (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion and self.sit_factura_a_reemplazar.company_id.sit_entorno_test)):
             _logger.info("SIT No aplica facturación electrónica. Se omite autenticación.")
             return False
 
@@ -768,7 +773,8 @@ class AccountMoveInvalidation(models.Model):
                 return False
 
         # 2 Validación de facturación electrónica
-        if not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion):
+        if (not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion) or
+                (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion and self.sit_factura_a_reemplazar.company_id.sit_entorno_test)):
             _logger.info("SIT No aplica facturación electrónica. Se omite generación de QR(_generar_qr) en evento de invalidacion.")
             return False
 
@@ -824,7 +830,8 @@ class AccountMoveInvalidation(models.Model):
                 return False
 
         # 2 Validación: empresa y facturación electrónica activa
-        if not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion):
+        if (not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion) or
+                (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion and self.sit_factura_a_reemplazar.company_id.sit_entorno_test)):
             _logger.info("SIT No aplica facturación electrónica. Se omite generación de QR(generar_qr) en evento de invalidación.")
             return False
 
@@ -887,7 +894,8 @@ class AccountMoveInvalidation(models.Model):
                 return False
 
         # Validar si aplica facturación electrónica
-        if not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion):
+        if (not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion) or
+                (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion and self.sit_factura_a_reemplazar.company_id.sit_entorno_test)):
             _logger.info("SIT No aplica facturación electrónica. Se omite check_parametros_invalidacion en evento de invalidación.")
             return False
 
@@ -914,7 +922,8 @@ class AccountMoveInvalidation(models.Model):
                 return False
 
         # Validar si aplica facturación electrónica
-        if not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion):
+        if (not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion) or
+                (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion and self.sit_factura_a_reemplazar.company_id.sit_entorno_test)):
             _logger.info("SIT No aplica facturación electrónica. Se omite validación de parámetros de firmado en invalidación.")
             return False
 
@@ -990,7 +999,8 @@ class AccountMoveInvalidation(models.Model):
                 return False
 
         # Validación de empresa
-        if not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion):
+        if (not (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion) or
+                (self.sit_factura_a_reemplazar.company_id and self.sit_factura_a_reemplazar.company_id.sit_facturacion and self.sit_factura_a_reemplazar.company_id.sit_entorno_test)):
             _logger.info("SIT check_parametros_dte_invalidacion: empresa %s no aplica a facturación electrónica, se detiene la validación.",
                          self.sit_factura_a_reemplazar.company_id.id if self.sit_factura_a_reemplazar.company_id else None)
             return False
