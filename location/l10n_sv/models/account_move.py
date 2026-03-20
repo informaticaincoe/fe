@@ -441,7 +441,7 @@ class sit_account_move(models.Model):
             # --- Ajustes finales: logs, retenciones y seguro/flete ---
             if rec.partner_id:
                 if not rec.apply_retencion_iva:
-                    if rec.partner_id.gran_contribuyente:
+                    if rec.partner_id.gran_contribuyente and rec.amount_untaxed >= 100:
                         rec.apply_retencion_iva = True
                     else:
                         rec.apply_retencion_iva = False
