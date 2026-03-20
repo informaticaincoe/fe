@@ -62,7 +62,7 @@ class AccountMove(models.Model):
         invoice_info = {}
 
         # Validación de empresa
-        if not (self.company_id and self.company_id.sit_facturacion):
+        if not (self.company_id and self.company_id.sit_facturacion) or (self.company_id.sit_facturacion and self.company_id.sit_entorno_test):
             _logger.info("SIT sit_anulacion_base_map_invoice_info: empresa %s no aplica a facturación electrónica, no se genera payload.", self.company_id.id if self.company_id else None)
             return {}
 
@@ -321,7 +321,7 @@ class AccountMove(models.Model):
         _logger.info("SIT [INICIO] Payload envío DTE anulado: self.id=%s", self.id)
 
         # Validación de empresa
-        if not (self.company_id and self.company_id.sit_facturacion):
+        if not (self.company_id and self.company_id.sit_facturacion) or (self.company_id.sit_facturacion and self.company_id.sit_entorno_test):
             _logger.info("SIT sit_obtener_payload_anulacion_dte_info: empresa %s no aplica a facturación electrónica, no se genera payload.", self.company_id.id if self.company_id else None)
             return {}
 

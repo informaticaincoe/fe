@@ -55,7 +55,7 @@ class AccountMove(models.Model):
             return 0.0
 
     def sit_base_map_invoice_info_fex(self):
-        if not self.env.company.sit_facturacion:
+        if not self.env.company.sit_facturacion or (self.env.company.sit_facturacion and self.env.company.sit_entorno_test):
             _logger.info("FE OFF: omitiendo sit_base_map_invoice_info_fex en %s", self._name)
             return None
 
@@ -70,7 +70,7 @@ class AccountMove(models.Model):
         return invoice_info
 
     def sit__fex_base_map_invoice_info_dtejson(self):
-        if not self.env.company.sit_facturacion:
+        if not self.env.company.sit_facturacion or (self.env.company.sit_facturacion and self.env.company.sit_entorno_test):
             _logger.info("FE OFF: omitiendo sit__fex_base_map_invoice_info_dtejson")
             return None
 
@@ -95,7 +95,7 @@ class AccountMove(models.Model):
         return invoice_info
 
     def sit__fex_base_map_invoice_info_identificacion(self):
-        if not self.env.company.sit_facturacion:
+        if not self.env.company.sit_facturacion or (self.env.company.sit_facturacion and self.env.company.sit_entorno_test):
             _logger.info("FE OFF: omitiendo sit__fex_base_map_invoice_info_identificacion")
             return None
 
@@ -130,7 +130,7 @@ class AccountMove(models.Model):
         return invoice_info
 
     def sit__fex_base_map_invoice_info_emisor(self):
-        if not self.env.company.sit_facturacion:
+        if not self.env.company.sit_facturacion or (self.env.company.sit_facturacion and self.env.company.sit_entorno_test):
             _logger.info("FE OFF: omitiendo sit__fex_base_map_invoice_info_emisor")
             return None
 
@@ -197,7 +197,7 @@ class AccountMove(models.Model):
         return invoice_info
 
     def sit__fex_base_map_invoice_info_receptor(self):
-        if not self.env.company.sit_facturacion:
+        if not self.env.company.sit_facturacion or (self.env.company.sit_facturacion and self.env.company.sit_entorno_test):
             _logger.info("FE OFF: omitiendo sit__fex_base_map_invoice_info_receptor")
             return None
 
@@ -237,7 +237,7 @@ class AccountMove(models.Model):
         return invoice_info
 
     def sit_fex_base_map_invoice_info_cuerpo_documento(self):
-        if not self.env.company.sit_facturacion:
+        if not self.env.company.sit_facturacion or (self.env.company.sit_facturacion and self.env.company.sit_entorno_test):
             _logger.info("FE OFF: omitiendo sit_fex_base_map_invoice_info_cuerpo_documento")
             return None
 
@@ -322,7 +322,7 @@ class AccountMove(models.Model):
         return lines, codigo_tributo, total_Gravada, last_line_taxes, totalIva
 
     def sit_fex_base_map_invoice_info_resumen(self):
-        if not self.env.company.sit_facturacion:
+        if not self.env.company.sit_facturacion or (self.env.company.sit_facturacion and self.env.company.sit_entorno_test):
             _logger.info("FE OFF: omitiendo sit_fex_base_map_invoice_info_resumen")
             return None
 
@@ -369,7 +369,7 @@ class AccountMove(models.Model):
         return invoice_info
 
     def sit_generar_uuid(self):
-        if not self.env.company.sit_facturacion:
+        if not self.env.company.sit_facturacion or (self.env.company.sit_facturacion and self.env.company.sit_entorno_test):
             _logger.info("FE OFF: omitiendo sit_generar_uuid")
             return None
         return str(uuid.uuid4()).upper()

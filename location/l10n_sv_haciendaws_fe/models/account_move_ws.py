@@ -100,7 +100,8 @@ class AccountMove(models.Model):
         self.ensure_one()
 
         # Validación: empresa no aplica a facturación electrónica
-        if not (self.company_id and self.company_id.sit_facturacion):
+        if (not (self.company_id and self.company_id.sit_facturacion) or
+                (self.company_id and self.company_id.sit_facturacion and self.company_id.sit_entorno_test)):
             _logger.info("SIT: La empresa %s no tiene facturación electrónica habilitada, omitiendo sit__ccf_base_map_invoice_info.", self.company_id.name)
             return {}
 
@@ -568,7 +569,8 @@ class AccountMove(models.Model):
         _logger.info("SIT sit_base_map_invoice_info self hacienda_ws_fe= %s", self)
         invoice_info = {}
 
-        if not (self.company_id and self.company_id.sit_facturacion):
+        if (not (self.company_id and self.company_id.sit_facturacion) or
+                (self.company_id and self.company_id.sit_facturacion and self.company_id.sit_entorno_test)):
             _logger.info("SIT: La empresa %s no tiene facturación electrónica habilitada, omitiendo sit_base_map_invoice_info.", self.company_id.name)
             return {}
 
@@ -1030,7 +1032,8 @@ class AccountMove(models.Model):
         _logger.info("Generando payload FCF (cg):%s", self.hacienda_codigoGeneracion_identificacion)
         invoice_info = {}
 
-        if not (self.company_id and self.company_id.sit_facturacion):
+        if (not (self.company_id and self.company_id.sit_facturacion) or
+                (self.company_id and self.company_id.sit_facturacion and self.company_id.sit_entorno_test)):
             _logger.info("SIT: La empresa %s no tiene facturación electrónica habilitada, omitiendo sit_obtener_payload_dte_info.", self.company_id.name)
             return {}
 
@@ -1058,7 +1061,8 @@ class AccountMove(models.Model):
         _logger.info("SIT sit_base_map_invoice_info_ndc self = %s", self)
         invoice_info = {}
 
-        if not (self.company_id and self.company_id.sit_facturacion):
+        if (not (self.company_id and self.company_id.sit_facturacion) or
+                (self.company_id and self.company_id.sit_facturacion and self.company_id.sit_entorno_test)):
             _logger.info("SIT: La empresa %s no tiene facturación electrónica habilitada, omitiendo sit_base_map_invoice_info_ndc.", self.company_id.name)
             return {}
 
@@ -1399,7 +1403,8 @@ class AccountMove(models.Model):
         _logger.info("SIT sit_base_map_invoice_info_ndd self = %s", self)
         invoice_info = {}
 
-        if not (self.company_id and self.company_id.sit_facturacion):
+        if (not (self.company_id and self.company_id.sit_facturacion) or
+                (self.company_id and self.company_id.sit_facturacion and self.company_id.sit_entorno_test)):
             _logger.info("SIT: La empresa %s no tiene facturación electrónica habilitada, omitiendo sit_base_map_invoice_info_ndd.", self.company_id.name)
             return {}
 

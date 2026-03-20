@@ -64,7 +64,7 @@
         'views/report_invoice_switch.xml',
         'views/account_move_print_pdf.xml',
         'views/account_sale_order_retencion.xml',
-
+        'views/retencion_iva_move_order.xml',
     ],
     'demo': [],
     'installable': True,

@@ -54,7 +54,7 @@ class AccountMoveLine(models.Model):
             # ----------------------------------------------------------------------
             # 1) Empresa NO usa facturación → usar impuestos estándar de Odoo
             # ----------------------------------------------------------------------
-            if not company or not company.sit_facturacion:
+            if not company or not company.sit_facturacion or (company and company.sit_facturacion and company.sit_entorno_test):
                 _logger.info("[SOL] Empresa NO usa facturación → usar comportamiento estándar de impuestos")
 
                 # Si la línea tiene producto → aplicar impuestos del producto

@@ -31,7 +31,8 @@ class AccountMove(models.Model):
                     return
 
             # Validar si aplica facturación electrónica
-            if not (record.company_id and record.company_id.sit_facturacion):
+            if (not (record.company_id and record.company_id.sit_facturacion) or
+                    (record.company_id and record.company_id.sit_facturacion and record.company_id.sit_entorno_test)):
                 _logger.info("SIT No aplica facturación electrónica. Se omite _onchange_ de condiciones de pago.")
                 return
 

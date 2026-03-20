@@ -310,7 +310,7 @@ class AccountMove(models.Model):
     def _compute_validation_type_2(self):
         validation_type = False
         for rec in self:
-            if not (rec.company_id and rec.company_id.sit_facturacion):
+            if not (rec.company_id and rec.company_id.sit_facturacion) or (rec.company_id.sit_facturacion and rec.company_id.sit_entorno_test):
                 _logger.info("SIT _compute_validation_type_2: empresa %s no tiene facturación electrónica, se asigna False", rec.company_id.id if rec.company_id else None)
                 continue
 
@@ -329,7 +329,7 @@ class AccountMove(models.Model):
                 return False
 
         # 2 Validar si la empresa tiene activa la facturación electrónica
-        if not (self.company_id and self.company_id.sit_facturacion):
+        if not (self.company_id and self.company_id.sit_facturacion) or (self.company_id.sit_facturacion and self.company_id.sit_entorno_test):
             _logger.info("SIT No aplica facturación electrónica. Se omite autenticación.")
             return False
 
@@ -384,7 +384,7 @@ class AccountMove(models.Model):
                 return False
 
         # 2 Validar si aplica facturación electrónica
-        if not (self.company_id and self.company_id.sit_facturacion):
+        if not (self.company_id and self.company_id.sit_facturacion) or (self.company_id.sit_facturacion and self.company_id.sit_entorno_test):
             _logger.info("SIT No aplica facturación electrónica. Se omite generación de QR(_generar_qr) en evento de invalidacion.")
             return False
 
@@ -439,15 +439,15 @@ class AccountMove(models.Model):
                 _logger.info("SIT: Documento de compra normal (sin sujeto excluido). Se omite generación de QR.")
                 return False
 
-        # 2 Validar si aplica facturación electrónica
-        if not (self.company_id and self.company_id.sit_facturacion):
-            _logger.info("SIT No aplica facturación electrónica. Se omite generación de QR(generar_qr) en evento de invalidacion.")
-            return False
-
-        # 3 Obtener entorno y URL
+        # 2 Obtener entorno y URL
         company = self.company_id
         if not company:
             raise UserError(_("No se encontró la compañía asociada a la factura a reemplazar."))
+
+        # 3 Validar si aplica facturación electrónica
+        if not (self.company_id and self.company_id.sit_facturacion) or (self.company_id and self.company_id.sit_facturacion and self.company_id.sit_entorno_test):
+            _logger.info("SIT No aplica facturación electrónica. Se omite generación de QR(generar_qr) en evento de invalidacion.")
+            return False
 
         enviroment_type = company._get_environment_type()
         ambiente = None

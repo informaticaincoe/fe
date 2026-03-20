@@ -131,10 +131,16 @@ class AccountMove(models.Model):
         store=True
     )
 
-    @api.onchange('partner_id')
+    # ── Banner de advertencia en el formulario ──────────────────────
+    advertencia_gran_contribuyente_move = fields.Html(
+        string='Advertencia Gran Contribuyente',
+        compute='_compute_advertencia_gran_contribuyente_move',
+    )
+
+    @api.onchange('partner_id', 'journal_id', 'amount_untaxed')
     def _onchange_partner_id(self):
         _logger.info("[ONCHANGE] partner_id cambiado en account.move ID=%s", self.id)
-        if self.company_id.sit_facturacion and (
+        if self.company_id and self.company_id.sit_facturacion and (
                 self.move_type not in (constants.IN_INVOICE, constants.IN_REFUND) or
                 (self.move_type == constants.IN_INVOICE and self.journal_id.sit_tipo_documento and self.journal_id.sit_tipo_documento.codigo == constants.COD_DTE_FSE)
         ):
@@ -145,7 +151,7 @@ class AccountMove(models.Model):
                     self.partner_id.id,
                     self.partner_id.gran_contribuyente
                 )
-                if self.partner_id.gran_contribuyente and self.company_id and self.company_id.sit_facturacion:
+                if self.amount_untaxed >= 100 and self.partner_id.gran_contribuyente:
                     self.apply_retencion_iva = True
                     _logger.info("[ONCHANGE] Se activó apply_retencion_iva=True porque es gran contribuyente.")
                 else:
@@ -154,6 +160,50 @@ class AccountMove(models.Model):
             else:
                 self.apply_retencion_iva = False
                 _logger.info("[ONCHANGE] No hay partner seleccionado, apply_retencion_iva=False")
+
+    @api.depends('apply_retencion_iva', 'partner_id')
+    def _compute_advertencia_gran_contribuyente_move(self):
+        for move in self:
+
+            # Determinar si aplica mostrar advertencia según tipo de movimiento
+            es_documento_cliente = move.move_type in (
+                constants.OUT_INVOICE,
+                constants.OUT_REFUND,
+            )
+
+            tipo_doc_codigo = (
+                move.journal_id.sit_tipo_documento.codigo
+                if move.journal_id and move.journal_id.sit_tipo_documento
+                else None
+            )
+
+            # in_invoice o in_refund con FSE = proveedor que actúa como cliente
+            es_fse_proveedor = (
+                    move.move_type in (constants.IN_INVOICE, constants.IN_REFUND)
+                    and tipo_doc_codigo == constants.COD_DTE_FSE
+            )
+
+            aplica = (
+                    move.company_id
+                    and move.company_id.sit_facturacion
+                    and (es_documento_cliente or es_fse_proveedor)
+            )
+
+            if (
+                    aplica
+                    and move.partner_id
+                    and move.partner_id.gran_contribuyente
+                    and move.amount_untaxed >= 100
+            ):
+                etiqueta = _('proveedor') if es_fse_proveedor else _('cliente')
+                move.advertencia_gran_contribuyente_move = _(
+                    '<p><strong>⚠️ </strong>'
+                    'El %(etiqueta)s <strong>%(nombre)s</strong> es Gran Contribuyente. '
+                    'La retención de IVA ha sido aplicada automáticamente '
+                    'y puede ser modificada si es necesario.</p>'
+                ) % {'etiqueta': etiqueta, 'nombre': move.partner_id.name}
+            else:
+                move.advertencia_gran_contribuyente_move = False
 
     @api.depends('invoice_line_ids')
     def _compute_show_global_discount(self):
@@ -260,7 +310,7 @@ class AccountMove(models.Model):
                 iva_percibido = 0.0
             _logger.info("SIT Retencion= %s, Retencion IVA= %s, IVA Percibido= %s", retencion, iva_retencion, iva_percibido)
 
-            if move.apply_retencion_iva:
+            if move.apply_retencion_iva and move.amount_untaxed >= 100:
                 if tipo_doc.codigo in [constants.COD_DTE_FSE]:  # FSE
                     retencion_iva = base_total * iva_retencion
                     move.retencion_iva_amount = float_round(retencion_iva, precision_rounding=move.currency_id.rounding)
