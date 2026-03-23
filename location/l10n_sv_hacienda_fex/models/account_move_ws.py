@@ -269,7 +269,7 @@ class AccountMove(models.Model):
             uniMedida = 99 if is_serv else int(getattr(line.product_id.uom_hacienda, 'codigo', 7) or 7)
             line_temp["uniMedida"] = int(uniMedida)
 
-            line_temp["montoDescu"] = self._sit_round(line.quantity * (line.price_unit * (line.discount / 100.0))) or 0.0
+            line_temp["montoDescu"] = self._sit_round(line.quantity * (line.precio_unitario * (line.discount / 100.0))) or 0.0
             ventaGravada = self._sit_round(getattr(line, 'precio_gravado', 0.0))
             line_temp["ventaGravada"] = ventaGravada
 

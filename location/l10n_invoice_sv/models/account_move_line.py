@@ -171,6 +171,7 @@ class AccountMoveLine(models.Model):
             line.precio_exento = 0.0
             line.precio_no_sujeto = 0.0
             tipo_doc = line.move_id.journal_id.sit_tipo_documento if line.move_id.journal_id else None
+            subtotal_sin_desc = 0.0
 
             if line.move_id.move_type in (constants.TYPE_ENTRY, constants.OUT_RECEIPT, constants.IN_RECEIPT):
                 _logger.info("[SIT] Se omite _compute_precios_tipo_venta para movimiento tipo '%s' (ID: %s)", line.move_id.move_type, line.move_id.id)
@@ -219,7 +220,8 @@ class AccountMoveLine(models.Model):
                 _logger.info("Evaluando impuestos: %s → alguno tax_excluded=%s", [t.name for t in line.tax_ids], tax_excluded,)
 
                 if line.journal_id.code == 'FCF' and tax_excluded:
-                    line.precio_unitario = (line.price_subtotal * self.move_id.get_valor_iva_divisor_config()) / line.quantity
+                    subtotal_sin_desc = line.price_unit * line.quantity
+                    line.precio_unitario = (subtotal_sin_desc * self.move_id.get_valor_iva_divisor_config()) / line.quantity
                     _logger.info("Precio unitario FCF con IVA incluido: %s", line.precio_unitario)
                 else:
                     line.precio_unitario = line.price_unit

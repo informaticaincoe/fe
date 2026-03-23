@@ -313,7 +313,7 @@ class AccountMove(models.Model):
             uniMedida = int(line.product_id.uom_hacienda.codigo)
             line_temp["uniMedida"] = uniMedida
 
-            line_temp["montoDescu"] = self._sit_round(line_temp["cantidad"] * (line.price_unit * (line.discount / 100))) or 0.0
+            line_temp["montoDescu"] = self._sit_round(line_temp["cantidad"] * (line.precio_unitario * (line.discount / 100))) or 0.0
             line_temp["ventaNoSuj"] = self._sit_round(line.precio_no_sujeto)  # 0.0
             line_temp["ventaExenta"] = self._sit_round(line.precio_exento)  # 0.0
 
@@ -507,7 +507,7 @@ class AccountMove(models.Model):
                 partner=self.partner_id,
             )
 
-            monto_descu += round(line.quantity * (line.price_unit * (line.discount / 100)), 2)
+            monto_descu += round(line.quantity * (line.precio_unitario * (line.discount / 100)), 2)
 
         invoice_info["ivaRete1"] = rete_iva
         invoice_info["reteRenta"] = rete_renta
@@ -769,6 +769,7 @@ class AccountMove(models.Model):
         ventaGravada = 0.0
         ventaExenta = 0.0
         codigo_tributo = None
+        descuento_item = 0.0
 
         for line in self.invoice_line_ids.filtered(lambda x: x.precio_unitario > 0):
             item_numItem += 1
@@ -796,8 +797,8 @@ class AccountMove(models.Model):
 
             line_temp["descripcion"] = line.name
             line_temp["precioUni"] = self._sit_round(line.precio_unitario)
-            line_temp["montoDescu"] = self._sit_round( (line_temp["cantidad"] * (line.price_unit * (line.discount / 100)) or 0.0) )
-
+            descuento_item =  (line_temp["cantidad"] * (line.precio_unitario * (line.discount / 100)) or 0.0)
+            line_temp["montoDescu"] = self._sit_round(descuento_item)
             line_temp["ventaNoSuj"] = self._sit_round(line.precio_no_sujeto)  # 0.0
 
             iva_tax_found = False
@@ -849,7 +850,7 @@ class AccountMove(models.Model):
             line_temp['psv'] = self._sit_round(line.product_id.sit_psv)
             line_temp["noGravado"] = 0.0
 
-            ventaGravada = self._sit_round(line.precio_gravado)
+            ventaGravada = line.precio_gravado
             _logger.info("SIT Cantidad= %s, precio gravado= %s, descuento= %s, monto descu= %s, venta gravada= %s",
                          line_temp["cantidad"], line.precio_gravado, (line.discount / 100),
                          (line.precio_gravado * (line.discount / 100)), ventaGravada)
@@ -938,7 +939,7 @@ class AccountMove(models.Model):
                 partner=self.partner_id,
             )
 
-            monto_descu += round(line.quantity * (line.price_unit * (line.discount / 100)), 2)
+            monto_descu += round(line.quantity * (line.precio_unitario * (line.discount / 100)), 2)
 
         subtotal = sum(line.price_subtotal for line in self.invoice_line_ids)
         total = self.amount_total
@@ -1182,14 +1183,14 @@ class AccountMove(models.Model):
                     uniMedida = int(line.product_id.uom_hacienda.codigo)
 
                 line_temp["uniMedida"] = int(uniMedida)
-                line_temp["montoDescu"] = (self._sit_round(line_temp["cantidad"] * (line.price_unit * (line.discount / 100))) or 0.0)
+                line_temp["montoDescu"] = (self._sit_round(line_temp["cantidad"] * (line.precio_unitario * (line.discount / 100))) or 0.0)
                 line_temp["ventaNoSuj"] = self._sit_round(line.precio_no_sujeto)  # 0.0
                 line_temp["ventaExenta"] = self._sit_round(line.precio_exento)  # 0.0
                 ventaGravada = self._sit_round(line.precio_gravado)
                 line_temp["ventaGravada"] = self._sit_round(ventaGravada)
 
                 _logger.debug(
-                    f"Venta gravada: {ventaGravada}, cantidad: {line_temp['cantidad']}, precio unitario: {line.price_unit}.")  # Log sobre cálculos.
+                    f"Venta gravada: {ventaGravada}, cantidad: {line_temp['cantidad']}, precio unitario: {line.precio_unitario}.")  # Log sobre cálculos.
 
                 # ------ Validar que se haya colocado impuesto de IVA ------
                 iva_tax_found = False
@@ -1490,14 +1491,14 @@ class AccountMove(models.Model):
                     uniMedida = int(line.product_id.uom_hacienda.codigo)
 
                 line_temp["uniMedida"] = int(uniMedida)
-                line_temp["montoDescu"] = (self._sit_round(line_temp["cantidad"] * (line.price_unit * (line.discount / 100))) or 0.0)
+                line_temp["montoDescu"] = (self._sit_round(line_temp["cantidad"] * (line.precio_unitario * (line.discount / 100))) or 0.0)
                 line_temp["ventaNoSuj"] = self._sit_round(line.precio_no_sujeto)  # 0.0
                 line_temp["ventaExenta"] = self._sit_round(line.precio_exento)  # 0.0
                 ventaGravada = self._sit_round(line.precio_gravado)
                 line_temp["ventaGravada"] = ventaGravada
 
                 _logger.debug(
-                    f"Venta gravada: {ventaGravada}, cantidad: {line_temp['cantidad']}, precio unitario: {line.price_unit}.")  # Log sobre cálculos.
+                    f"Venta gravada: {ventaGravada}, cantidad: {line_temp['cantidad']}, precio unitario: {line.precio_unitario}.")  # Log sobre cálculos.
 
                 iva_tax_found = False
                 tributo_found = False
