@@ -143,3 +143,6 @@ class DispatchRouteReceptionLine(models.Model):
                 _logger.info("[ReceptionLine] unlink → liberando factura %s", line.order_id.name)
                 line._release_move_from_route()
         return super().unlink()
+
+    # En dispatch_route_reception_line.py
+    is_outside_route = fields.Boolean(string="Fuera de ruta", default=False)

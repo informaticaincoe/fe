@@ -35,9 +35,9 @@
                             <label for="total_weight" string="Capacidad de Carga"/>
                             <div class="o_row" name="weight_container">
                                 <field name="total_weight" nolabel="1" string="capacidad"/>
-                                <span> / </span>
+                                <span>/</span>
                                 <field name="vehicle_capacity" nolabel="1"/>
-                                <span> kg</span>
+                                <span>kg</span>
                             </div>
                             <field name="route_driver_id" readonly="state != 'draft'"/>
                             <field name="assistant_ids" widget="many2many_tags" readonly="state != 'draft'"/>
@@ -86,17 +86,63 @@
                             </field>
                         </page>
 
-                        <page string="Facturas (si ya existen)">
-                            <field name="invoice_ids">
-                                <list create="false" delete="false" edit="false">
+                        <page string="Órdenes fuera de ruta">
+                            <div class="alert alert-info" role="alert">
+                                <i class="fa fa-info-circle me-1"/>
+                                Órdenes que no pertenecen a la zona seleccionada pero se agregarán a esta ruta.
+                            </div>
+                            <field name="outside_route_sales_order_ids"
+                                   readonly="state != 'draft'"
+                                   domain="[
+                                       ('dispatch_route_id', '=', False),
+                                        ('partner_id.munic_id', 'not in', zone_municipality_ids)
+
+                                   ]"
+                                   context="{
+                                       'tree_view_ref': 'l10n_sv_despacho.sale_order_tree_dispatch_route_picker',
+                                       'dispatch_route_id': id
+                                   }">
+                                <list editable="bottom">
                                     <field name="name"/>
                                     <field name="partner_id"/>
-                                    <field name="invoice_date"/>
-                                    <field name="state"/>
-                                    <field name="payment_state"/>
+                                    <field name="date_order"/>
+                                    <field name="partner_state_id"/>
+                                    <field name="partner_munic_id"/>
+                                    <field name="partner_address" string="Dirección"/>
+                                    <field name="user_id"/>
                                     <field name="amount_total"/>
                                 </list>
                             </field>
+                        </page>
+
+                        <page string="Facturas (si ya existen)">
+                            <group string="Facturas de ruta">
+                                <field name="invoice_ids"
+                                       domain="[('partner_id', 'in', sale_order_ids.mapped('partner_id').ids)]"
+                                       nolabel="1">
+                                    <list create="false" delete="false" edit="false">
+                                        <field name="name"/>
+                                        <field name="partner_id"/>
+                                        <field name="invoice_date"/>
+                                        <field name="state"/>
+                                        <field name="payment_state"/>
+                                        <field name="amount_total"/>
+                                    </list>
+                                </field>
+                            </group>
+
+                            <group string="Facturas fuera de ruta">
+                                <field name="outside_route_invoice_ids" nolabel="1">
+                                    <list create="false" delete="false" edit="false">
+                                        <field name="name"/>
+                                        <field name="partner_id"/>
+                                        <field name="invoice_date"/>
+                                        <field name="state"/>
+                                        <field name="payment_state"/>
+                                        <field name="amount_total"/>
+                                    </list>
+                                </field>
+                            </group>
                         </page>
 
                         <page string="Recepción (resumen)" invisible="state != 'received'">

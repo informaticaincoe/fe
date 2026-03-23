@@ -32,3 +32,8 @@ class SaleOrder(models.Model):
     ], default="free", copy=False)
 
     dispatch_reception_line_id = fields.Many2one("dispatch.route.reception.line", copy=False)
+
+    dispatch_reception_state = fields.Selection([
+        ("pending", "Pendiente"),
+        ("received", "Recepcionada"),
+    ], default="pending", copy=False, string="Estado recepción despacho")
