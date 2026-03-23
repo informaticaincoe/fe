@@ -50,7 +50,6 @@ class DispatchRoute(models.Model):
 
             rec.zone_municipality_ids = municipios
 
-            # ---- BLOQUE DE DEBUG PARA FILTRADO ----
             ids_zona = municipios.ids
             _logger.info("=== DEBUG FILTRADO DE ÓRDENES ===")
             _logger.info("IDs Municipios en Zona '%s': %s", rec.zone_id.name, ids_zona)
@@ -59,9 +58,13 @@ class DispatchRoute(models.Model):
             ordenes_libres = self.env['sale.order'].search([
                 ('dispatch_route_id', '=', False),
                 ('state', 'not in', ['cancel'])
-            ], limit=10)  # Limitamos a 10 para no saturar el log
+            ])
+
+            _logger.info("ORDENES LIBRES %s", ordenes_libres)
 
             for so in ordenes_libres:
+                _logger.info("Verificando SO: ID=%s | Route_ID=%s", so.id, so.dispatch_route_id.id)
+
                 m_id = so.partner_id.munic_id.id
                 m_nombre = so.partner_id.munic_id.name
 
@@ -70,7 +73,6 @@ class DispatchRoute(models.Model):
                     "Orden: %s | Cliente: %s | Municipio Cliente ID: %s (%s) | ¿Pasaría el filtro?: %s",
                     so.name, so.partner_id.name, m_id, m_nombre, "SÍ" if esta_en_zona else "NO"
                 )
-            _logger.info("=================================")
 
     name = fields.Char(string='Referencia', readonly=True, copy=False, default='/')
     code_route = fields.Char(string='Codigo', readonly=True, copy=False, default='/', tracking=True)
@@ -152,19 +154,37 @@ class DispatchRoute(models.Model):
 
     def _compute_sale_orders(self):
         for route in self:
-            route.sale_order_ids = self.env["sale.order"].search([("dispatch_route_id", "=", route.id)])
+            zone_munic_ids = route.zone_id.zone_line_ids.mapped('munic_ids').ids
+            route.sale_order_ids = self.env["sale.order"].search([
+                ("dispatch_route_id", "=", route.id),
+                ("partner_id.munic_id", "in", zone_munic_ids),
+            ])
 
     def _inverse_sale_orders(self):
         for route in self:
-            current = self.env["sale.order"].search([("dispatch_route_id", "=", route.id)])
+            zone_munic_ids = route.zone_id.zone_line_ids.mapped('munic_ids').ids
+            # Órdenes actuales en zona
+            current = self.env["sale.order"].search([
+                ("dispatch_route_id", "=", route.id),
+                ("partner_id.munic_id", "in", zone_munic_ids),
+            ])
             selected = route.sale_order_ids
-
             (current - selected).write({"dispatch_route_id": False})
             (selected - current).write({"dispatch_route_id": route.id})
 
+    @api.depends('sale_order_ids', 'sale_order_ids.invoice_ids')
     def _compute_invoices_from_orders(self):
         for route in self:
-            route.invoice_ids = route.sale_order_ids.mapped("invoice_ids").filtered(
+            outside_ids = route.outside_route_sales_order_ids.ids
+            normal_orders = route.sale_order_ids.filtered(
+                lambda o: o.id not in outside_ids
+            )
+
+            _logger.info("outside_ids %s", outside_ids)
+
+            _logger.info("normal_orders %s", normal_orders)
+
+            route.invoice_ids = normal_orders.mapped("invoice_ids").filtered(
                 lambda m: m.move_type in ("out_invoice", "out_refund")
             )
 
@@ -432,3 +452,57 @@ class DispatchRoute(models.Model):
             raise UserError(_("No hay rutas en estado 'Cargando' para imprimir."))
 
         return self.env.ref('l10n_sv_despacho.action_report_montacarguista').report_action(routes)
+
+    # Ordenes fuera de ruta
+    outside_route_sales_order_ids = fields.Many2many(
+        "sale.order",
+        "dispatch_route_outside_order_rel",  # tabla intermedia distinta a sale_order_ids
+        "route_id",
+        "order_id",
+        string="Órdenes fuera de ruta",
+        compute="_compute_outside_route_sales_orders",
+        inverse="_inverse_outside_route_sales_orders",
+        domain=[
+            ('dispatch_route_id', '=', False),
+            ('dispatch_reception_state', '!=', 'received'),
+        ],
+    )
+
+    def _compute_outside_route_sales_orders(self):
+        for route in self:
+            zone_munic_ids = route.zone_id.zone_line_ids.mapped('munic_ids').ids
+            route.outside_route_sales_order_ids = self.env["sale.order"].search([
+                ("dispatch_route_id", "=", route.id),
+                ("partner_id.munic_id", "not in", zone_munic_ids),
+            ])
+
+
+
+    def _inverse_outside_route_sales_orders(self):
+        for route in self:
+            zone_munic_ids = route.zone_id.zone_line_ids.mapped('munic_ids').ids
+            current = self.env["sale.order"].search([
+                ("dispatch_route_id", "=", route.id),
+                ("partner_id.munic_id", "not in", zone_munic_ids),
+            ])
+            selected = route.outside_route_sales_order_ids
+            (current - selected).write({"dispatch_route_id": False})
+            (selected - current).write({"dispatch_route_id": route.id})
+
+    # Facturas para las que estan fuera de ruta
+    outside_route_invoice_ids = fields.Many2many(
+        "account.move",
+        string="Facturas fuera de ruta",
+        compute="_compute_outside_route_invoices",
+        readonly=True,
+    )
+
+    @api.depends('outside_route_sales_order_ids', 'outside_route_sales_order_ids.invoice_ids')
+    def _compute_outside_route_invoices(self):
+        for route in self:
+            # Facturas de las órdenes explícitamente marcadas como "fuera de ruta"
+            outside_invoices = route.outside_route_sales_order_ids.mapped("invoice_ids").filtered(
+                lambda m: m.move_type in ("out_invoice", "out_refund")
+            )
+            route.outside_route_invoice_ids = outside_invoices
+
