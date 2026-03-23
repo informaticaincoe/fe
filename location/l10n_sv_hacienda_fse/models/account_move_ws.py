@@ -59,6 +59,10 @@ class AccountMove(models.Model):
     def sit_base_map_invoice_info_fse(self):
         _logger.info("SIT sit_base_map_invoice_info self FSE= %s", self)
 
+        if not self.env.company.sit_facturacion or (self.env.company.sit_facturacion and self.env.company.sit_entorno_test):
+            _logger.info("FE OFF: omitiendo sit_base_map_invoice_info_fse en %s", self._name)
+            return None
+
         invoice_info = {}
         nit=self.company_id.vat
         nit = nit.replace("-", "")
@@ -72,6 +76,10 @@ class AccountMove(models.Model):
 
     @only_fe
     def sit__fse_base_map_invoice_info_dtejson(self):
+        if not self.env.company.sit_facturacion or (self.env.company.sit_facturacion and self.env.company.sit_entorno_test):
+            _logger.info("FE OFF: omitiendo sit__fse_base_map_invoice_info_dtejson en %s", self._name)
+            return None
+
         _logger.info("SIT sit_base_map_invoice_info_dtejson self FSE= %s", self)
         invoice_info = {}
         invoice_info["identificacion"] = self.sit__fse_base_map_invoice_info_identificacion()
@@ -92,6 +100,10 @@ class AccountMove(models.Model):
 
     @only_fe
     def sit__fse_base_map_invoice_info_identificacion(self):
+        if not self.env.company.sit_facturacion or (self.env.company.sit_facturacion and self.env.company.sit_entorno_test):
+            _logger.info("FE OFF: omitiendo sit__fse_base_map_invoice_info_identificacion en %s", self._name)
+            return None
+
         _logger.info("SIT sit_base_map_invoice_info_identificacion self FSE= %s", self)
         invoice_info = {}
         invoice_info["version"] = int(self.journal_id.sit_tipo_documento.version) #1
@@ -144,6 +156,10 @@ class AccountMove(models.Model):
 
     @only_fe
     def sit__fse_base_map_invoice_info_emisor(self):
+        if not self.env.company.sit_facturacion or (self.env.company.sit_facturacion and self.env.company.sit_entorno_test):
+            _logger.info("FE OFF: omitiendo sit__fse_base_map_invoice_info_emisor en %s", self._name)
+            return None
+
         _logger.info("SIT sit__fse_base_map_invoice_info_emisor self FSE= %s", self)
         invoice_info = {}
         direccion = {}
@@ -175,6 +191,10 @@ class AccountMove(models.Model):
 
     @only_fe
     def sit__fse_base_map_invoice_info_sujeto_excluido(self):
+        if not self.env.company.sit_facturacion or (self.env.company.sit_facturacion and self.env.company.sit_entorno_test):
+            _logger.info("FE OFF: omitiendo sit__fse_base_map_invoice_info_sujeto_excluido en %s", self._name)
+            return None
+
         _logger.info("SIT sit_base_map_invoice_info_receptor self FSE= %s", self)
         direccion_rec = {}
         invoice_info = {}
@@ -214,6 +234,10 @@ class AccountMove(models.Model):
 
     @only_fe
     def sit_fse_base_map_invoice_info_cuerpo_documento(self):
+        if not self.env.company.sit_facturacion or (self.env.company.sit_facturacion and self.env.company.sit_entorno_test):
+            _logger.info("FE OFF: omitiendo sit_fse_base_map_invoice_info_cuerpo_documento en %s", self._name)
+            return None
+
         lines = []
         _logger.info("SIT sit_fse_base_map_invoice_info_cuerpo_documento self FSE= %s", self.invoice_line_ids)
 
@@ -290,6 +314,10 @@ class AccountMove(models.Model):
 
     @only_fe
     def sit_fse_base_map_invoice_info_resumen(self):
+        if not self.env.company.sit_facturacion or (self.env.company.sit_facturacion and self.env.company.sit_entorno_test):
+            _logger.info("FE OFF: omitiendo sit_fse_base_map_invoice_info_resumen en %s", self._name)
+            return None
+
         _logger.info("SIT sit_base_map_invoice_info_resumen self FSE= %s", self)
         invoice_info = {}
 
@@ -348,6 +376,10 @@ class AccountMove(models.Model):
 
     @only_fe
     def sit_obtener_payload_fse_dte_info(self,  ambiente, doc_firmado):
+        if not self.env.company.sit_facturacion or (self.env.company.sit_facturacion and self.env.company.sit_entorno_test):
+            _logger.info("FE OFF: omitiendo sit_obtener_payload_fse_dte_info en %s", self._name)
+            return None
+
         _logger.info("SIT sit_obtener_payload_exp_dte_info self = %s", self)
         invoice_info = {}
         invoice_info["ambiente"] = ambiente
@@ -362,7 +394,7 @@ class AccountMove(models.Model):
 
     @only_fe
     def sit_generar_uuid(self):
-        if not self.env.company.sit_facturacion:
+        if not self.env.company.sit_facturacion or (self.env.company.sit_facturacion and self.env.company.sit_entorno_test):
             _logger.info("FE OFF: omitiendo sit_generar_uuid")
             return None
         # Genera un UUID versión 4 (basado en números aleatorios)
@@ -389,7 +421,7 @@ class AccountMove(models.Model):
             return True
 
         # 3 Si la facturación electrónica está desactivada, no hacemos nada
-        if not self.env.company.sit_facturacion:
+        if not self.env.company.sit_facturacion or (self.env.company.sit_facturacion and self.env.company.sit_entorno_test):
             _logger.info("FE OFF: omitiendo sit_debug_mostrar_json_fse")
             return True  # no bloquea la UI
 

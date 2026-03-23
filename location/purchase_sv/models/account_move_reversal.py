@@ -63,7 +63,8 @@ class AccountMoveReversal(models.TransientModel):
             return res
 
         # Si la empresa NO aplica facturación electrónica → usar comportamiento estándar
-        if not move.company_id or not move.company_id.sit_facturacion:
+        if ((not move.company_id or not move.company_id.sit_facturacion) or
+                (move.company_id and move.company_id.sit_facturacion and move.company_id.sit_entorno_test)):
             _logger.info("SIT: Empresa no aplica facturación electrónica, se usa flujo estándar de Odoo.")
             return res
 

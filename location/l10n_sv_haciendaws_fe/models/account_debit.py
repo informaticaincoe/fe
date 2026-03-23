@@ -285,7 +285,8 @@ class AccountDebitNote(models.TransientModel):
             _logger.info("SIT: Se detectó factura de compra (move_type=%s). Se ejecutará el flujo estándar de Odoo.", self.move_type)
             return super(AccountDebitNote, self).create_debit()
 
-        if not (self.journal_id.company_id and self.journal_id.company_id.sit_facturacion):
+        if (not (self.journal_id.company_id and self.journal_id.company_id.sit_facturacion) or
+                (self.journal_id.company_id and self.journal_id.company_id.sit_facturacion and self.journal_id.company_id.sit_entorno_test)):
             _logger.info("SIT: La empresa %s no aplica a facturación electrónica. Saltando validaciones DTE/Hacienda para ND.", self.journal_id.company_id.name)
             # return  # Si no aplica, no continuar con la lógica de ND electrónica
             return super(AccountDebitNote, self).create_debit()

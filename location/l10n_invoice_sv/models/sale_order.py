@@ -45,10 +45,17 @@ class SaleOrder(models.Model):
         string="Total a Pagar con Retención",
         currency_field="currency_id",
         compute="_compute_total_con_retenciones",
-        store=True
+        store=True,
+        tracking=True
     )
 
     sit_observaciones_order = fields.Text(string="Observaciones", default="")
+
+    # ── Banner de advertencia en el formulario ──────────────────────
+    advertencia_gran_contribuyente = fields.Html(
+        string='Advertencia Gran Contribuyente',
+        compute='_compute_advertencia_gran_contribuyente',
+    )
 
     def _prepare_invoice(self):
         _logger.info("==== PREPARE INVOICE DESDE SALE ORDER ====")
@@ -156,23 +163,37 @@ class SaleOrder(models.Model):
                 iva_percibido_amount = base_total * iva_percibido
                 sale.iva_percibido_amount = float_round(iva_percibido_amount, precision_rounding=sale.currency_id.rounding)
 
-    @api.onchange('partner_id')
+    @api.onchange('partner_id', 'journal_id', 'order_line') # 'order_line'
     def _onchange_partner_id(self):
         _logger.info("[ONCHANGE SALE ORDER] partner_id cambiado en sale.order ID=%s", self.id)
-        if (self.company_id.sit_facturacion and self.journal_id.sit_tipo_documento and
-                self.journal_id.sit_tipo_documento.codigo in(constants.COD_DTE_FE, constants.COD_DTE_CCF, constants.COD_DTE_NC, constants.COD_DTE_ND)):
+
+        self.apply_retencion_iva = False
+        tipo_documento = None
+
+        if self.journal_id and self.journal_id.sit_tipo_documento:
+            tipo_documento = self.journal_id.sit_tipo_documento
+        elif self.partner_id and self.partner_id.journal_id and self.partner_id.journal_id.sit_tipo_documento:
+            tipo_documento = self.partner_id.journal_id.sit_tipo_documento
+
+        _logger.info(
+            "Filtros DTE -> company:%s | sit_fact:%s | tipo_doc:%s | codigo:%s",
+            self.company_id,
+            self.company_id.sit_facturacion,
+            tipo_documento if tipo_documento else None, (tipo_documento.codigo if tipo_documento else None)
+        )
+
+        if (self.company_id and self.company_id.sit_facturacion and tipo_documento and
+                tipo_documento.codigo in(constants.COD_DTE_FE, constants.COD_DTE_CCF, constants.COD_DTE_NC, constants.COD_DTE_ND)):
             if self.partner_id:
                 _logger.info("[ONCHANGE] Cliente: %s (ID=%s) - gran_contribuyente=%s",
                     self.partner_id.name, self.partner_id.id, self.partner_id.gran_contribuyente)
 
-                if self.partner_id.gran_contribuyente and self.company_id and self.company_id.sit_facturacion:
+                if self.amount_untaxed >= 100 and self.partner_id.gran_contribuyente:
                     self.apply_retencion_iva = True
-                    _logger.info("[ONCHANGE] Se activó apply_retencion_iva=True porque es gran contribuyente.")
+                    _logger.info("[ONCHANGE] apply_retencion_iva=True (gran contribuyente y monto >= 100).")
                 else:
-                    self.apply_retencion_iva = False
                     _logger.info("[ONCHANGE] Se estableció apply_retencion_iva=False porque NO es gran contribuyente.")
             else:
-                self.apply_retencion_iva = False
                 _logger.info("[ONCHANGE] No hay partner seleccionado, apply_retencion_iva=False")
 
     @api.depends('amount_total', 'retencion_renta_amount', 'retencion_iva_amount', 'iva_percibido_amount')
@@ -186,3 +207,51 @@ class SaleOrder(models.Model):
 
             _logger.info("Orden %s | total original=%s | retenciones=%s | total final=%s",
                 order.id, order.amount_total, total_ret, order.amount_total_retenciones)
+
+    # ── Banner: depende de apply_retencion_iva (ya calculado) ──────
+    @api.depends('apply_retencion_iva', 'partner_id', 'journal_id', 'amount_untaxed')
+    def _compute_advertencia_gran_contribuyente(self):
+        for order in self:
+            tipo_documento = None
+
+            if order.journal_id and order.journal_id.sit_tipo_documento:
+                tipo_documento = order.journal_id.sit_tipo_documento
+            elif (order.partner_id and order.partner_id.journal_id
+                  and order.partner_id.journal_id.sit_tipo_documento):
+                tipo_documento = order.partner_id.journal_id.sit_tipo_documento
+
+            _logger.info(
+                "Filtros DTE -> company:%s | sit_fact:%s | tipo_doc:%s | codigo:%s",
+                order.company_id,
+                order.company_id.sit_facturacion,
+                tipo_documento if tipo_documento else None,
+                (tipo_documento.codigo if tipo_documento else None),
+            )
+
+            cumple_dte = (
+                    order.company_id
+                    and order.company_id.sit_facturacion
+                    and tipo_documento
+                    and tipo_documento.codigo in (
+                        constants.COD_DTE_FE,
+                        constants.COD_DTE_CCF,
+                        constants.COD_DTE_NC,
+                        constants.COD_DTE_ND,
+                    )
+            )
+
+            if (
+                    cumple_dte
+                    and order.partner_id
+                    and order.partner_id.gran_contribuyente
+                    and order.amount_untaxed >= 100
+            ):
+                order.advertencia_gran_contribuyente = _(
+                    '<p><strong>⚠️ </strong>'
+                    'El cliente <strong>%s</strong> es Gran Contribuyente. '
+                    'La retención de IVA ha sido aplicada automáticamente '
+                    'y puede ser modificada si es necesario.</p>'
+                ) % order.partner_id.name
+            else:
+                # Siempre asignar en todos los caminos — evita el ValueError
+                order.advertencia_gran_contribuyente = False

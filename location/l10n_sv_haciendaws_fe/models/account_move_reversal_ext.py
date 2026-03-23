@@ -35,7 +35,8 @@ class AccountMoveReversal(models.TransientModel):
             return super(AccountMoveReversal, self).refund_moves()
 
         # --- Empresas sin FE → usamos flujo estándar ---
-        if not (self.company_id and self.company_id.sit_facturacion):
+        if (not (self.company_id and self.company_id.sit_facturacion) or
+                (self.company_id and self.company_id.sit_facturacion and self.company_id.sit_entorno_test)):
             _logger.info("Empresa %s no usa FE → flujo estándar", self.company_id.name)
             return super(AccountMoveReversal, self).refund_moves()
 
