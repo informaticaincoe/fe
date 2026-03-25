@@ -157,7 +157,7 @@ class SaleOrder(models.Model):
                     retencion_iva = base_total * retencion
                     sale.retencion_iva_amount = float_round(retencion_iva, precision_rounding=sale.currency_id.rounding)
                 else:
-                    retencion_iva = (base_total / 1.13) * retencion
+                    retencion_iva = base_total * retencion
                     sale.retencion_iva_amount = float_round(retencion_iva, precision_rounding=sale.currency_id.rounding)
             if sale.apply_iva_percibido and tipo_doc.codigo in [constants.COD_DTE_CCF, constants.COD_DTE_NC, constants.COD_DTE_ND]:
                 iva_percibido_amount = base_total * iva_percibido
