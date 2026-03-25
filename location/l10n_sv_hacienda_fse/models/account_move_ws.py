@@ -281,7 +281,7 @@ class AccountMove(models.Model):
                 line_temp["descripcion"] = line.name
                 line_temp["precioUni"] = self._sit_round(line.price_unit)
                 line_temp["montoDescu"] = (
-                    line_temp["cantidad"]  * (line.price_unit * (line.discount / 100))
+                    line_temp["cantidad"]  * (line.precio_unitario * (line.discount / 100))
                     or 0.0
                 )
                 for line_tributo in line.tax_ids:

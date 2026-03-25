@@ -1199,6 +1199,12 @@ class AccountMove(models.Model):
         """
         _logger.info("[action_post] Iniciando validaciones personalizadas de El Salvador")
 
+        # SALTAR lógica DTE MH cuando se confirme solo contabilidad
+        skip = self.env.context.get("skip_dte_prod", False)
+        _logger.info("SKIP DTE action_post=%s", skip)
+        if skip:
+            return super(AccountMove, self).action_post()
+
         # 1. Identificar facturas que aplican para lógica de El Salvador
         # Usamos strings directos si constants no está disponible, o constants.OUT_INVOICE etc.
         invoices_sv = self.filtered(lambda inv: inv.move_type in (
@@ -1254,6 +1260,9 @@ class AccountMove(models.Model):
         # Esto es vital para que 'posted' no sea False en los módulos de Inventario/Landed Costs
         res = super(AccountMove, self).action_post()
         return res
+
+    def action_post_without_mh(self):
+        return self.with_context(skip_dte_prod=True).action_post()
 
     # Crear o buscar la cuenta contable para descuentos
     def obtener_cuenta_descuento(self):

@@ -145,6 +145,7 @@ class DispatchRoute(models.Model):
     cash_difference = fields.Monetary(string="Diferencia", currency_field="currency_id", readonly=True)
     last_reception_id = fields.Many2one("dispatch.route.reception", string="Última recepción", readonly=True)
     invoice_names = fields.Text(string="Facturas", compute="_compute_invoice_names", store=False)
+    recibido_recepcion = fields.Boolean(default=False, string="Recibido CXC")
 
     def _compute_invoice_names(self):
         for r in self:
@@ -316,7 +317,7 @@ class DispatchRoute(models.Model):
                 reception.write({"line_ids": line_values})
 
         _logger.info("Abriendo formulario de recepción | Recepción ID=%s", reception.id)
-
+        self.write({'recibido_recepcion': True})
         return {
             "type": "ir.actions.act_window",
             "name": _("Recepción de Ruta"),

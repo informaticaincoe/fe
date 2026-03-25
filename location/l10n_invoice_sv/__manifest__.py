@@ -65,6 +65,7 @@
         'views/account_move_print_pdf.xml',
         'views/account_sale_order_retencion.xml',
         'views/retencion_iva_move_order.xml',
+        'views/action_confirm_accounting.xml',
     ],
     'demo': [],
     'installable': True,

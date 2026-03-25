@@ -735,6 +735,12 @@ class AccountMove(models.Model):
         errores_dte = []
         estado = None
         json_dte = None
+        # SALTAR lógica DTE MH cuando se confirme solo contabilidad
+        skip = self.env.context.get("skip_dte_prod", False)
+        _logger.info("SKIP DTE action_post=%s", skip)
+        if skip:
+            return super(AccountMove, self)._post(soft=soft)
+
         skip_import_json = self.env.context.get('skip_import_json', False)
         _logger.info("SIT Saltar logica MH. %s | skip_import_json=%s", self, skip_import_json)
         if skip_import_json:
@@ -803,8 +809,8 @@ class AccountMove(models.Model):
                     doc_electronico = True
                 _logger.info("SIT Procesando invoice %s (journal=%s, es documento electronico? %s)", invoice.id, journal.name, doc_electronico)
 
-                if not self.invoice_time:
-                    self._compute_invoice_time()
+                if not invoice.invoice_time:
+                    invoice._compute_invoice_time()
 
                 # —————————————————————————————————————————————
                 # A) DIARIOS NO-VENTA/COMPRA: saltar lógica DTE
@@ -2195,6 +2201,12 @@ class AccountMove(models.Model):
         return bloque
 
     def action_post(self):
+        # SALTAR lógica DTE MH cuando se confirme solo contabilidad
+        skip = self.env.context.get("skip_dte_prod", False)
+        _logger.info("SKIP DTE action_post=%s", skip)
+        if skip:
+            return super().action_post()
+
         sit_import_dte_json = self.env.context.get('sit_import_dte_json', False)
         _logger.info("SIT Action post dte. %s | sit_import_dte_json=%s", self, sit_import_dte_json)
 

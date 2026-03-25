@@ -320,9 +320,9 @@ class sit_account_move(models.Model):
         _logger.info("SIT | Iniciando create unificado para AccountMove. Vals_list: %s", vals_list)
 
         # --- Nuevo bypass: si viene del importador de DTE ---
-        if self._context.get('skip_dte_import_create'):
+        if self._context.get('skip_dte_import_create') or self._context.get('skip_dte_prod', False):
             _logger.info(
-                "🟢 [SIT] Bypass activo (skip_dte_import_create): creando movimientos sin lógica DTE ni secuencia")
+                "🟢 [SIT] [SIT] Bypass TOTAL en create() por contexto: creando movimientos sin lógica DTE ni secuencia")
             return super().create(vals_list)
 
         for vals in vals_list:
@@ -413,7 +413,7 @@ class sit_account_move(models.Model):
             if not any(vals.get('company_id') and self.env['res.company'].browse(vals['company_id']).sit_facturacion for
                        vals in vals_list):
                 _logger.info("SIT-create: Ninguna factura pertenece a empresa con facturación activa, se usa create estándar.")
-                return base_records
+                continue #return base_records
 
             # --- Generación dinámica de nombre para venta/compra ---
             if journal and (journal.type == constants.TYPE_VENTA or move_type == constants.IN_INVOICE):
@@ -471,6 +471,11 @@ class sit_account_move(models.Model):
         - Evitar recursión y sobrevalidaciones.
         """
         _logger.info("SIT | Iniciando write unificado. Vals: %s", vals)
+
+        # --- BYPASS TOTAL ---
+        if self.env.context.get('skip_dte_prod'):
+            _logger.info("[SIT] write bypass por contexto")
+            return super().write(vals)
 
         # A) BYPASS para entries/receipts (mantén tu comportamiento)
         if all(m.move_type in (constants.TYPE_ENTRY, constants.OUT_RECEIPT, constants.IN_RECEIPT) for m in self):
