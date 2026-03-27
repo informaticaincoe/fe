@@ -129,6 +129,10 @@ class ResCompany(models.Model):
 
     def get_generar_token(self):
         """Genera y guarda el token de autenticación de Hacienda para la empresa."""
+        skip = self.env.context.get("skip_dte_prod", False)
+        _logger.info("SKIP DTE action_post=%s", skip)
+        if skip:
+            self.sit_token_ok = False
         _logger.info("SIT get_generar_token = %s,%s,%s", self.sit_token_user, self.sit_token_pass, self.sit_passwordPri)
         autenticacion = self._autenticar(self.sit_token_user, self.sit_token_pass)
         _logger.info("SIT autenticacioni = %s", autenticacion)

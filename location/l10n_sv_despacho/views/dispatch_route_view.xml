@@ -16,7 +16,7 @@
                     <button name="action_create_reception" type="object" string="Recepción (CxC)" class="btn-primary"
                             invisible="state != 'in_transit'"/>
                     <button name="action_cancel" type="object" string="Cancelar" class="btn-secondary"
-                            invisible="state in ('cancel','received')"/>
+                            invisible="state in ('cancel','received') or (state in ('in_transit') and recibido_recepcion == True)"/>
                     <button name="action_set_draft" type="object" string="Establecer a borrador" class="btn-secondary"
                             invisible="state != ('cancel')"/>
                     <field name="state" widget="statusbar"

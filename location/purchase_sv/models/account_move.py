@@ -435,6 +435,13 @@ class AccountMove(models.Model):
         - Luego llama al método estándar 'action_post' de Odoo.
         """
         _logger.info("SIT Action post purchase: %s", self)
+
+        # SALTAR lógica DTE MH cuando se confirme solo contabilidad
+        skip = self.env.context.get("skip_dte_prod", False)
+        _logger.info("SKIP DTE action_post=%s", skip)
+        if skip:
+            return super().action_post()
+
         # Si FE está desactivada → comportamiento estándar de Odoo
         invoices = self.filtered(lambda inv: inv.move_type in (constants.OUT_INVOICE, constants.OUT_REFUND, constants.IN_INVOICE, constants.IN_REFUND))
         if not invoices:
@@ -529,6 +536,11 @@ class AccountMove(models.Model):
         - Devuelve el resultado original para mantener el flujo estándar de Odoo.
         """
         _logger.info("SIT Purchase.")
+
+        # --- BYPASS TOTAL ---
+        if self.env.context.get('skip_dte_prod', False):
+            _logger.info("🟢 [SIT] _post bypass TOTAL por contexto")
+            return super(AccountMove, self)._post(soft=soft)
 
         result = super(AccountMove, self)._post(soft=soft)
 

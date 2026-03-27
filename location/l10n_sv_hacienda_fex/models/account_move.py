@@ -49,6 +49,12 @@ class AccountMove(models.Model):
                 rec.sale_order_id = sale_orders[:1] if sale_orders else False
 
     def action_post(self):
+        # SALTAR lógica DTE MH cuando se confirme solo contabilidad
+        skip = self.env.context.get("skip_dte_prod", False)
+        _logger.info("SKIP DTE action_post=%s", skip)
+        if skip:
+            return super().action_post()
+
         sit_import_dte_json = self.env.context.get('sit_import_dte_json', False)
         _logger.info("SIT Action post FEX. %s | sit_import_dte_json=%s", self, sit_import_dte_json)
 
