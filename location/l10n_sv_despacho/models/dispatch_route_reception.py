@@ -4,6 +4,7 @@ import logging
 
 _logger = logging.getLogger(__name__)
 
+
 class DispatchRouteReception(models.Model):
     _name = "dispatch.route.reception"
     _description = "Recepción de Ruta (CxC)"
@@ -29,17 +30,34 @@ class DispatchRouteReception(models.Model):
         ("cancel", "Cancelada"),
     ], default="draft", tracking=True)
 
-    received_by_id = fields.Many2one("res.users", string="Recibido por", default=lambda self: self.env.user, required=True)
+    received_by_id = fields.Many2one("res.users", string="Recibido por", default=lambda self: self.env.user,
+                                     required=True)
     received_date = fields.Datetime(string="Fecha recepción", default=fields.Datetime.now, required=True)
 
-    cash_received = fields.Monetary(string="Efectivo recibido", currency_field="currency_id", required=True, default=0.0)
+    cash_received = fields.Monetary(string="Efectivo recibido", currency_field="currency_id", required=True,
+                                    default=0.0)
     expected_cash_total = fields.Monetary(
         compute="_compute_expected_cash_total",
         store=True,
     )
-    cash_difference = fields.Monetary(string="Diferencia", currency_field="currency_id", compute="_compute_difference", store=True)
+    cash_difference = fields.Monetary(string="Diferencia", currency_field="currency_id", compute="_compute_difference",
+                                      store=True)
 
     notes = fields.Text(string="Observaciones")
+
+    route_line_ids = fields.One2many(
+        "dispatch.route.reception.line",
+        "reception_id",
+        string="Facturas de ruta",
+        domain=[("is_outside_route", "=", False)],
+    )
+
+    outside_line_ids = fields.One2many(
+        "dispatch.route.reception.line",
+        "reception_id",
+        string="Facturas fuera de ruta",
+        domain=[("is_outside_route", "=", True)],
+    )
 
     line_ids = fields.One2many("dispatch.route.reception.line", "reception_id", string="Facturas")
 
@@ -198,14 +216,28 @@ class DispatchRouteReception(models.Model):
     ### CARGAR TODOS LOS DUCMENTOS RELACIONADOS A LA RUTA
     def _prepare_lines_from_route(self, route):
         """ construye comando O2M para line_ids desde las facturas de la ruta """
+        outside_orders = self.env["sale.order"].search([
+            ("dispatch_route_id", "=", route.id),
+            ("id", "not in", route.sale_order_ids.ids),
+        ])
+        orders = self.env["sale.order"].search([
+            ("dispatch_route_id", "=", route.id),
+            ("id", "in", route.sale_order_ids.ids),
+        ])
+
+
+        _logger.info("-- ROUTES OUTISDE ORDERS %s", outside_orders)
+        _logger.info("-- ROUTES ORDERS %s", orders)
+
         _logger.info(
-            "[ROUTE %s] Iniciando preparación de líneas desde facturas (%s documentos)",
-            route.id,
-            len(route.sale_order_ids),
+            "[ROUTE %s] Preparando líneas | Órdenes ruta=%s | Órdenes fuera=%s",
+            route.id, len(route.sale_order_ids), len(outside_orders),
         )
 
-        lines_cmds = [(5, 0, 0)] # limpia lineas actuales
-        for mv in route.sale_order_ids:
+        all_orders = route.sale_order_ids | outside_orders
+
+        lines_cmds = [(5, 0, 0)]  # limpia lineas actuales
+        for mv in all_orders:
             _logger.debug(
                 "[ROUTE %s] Procesando factura %s (id=%s, payment_term=%s)",
                 route.id,
@@ -225,10 +257,12 @@ class DispatchRouteReception(models.Model):
                 mv.name,
                 is_credit,
             )
+            is_outside = mv.id not in route.sale_order_ids.ids
             lines_cmds.append((0, 0, {
                 "order_id": mv.id,
                 "status": "delivered",
                 "is_credit": is_credit,
+                "is_outside_route": is_outside,
             }))
         return lines_cmds
 
@@ -309,6 +343,7 @@ class DispatchRouteReception(models.Model):
 
         return self.env.ref("l10n_sv_despacho.action_report_recepcion_ruta").report_action(self)
 
+
 class DispatchRouteInvoiceReturnLine(models.Model):
     _name = "dispatch.route.invoice.return.line"
     _description = "Línea devolución factura ruta"
@@ -337,46 +372,4 @@ class DispatchRouteInvoiceReturnLine(models.Model):
         for ln in self:
             if ln.product_id and not ln.uom_id:
                 ln.uom_id = ln.product_id.uom_id.id
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
