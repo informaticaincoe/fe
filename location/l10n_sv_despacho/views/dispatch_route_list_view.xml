@@ -6,6 +6,7 @@
             <list>
                 <field name="code_route" readonly="True"/>
                 <field name="sale_order_ids" widget="many2many_tags"/>
+                <field name="outside_route_sales_order_ids" widget="many2many_tags"/>
                 <field name="route_date"/>
                 <field name="vehicle_id"/>
                 <field name="capacity_list_view"/>
