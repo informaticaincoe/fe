@@ -1420,6 +1420,32 @@ class AccountMove(models.Model):
         # Retornamos la acción del reporte configurado
         return reporte.report_action(self)
 
+    @api.model
+    def _get_default_journal(self):
+        journal = super()._get_default_journal()
+        # Si el journal por defecto tiene sit_tipo_documento, no usarlo
+        if journal and journal.sit_tipo_documento and not self.env.context.get('from_sale_order'):
+            return self.env['account.journal'].search([
+                ('sit_tipo_documento', '=', False),
+                ('type', '=', journal.type),
+                ('company_id', '=', self.env.company.id)
+            ], limit=1)
+        return journal
+
+    @api.depends('move_type', 'company_id')
+    def _compute_suitable_journal_ids(self):
+        super()._compute_suitable_journal_ids()
+        for move in self:
+            # Viene de una orden de venta si tiene origin o líneas ligadas a SO
+            from_sale = (
+                    move.invoice_origin or
+                    any(line.sale_line_ids for line in move.invoice_line_ids)
+            )
+            if not from_sale:
+                move.suitable_journal_ids = move.suitable_journal_ids.filtered(
+                    lambda j: not j.sit_tipo_documento
+                )
+
 class AccountMoveSend(models.AbstractModel):
     _inherit = 'account.move.send'
 
