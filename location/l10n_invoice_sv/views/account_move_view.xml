@@ -48,15 +48,16 @@
                     </group>
 
                     <group name="group_retenciones"  string="Retenciones" col="2" invisible="not move_type in ('out_invoice', 'out_refund', 'in_invoice') or not codigo_tipo_documento or codigo_tipo_documento == '11' or not sit_facturacion">
-                        <field name="apply_retencion_renta"  invisible="not codigo_tipo_documento in ('01', '03', '14')"/>
+                        <field name="apply_retencion_renta"  invisible="not codigo_tipo_documento in ('01', '03', '14')" readonly="state == 'posted'"/>
+                        <field name="apply_renta_20"  invisible="not codigo_tipo_documento in ('14')" readonly="state == 'posted'"/>
                         <field name="retencion_renta_amount" readonly="1" widget="monetary"
                                options="{'currency_field': 'currency_id'}" invisible="not codigo_tipo_documento in ('01', '03', '14')"/>
 
-                        <field name="apply_retencion_iva"/>
+                        <field name="apply_retencion_iva" readonly="state == 'posted'"/>
                         <field name="retencion_iva_amount" readonly="1" widget="monetary"
                                options="{'currency_field': 'currency_id'}"/>
 
-                        <field name="apply_iva_percibido" invisible="not codigo_tipo_documento in ('03', '05', '06')"/>
+                        <field name="apply_iva_percibido" invisible="not codigo_tipo_documento in ('03', '05', '06')" readonly="state == 'posted'"/>
                         <field name="iva_percibido_amount" invisible="not codigo_tipo_documento in ('03', '05', '06')" readonly="1" widget="monetary" options="{'currency_field': 'currency_id'}"/>
 
                     </group>

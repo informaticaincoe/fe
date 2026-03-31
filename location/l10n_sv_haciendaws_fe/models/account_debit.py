@@ -360,6 +360,7 @@ class AccountDebitNote(models.TransientModel):
             new_move.descuento_global_monto = 0.0
             new_move.descuento_global = 0.0
             new_move.apply_retencion_renta = False
+            new_move.apply_renta_20 = False
             new_move.retencion_renta_amount = 0.0
 
             # Determinar nombre final

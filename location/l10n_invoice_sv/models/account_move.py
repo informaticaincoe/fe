@@ -45,7 +45,8 @@ class AccountMove(models.Model):
     retencion_iva_amount = fields.Monetary(string="Monto Retención IVA", currency_field='currency_id',
                                            compute='_compute_retencion', readonly=True, store=True, default=0.0)
 
-    apply_retencion_renta = fields.Boolean(string="Aplicar Retención Renta", default=False)
+    apply_retencion_renta = fields.Boolean(string="Aplicar Renta 10%", default=False)
+    apply_renta_20 = fields.Boolean(string="Aplicar Renta 20%", default=False)
     retencion_renta_amount = fields.Monetary(string="Monto Retención Renta", currency_field='currency_id',
                                            compute='_compute_retencion', readonly=True, store=True, default=0.0)
 
@@ -254,7 +255,7 @@ class AccountMove(models.Model):
             else:
                 move.total_pagar_text = to_word(move.total_pagar)
 
-    @api.depends('apply_retencion_renta', 'apply_retencion_iva', 'apply_iva_percibido', 'amount_total')
+    @api.depends('apply_retencion_renta', 'apply_renta_20', 'apply_retencion_iva', 'apply_iva_percibido', 'amount_total')
     def _compute_retencion(self):
         for move in self:
             """Reinicia los montos de retención e IVA percibido a cero."""
@@ -282,8 +283,12 @@ class AccountMove(models.Model):
 
             base_total = move.sub_total_ventas - move.descuento_global
 
+            _logger.info(" Retencion (10): %s | (20): %s ", move.apply_retencion_renta, move.apply_renta_20)
             if move.apply_retencion_renta:
                 move.retencion_renta_amount = base_total * 0.10
+                move.apply_renta_20 = False
+            elif move.apply_renta_20:
+                move.retencion_renta_amount = base_total * 0.20
 
             _logger.info("base total %s", base_total)
             _logger.info(" move.retencion_renta_amount %s",  move.retencion_renta_amount)
@@ -323,6 +328,17 @@ class AccountMove(models.Model):
             if move.apply_iva_percibido and tipo_doc.codigo in [constants.COD_DTE_CCF, constants.COD_DTE_NC, constants.COD_DTE_ND]:
                 iva_percibido_amount = (move.sub_total_ventas - move.descuento_global) * iva_percibido
                 move.iva_percibido_amount = float_round(iva_percibido_amount, precision_rounding=move.currency_id.rounding)
+
+    @api.onchange('apply_renta_20')
+    def _onchange_renta_20(self):
+        _logger.info("[ONCHANGE-ACCOUNT MOVE] Retencion (20): %s Retencion (10): %s", self.apply_renta_20, self.apply_retencion_renta)
+        if self.apply_renta_20:
+            self.apply_retencion_renta = False
+        elif self.apply_retencion_renta:
+            self.apply_renta_20 = False
+        else:
+            self.apply_retencion_renta = False
+            self.apply_renta_20 = False
 
     @api.depends('amount_total')
     def _amount_to_text(self):
@@ -776,7 +792,7 @@ class AccountMove(models.Model):
 
     @api.depends('descuento_gravado', 'descuento_exento', 'descuento_no_sujeto',
                  'invoice_line_ids.price_unit', 'invoice_line_ids.quantity', 'invoice_line_ids.discount',
-                 'apply_retencion_renta', 'apply_retencion_iva', 'retencion_renta_amount', 'retencion_iva_amount')
+                 'apply_retencion_renta', 'apply_renta_20', 'apply_retencion_iva', 'retencion_renta_amount', 'retencion_iva_amount')
     def _compute_total_descuento(self):
         """
         Calcula el total de descuentos aplicables en facturas o compras con facturación activa.
@@ -854,7 +870,7 @@ class AccountMove(models.Model):
             _logger.info(f"Descuentos gravados: {move.descuento_gravado}, exentos: {move.descuento_exento}, no sujetos: {move.descuento_no_sujeto}")
 
     @api.depends('amount_total', 'descuento_global', 'sub_total_ventas', 'descuento_no_sujeto', 'descuento_exento',
-                 'descuento_gravado', 'amount_tax', 'apply_retencion_renta', 'apply_retencion_iva',
+                 'descuento_gravado', 'amount_tax', 'apply_retencion_renta', 'apply_renta_20', 'apply_retencion_iva',
                  'apply_iva_percibido', 'seguro', 'flete')
     def _compute_total_con_descuento(self):
         """
@@ -1118,7 +1134,7 @@ class AccountMove(models.Model):
             _logger.info("SIT | Nota de credito o Sujeto excluido= %s", es_nota_credito_o_sujeto_excluido)
 
             # Retención de Renta
-            if move.apply_retencion_renta and move.retencion_renta_amount > 0:
+            if (move.apply_retencion_renta or move.apply_renta_20) and move.retencion_renta_amount > 0:
                 cuenta_renta = move.company_id.retencion_renta_account_id
                 _logger.info(f"Cuenta de retencion de renta= {cuenta_renta}")
                 if cuenta_renta:

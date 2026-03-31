@@ -33,7 +33,7 @@ class SaleOrder(models.Model):
     retencion_iva_amount = fields.Monetary(string="Monto Retención IVA", currency_field='currency_id', tracking=True,
                                            compute='_compute_retencion_sale', readonly=True, store=True, default=0.0)
 
-    apply_retencion_renta = fields.Boolean(string="Aplicar Retención Renta", default=False)
+    apply_retencion_renta = fields.Boolean(string="Aplicar Renta 10%", default=False)
     retencion_renta_amount = fields.Monetary(string="Monto Retención Renta", currency_field='currency_id', tracking=True,
                                              compute='_compute_retencion_sale', readonly=True, store=True, default=0.0)
 
