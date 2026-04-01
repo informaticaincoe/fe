@@ -62,7 +62,7 @@ class ReportAccountMoveConsumidorFinalAgrupado(models.TransientModel):
     has_sello_anulacion = fields.Boolean(
         compute="_compute_has_sello_anulacion",
         search="_search_has_sello_anulacion",
-        store=False,
+        store=True,
     )
 
     def _search_has_sello_anulacion(self, operator, value):
