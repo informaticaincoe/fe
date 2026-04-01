@@ -177,7 +177,7 @@ class account_move(models.Model):
         string="Tipo de documento",
         compute="_compute_sit_tipo_documento",
         readonly=True,
-        store=False,
+        store=True,
     )
 
     has_sello_anulacion = fields.Boolean(
@@ -517,7 +517,8 @@ class account_move(models.Model):
         for doc in self:
             doc.codigo_tipo_documento_compra_display = f"{doc.sit_tipo_documento_id.codigo}. {doc.sit_tipo_documento_id.valores}"
 
-    @api.depends('name')
+    # @api.depends('name')
+    @api.depends('sit_tipo_documento_id', 'sit_tipo_documento_id.codigo')
     def _compute_sit_tipo_documento(self):
         for record in self:
             record.sit_tipo_documento = record.sit_tipo_documento_id.codigo
