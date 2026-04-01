@@ -79,7 +79,7 @@ class svDteRetencionRecibida1(models.Model):
         string="Tiene Sello Anulación",
         compute="_compute_has_sello_anulacion",
         search="_search_has_sello_anulacion",
-        store=False,
+        store=True,
         readonly=True,
         index=True,
     )
