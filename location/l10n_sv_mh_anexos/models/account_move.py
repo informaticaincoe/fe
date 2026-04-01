@@ -518,7 +518,7 @@ class account_move(models.Model):
             doc.codigo_tipo_documento_compra_display = f"{doc.sit_tipo_documento_id.codigo}. {doc.sit_tipo_documento_id.valores}"
 
     # @api.depends('name')
-    @api.depends('sit_tipo_documento_id', 'sit_tipo_documento_id.codigo')
+    @api.depends('sit_tipo_documento_id')
     def _compute_sit_tipo_documento(self):
         for record in self:
             try:
