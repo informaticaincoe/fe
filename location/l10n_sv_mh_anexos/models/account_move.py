@@ -518,10 +518,13 @@ class account_move(models.Model):
             doc.codigo_tipo_documento_compra_display = f"{doc.sit_tipo_documento_id.codigo}. {doc.sit_tipo_documento_id.valores}"
 
     # @api.depends('name')
-    @api.depends('sit_tipo_documento_id', 'sit_tipo_documento_id.codigo')
+    @api.depends('sit_tipo_documento_id')
     def _compute_sit_tipo_documento(self):
         for record in self:
-            record.sit_tipo_documento = record.sit_tipo_documento_id.codigo
+            try:
+                record.sit_tipo_documento = record.sit_tipo_documento_id.codigo if record.sit_tipo_documento_id else False
+            except Exception:
+                record.sit_tipo_documento = False
 
     @api.depends('sit_evento_invalidacion', 'sit_evento_invalidacion.hacienda_selloRecibido_anulacion')
     def _compute_has_sello_anulacion(self):
